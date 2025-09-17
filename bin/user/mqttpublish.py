@@ -589,8 +589,10 @@ class MQTTPublish(StdService):
 
     def configure_topics(self, service_dict):
         """ Configure the topics. """
-        topic_dict = service_dict.get('topics', None)
-        if topic_dict is None:
+        # ToDo: cleanup 'topic_dic1' once tests are in place
+        topic_dict1 = service_dict.get('topics', None)
+
+        if topic_dict1 is None:
             raise ValueError("[[topics]] is required.")
 
         default_qos = to_int(service_dict.get('qos', 0))
@@ -604,8 +606,8 @@ class MQTTPublish(StdService):
 
         topics_loop = {}
         topics_archive = {}
-        for topic in topic_dict.sections:
-            topic_dict = topic_dict.get(topic, {})
+        for topic in topic_dict1.sections:
+            topic_dict = topic_dict1.get(topic, {})
             publish = to_bool(topic_dict.get('publish', True))
             qos = to_int(topic_dict.get('qos', default_qos))
             retain = to_bool(topic_dict.get('retain', default_retain))
