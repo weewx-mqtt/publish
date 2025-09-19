@@ -33,11 +33,13 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        python -m pip install coverage coveralls configobj flake8 mock paho-mqtt pytest pytest-cov pytest-html weewx==${{ matrix.weewx-version }}
-        echo "rmb01"
-        exit 0
-        echo "rmb02"
-        python -m pip install weewx==${{ matrix.weewx-version }}
+        python -m pip install coverage coveralls configobj flake8 mock paho-mqtt pytest pytest-cov pytest-html
+        WEEWX_VERSION=${{matrix.weewx-version}}
+        if [ ${WEEWX_VERSION:0:6} == 'branch' ]; then
+          pip install git+https://github.com/weewx/weewx.git@${WEEWX_VERSION:7}
+        else
+          python -m pip install weewx==${{ matrix.weewx-version }}
+        fi
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
     
     - name: Lint with flake8
