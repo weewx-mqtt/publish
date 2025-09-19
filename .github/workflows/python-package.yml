@@ -21,7 +21,7 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14.0-rc.2"]
-        weewx-version: ["5.0.0", "5.1.0"]
+        weewx-version: ["5.0.0", "5.1.0", "branch-master", "branch-development"]
 
     steps:
     - uses: actions/checkout@v4
@@ -34,6 +34,10 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         python -m pip install coverage coveralls configobj flake8 mock paho-mqtt pytest pytest-cov pytest-html weewx==${{ matrix.weewx-version }}
+        echo "rmb01"
+        exit 0
+        echo "rmb02"
+        python -m pip install weewx==${{ matrix.weewx-version }}
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
     
     - name: Lint with flake8
