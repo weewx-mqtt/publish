@@ -1,15 +1,17 @@
-name: Matrix analyze and test
+name: Test the full analyze and test workflow
 
 on:
   push:
     branches: [ "master" ]
+  release:
+    types: [published]
   workflow_dispatch:
 
 jobs:
   analyze-test:
     uses: weewx-extensions/development_tools/.github/workflows/full-analyze-test.yml@v2.0.0
     with:
-      module-name: 'MQTTSubscribe'
+      module-name: 'mqttpublish'
       pip-list: 'paho-mqtt'
       package-list: 'mosquitto'
       integration-test: false
