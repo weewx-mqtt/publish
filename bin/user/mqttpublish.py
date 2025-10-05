@@ -199,7 +199,7 @@ class AbstractPublisher(abc.ABC):
             self.config_tls(tls_dict)
 
         self.lwt_dict = mqtt_config.get('lwt')
-        if self.lwt_dict:
+        if self.lwt_dict and to_bool(self.lwt_dict.get('enable', True)):
             self.client.will_set(topic=self.lwt_dict.get('topic', 'status'),
                                  payload=self.lwt_dict.get('offline_payload', 'offline'),
                                  qos=to_int(self.lwt_dict.get('qos', 0)),
@@ -389,7 +389,7 @@ class PublisherV1(AbstractPublisher):
         # 6-255: Currently unused.
         loginf(f"Connected with result code {int(rc)}, {mqtt.error_string(rc)}")
         loginf(f"Connected flags {str(flags)}")
-        if self.lwt_dict:
+        if self.lwt_dict and to_bool(self.lwt_dict.get('enable', True)):
             self.client.publish(topic=self.lwt_dict.get('topic', 'status'),
                                 payload=self.lwt_dict.get('online_payload', 'online'),
                                 qos=to_int(self.lwt_dict.get('qos', 0)),
@@ -448,7 +448,7 @@ class PublisherV2(AbstractPublisher):
         """ The on_connect callback. """
         loginf(f"Connected with result code {int(int(reason_code.value))}")
         loginf(f"Connected flags {str(flags)}")
-        if self.lwt_dict:
+        if self.lwt_dict and to_bool(self.lwt_dict.get('enable', True)):
             self.client.publish(topic=self.lwt_dict.get('topic', 'status'),
                                 payload=self.lwt_dict.get('online_payload', 'online'),
                                 qos=to_int(self.lwt_dict.get('qos', 0)),
