@@ -195,7 +195,7 @@ class AbstractPublisher(abc.ABC):
             self.client.username_pw_set(mqtt_config['username'], mqtt_config['password'])
 
         tls_dict = mqtt_config.get('tls')
-        if tls_dict:
+        if tls_dict and to_bool(tls_dict.get('enable', True)):
             self.config_tls(tls_dict)
 
         self.lwt_dict = mqtt_config.get('lwt')
