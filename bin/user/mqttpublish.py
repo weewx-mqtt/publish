@@ -632,7 +632,7 @@ class MQTTPublish(StdService):
                                                format_string)
 
             aggregates = topic_dict.get('aggregates', {})
-            if aggregates:
+            if aggregates and to_bool(aggregates.get('enable'), True):
                 for aggregate in aggregates:
                     if aggregates[aggregate]['period'] not in period_timespan:
                         raise ValueError(f"Invalid 'period', {aggregates[aggregate]['period']}")
