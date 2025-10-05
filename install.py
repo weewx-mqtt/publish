@@ -56,7 +56,8 @@ class MQTTPublishInstaller(ExtensionInstaller):
         install_dict = {
             'version': VERSION,
             'name': 'MQTTPublish',
-            'description': 'Publish WeeWX data to a MQTT broker.',
+            # add a leading space, so that long versions does not run into the description
+            'description': ' Publish WeeWX data to a MQTT broker.',
             'author': "Rich Bell",
             'author_email': "bellrichm@gmail.com",
             'files': [('bin/user', ['bin/user/mqttpublish.py'])]
