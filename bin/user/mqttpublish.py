@@ -1,113 +1,5 @@
 """
-Publish to MQTT.
-Supports publishing "immediately" on loop or archive creation.
-And/Or publishing from an externa/persistent queue.
-
-Configuration:
-[MQTTPublish]
-    [[PublishWeeWX]]
-        # Whether the service is enabled or not.
-        # Valid values: True or False
-        # Default is True.
-        enable = True
-
-        # The binding, loop or archive.
-        # Default is loop.
-        # Only used by the service.
-        binding = loop
-
-        # Controls the MQTT logging.
-        # Default is false.
-        log = false
-
-        # The clientid to connect with.
-        # Service default is MQTTSubscribeService-xxxx.
-        # Driver default is MQTTSubscribeDriver-xxxx.
-        #    Where xxxx is a random number between 1000 and 9999.
-        clientid =
-
-        # The MQTT server.
-        # Default is localhost.
-        host = localhost
-
-        # The port to connect to.
-        # Default is 1883.
-        port = 1883
-
-        # The protocol to use
-        # Valid values: MQTTv31, MQTTv311
-        # Default is MQTTv311,
-        protocol = MQTTv311
-
-        # Maximum period in seconds allowed between communications with the broker.
-        # Default is 60.
-        keepalive = 60
-
-        # username for broker authentication.
-        # Default is None.
-        username = None
-
-        # password for broker authentication.
-        # Default is None.
-        password = None
-
-        [[[lwt]]]
-            # The topic that the will message should be published on.
-            # Default is 'status'.
-            topic = 'status'
-
-            # Default is 'online'.
-            online_payload ='online'
-
-            # The message to send as a will.
-            # Default is 'offline'.
-            offline_payload = offline
-
-            # he quality of service level to use for the will.
-            # Default is 0
-            qos = 0
-
-            # If set to true, the will message will be set as the "last known good"/retained message for the topic.
-            # The default is True.
-            retain = True
-
-        [[[Topics]]]
-            [[[[first/topic]]]]
-            # Controls if the topic is published.
-            # Default is True.
-            publish = True
-
-            # The QOS level to subscribe to.
-            # Default is 0
-            qos = 0
-
-            # The MQTT retain flag.
-            # The default is False.
-            retain = False
-
-            # Controls if the unit label is appended to the field name.
-            # Default is True.
-            append_unit_label = True
-
-            # The unit system for data published to this topic.
-            # The default is US.
-            unit_system = US
-
-            # The aggregations to perform
-            [[[[[aggregates]]]]]
-                # The name of the observation in the MQTT payload.
-                # This can be any name. For example: rainSumDay, outTempMinHour, etc
-                [[[[[[aggregateObservationName]]]]]]
-                    # The WeeWX observation to aggregate, rain, outTemp, etc,
-                    observation =
-
-                    # The type of aggregation to perform.
-                    # See, https://www.weewx.com/docs/customizing.htm#aggregation_types
-                    aggregation = max
-
-                    # The time period over which the aggregation shoulf occurr.
-                    # Valid values: hour, day, week, month, year, yesterday, last24hours, last7days, last31days, last366days
-                    period =
+Publish to MQTT on loop or archive creation.
 """
 
 import queue as Queue
@@ -528,11 +420,10 @@ class MQTTPublish(StdService):
         self.topics_loop, self.topics_archive = self.configure_topics(service_dict)
 
         self.mqtt_config = {}
-        self.mqtt_config['wait_before_retry'] = float(service_dict.get('wait_before_retry', 2))
         self.mqtt_config['keepalive'] = to_int(service_dict.get('keepalive', 60))
 
         self.mqtt_config['max_retries'] = to_int(service_dict.get('max_retries', 5))
-        self.mqtt_config['log_mqtt'] = to_bool(service_dict.get('log', False))
+        self.mqtt_config['log_mqtt'] = to_bool(service_dict.get('mqtt_log', False))
         self.mqtt_config['host'] = service_dict.get('host', 'localhost')
         self.mqtt_config['port'] = to_int(service_dict.get('port', 1883))
         self.mqtt_config['username'] = service_dict.get('username', None)
@@ -551,6 +442,7 @@ class MQTTPublish(StdService):
         self.thread_restarts = 0
 
         # todo, tie this into the topic bindings somehow...
+        # But note, this is also the default setting for topics
         binding = weeutil.weeutil.option_as_list(service_dict.get('binding', ['archive', 'loop']))
 
         self.data_queue = Queue.Queue()
@@ -632,16 +524,15 @@ class MQTTPublish(StdService):
                                                format_string)
 
             aggregates = topic_dict.get('aggregates', {})
-            if aggregates and to_bool(aggregates.get('enable'), True):
-                for aggregate in aggregates:
-                    if aggregates[aggregate]['period'] not in period_timespan:
-                        raise ValueError(f"Invalid 'period', {aggregates[aggregate]['period']}")
-                weeutil.config.merge_config(aggregates, self.configure_fields(aggregates,
-                                                                              ignore,
-                                                                              publish_none_value,
-                                                                              append_unit_label,
-                                                                              conversion_type,
-                                                                              format_string))
+            for aggregate in aggregates:
+                if to_bool(aggregates[aggregate].get('enable', True)) and aggregates[aggregate]['period'] not in period_timespan:
+                    raise ValueError(f"Invalid 'period', {aggregates[aggregate]['period']}")
+            weeutil.config.merge_config(aggregates, self.configure_fields(aggregates,
+                                                                          ignore,
+                                                                          publish_none_value,
+                                                                          append_unit_label,
+                                                                          conversion_type,
+                                                                          format_string))
 
             # logdbg("Configured aggregates: %s" % aggregates)
 
@@ -800,6 +691,8 @@ class PublishWeeWXThread(threading.Thread):
 
         for aggregate_observation in topic_dict['aggregates']:
             # logdbg(topic_dict['aggregates'][aggregate_observation])
+            if not to_bool(topic_dict['aggregates'][aggregate_observation].get('enable', True)):
+                continue
 
             time_span = period_timespan[topic_dict['aggregates'][aggregate_observation]['period']](record['dateTime'])
 
