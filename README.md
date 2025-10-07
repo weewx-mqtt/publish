@@ -25,9 +25,10 @@ Currently MQTT payloads of json, keyword (field1=value, field2=value..), and ind
 
 This extension is installed using the [weectl extension utility](https://www.weewx.com/docs/5.0/utilities/weectl-extension/).
 
-The latest release can be installed with the invocation
-
-```weectl extension install https://github.com/weewx-mqtt/publish/archive/refs/tags/latest.zip```.
+The latest release can be installed with the invocation 
+```
+weectl extension install https://github.com/weewx-mqtt/publish/archive/refs/tags/latest.zip
+```
 
 If a specific version is desired, the invocation would look like `weectl extension install https://github.com/weewx-mqtt/publish/archive/refs/tags/vX.Y.Z.zip`-rc01.zip`; where X.Y.Z is the release.
 The list of releases can be found here, [https://github.com/weewx-mqtt/publish/releases](https://github.com/weewx-mqtt/publish/releases).
