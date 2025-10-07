@@ -24,23 +24,38 @@ Currently MQTT payloads of json, keyword (field1=value, field2=value..), and ind
 ## Installation
 
 This extension is installed using the [weectl extension utility](https://www.weewx.com/docs/5.0/utilities/weectl-extension/).
+The latest release can be installed with the invocation
 
-The latest release can be installed with the invocation 
-```
+```shell
 weectl extension install https://github.com/weewx-mqtt/publish/archive/refs/tags/latest.zip
 ```
 
-If a specific version is desired, the invocation would look like `weectl extension install https://github.com/weewx-mqtt/publish/archive/refs/tags/vX.Y.Z.zip`-rc01.zip`; where X.Y.Z is the release.
-The list of releases can be found here, [https://github.com/weewx-mqtt/publish/releases](https://github.com/weewx-mqtt/publish/releases).
+If a specific version is desired, the invocation would look like
 
-The version under development can be installed from the master branch.
-The invocation is, `weectl extension install https://github.com/weewx-mqtt/publish/archive/master.zip`,
+```shell
+weectl extension install https://github.com/weewx-mqtt/publish/archive/refs/tags/vX.Y.Z.zip
+```
 
-### WeeWX package install
+where X.Y.Z is the release.
+The list of releases can be found at [https://github.com/weewx-mqtt/publish/releases](https://github.com/weewx-mqtt/publish/releases).
 
-some note about having to logout/login for group update to take affect...
+The version under development can be installed from the master branch using the following invocation
 
-### WeeWX pip install
+```shell
+weectl extension install https://github.com/weewx-mqtt/publish/archive/master.zip
+```
+
+Where `master` is the branch name.
+
+*Note:* WeeWX 'package' installs add the user that performed the install to the `weewx` group.
+This means that this user should not need to use `sudo` to install the `weewx-mqtt/publish` extension.
+**But** in order to for this update to the `weewx` group to take affect, the user has to have logged out/in at least once or use one of the other methods that can be found on the web
+
+*Note:* WeeWX pip installs that install WeeWX into a `Python virtual environment`, must 'activate' the environment performing the install. A typical invocation would look like this.
+
+```shell
+source ~/weewx-venv/bin/activate
+```
 
 ## Customizing
 
