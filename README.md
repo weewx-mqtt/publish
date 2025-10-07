@@ -6,29 +6,6 @@ A Weewx service publishes data to multiple MQTT topics.
 
 Currently MQTT payloads of json, keyword (field1=value, field2=value..), and individual (each topic contains a single observation) are supported.
 
-## Prerequisites
-
-* Python 3.9 or higher
-  Note: Early versions of Python 3 may work, but have not been explicitly tested.
-* WeeWX 5.0 or higher
-* [Paho MQTT Python client](https://pypi.org/project/paho-mqtt/)
-
-## Installation notes
-
-Because there are [multiple methods to install WeeWX](http://weewx.com/docs/usersguide.htm#installation_methods), location of files can vary.
-See [where to find things](http://weewx.com/docs/usersguide.htm#Where_to_find_things)
-in the WeeWX [User's Guide](http://weewx.com/docs/usersguide.htm") for the definitive information.
-The following symbolic names are used to define the various locations:
-
-* *$DOWNLOAD_ROOT* - The directory containing the downloaded *weewx-aqi-xtype* extension.
-* *$BIN_ROOT* - The directory where WeeWX executables are located.
-* *$CONFIG_ROOT* - The directory where the configuration (typically, weewx.conf) is located.
-
-The notation vX.Y.Z designates the version being installed.
-X.Y.Z is the release.
-
-Prior to making any updates/changes, always make a backup.
-
 ## Preqrequisites
 
 |Prerequisite                                                   |Version                  |
@@ -45,6 +22,22 @@ Prior to making any updates/changes, always make a backup.
 *Note:* Not all 'supported' versions of MQTT have been tested.
 
 ## Installation
+
+This extension is installed using the [weectl extension utility](https://www.weewx.com/docs/5.0/utilities/weectl-extension/).
+
+The latest release can be installed with the invocation ```weectl extension install https://github.com/weewx-mqtt/publish/archive/refs/tags/latest.zip```.
+
+If a specific version is desired, the invocation would look like `weectl extension install https://github.com/weewx-mqtt/publish/archive/refs/tags/vX.Y.Z.zip`-rc01.zip`; where X.Y.Z is the release.
+The list of releases can be found here, [https://github.com/weewx-mqtt/publish/releases](https://github.com/weewx-mqtt/publish/releases).
+
+The version under development can be installed from the master branch.
+The invocation is, `weectl extension install https://github.com/weewx-mqtt/publish/archive/master.zip`,
+
+### WeeWX package install
+
+some note about having to logout/login for group update to take affect...
+
+### WeeWX pip install
 
 ## Customizing
 
