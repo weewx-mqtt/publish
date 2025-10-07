@@ -465,16 +465,17 @@ class MQTTPublish(StdService):
                          format_string):
         """ Configure the fields. """
         fields = {}
-        for field in fields_dict.sections:
-            fields[field] = {}
-            field_dict = fields_dict.get(field, {})
-            fields[field]['name'] = field_dict.get('name', field)
-            fields[field]['unit'] = field_dict.get('unit', None)
-            fields[field]['ignore'] = to_bool(field_dict.get('ignore', ignore))
-            fields[field]['publish_none_value'] = to_bool(field_dict.get('publish_none_value', publish_none_value))
-            fields[field]['append_unit_label'] = to_bool(field_dict.get('append_unit_label', append_unit_label))
-            fields[field]['conversion_type'] = field_dict.get('conversion_type', conversion_type)
-            fields[field]['format_string'] = field_dict.get('format_string', format_string)
+        if fields_dict:
+            for field in fields_dict.sections:
+                fields[field] = {}
+                field_dict = fields_dict.get(field, {})
+                fields[field]['name'] = field_dict.get('name', field)
+                fields[field]['unit'] = field_dict.get('unit', None)
+                fields[field]['ignore'] = to_bool(field_dict.get('ignore', ignore))
+                fields[field]['publish_none_value'] = to_bool(field_dict.get('publish_none_value', publish_none_value))
+                fields[field]['append_unit_label'] = to_bool(field_dict.get('append_unit_label', append_unit_label))
+                fields[field]['conversion_type'] = field_dict.get('conversion_type', conversion_type)
+                fields[field]['format_string'] = field_dict.get('format_string', format_string)
 
         # logdbg("Configured fields: %s" % fields)
         return fields
@@ -524,15 +525,16 @@ class MQTTPublish(StdService):
                                                format_string)
 
             aggregates = topic_dict.get('aggregates', {})
-            for aggregate in aggregates:
-                if to_bool(aggregates[aggregate].get('enable', True)) and aggregates[aggregate]['period'] not in period_timespan:
-                    raise ValueError(f"Invalid 'period', {aggregates[aggregate]['period']}")
-            weeutil.config.merge_config(aggregates, self.configure_fields(aggregates,
-                                                                          ignore,
-                                                                          publish_none_value,
-                                                                          append_unit_label,
-                                                                          conversion_type,
-                                                                          format_string))
+            if aggregates:
+                for aggregate in aggregates:
+                    if to_bool(aggregates[aggregate].get('enable', True)) and aggregates[aggregate]['period'] not in period_timespan:
+                        raise ValueError(f"Invalid 'period', {aggregates[aggregate]['period']}")
+                weeutil.config.merge_config(aggregates, self.configure_fields(aggregates,
+                                                                              ignore,
+                                                                              publish_none_value,
+                                                                              append_unit_label,
+                                                                              conversion_type,
+                                                                              format_string))
 
             # logdbg("Configured aggregates: %s" % aggregates)
 
