@@ -28,8 +28,7 @@ MQTTPUBLISH_CONFIG = """
     log_mqtt = false
 
     # The clientid to connect with.
-    # Service default is MQTTSubscribeService-xxxx.
-    # Driver default is MQTTSubscribeDriver-xxxx.
+    # Default is MQTTPublish-xxxx.
     #    Where xxxx is a random number between 1000 and 9999.
     clientid =
 
@@ -129,7 +128,7 @@ MQTTPUBLISH_CONFIG = """
             # Default is 'archive, loop'.
             binding = archive, loop
 
-            # The QOS level to subscribe to.
+            # The QOS level to publish to.
             # Default is 0
             qos = 0
 
