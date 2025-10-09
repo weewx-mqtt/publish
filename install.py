@@ -19,14 +19,14 @@ MQTTPUBLISH_CONFIG = """
     # Default is true.
     enable = false
 
-    # The maximum number of times to try to reconnect.
-    # Default is 5.
-    max_retries = 5
-
     # Controls the MQTT logging.
     # Default is false.
     log_mqtt = false
-
+    
+    # The maximum number of times to try to reconnect.
+    # Default is 5.
+    max_retries = 5
+    
     # The clientid to connect with.
     # Default is MQTTPublish-xxxx.
     #    Where xxxx is a random number between 1000 and 9999.
@@ -36,18 +36,18 @@ MQTTPUBLISH_CONFIG = """
     # Default is localhost.
     host = localhost
 
+    # Maximum period in seconds allowed between communications with the broker.
+    # Default is 60.
+    keepalive = 60
+
     # The port to connect to.
     # Default is 1883.
     port = 1883
 
-    # The protocol to use
+    # The MQTT protocol to use
     # Valid values: MQTTv31, MQTTv311, MQTTv5
     # Default is MQTTv311,
     protocol = MQTTv311
-
-    # Maximum period in seconds allowed between communications with the broker.
-    # Default is 60.
-    keepalive = 60
 
     # username for broker authentication.
     # Default is None.
