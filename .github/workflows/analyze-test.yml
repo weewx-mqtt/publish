@@ -1,22 +1,19 @@
-name: Test the analyze and test workflow
+name: Analyze and test
 
 on:
   push:
     branches-ignore: [ "master" ]
-  workflow_dispatch:
 
 jobs:
   analyze-test:
-    uses: weewx-extensions/development_tools/.github/workflows/analyze-test.yml@v2.0.0
+    uses: weewx-extensions/development_tools/.github/workflows/analyze-test.yml@v3
     with:
       module-name: 'mqttpublish'
-      python-version: '3.13'
-      weewx-version: '5.1.0'
-      latest-python-version: '3.13'
-      latest-weewx-version: '5.1.0'
       pip-list: 'paho-mqtt'
       package-list: 'mosquitto'
       integration-test: false
+      e2e-test: false
+      #flake-extra-parms: '--exclude tests'
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

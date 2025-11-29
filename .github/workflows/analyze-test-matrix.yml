@@ -1,20 +1,35 @@
-name: Test the full analyze and test workflow
+name: Analyze and test matrix
 
 on:
   push:
     branches: [ "master" ]
-  release:
-    types: [published]
   workflow_dispatch:
 
 jobs:
   analyze-test:
-    uses: weewx-extensions/development_tools/.github/workflows/full-analyze-test.yml@v2.0.0
+    uses: weewx-extensions/development_tools/.github/workflows/full-analyze-test.yml@v3
     with:
       module-name: 'mqttpublish'
       pip-list: 'paho-mqtt'
       package-list: 'mosquitto'
       integration-test: false
+      e2e-test: false
+      #flake-extra-parms: '--exclude tests'
+    secrets:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  # Run tests agains paho-mqtt 1.6.1
+  analyze-test-paho-mqtt-1-6-1:
+    uses: weewx-extensions/development_tools/.github/workflows/analyze-test.yml@v3
+    with:
+      module-name: 'mqttpublish'
+      pip-list: 'paho-mqtt==1.6.1'
+      package-list: 'mosquitto'
+      artifact-name-suffix: '-2'
+      integration-test: false
+      e2e-test: false
+      #flake-extra-parms: '--exclude tests'
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
