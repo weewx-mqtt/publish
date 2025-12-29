@@ -3,12 +3,8 @@
     //"python.linting.pylintEnabled": false,
 
     "python.linting.enabled": true,
-    "python.linting.flake8Enabled": true,
     //"python.linting.flake8Path": "${workspaceFolder}/.venv/bin/flake8", // Adjust path to your venv
     "flake8.importStrategy": "fromEnvironment", 
-    "flake8.args": [
-        "--config=${workspaceFolder}/.flake8" // Path to your project's .flake8 config
-    ],
 
     //"python.linting.flake8CategorySeverity.F": "Error",
     "//python.linting.flake8CategorySeverity.E": "Error",
