@@ -20,8 +20,8 @@ env:
   SPAWN_LOGS: "false" # "true" or "false"
 
 on:
-  #schedule:
-  #  - cron: '1 18 * * *'
+  schedule:
+    - cron: '7 0 * * *'
   # Allows manual workflow run (must in default branch to work)
   workflow_dispatch:
 
