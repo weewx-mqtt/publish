@@ -11,7 +11,7 @@ jobs:
       module-name: 'mqttpublish'
       pip-list: 'paho-mqtt'
       package-list: 'mosquitto'
-      function-tests: false
+      function-test: false
       integration-test: false
       e2e-test: false
       #flake-extra-parms: '--exclude tests'

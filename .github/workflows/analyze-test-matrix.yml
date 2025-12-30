@@ -12,7 +12,7 @@ jobs:
       module-name: 'mqttpublish'
       pip-list: 'paho-mqtt'
       package-list: 'mosquitto'
-      function-tests: false
+      function-test: false
       integration-test: false
       e2e-test: false
       #flake-extra-parms: '--exclude tests'
@@ -28,7 +28,7 @@ jobs:
       pip-list: 'paho-mqtt==1.6.1'
       package-list: 'mosquitto'
       artifact-name-suffix: '-2'
-      function-tests: false
+      function-test: false
       integration-test: false
       e2e-test: false
       #flake-extra-parms: '--exclude tests'
