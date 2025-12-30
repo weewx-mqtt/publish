@@ -4,7 +4,9 @@
 #
 
 import configobj
+import importlib
 import logging
+import sys
 
 import unittest
 import mock
@@ -35,8 +37,14 @@ class TestDeprecatedOptions(unittest.TestCase):
         print("end")
 
 if __name__ == '__main__':
-    test_suite = unittest.TestSuite()                                                    # noqa: E265
-    test_suite.addTest(TestDeprecatedOptions('test_PublishWeeWX_stanza_is_deprecated'))  # noqa: E265
-    unittest.TextTestRunner().run(test_suite)                                            # noqa: E265
+    filename = sys.argv[0].rsplit('/', 1)[-1]
+    module_name = filename.split('.', 11)[0]
+    module = importlib.import_module(module_name)
 
-    #unittest.main(exit=False)                                                           # noqa: E265
+    test_class = getattr(module, sys.argv[1])
+
+    test_suite = unittest.TestSuite()
+    test_suite.addTest(test_class(sys.argv[2]))
+    unittest.TextTestRunner().run(test_suite)
+
+    # unittest.main(exit=False)
