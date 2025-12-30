@@ -1,3 +1,8 @@
+#    Copyright (c) 2025 Rich Bell <bellrichm@gmail.com>
+#
+#    See the file LICENSE.txt for your full rights.
+#
+
 """ Installer for mqttpublish service.
 
 To uninstall run
@@ -22,11 +27,11 @@ MQTTPUBLISH_CONFIG = """
     # Controls the MQTT logging.
     # Default is false.
     log_mqtt = false
-    
+
     # The maximum number of times to try to reconnect.
     # Default is 5.
     max_retries = 5
-    
+
     # The clientid to connect with.
     # Default is MQTTPublish-xxxx.
     #    Where xxxx is a random number between 1000 and 9999.
