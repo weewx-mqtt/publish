@@ -863,10 +863,11 @@ if __name__ == "__main__":
             new_loop_packet_event = weewx.Event(weewx.NEW_LOOP_PACKET, packet=packet)
             engine.dispatchEvent(new_loop_packet_event)
 
-        # ToDo: Need better solution than sleeping
-        print(mqtt_publish._thread.threading_event.is_set())
-        time.sleep(3)
-        print(mqtt_publish._thread.threading_event.is_set())
+        # Attempt to wait for all packets to be processed
+        # ToDo: Add a max number of time the sleep/loop runs
+        while mqtt_publish._thread.threading_event.is_set():
+            print("sleepting")
+            time.sleep(1)
 
         mqtt_publish.shutDown()
 
