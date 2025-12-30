@@ -856,20 +856,18 @@ if __name__ == "__main__":
         setup_logging(True, config_dict)
         mqtt_publish = MQTTPublish(engine, config)
 
-        data_json = ''
         with open('tmp/message.json', encoding='UTF-8') as file_object:
-            message = file_object.readline()
-            while message:
-                data_json += message
-                message = file_object.readline()
+            packets = json.load(file_object)
 
-        data = json.loads(data_json)
-
-        new_loop_packet_event = weewx.Event(weewx.NEW_LOOP_PACKET, packet=data)
-        engine.dispatchEvent(new_loop_packet_event)
+        for packet in packets:
+            new_loop_packet_event = weewx.Event(weewx.NEW_LOOP_PACKET, packet=packet)
+            engine.dispatchEvent(new_loop_packet_event)
 
         # ToDo: Need better solution than sleeping
+        print(mqtt_publish._thread.threading_event.is_set())
         time.sleep(3)
+        print(mqtt_publish._thread.threading_event.is_set())
+
         mqtt_publish.shutDown()
 
     main()
