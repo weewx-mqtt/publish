@@ -37,14 +37,19 @@ class TestDeprecatedOptions(unittest.TestCase):
         print("end")
 
 if __name__ == '__main__':
-    filename = sys.argv[0].rsplit('/', 1)[-1]
-    module_name = filename.split('.', 11)[0]
-    module = importlib.import_module(module_name)
+    if len(sys.argv) == 1:
+        unittest.main(exit=False)
+        exit()
+    elif len(sys.argv) == 3:
+        filename = sys.argv[0].rsplit('/', 1)[-1]
+        module_name = filename.split('.', 11)[0]
+        module = importlib.import_module(module_name)
 
-    test_class = getattr(module, sys.argv[1])
+        test_class = getattr(module, sys.argv[1])
 
-    test_suite = unittest.TestSuite()
-    test_suite.addTest(test_class(sys.argv[2]))
-    unittest.TextTestRunner().run(test_suite)
+        test_suite = unittest.TestSuite()
+        test_suite.addTest(test_class(sys.argv[2]))
+        unittest.TextTestRunner().run(test_suite)
+        exit()
 
-    # unittest.main(exit=False)
+    print("Bad parameters")
