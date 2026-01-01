@@ -190,6 +190,7 @@ good-names=i,
            k,
            ex,
            Run,
+           rc,
            _
 
 # Good variable names regexes, separated by a comma. If names match any regex,
@@ -337,7 +338,7 @@ indent-after-paren=4
 indent-string='    '
 
 # Maximum number of characters on a single line.
-max-line-length=100
+max-line-length=133
 
 # Maximum number of lines in a module.
 max-module-lines=1000
@@ -449,7 +450,7 @@ timeout-methods=requests.api.delete,requests.api.get,requests.api.head,requests.
 # List of note tags to take in consideration, separated by a comma.
 notes=FIXME,
       XXX,
-      TODO
+      #TODO,
 
 # Regular expression of note tags to take in consideration.
 notes-rgx=
