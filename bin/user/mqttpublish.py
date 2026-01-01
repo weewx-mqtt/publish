@@ -52,6 +52,7 @@ def logerr(msg):
 
 # need to rethink
 period_timespan = {
+    # pylint: disable=unnecessary-lambda
     'hour': lambda time_stamp: weeutil.weeutil.archiveHoursAgoSpan(time_stamp),
     'day': lambda time_stamp: weeutil.weeutil.archiveDaySpan(time_stamp),
     'yesterday': lambda time_stamp: weeutil.weeutil.archiveDaySpan(time_stamp, 1),
@@ -69,6 +70,7 @@ period_timespan = {
                                                time.mktime((datetime.date.fromtimestamp(time_stamp) -
                                                             datetime.timedelta(days=366)).timetuple()))
 }
+# pylint: enable=unnecessary-lambda
 
 class AbstractPublisher(abc.ABC):
     """ Managing publishing to MQTT. """
@@ -119,7 +121,7 @@ class AbstractPublisher(abc.ABC):
     def _connect(self):
         try:
             self.connect(self.mqtt_config['host'], self.mqtt_config['port'], self.mqtt_config['keepalive'])
-        except Exception as exception:
+        except Exception as exception:  # want to catch all pylint: disable=broad-exception-caught
             logerr(f"MQTT connect failed with {type(exception)} and reason {exception}.")
             logerr(f"{traceback.format_exc()}")
         retries = 0
@@ -140,7 +142,7 @@ class AbstractPublisher(abc.ABC):
 
             try:
                 self.connect(self.mqtt_config['host'], self.mqtt_config['port'], self.mqtt_config['keepalive'])
-            except Exception as exception:
+            except Exception as exception:  # want to catch all pylint: disable=broad-exception-caught
                 logerr(f"MQTT connect failed with {type(exception)} and reason {exception}.")
                 logerr(f"{traceback.format_exc()}")
 
@@ -254,7 +256,9 @@ class PublisherV1(AbstractPublisher):
 
     def get_client(self, client_id, protocol):
         ''' Get the MQTT client. '''
-        return mqtt.Client(client_id=client_id, protocol=protocol)
+        return mqtt.Client(  # depends on version of paho.mqtt pylint: disable=no-value-for-parameter
+            client_id=client_id,
+            protocol=protocol)
 
     def set_callbacks(self, log_mqtt):
         ''' Setup the MQTT callbacks. '''
@@ -394,14 +398,14 @@ class PublishWeeWX():
     def __init__(self, engine, config_dict):
         self.mqtt_publish = MQTTPublish(engine, config_dict)
 
-    def shutDown(self):
+    def shutDown(self):  # Needed for backward compatibility pylint: disable=invalid-name
         """Run when an engine shutdown is requested."""
         self.mqtt_publish.shutDown()
 
 class MQTTPublish(StdService):
     """ A service to publish WeeWX loop and/or archive data to MQTT. """
     def __init__(self, engine, config_dict):
-        super(MQTTPublish, self).__init__(engine, config_dict)
+        super().__init__(engine, config_dict)
 
         logdbg(f" native id in 'main' init {threading.get_native_id()}")
 
@@ -870,7 +874,7 @@ if __name__ == "__main__":
 
         # Attempt to wait for all packets to be processed
         # ToDo: Add a max number of time the sleep/loop runs
-        while mqtt_publish._thread.threading_event.is_set():
+        while mqtt_publish._thread.threading_event.is_set():  # pylint: disable=protected-access
             print("sleepting")
             time.sleep(1)
 
