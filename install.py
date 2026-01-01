@@ -222,4 +222,4 @@ class MQTTPublishInstaller(ExtensionInstaller):
         # ToDo: Better service group?
         install_dict['restful_services'] = 'user.mqttpublish.PublishWeeWX'
 
-        super(MQTTPublishInstaller, self).__init__(install_dict)
+        super().__init__(install_dict)
