@@ -41,16 +41,22 @@ class TestConfigureTopics(unittest.TestCase):
         mock_engine = mock.Mock()
         config_dict = {
             'MQTTPublish': {
-                'PublishWeeWX': {
-                    'topics': {}
-                }
+                'enable': False,
             }
         }
         config = configobj.ConfigObj(config_dict)
-        # with mock.patch('user.mqttpublish.mqtt'):
+
+        service_dict = {
+            'topics': {}
+        }
+        service_config = configobj.ConfigObj(service_dict)
+
         with mock.patch('user.mqttpublish.PublishWeeWXThread'):
-            with mock.patch('user.mqttpublish.logdbg'):
-                user.mqttpublish.MQTTPublish(mock_engine, config)
+            with mock.patch('user.mqttpublish.Logger'):
+                SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
+
+                SUT.configure_topics(service_config)
+
         print("end")
 
 if __name__ == '__main__':
