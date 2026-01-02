@@ -6,7 +6,8 @@
     //"python.linting.flake8Path": "${workspaceFolder}/.venv/bin/flake8", // Adjust path to your venv
     "flake8.importStrategy": "fromEnvironment",
     "python.analysis.extraPaths": [
-        "../weewx/src"
+        "../weewx/src",
+        "bin"
     ],
     
 

@@ -3,6 +3,8 @@
 #    See the file LICENSE.txt for your full rights.
 #
 
+# pylint: disable=missing-module-docstring, missing-class-docstring, missing-function-docstring
+
 import importlib
 import sys
 import unittest

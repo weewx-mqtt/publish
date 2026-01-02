@@ -3,6 +3,10 @@
 #    See the file LICENSE.txt for your full rights.
 #
 
+# pylint: disable=wrong-import-order
+# pylint: disable=missing-module-docstring, missing-class-docstring, missing-function-docstring
+# pylint: disable=invalid-name
+
 import configobj
 import logging
 
@@ -12,10 +16,8 @@ import mock
 import helpers
 import user.mqttpublish
 
-class TestDeprecatedOptions(unittest.TestCase):
+class TestInit(unittest.TestCase):
     def test_PublishWeeWX_stanza_is_deprecated(self):
-        print("start")
-
         mock_engine = mock.Mock()
         config_dict = {
             'MQTTPublish': {
@@ -33,6 +35,23 @@ class TestDeprecatedOptions(unittest.TestCase):
                 mock_error.assert_called_once_with(
                     "'PublishWeeWX' is deprecated. Move options to top level, '[MQTTPublish]'.")
 
+class TestConfigureTopics(unittest.TestCase):
+    def test_one(self):
+        print("start")
+
+        mock_engine = mock.Mock()
+        config_dict = {
+            'MQTTPublish': {
+                'PublishWeeWX': {
+                    'topics': {}
+                }
+            }
+        }
+        config = configobj.ConfigObj(config_dict)
+        # with mock.patch('user.mqttpublish.mqtt'):
+        with mock.patch('user.mqttpublish.PublishWeeWXThread'):
+            with mock.patch('user.mqttpublish.logdbg'):
+                user.mqttpublish.MQTTPublish(mock_engine, config)
         print("end")
 
 if __name__ == '__main__':
