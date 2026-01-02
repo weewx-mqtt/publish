@@ -30,7 +30,7 @@ from weewx.engine import StdService
 
 VERSION = "1.0.0-rc02a"
 
-log = logging.getLogger(__name__)
+# log = logging.getLogger(__name__)
 def setup_logging(logging_level, config_dict):
     """ Setup logging for running in standalone mode."""
     if logging_level:
@@ -38,17 +38,22 @@ def setup_logging(logging_level, config_dict):
 
     weeutil.logger.setup('wee_MQTTSS', config_dict)
 
-def logdbg(msg):
-    """ Log debug level. """
-    log.debug(msg)
+class Logger:
+    ''' Manage the logging '''
+    def __init__(self):
+        self.log = logging.getLogger(__name__)
 
-def loginf(msg):
-    """ Log informational level. """
-    log.info(msg)
+    def logdbg(self, msg):
+        """ log debug messages """
+        self.log.debug(msg)
 
-def logerr(msg):
-    """ Log error level. """
-    log.error(msg)
+    def loginf(self, msg):
+        """ log informational messages """
+        self.log.info(msg)
+
+    def logerr(self, msg):
+        """ log error messages """
+        self.log.error(msg)
 
 # need to rethink
 period_timespan = {
@@ -74,14 +79,15 @@ period_timespan = {
 
 class AbstractPublisher(abc.ABC):
     """ Managing publishing to MQTT. """
-    def __init__(self, publisher, mqtt_config):
+    def __init__(self, logger, publisher, mqtt_config):
+        self.logger = logger
         self.connected = False
         self.mqtt_logger = {
-            mqtt.MQTT_LOG_INFO: loginf,
-            mqtt.MQTT_LOG_NOTICE: loginf,
-            mqtt.MQTT_LOG_WARNING: loginf,
-            mqtt.MQTT_LOG_ERR: logerr,
-            mqtt.MQTT_LOG_DEBUG: logdbg
+            mqtt.MQTT_LOG_INFO: self.logger.loginf,
+            mqtt.MQTT_LOG_NOTICE: self.logger.loginf,
+            mqtt.MQTT_LOG_WARNING: self.logger.loginf,
+            mqtt.MQTT_LOG_ERR: self.logger.logerr,
+            mqtt.MQTT_LOG_DEBUG: self.logger.logdbg
         }
 
         self.publisher = publisher
@@ -107,29 +113,29 @@ class AbstractPublisher(abc.ABC):
         self._connect()
 
     @classmethod
-    def get_publisher(cls, publisher, mqtt_config):
+    def get_publisher(cls, logger, publisher, mqtt_config):
         ''' Factory method to get appropriate MQTTPublish for paho mqtt version. '''
         if hasattr(mqtt, 'CallbackAPIVersion'):
             protocol = mqtt_config['protocol']
             if protocol in [mqtt.MQTTv31, mqtt.MQTTv311]:
-                return PublisherV2MQTT3(publisher, mqtt_config)
+                return PublisherV2MQTT3(logger, publisher, mqtt_config)
 
-            return PublisherV2(publisher, mqtt_config)
+            return PublisherV2(logger, publisher, mqtt_config)
 
-        return PublisherV1(publisher, mqtt_config)
+        return PublisherV1(logger, publisher, mqtt_config)
 
     def _connect(self):
         try:
             self.connect(self.mqtt_config['host'], self.mqtt_config['port'], self.mqtt_config['keepalive'])
         except Exception as exception:  # want to catch all pylint: disable=broad-exception-caught
-            logerr(f"MQTT connect failed with {type(exception)} and reason {exception}.")
-            logerr(f"{traceback.format_exc()}")
+            self.logger.logerr(f"MQTT connect failed with {type(exception)} and reason {exception}.")
+            self.logger.logerr(f"{traceback.format_exc()}")
         retries = 0
         # loop seems to break before connect, perhaps due to logging
         self.client.loop(timeout=0.1)
         time.sleep(1)
         while not self.connected:
-            logdbg("waiting")
+            self.logger.logdbg("waiting")
             # loop seems to break before connect, perhaps due to logging
             self.client.loop(timeout=0.1)
             time.sleep(5)
@@ -143,19 +149,19 @@ class AbstractPublisher(abc.ABC):
             try:
                 self.connect(self.mqtt_config['host'], self.mqtt_config['port'], self.mqtt_config['keepalive'])
             except Exception as exception:  # want to catch all pylint: disable=broad-exception-caught
-                logerr(f"MQTT connect failed with {type(exception)} and reason {exception}.")
-                logerr(f"{traceback.format_exc()}")
+                self.logger.logerr(f"MQTT connect failed with {type(exception)} and reason {exception}.")
+                self.logger.logerr(f"{traceback.format_exc()}")
 
     def _reconnect(self):
-        logdbg("*** Before reconnect ***")
+        self.logger.logdbg("*** Before reconnect ***")
         self.client.reconnect()
-        logdbg("*** After reconnect ***")
+        self.logger.logdbg("*** After reconnect ***")
         retries = 0
-        logdbg("*** Before loop ***")
+        self.logger.logdbg("*** Before loop ***")
         self.client.loop(timeout=1.0)
-        logdbg("*** After loop ***")
+        self.logger.logdbg("*** After loop ***")
         while not self.connected:
-            logdbg("waiting")
+            self.logger.logdbg("waiting")
             self.client.loop(timeout=5.0)
 
             retries += 1
@@ -166,7 +172,7 @@ class AbstractPublisher(abc.ABC):
 
             self.client.reconnect()
 
-        loginf("reconnected")
+        self.logger.loginf("reconnected")
 
     def _config_tls(self, tls_dict):
         """ Configure TLS."""
@@ -229,7 +235,7 @@ class AbstractPublisher(abc.ABC):
         if not self.connected:
             self._reconnect()
         mqtt_message_info = self.client.publish(topic, data, qos=qos, retain=retain)
-        logdbg(f"Publishing ({int(time.time())}): {int(time_stamp)} {mqtt_message_info.mid} {qos} {topic}")
+        self.logger.logdbg(f"Publishing ({int(time.time())}): {int(time_stamp)} {mqtt_message_info.mid} {qos} {topic}")
 
         self.client.loop(timeout=0.1)
 
@@ -269,12 +275,12 @@ class AbstractPublisher(abc.ABC):
 
 class PublisherV1(AbstractPublisher):
     ''' MQTTPublish that communicates with paho mqtt v1.'''
-    def __init__(self, publisher, mqtt_config):
+    def __init__(self, logger, publisher, mqtt_config):
         protocol = mqtt_config['protocol']
         if protocol not in [mqtt.MQTTv31, mqtt.MQTTv311]:
             raise ValueError(f"Invalid protocol, {protocol}.")
 
-        super().__init__(publisher, mqtt_config)
+        super().__init__(logger, publisher, mqtt_config)
 
     def get_client(self, client_id, protocol):
         return mqtt.Client(  # depends on version of paho.mqtt pylint: disable=no-value-for-parameter
@@ -305,8 +311,8 @@ class PublisherV1(AbstractPublisher):
         # 4: Connection refused - bad username or password
         # 5: Connection refused - not authorised
         # 6-255: Currently unused.
-        loginf(f"Connected with result code {int(reason_code)}, {mqtt.error_string(reason_code)}")
-        loginf(f"Connected flags {str(flags)}")
+        self.logger.loginf(f"Connected with result code {int(reason_code)}, {mqtt.error_string(reason_code)}")
+        self.logger.loginf(f"Connected flags {str(flags)}")
         if self.lwt_dict and to_bool(self.lwt_dict.get('enable', True)):
             self.client.publish(topic=self.lwt_dict.get('topic', 'status'),
                                 payload=self.lwt_dict.get('online_payload', 'online'),
@@ -322,9 +328,9 @@ class PublisherV1(AbstractPublisher):
         # such as might be caused by a network error.
         rc = flags_rc
         if rc == 0:
-            loginf(f"Disconnected with result code {int(rc)}, {mqtt.error_string(rc)}")
+            self.logger.loginf(f"Disconnected with result code {int(rc)}, {mqtt.error_string(rc)}")
         else:
-            logerr(f"Disconnected with result code {int(rc)}, {mqtt.error_string(rc)}")
+            self.logger.logerr(f"Disconnected with result code {int(rc)}, {mqtt.error_string(rc)}")
 
         # As of 1.6.1, Paho MQTT cannot have a callback invoke a second callback. So we won't attempt to reconnect here.
         # Because that would cause the on_connect callback to be called. Instead we will just mark as not connected.
@@ -334,7 +340,7 @@ class PublisherV1(AbstractPublisher):
     def on_publish(self, _client, _userdata, mid, reason_codes=None, properties=None):
         time_stamp = "          "
         qos = ""
-        logdbg(f"Published  ({int(time.time())}): {time_stamp} {mid} {qos}")
+        self.logger.logdbg(f"Published  ({int(time.time())}): {time_stamp} {mid} {qos}")
 
 class PublisherV2(AbstractPublisher):
     ''' MQTTPublish that communicates with paho mqtt v2. '''
@@ -358,8 +364,8 @@ class PublisherV2(AbstractPublisher):
         self.mqtt_logger[level](f"MQTT log: {msg}")
 
     def on_connect(self, _client, _userdata, flags, reason_code, _properties):
-        loginf(f"Connected with result code {int(int(reason_code.value))}")
-        loginf(f"Connected flags {str(flags)}")
+        self.logger.loginf(f"Connected with result code {int(int(reason_code.value))}")
+        self.logger.loginf(f"Connected flags {str(flags)}")
         if self.lwt_dict and to_bool(self.lwt_dict.get('enable', True)):
             self.client.publish(topic=self.lwt_dict.get('topic', 'status'),
                                 payload=self.lwt_dict.get('online_payload', 'online'),
@@ -374,9 +380,9 @@ class PublisherV2(AbstractPublisher):
         # If any other value the disconnection was unexpected,
         # such as might be caused by a network error.
         if int(reason_code.value) == 0:
-            loginf(f"Disconnected with result code {int(int(reason_code.value))}")
+            self.logger.loginf(f"Disconnected with result code {int(int(reason_code.value))}")
         else:
-            logerr(f"Disconnected with result code {int(int(reason_code.value))}")
+            self.logger.logerr(f"Disconnected with result code {int(int(reason_code.value))}")
 
         # ToDo: research how it works with v2
         # As of 1.6.1, Paho MQTT cannot have a callback invoke a second callback. So we won't attempt to reconnect here.
@@ -387,7 +393,7 @@ class PublisherV2(AbstractPublisher):
     def on_publish(self, _client, _userdata, mid, _reason_codes, _properties):
         time_stamp = "          "
         qos = ""
-        logdbg(f"Published  ({int(time.time())}): {time_stamp} {mid} {qos}")
+        self.logger.logdbg(f"Published  ({int(time.time())}): {time_stamp} {mid} {qos}")
 
 class PublisherV2MQTT3(PublisherV2):
     ''' MQTTPublish that communicates with paho mqtt v2. '''
@@ -413,24 +419,25 @@ class MQTTPublish(StdService):
     """ A service to publish WeeWX loop and/or archive data to MQTT. """
     def __init__(self, engine, config_dict):
         super().__init__(engine, config_dict)
+        self.logger = Logger()
 
-        logdbg(f" native id in 'main' init {threading.get_native_id()}")
+        self.logger.logdbg(f" native id in 'main' init {threading.get_native_id()}")
 
         service_dict = config_dict.get('MQTTPublish', {})
 
         exclude_keys = ['password']
         sanitized_service_dict = {k: service_dict[k] for k in set(list(service_dict.keys())) - set(exclude_keys)}
-        logdbg(f"sanitized configuration removed {exclude_keys}")
-        logdbg(f"sanitized_service_dict is {sanitized_service_dict}")
+        self.logger.logdbg(f"sanitized configuration removed {exclude_keys}")
+        self.logger.logdbg(f"sanitized_service_dict is {sanitized_service_dict}")
 
         #  backwards compatability
         if 'PublishWeeWX' in service_dict.sections:
-            logerr("'PublishWeeWX' is deprecated. Move options to top level, '[MQTTPublish]'.")
+            self.logger.logerr("'PublishWeeWX' is deprecated. Move options to top level, '[MQTTPublish]'.")
             service_dict = config_dict.get('MQTTPublish', {}).get('PublishWeeWX', {})
 
         self.enable = to_bool(service_dict.get('enable', True))
         if not self.enable:
-            loginf("Not enabled, exiting.")
+            self.logger.loginf("Not enabled, exiting.")
             return
 
         self.topics_loop, self.topics_archive = self.configure_topics(service_dict)
@@ -469,7 +476,7 @@ class MQTTPublish(StdService):
         if 'archive' in binding:
             self.bind(weewx.NEW_ARCHIVE_RECORD, self.new_archive_record)
 
-        self._thread = PublishWeeWXThread(self.mqtt_config, self.topics_loop, self.topics_archive, self.data_queue)
+        self._thread = PublishWeeWXThread(self.logger, self.mqtt_config, self.topics_loop, self.topics_archive, self.data_queue)
         self.thread_start()
 
     def configure_fields(self,
@@ -493,7 +500,7 @@ class MQTTPublish(StdService):
                 fields[field]['conversion_type'] = field_dict.get('conversion_type', conversion_type)
                 fields[field]['format_string'] = field_dict.get('format_string', format_string)
 
-        # logdbg("Configured fields: %s" % fields)
+        # self.logger.logdbg("Configured fields: %s" % fields)
         return fields
 
     def configure_topics(self, service_dict):
@@ -552,7 +559,7 @@ class MQTTPublish(StdService):
                                                                               conversion_type,
                                                                               format_string))
 
-            # logdbg("Configured aggregates: %s" % aggregates)
+            # self.logger.logdbg("Configured aggregates: %s" % aggregates)
 
             if 'loop' in binding:
                 if not publish:
@@ -590,25 +597,25 @@ class MQTTPublish(StdService):
                 topics_archive[topic]['fields'] = dict(fields)
                 topics_archive[topic]['aggregates'] = dict(aggregates)
 
-        logdbg(f"Loop topics: {topics_loop}")
-        logdbg(f"Archive topics: {topics_archive}")
+        self.logger.logdbg(f"Loop topics: {topics_loop}")
+        self.logger.logdbg(f"Archive topics: {topics_archive}")
         return topics_loop, topics_archive
 
     def thread_start(self):
         """Start the publishing thread."""
-        loginf("starting thread")
+        self.logger.loginf("starting thread")
         self._thread.start()
         # ToDo - configure how long to wait for thread to start
         self.thread_start_wait = 5.0
-        loginf("joining thread")
+        self.logger.loginf("joining thread")
         # self._thread.join(self.thread_start_wait)
-        loginf("joined thread")
+        self.logger.loginf("joined thread")
 
         if not self._thread.is_alive():
-            loginf("oh no")
+            self.logger.loginf("oh no")
             raise weewx.WakeupError("Unable to start MQTT publishing thread.")
 
-        loginf("started thread")
+        self.logger.loginf("started thread")
 
     def new_loop_packet(self, event):
         """ Handle loop packets. """
@@ -623,7 +630,7 @@ class MQTTPublish(StdService):
             if self.thread_restarts < self.max_thread_restarts:
                 self.thread_restarts += 1
                 self._thread = \
-                    PublishWeeWXThread(self.mqtt_config, self.topics_loop, self.topics_archive, self.data_queue)
+                    PublishWeeWXThread(self.logger, self.mqtt_config, self.topics_loop, self.topics_archive, self.data_queue)
                 self.thread_start()
 
                 self.data_queue.put({'time_stamp': data['dateTime'], 'type': data_type, 'data': data})
@@ -636,14 +643,14 @@ class MQTTPublish(StdService):
 
     def shutDown(self):
         """Run when an engine shutdown is requested."""
-        loginf("SHUTDOWN - initiated")
+        self.logger.loginf("SHUTDOWN - initiated")
         if self._thread:
-            loginf("SHUTDOWN - thread initiated")
+            self.logger.loginf("SHUTDOWN - thread initiated")
             self._thread.running = False
             self._thread.threading_event.set()
             self._thread.join(20.0)
             if self._thread.is_alive():
-                logerr(f"Unable to shut down {self._thread.name} thread")
+                self.logger.logerr(f"Unable to shut down {self._thread.name} thread")
 
             self._thread = None
 
@@ -668,10 +675,11 @@ class PublishWeeWXThread(threading.Thread):
         'unix_epoch': None,
     }
 
-    def __init__(self, mqtt_config, topics_loop, topics_archive, data_queue):
+    def __init__(self, logger, mqtt_config, topics_loop, topics_archive, data_queue):
         threading.Thread.__init__(self)
+        self.logger = logger
 
-        logdbg(f" native id in init {threading.get_native_id()}")
+        self.logger.logdbg(f" native id in init {threading.get_native_id()}")
 
         self.publisher = None
         self.running = False
@@ -708,7 +716,7 @@ class PublishWeeWXThread(threading.Thread):
             final_record[name] = value
 
         for aggregate_observation in topic_dict['aggregates']:
-            # logdbg(topic_dict['aggregates'][aggregate_observation])
+            # self.logger.logdbg(topic_dict['aggregates'][aggregate_observation])
             if not to_bool(topic_dict['aggregates'][aggregate_observation].get('enable', True)):
                 continue
 
@@ -732,8 +740,8 @@ class PublishWeeWXThread(threading.Thread):
                 final_record[name] = value
 
             except (weewx.CannotCalculate, weewx.UnknownAggregation, weewx.UnknownType) as exception:
-                logerr(f"Aggregation failed: {exception}")
-                logerr(traceback.format_exc())
+                self.logger.logerr(f"Aggregation failed: {exception}")
+                self.logger.logerr(traceback.format_exc())
 
         return final_record
 
@@ -798,11 +806,11 @@ class PublishWeeWXThread(threading.Thread):
 
     def run(self):
         self.running = True
-        logdbg(f"{self.name} {threading.get_ident()}")
-        logdbg(f" native id in run {threading.get_native_id()}")
+        self.logger.logdbg(f"{self.name} {threading.get_ident()}")
+        self.logger.logdbg(f" native id in run {threading.get_native_id()}")
 
         # need to instantiate inside thread
-        self.publisher = AbstractPublisher.get_publisher(self, self.mqtt_config)
+        self.publisher = AbstractPublisher.get_publisher(self.logger, self, self.mqtt_config)
 
         while self.running:
             try:
@@ -815,7 +823,7 @@ class PublishWeeWXThread(threading.Thread):
                 elif data_type == 'archive':
                     self.publish_row(time_stamp, data, self.topics_archive)
                 else:
-                    logerr(f"Unknown data type, {data_type}")
+                    self.logger.logerr(f"Unknown data type, {data_type}")
             except Queue.Empty:
                 # todo this causes another connection, seems to cause no harm
                 # does cause a socket error/disconnect message on the server
@@ -824,8 +832,8 @@ class PublishWeeWXThread(threading.Thread):
                 self.threading_event.wait(self.mqtt_config['keepalive'] / 4)
                 self.threading_event.clear()
 
-        loginf("exited loop")
-        loginf("thread shutdown")
+        self.logger.loginf("exited loop")
+        self.logger.loginf("thread shutdown")
 
 if __name__ == "__main__":
     def main():
