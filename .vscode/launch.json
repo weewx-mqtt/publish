@@ -5,14 +5,18 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python Debugger: Current File with Arguments",
+            "name": "Run Specific test",
             "type": "debugpy",
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
-            "args": ["TestDeprecatedOptions",
-                     "test_PublishWeeWX_stanza_is_deprecated",
-                    ],
+            "args": [
+                "TestInit",
+                "test_PublishWeeWX_stanza_is_deprecated",
+
+                //"TestConfigureTopics",
+                //"test_one",
+            ],
         },
         {
             "name": "Python Debugger: Current File",

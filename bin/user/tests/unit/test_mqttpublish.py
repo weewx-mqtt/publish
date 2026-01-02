@@ -8,7 +8,6 @@
 # pylint: disable=invalid-name
 
 import configobj
-import logging
 
 import unittest
 import mock
@@ -27,12 +26,12 @@ class TestInit(unittest.TestCase):
             }
         }
         config = configobj.ConfigObj(config_dict)
-        logger = logging.getLogger('user.mqttpublish')
+
         # with mock.patch('user.mqttpublish.mqtt'):
         with mock.patch('user.mqttpublish.PublishWeeWXThread'):
-            with mock.patch.object(logger, 'error') as mock_error:
-                user.mqttpublish.MQTTPublish(mock_engine, config)
-                mock_error.assert_called_once_with(
+            with mock.patch('user.mqttpublish.Logger'):
+                SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
+                SUT.logger.logerr.assert_called_once_with(
                     "'PublishWeeWX' is deprecated. Move options to top level, '[MQTTPublish]'.")
 
 class TestConfigureTopics(unittest.TestCase):
