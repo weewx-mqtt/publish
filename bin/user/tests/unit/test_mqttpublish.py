@@ -9,6 +9,7 @@ import logging
 import unittest
 import mock
 
+import helpers
 import user.mqttpublish
 
 class TestDeprecatedOptions(unittest.TestCase):
@@ -35,5 +36,4 @@ class TestDeprecatedOptions(unittest.TestCase):
         print("end")
 
 if __name__ == '__main__':
-    import helpers
     helpers.run_tests()
