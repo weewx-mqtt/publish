@@ -6,8 +6,14 @@
 # pylint: disable=missing-module-docstring, missing-class-docstring, missing-function-docstring
 
 import importlib
+import random
+import string
 import sys
 import unittest
+
+def random_string(length=32):
+    return ''.join([random.choice(string.ascii_letters + string.digits) for n in range(length)])
+
 
 def run_tests():
     if len(sys.argv) == 1:

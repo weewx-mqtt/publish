@@ -11,11 +11,11 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "args": [
-                "TestInit",
-                "test_PublishWeeWX_stanza_is_deprecated",
+                //"TestInit",
+                //"test_PublishWeeWX_stanza_is_deprecated",
 
-                //"TestConfigureTopics",
-                //"test_one",
+                "TestConfigureTopics",
+                "test_one",
             ],
         },
         {
