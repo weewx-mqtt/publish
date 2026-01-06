@@ -45,15 +45,15 @@ class Logger:
 
     def logdbg(self, msg):
         """ log debug messages """
-        self.log.debug(msg)
+        self.log.debug("%s %s", threading.get_native_id(), msg)
 
     def loginf(self, msg):
         """ log informational messages """
-        self.log.info(msg)
+        self.log.info("%s %s", threading.get_native_id(), msg)
 
     def logerr(self, msg):
         """ log error messages """
-        self.log.error(msg)
+        self.log.error("%s %s", threading.get_native_id(), msg)
 
 # need to rethink
 period_timespan = {
