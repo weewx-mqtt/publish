@@ -455,12 +455,12 @@ class MQTTPublish(StdService):
         self.mqtt_config['tls'] = service_dict.get('tls')
         self.mqtt_config['lwt'] = service_dict.get('lwt')
 
-        # todo - make configurable
+        # ToDo: make configurable
         self.kill_weewx = []
         self.max_thread_restarts = 2
         self.thread_restarts = 0
 
-        # todo, tie this into the topic bindings somehow...
+        # ToDo: tie this into the topic bindings somehow...
         # But note, this is also the default setting for topics
         binding = weeutil.weeutil.option_as_list(service_dict.get('binding', ['archive', 'loop']))
 
@@ -601,7 +601,7 @@ class MQTTPublish(StdService):
         """Start the publishing thread."""
         self.logger.loginf("Starting thread.")
         self._thread.start()
-        # ToDo - configure how long to wait for thread to start
+        # ToDo: configure how long to wait for thread to start
         self.thread_start_wait = 5.0
         self.logger.loginf("Joining thread.")
         # self._thread.join(self.thread_start_wait)
@@ -819,10 +819,10 @@ class PublishWeeWXThread(threading.Thread):
                 else:
                     self.logger.logerr(f"Unknown data type, {data_type}")
             except Queue.Empty:
-                # todo this causes another connection, seems to cause no harm
+                # ToDo: this causes another connection, seems to cause no harm
                 # does cause a socket error/disconnect message on the server
                 self.publisher.client.loop(timeout=0.1)
-                # ToDo - investigate my 'sleep' implementation
+                # ToDo: - investigate my 'sleep' implementation
                 self.threading_event.wait(self.mqtt_config['keepalive'] / 4)
                 self.threading_event.clear()
 
