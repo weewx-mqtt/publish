@@ -55,7 +55,7 @@ class Logger:
         """ log error messages """
         self.log.error("%s %s", threading.get_native_id(), msg)
 
-# need to rethink
+# ToDo: need to rethink
 period_timespan = {
     # pylint: disable=unnecessary-lambda
     'hour': lambda time_stamp: weeutil.weeutil.archiveHoursAgoSpan(time_stamp),
@@ -231,7 +231,7 @@ class AbstractPublisher(abc.ABC):
         if not self.connected:
             self._reconnect()
         mqtt_message_info = self.client.publish(topic, data, qos=qos, retain=retain)
-        self.logger.logdbg(f"Publishing ({int(time.time())}): {int(time_stamp)} {mqtt_message_info.mid} {qos} {topic}")
+        self.logger.logdbg(f"At {int(time.time())} publishing: {int(time_stamp)} {mqtt_message_info.mid} {qos} {topic}")
 
         self.client.loop(timeout=0.1)
 
@@ -336,7 +336,7 @@ class PublisherV1(AbstractPublisher):
     def on_publish(self, _client, _userdata, mid, reason_codes=None, properties=None):
         time_stamp = "          "
         qos = ""
-        self.logger.logdbg(f"Published  ({int(time.time())}): {time_stamp} {mid} {qos}")
+        self.logger.logdbg(f"At {int(time.time())} published: {time_stamp} {mid} {qos}")
 
 class PublisherV2(AbstractPublisher):
     ''' MQTTPublish that communicates with paho mqtt v2. '''
@@ -389,7 +389,7 @@ class PublisherV2(AbstractPublisher):
     def on_publish(self, _client, _userdata, mid, _reason_codes, _properties):
         time_stamp = "          "
         qos = ""
-        self.logger.logdbg(f"Published  ({int(time.time())}): {time_stamp} {mid} {qos}")
+        self.logger.logdbg(f"At {int(time.time())} published: {time_stamp} {mid} {qos}")
 
 class PublisherV2MQTT3(PublisherV2):
     ''' MQTTPublish that communicates with paho mqtt v2. '''
@@ -826,7 +826,7 @@ class PublishWeeWXThread(threading.Thread):
                 self.threading_event.wait(self.mqtt_config['keepalive'] / 4)
                 self.threading_event.clear()
 
-        self.logger.loginf("Exited publishing loop {self.name}.")
+        self.logger.loginf(f"Exited publishing loop {self.name}.")
 
 if __name__ == "__main__":
     def main():
