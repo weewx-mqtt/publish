@@ -135,7 +135,7 @@ class AbstractPublisher(abc.ABC):
         self.client.loop(timeout=0.1)
         time.sleep(1)
         while not self.connected:
-            self.logger.logdbg("waiting")
+            self.logger.logdbg("Waiting to connect.")
             # loop seems to break before connect, perhaps due to logging
             self.client.loop(timeout=0.1)
             time.sleep(5)
@@ -153,15 +153,13 @@ class AbstractPublisher(abc.ABC):
                 self.logger.logerr(f"{traceback.format_exc()}")
 
     def _reconnect(self):
-        self.logger.logdbg("*** Before reconnect ***")
+        self.logger.logdbg("Attempting to reconnect.")
         self.client.reconnect()
-        self.logger.logdbg("*** After reconnect ***")
+        self.logger.logdbg("After reconnect call.")
         retries = 0
-        self.logger.logdbg("*** Before loop ***")
         self.client.loop(timeout=1.0)
-        self.logger.logdbg("*** After loop ***")
         while not self.connected:
-            self.logger.logdbg("waiting")
+            self.logger.logdbg("Waiting to (re)connect.")
             self.client.loop(timeout=5.0)
 
             retries += 1
@@ -171,8 +169,6 @@ class AbstractPublisher(abc.ABC):
                 return
 
             self.client.reconnect()
-
-        self.logger.loginf("reconnected")
 
     def _config_tls(self, tls_dict):
         """ Configure TLS."""
@@ -421,7 +417,7 @@ class MQTTPublish(StdService):
         super().__init__(engine, config_dict)
         self.logger = Logger()
 
-        self.logger.logdbg(f" native id in 'main' init {threading.get_native_id()}")
+        self.logger.loginf(f"MQTTPublish version: {VERSION}.")
 
         service_dict = config_dict.get('MQTTPublish', {})
 
@@ -500,7 +496,7 @@ class MQTTPublish(StdService):
                 fields[field]['conversion_type'] = field_dict.get('conversion_type', conversion_type)
                 fields[field]['format_string'] = field_dict.get('format_string', format_string)
 
-        # self.logger.logdbg("Configured fields: %s" % fields)
+        # self.logger.logdbg(f"Configured fields: {fields}.")
         return fields
 
     def configure_topics(self, service_dict):
@@ -559,7 +555,7 @@ class MQTTPublish(StdService):
                                                                               conversion_type,
                                                                               format_string))
 
-            # self.logger.logdbg("Configured aggregates: %s" % aggregates)
+            # self.logger.logdbg(f"Configured aggregates: {aggregates}.")
 
             if 'loop' in binding:
                 if not publish:
@@ -603,19 +599,18 @@ class MQTTPublish(StdService):
 
     def thread_start(self):
         """Start the publishing thread."""
-        self.logger.loginf("starting thread")
+        self.logger.loginf("Starting thread.")
         self._thread.start()
         # ToDo - configure how long to wait for thread to start
         self.thread_start_wait = 5.0
-        self.logger.loginf("joining thread")
+        self.logger.loginf("Joining thread.")
         # self._thread.join(self.thread_start_wait)
-        self.logger.loginf("joined thread")
+        self.logger.loginf("Joined thread.")
 
         if not self._thread.is_alive():
-            self.logger.loginf("oh no")
             raise weewx.WakeupError("Unable to start MQTT publishing thread.")
 
-        self.logger.loginf("started thread")
+        self.logger.loginf("Thread started.")
 
     def new_loop_packet(self, event):
         """ Handle loop packets. """
@@ -643,9 +638,9 @@ class MQTTPublish(StdService):
 
     def shutDown(self):
         """Run when an engine shutdown is requested."""
-        self.logger.loginf("SHUTDOWN - initiated")
+        self.logger.loginf("Shutdown initiatead")
         if self._thread:
-            self.logger.loginf("SHUTDOWN - thread initiated")
+            self.logger.loginf("Shutdown of thread initiated")
             self._thread.running = False
             self._thread.threading_event.set()
             self._thread.join(20.0)
@@ -679,7 +674,7 @@ class PublishWeeWXThread(threading.Thread):
         threading.Thread.__init__(self)
         self.logger = logger
 
-        self.logger.logdbg(f" native id in init {threading.get_native_id()}")
+        self.logger.loginf("Initializing publishing thread.")
 
         self.publisher = None
         self.running = False
@@ -806,8 +801,7 @@ class PublishWeeWXThread(threading.Thread):
 
     def run(self):
         self.running = True
-        self.logger.logdbg(f"{self.name} {threading.get_ident()}")
-        self.logger.logdbg(f" native id in run {threading.get_native_id()}")
+        self.logger.loginf(f"Starting publishing loop {self.name}.")
 
         # need to instantiate inside thread
         self.publisher = AbstractPublisher.get_publisher(self.logger, self, self.mqtt_config)
@@ -832,8 +826,7 @@ class PublishWeeWXThread(threading.Thread):
                 self.threading_event.wait(self.mqtt_config['keepalive'] / 4)
                 self.threading_event.clear()
 
-        self.logger.loginf("exited loop")
-        self.logger.loginf("thread shutdown")
+        self.logger.loginf("Exited publishing loop {self.name}.")
 
 if __name__ == "__main__":
     def main():
