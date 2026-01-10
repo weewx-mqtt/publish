@@ -7,7 +7,7 @@ on:
 
 jobs:
   analyze-test:
-    uses: weewx-extensions/development_tools/.github/workflows/full-analyze-test.yml@v4
+    uses: weewx-extensions/development-tools/.github/workflows/analyze-test-matrix.yml@v4
     with:
       module-name: 'mqttpublish'
       pip-list: 'paho-mqtt'
@@ -22,7 +22,7 @@ jobs:
 
   # Run tests agains paho-mqtt 1.6.1
   analyze-test-paho-mqtt-1-6-1:
-    uses: weewx-extensions/development_tools/.github/workflows/analyze-test.yml@v4
+    uses: weewx-extensions/development-tools/.github/workflows/analyze-test.yml@v4
     with:
       module-name: 'mqttpublish'
       pip-list: 'paho-mqtt==1.6.1'
