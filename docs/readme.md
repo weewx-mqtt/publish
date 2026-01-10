@@ -60,14 +60,15 @@ source ~/weewx-venv/bin/activate
 ## Configuring
 
 weewx-mqtt/publish is installed with it disabled. Setting flag, [enable = true](https://weewx-mqtt.github.io/publish/common-options/#enable) and restarting WeeWX will start publishing MQTT data to the configured broker and topics.
-The configuration options can be found [here](https://weewx-mqtt.github.io/publish/common-options).
+The processing can be controlled by updating the [configuration](https://weewx-mqtt.github.io/publish/common-options) in the WeeWX configuration file.
 The [host](https://weewx-mqtt.github.io/publish/common-options/#host) and [topic(s)](https://weewx-mqtt.github.io/publish/common-options/#topic-name-sections) to publish to usually need to be configured.
 
 ## Updating
 
-## [Additonal Information](https://weewx-extensions.github.io/development-tools/home/)
+---
+**Getting Help**
 
-### Getting Help
+For additional information see the [help](https://weewx-mqtt.github.io/publish/home/).
 
 Feel free to
 [open an issue](https://github.com/weewx-mqtt/publish/issues/new),
