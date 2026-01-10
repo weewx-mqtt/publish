@@ -1,8 +1,4 @@
----
-title: WeeWX-Publish
-parent: Home Page
-nav_order: 1
----
+<!-- markdownlint-disable first-line-heading  -->
 
 ## Description
 
@@ -25,7 +21,7 @@ Currently MQTT payloads of json, keyword (field1=value, field2=value..), and ind
 
 *Note:* Not all 'supported' versions of MQTT have been tested.
 
-## Installation
+## Installing
 
 This extension is installed using the [weectl extension utility](https://www.weewx.com/docs/5.0/utilities/weectl-extension/).
 The latest release can be installed with the invocation
@@ -61,8 +57,21 @@ This means that this user should not need to use `sudo` to install the `weewx-mq
 source ~/weewx-venv/bin/activate
 ```
 
-## Customizing
+## Configuring
 
 weewx-mqtt/publish is installed with it disabled. Setting flag, [enable = true](https://weewx-mqtt.github.io/publish/common-options/#enable) and restarting WeeWX will start publishing MQTT data to the configured broker and topics.
 The configuration options can be found [here](https://weewx-mqtt.github.io/publish/common-options).
 The [host](https://weewx-mqtt.github.io/publish/common-options/#host) and [topic(s)](https://weewx-mqtt.github.io/publish/common-options/#topic-name-sections) to publish to usually need to be configured.
+
+## Updating
+
+## [Additonal Information](https://weewx-extensions.github.io/development-tools/home/)
+
+### Getting Help
+
+Feel free to
+[open an issue](https://github.com/weewx-mqtt/publish/issues/new),
+[start a discussion in github](https://github.com/weewx-mqtt/publish/discussions/new),
+[post on WeeWX google group](https://groups.google.com/g/weewx-user).
+When doing so, see
+[Help! Posting to weewx user](https://github.com/weewx/weewx/wiki/) for information on capturing the log.

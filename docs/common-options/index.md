@@ -1,6 +1,6 @@
 ---
 title: Introduction to configuring MQTTPublish
-parent: Home Page
+#parent: Home Page
 nav_order: 2
 ---
 
