@@ -3,6 +3,7 @@ name: Analyze and test
 on:
   push:
     branches-ignore: [ "master" ]
+  workflow_dispatch:
 
 jobs:
   analyze-test:
