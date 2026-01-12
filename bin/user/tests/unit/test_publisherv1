@@ -1,0 +1,51 @@
+#    Copyright (c) 2026 Rich Bell <bellrichm@gmail.com>
+#
+#    See the file LICENSE.txt for your full rights.
+#
+
+# pylint: disable=wrong-import-order
+# pylint: disable=missing-module-docstring, missing-class-docstring, missing-function-docstring
+# pylint: disable=invalid-name
+
+import configobj
+import paho.mqtt
+import random
+
+import unittest
+import mock
+
+import helpers
+import mqttstubs
+
+import user.mqttpublish
+
+class TestTemplate(unittest.TestCase):
+    def test_template(self):
+        mock_logger = mock.Mock()
+        mock_publisher = mock.Mock()
+
+        protocol_string = 'MQTTv311'
+        protocol = getattr(paho.mqtt.client, protocol_string, 0)
+
+        config_dict = {
+            'protocol': protocol,
+            'clientid': helpers.random_string(),
+            'log_mqtt': random.choice([True, False]),
+            'username': None,
+            'password': None,
+            'host': helpers.random_string(),
+            'port': random.randint(1, 65535),
+            'keepalive': random.randint(1, 30),
+            'max_retries': 0,
+        }
+        config = configobj.ConfigObj(config_dict)
+
+        with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientV1Stub):
+            user.mqttpublish.PublisherV1(mock_logger, mock_publisher, config)
+
+            print("done 1")
+
+        print("done 2")
+
+if __name__ == '__main__':
+    helpers.run_tests()
