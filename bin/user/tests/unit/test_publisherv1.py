@@ -41,9 +41,11 @@ class TestTemplate(unittest.TestCase):
         config = configobj.ConfigObj(config_dict)
 
         with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientV1Stub):
-            user.mqttpublish.PublisherV1(mock_logger, mock_publisher, config)
+            with mock.patch.object(user.mqttpublish.mqtt.Client, 'connect') as mock_connect:
 
-            print("done 1")
+                user.mqttpublish.PublisherV1(mock_logger, mock_publisher, config)
+
+                print("done 1")
 
         print("done 2")
 
