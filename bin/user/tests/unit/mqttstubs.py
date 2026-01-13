@@ -10,6 +10,8 @@ Stubs of paho mqtt code used by MQTTSubscribe.
 # pylint: disable=missing-function-docstring
 import contextlib
 
+from collections import namedtuple
+
 call_on_connect = True
 
 @contextlib.contextmanager
@@ -44,6 +46,7 @@ class ClientV1Stub:
     def __init__(self, callback_api_version=None, protocol=None, client_id=None, userdata=None, clean_session=None):  # need to match pylint: disable=unused-argument
         self.userdata = userdata
         self.topic = None
+        self.callback_api_version = callback_api_version
         return
 
     def username_pw_set(self, username, password):  # need to match pylint: disable=unused-argument
@@ -64,9 +67,17 @@ class ClientV1Stub:
     def reconnect_delay_set(self, min_delay=None, max_delay=None):  # need to match pylint: disable=unused-argument
         return
 
-    def connect(self, _host, _port, _keepalive):  # need to match pylint: disable=unused-argument
+    def connect(self, host, port, keepalive, clean_start=None):  # need to match pylint: disable=unused-argument
         if call_on_connect:
-            self.on_connect(self, self.userdata, 0, 0)
+            if self.callback_api_version is not None:  # self.callback_api_version.value == 2:
+                reason_code_dict = {
+                    'value': 0
+                }
+                reason_code = namedtuple('reason_code', reason_code_dict.keys())(**reason_code_dict)
+
+                self.on_connect(self, self.userdata, 0, reason_code, 0)
+            else:
+                self.on_connect(self, self.userdata, 0, 0)
         return
 
     def subscribe(self, topic, qos):  # need to match pylint: disable=unused-argument
