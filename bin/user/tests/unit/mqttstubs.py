@@ -23,7 +23,7 @@ def patch(module, old, new):
     finally:
         setattr(module, old, original)
 
-class ClientV1Stub:
+class ClientStub:
     '''
     Stub the paho mqtt Client class.
     Used to test WeeWX/MQTTSubscribe without needeing mqtt.

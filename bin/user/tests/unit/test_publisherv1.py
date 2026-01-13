@@ -41,7 +41,7 @@ class TestTemplate(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
-        with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientV1Stub):
+        with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
             with mock.patch.object(user.mqttpublish.mqtt.Client, 'loop') as mock_loop:
 
                 # mqttstubs.call_on_connect = False
