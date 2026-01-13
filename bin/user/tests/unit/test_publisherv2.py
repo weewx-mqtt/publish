@@ -19,6 +19,7 @@ import mqttstubs
 
 import user.mqttpublish
 
+@unittest.skipIf(not hasattr(paho.mqtt.client, 'CallbackAPIVersion'), "paho-mqtt is v1, skipping tests.")
 class TestTemplate(unittest.TestCase):
     def test_template(self):
         mock_logger = mock.Mock()
