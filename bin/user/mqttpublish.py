@@ -397,6 +397,7 @@ class PublisherV2MQTT3(PublisherV2):
         return mqtt.Client(callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
                            protocol=protocol,
                            client_id=client_id,
+                           userdata=None,
                            clean_session=True)
 
     def connect(self, host, port, keepalive):
