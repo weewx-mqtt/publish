@@ -10,6 +10,8 @@ Stubs of paho mqtt code used by MQTTSubscribe.
 # pylint: disable=missing-function-docstring
 import contextlib
 
+call_on_connect = True
+
 @contextlib.contextmanager
 def patch(module, old, new):
     original = getattr(module, old)
@@ -63,16 +65,13 @@ class ClientV1Stub:
         return
 
     def connect(self, _host, _port, _keepalive):  # need to match pylint: disable=unused-argument
+        if call_on_connect:
+            self.on_connect(self, self.userdata, 0, 0)
         return
 
     def subscribe(self, topic, qos):  # need to match pylint: disable=unused-argument
-        print("In Subscribe")
         self.topic = topic
         return (0, 0)
 
     def loop(self, timeout=0):  # need to match pylint: disable=unused-argument
-        # ToDo: This can't really be hard coded here
-        # Because on_loop is called in other places
-        self.on_connect(self, self.userdata, 0, 0)
-
         return

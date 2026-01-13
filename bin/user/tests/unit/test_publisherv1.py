@@ -41,9 +41,12 @@ class TestTemplate(unittest.TestCase):
         config = configobj.ConfigObj(config_dict)
 
         with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientV1Stub):
-            with mock.patch.object(user.mqttpublish.mqtt.Client, 'connect') as mock_connect:
+            with mock.patch.object(user.mqttpublish.mqtt.Client, 'loop') as mock_loop:
 
+                # mqttstubs.call_on_connect = False
                 user.mqttpublish.PublisherV1(mock_logger, mock_publisher, config)
+
+                self.assertEqual(mock_loop.call_count, 1)
 
                 print("done 1")
 
