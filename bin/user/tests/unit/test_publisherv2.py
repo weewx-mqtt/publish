@@ -7,51 +7,22 @@
 # pylint: disable=missing-module-docstring, missing-class-docstring, missing-function-docstring
 # pylint: disable=invalid-name
 
-import configobj
-import paho.mqtt
-import random
-
 import unittest
-import mock
+
+import paho.mqtt
 
 import helpers
-import mqttstubs
 
 import user.mqttpublish
 
+from test_publisherbase import TemplateBase
+
 @unittest.skipIf(not hasattr(paho.mqtt.client, 'CallbackAPIVersion'), "paho-mqtt is v1, skipping tests.")
-class TestTemplate(unittest.TestCase):
-    def test_template(self):
-        mock_logger = mock.Mock()
-        mock_publisher = mock.Mock()
+class TestTemplate(TemplateBase):
+    __test__ = True
 
-        protocol_string = 'MQTTv311'
-        protocol = getattr(paho.mqtt.client, protocol_string, 0)
-
-        config_dict = {
-            'protocol': protocol,
-            'clientid': helpers.random_string(),
-            'log_mqtt': random.choice([True, False]),
-            'username': None,
-            'password': None,
-            'host': helpers.random_string(),
-            'port': random.randint(1, 65535),
-            'keepalive': random.randint(1, 30),
-            'max_retries': 0,
-        }
-        config = configobj.ConfigObj(config_dict)
-
-        with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
-            with mock.patch.object(user.mqttpublish.mqtt.Client, 'loop') as mock_loop:
-
-                # mqttstubs.call_on_connect = False
-                user.mqttpublish.PublisherV2(mock_logger, mock_publisher, config)
-
-                self.assertEqual(mock_loop.call_count, 1)
-
-                print("done 1")
-
-        print("done 2")
+    class_under_test = user.mqttpublish.PublisherV2
+    protocol_string = 'MQTTv5'
 
 if __name__ == '__main__':
     helpers.run_tests()
