@@ -20,7 +20,7 @@ class TestTemplate(TemplateBase):
     protocol_string = random.choice(['MQTTv31', 'MQTTv311'])
 
 # The del is needed to prevent unittest from collecting and running tests in the base class.
-# The base class cannot be run directly because it does notdefine the required attributes and will fail. 
+# The base class cannot be run directly because it does notdefine the required attributes and will fail.
 del TemplateBase
 
 if __name__ == '__main__':
