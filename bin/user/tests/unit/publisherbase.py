@@ -24,6 +24,66 @@ class PublisherBase(unittest.TestCase):
     class_under_test = object
     protocol_string = None
 
+    def test_set_callbacks(self):
+        # pylint: disable=no-member
+
+        mock_logger = mock.Mock()
+        mock_publisher = mock.Mock()
+
+        config_dict = {
+            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
+            'clientid': helpers.random_string(),
+            'log_mqtt': False,
+            'username': None,
+            'password': None,
+            'host': helpers.random_string(),
+            'port': random.randint(1, 65535),
+            'keepalive': random.randint(1, 30),
+            'max_retries': 0,
+        }
+        config = configobj.ConfigObj(config_dict)
+
+        with mock.patch('user.mqttpublish.time'):
+            with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
+                with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
+
+                    SUT = self.class_under_test(mock_logger, mock_publisher, config)
+
+                    self.assertNotEqual(SUT.client.on_log, SUT.on_log)
+                    self.assertEqual(SUT.client.on_connect, SUT.on_connect)
+                    self.assertEqual(SUT.client.on_disconnect, SUT.on_disconnect)
+                    self.assertEqual(SUT.client.on_publish, SUT.on_publish)
+
+    def test_set_on_log_callback(self):
+        # pylint: disable=no-member
+
+        mock_logger = mock.Mock()
+        mock_publisher = mock.Mock()
+
+        config_dict = {
+            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
+            'clientid': helpers.random_string(),
+            'log_mqtt': True,
+            'username': None,
+            'password': None,
+            'host': helpers.random_string(),
+            'port': random.randint(1, 65535),
+            'keepalive': random.randint(1, 30),
+            'max_retries': 0,
+        }
+        config = configobj.ConfigObj(config_dict)
+
+        with mock.patch('user.mqttpublish.time'):
+            with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
+                with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
+
+                    SUT = self.class_under_test(mock_logger, mock_publisher, config)
+
+                    self.assertEqual(SUT.client.on_log, SUT.on_log)
+                    self.assertEqual(SUT.client.on_connect, SUT.on_connect)
+                    self.assertEqual(SUT.client.on_disconnect, SUT.on_disconnect)
+                    self.assertEqual(SUT.client.on_publish, SUT.on_publish)
+
     def test_username_set(self):
         mock_logger = mock.Mock()
         mock_publisher = mock.Mock()
