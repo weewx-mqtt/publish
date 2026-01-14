@@ -16,7 +16,7 @@ import helpers
 
 import user.mqttpublish
 
-from test_publisherbase import TemplateBase
+from user.tests.unit.publisherbase import TemplateBase
 
 @unittest.skipIf(not hasattr(paho.mqtt.client, 'CallbackAPIVersion'), "paho-mqtt is v1, skipping tests.")
 class TestTemplate(TemplateBase):
