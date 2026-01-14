@@ -8,14 +8,15 @@
             "name": "Run Specific test",
             "type": "debugpy",
             "request": "launch",
-            "program": "${file}",
+            //"program": "${file}",
+            "program": "bin/user/tests/unit/test_publisherv1.py",
             "console": "integratedTerminal",
             "args": [
                 //"TestInit",
                 //"test_PublishWeeWX_stanza_is_deprecated",
 
-                "TestConfigureTopics",
-                "test_one",
+                "TestTemplate",
+                "test_test",
             ],
         },
         {
