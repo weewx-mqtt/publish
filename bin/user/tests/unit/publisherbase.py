@@ -24,6 +24,9 @@ class PublisherBase(unittest.TestCase):
     class_under_test = object
     protocol_string = None
 
+    def test_get_client(self):
+        raise NotImplementedError("test 'test_get_client' is not implemented")
+
     def test_set_callbacks(self):
         # pylint: disable=no-member
 
