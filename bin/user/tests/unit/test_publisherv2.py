@@ -19,10 +19,12 @@ from test_publisherbase import TemplateBase
 
 @unittest.skipIf(not hasattr(paho.mqtt.client, 'CallbackAPIVersion'), "paho-mqtt is v1, skipping tests.")
 class TestTemplate(TemplateBase):
-    __test__ = True
-
     class_under_test = user.mqttpublish.PublisherV2
     protocol_string = 'MQTTv5'
+
+# The del is needed to prevent unittest from collecting and running tests in the base class.
+# The base class cannot be run directly because it does notdefine the required attributes and will fail. 
+del TemplateBase
 
 if __name__ == '__main__':
     helpers.run_tests()
