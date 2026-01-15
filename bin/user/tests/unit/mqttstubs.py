@@ -12,8 +12,6 @@ import contextlib
 
 from collections import namedtuple
 
-call_on_connect = True
-
 @contextlib.contextmanager
 def patch(module, old, new):
     original = getattr(module, old)
@@ -43,10 +41,18 @@ class ClientStub:
     def on_publish(self, _client, _userdata, mid, reason_codes=None, properties=None):
         raise NotImplementedError("Stub method 'on_publish' is not set")
 
-    def __init__(self, callback_api_version=None, protocol=None, client_id=None, userdata=None, clean_session=None):  # need to match pylint: disable=unused-argument
+    def __init__(self,
+                 callback_api_version=None,
+                 protocol=None,
+                 client_id=None,
+                 userdata=None,
+                 clean_session=None):  # need to match pylint: disable=unused-argument
         self.userdata = userdata
         self.topic = None
         self.callback_api_version = callback_api_version
+
+        # Some variables that are only used for testing
+        self.on_connect_call_count = 0
         return
 
     def username_pw_set(self, username, password):  # need to match pylint: disable=unused-argument
@@ -68,16 +74,15 @@ class ClientStub:
         return
 
     def connect(self, host, port, keepalive, clean_start=None):  # need to match pylint: disable=unused-argument
-        if call_on_connect:
-            if self.callback_api_version is not None:  # self.callback_api_version.value == 2:
-                reason_code_dict = {
-                    'value': 0
-                }
-                reason_code = namedtuple('reason_code', reason_code_dict.keys())(**reason_code_dict)
+        if self.callback_api_version is not None:  # self.callback_api_version.value == 2:
+            reason_code_dict = {
+                'value': 0
+            }
+            reason_code = namedtuple('reason_code', reason_code_dict.keys())(**reason_code_dict)
 
-                self.on_connect(self, self.userdata, 0, reason_code, 0)
-            else:
-                self.on_connect(self, self.userdata, 0, 0)
+            self.on_connect(self, self.userdata, 0, reason_code, 0)
+        else:
+            self.on_connect(self, self.userdata, 0, 0)
         return
 
     def subscribe(self, topic, qos):  # need to match pylint: disable=unused-argument
@@ -85,4 +90,17 @@ class ClientStub:
         return (0, 0)
 
     def loop(self, timeout=0):  # need to match pylint: disable=unused-argument
+        return
+
+    # The following routines are used for testing only
+
+    # used to 'override' the on_connect method and not 'perform' the connection (call on_connect)
+    def connect_without_connection(self, host, port, keepalive, clean_start=None):  # need to match pylint: disable=unused-argument
+        self.on_connect_call_count += 1
+        return
+
+    # used to 'override' the on_connect method and 'perform' the connection (call on_connect)
+    def connect_with_connection(self, host, port, keepalive, clean_start=None):  # need to match pylint: disable=unused-argument
+        self.on_connect_call_count += 1
+        self.connect(host, port, keepalive, clean_start)
         return
