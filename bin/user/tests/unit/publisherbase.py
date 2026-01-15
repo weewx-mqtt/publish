@@ -165,6 +165,64 @@ class PublisherBase(unittest.TestCase):
 
                         mock_username_pw_set.assert_called_once_with(config_dict['username'], config_dict['password'])
 
+    def test_on_connect_connection(self):
+        mock_logger = mock.Mock()
+        mock_publisher = mock.Mock()
+
+        config_dict = {
+            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
+            'clientid': helpers.random_string(),
+            'log_mqtt': random.choice([True, False]),
+            'username': None,
+            'password': None,
+            'host': helpers.random_string(),
+            'port': random.randint(1, 65535),
+            'keepalive': random.randint(1, 30),
+            'max_retries': random.choice([0, 2]),
+        }
+        config = configobj.ConfigObj(config_dict)
+
+        with mock.patch('user.mqttpublish.time'):
+            with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
+                with mock.patch.object(user.mqttpublish.mqtt.Client,
+                                       'connect',
+                                       side_effect=mqttstubs.ClientStub.connect_with_connection,
+                                       autospec=True) as mock_connect:
+
+                    self.class_under_test(mock_logger, mock_publisher, config)
+
+                    self.assertEqual(mock_connect.call_count, 1)
+
+    def test_on_connect_no_connection(self):
+        mock_logger = mock.Mock()
+        mock_publisher = mock.Mock()
+
+        config_dict = {
+            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
+            'clientid': helpers.random_string(),
+            'log_mqtt': random.choice([True, False]),
+            'username': None,
+            'password': None,
+            'host': helpers.random_string(),
+            'port': random.randint(1, 65535),
+            'keepalive': random.randint(1, 30),
+            'max_retries': random.choice([0, 2]),
+        }
+        config = configobj.ConfigObj(config_dict)
+
+        with mock.patch('user.mqttpublish.time'):
+            with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
+                with mock.patch.object(user.mqttpublish.mqtt.Client,
+                                       'connect',
+                                       side_effect=mqttstubs.ClientStub.connect_without_connection,
+                                       autospec=True) as mock_connect:
+
+                    self.class_under_test(mock_logger, mock_publisher, config)
+
+                    self.assertEqual(mock_connect.call_count, config_dict['max_retries'] + 1)
+
+        print("done")
+
     def test_test(self):
         mock_logger = mock.Mock()
         mock_publisher = mock.Mock()

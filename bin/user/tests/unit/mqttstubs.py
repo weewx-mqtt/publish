@@ -43,8 +43,8 @@ class ClientStub:
 
     def __init__(self,
                  callback_api_version=None,
-                 protocol=None,
-                 client_id=None,
+                 protocol=None,  # need to match pylint: disable=unused-argument
+                 client_id=None,  # need to match pylint: disable=unused-argument
                  userdata=None,
                  clean_session=None):  # need to match pylint: disable=unused-argument
         self.userdata = userdata
@@ -74,15 +74,8 @@ class ClientStub:
         return
 
     def connect(self, host, port, keepalive, clean_start=None):  # need to match pylint: disable=unused-argument
-        if self.callback_api_version is not None:  # self.callback_api_version.value == 2:
-            reason_code_dict = {
-                'value': 0
-            }
-            reason_code = namedtuple('reason_code', reason_code_dict.keys())(**reason_code_dict)
-
-            self.on_connect(self, self.userdata, 0, reason_code, 0)
-        else:
-            self.on_connect(self, self.userdata, 0, 0)
+        # default is to 'perform' a connection (call on_connect)
+        self.connect_with_connection(host, port, keepalive, clean_start)
         return
 
     def subscribe(self, topic, qos):  # need to match pylint: disable=unused-argument
@@ -102,5 +95,14 @@ class ClientStub:
     # used to 'override' the on_connect method and 'perform' the connection (call on_connect)
     def connect_with_connection(self, host, port, keepalive, clean_start=None):  # need to match pylint: disable=unused-argument
         self.on_connect_call_count += 1
-        self.connect(host, port, keepalive, clean_start)
+        if self.callback_api_version is not None:  # self.callback_api_version.value == 2:
+            reason_code_dict = {
+                'value': 0
+            }
+            reason_code = namedtuple('reason_code', reason_code_dict.keys())(**reason_code_dict)
+
+            self.on_connect(self, self.userdata, 0, reason_code, 0)
+        else:
+            self.on_connect(self, self.userdata, 0, 0)
+
         return
