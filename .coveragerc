@@ -1,0 +1,7 @@
+[report]
+exclude_lines = 
+    # default 
+    pragma: no cover
+
+    # guard condition
+    raise NotImplementedError

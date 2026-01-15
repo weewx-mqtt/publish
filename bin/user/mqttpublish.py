@@ -830,7 +830,7 @@ class PublishWeeWXThread(threading.Thread):
         self.logger.loginf(f"Exited publishing loop {self.name}.")
 
 if __name__ == "__main__":
-    def main():
+    def main():  # pragma: no cover
         """ Run it. """
         min_config_dict = {
             'Station': {
