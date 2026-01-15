@@ -425,3 +425,194 @@ class TLSBase(unittest.TestCase):
                         if saved_version:
                             ssl.PROTOCOL_TLSv1 = saved_version
                         self.assertEqual(error.exception.args[0], f"Invalid 'tls_version'., {tls_version}")
+
+    def test_missing_PROTOCOL_TLSv1_1(self):
+        mock_logger = mock.Mock()
+        mock_publisher = mock.Mock()
+
+        tls_version = 'tlsv1_1'
+        config_dict = {
+            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
+            'clientid': helpers.random_string(),
+            'log_mqtt': random.choice([True, False]),
+            'username': helpers.random_string(),
+            'password': helpers.random_string(),
+            'host': helpers.random_string(),
+            'port': random.randint(1, 65535),
+            'keepalive': random.randint(1, 30),
+            'max_retries': random.randint(0, 10),
+            'tls': {
+                'enable': True,
+                'ca_certs': helpers.random_string(),
+                'tls_version': tls_version,
+            }
+        }
+        config = configobj.ConfigObj(config_dict)
+
+        with mock.patch('user.mqttpublish.time'):
+            with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
+                with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
+                    with mock.patch.object(user.mqttpublish.mqtt.Client, 'tls_set'):
+                        try:
+                            saved_version = ssl.PROTOCOL_TLSv1_1
+                            del ssl.PROTOCOL_TLSv1_1
+                        except AttributeError:
+                            saved_version = None
+                        with self.assertRaises(ValueError) as error:
+                            self.class_under_test(mock_logger, mock_publisher, config)
+                        if saved_version:
+                            ssl.PROTOCOL_TLSv1_1 = saved_version
+                        self.assertEqual(error.exception.args[0], f"Invalid 'tls_version'., {tls_version}")
+
+
+    def test_missing_PROTOCOL_TLSv1_2(self):
+        mock_logger = mock.Mock()
+        mock_publisher = mock.Mock()
+
+        tls_version = 'tlsv1_2'
+        config_dict = {
+            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
+            'clientid': helpers.random_string(),
+            'log_mqtt': random.choice([True, False]),
+            'username': helpers.random_string(),
+            'password': helpers.random_string(),
+            'host': helpers.random_string(),
+            'port': random.randint(1, 65535),
+            'keepalive': random.randint(1, 30),
+            'max_retries': random.randint(0, 10),
+            'tls': {
+                'enable': True,
+                'ca_certs': helpers.random_string(),
+                'tls_version': tls_version,
+            }
+        }
+        config = configobj.ConfigObj(config_dict)
+
+        with mock.patch('user.mqttpublish.time'):
+            with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
+                with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
+                    with mock.patch.object(user.mqttpublish.mqtt.Client, 'tls_set'):
+                        try:
+                            saved_version = ssl.PROTOCOL_TLSv1_2
+                            del ssl.PROTOCOL_TLSv1_2
+                        except AttributeError:
+                            saved_version = None
+                        with self.assertRaises(ValueError) as error:
+                            self.class_under_test(mock_logger, mock_publisher, config)
+                        if saved_version:
+                            ssl.PROTOCOL_TLSv1_2 = saved_version
+                        self.assertEqual(error.exception.args[0], f"Invalid 'tls_version'., {tls_version}")
+
+    def test_missing_PROTOCOL_SSLv2(self):
+        mock_logger = mock.Mock()
+        mock_publisher = mock.Mock()
+
+        tls_version = 'sslv2'
+        config_dict = {
+            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
+            'clientid': helpers.random_string(),
+            'log_mqtt': random.choice([True, False]),
+            'username': helpers.random_string(),
+            'password': helpers.random_string(),
+            'host': helpers.random_string(),
+            'port': random.randint(1, 65535),
+            'keepalive': random.randint(1, 30),
+            'max_retries': random.randint(0, 10),
+            'tls': {
+                'enable': True,
+                'ca_certs': helpers.random_string(),
+                'tls_version': tls_version,
+            }
+        }
+        config = configobj.ConfigObj(config_dict)
+
+        with mock.patch('user.mqttpublish.time'):
+            with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
+                with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
+                    with mock.patch.object(user.mqttpublish.mqtt.Client, 'tls_set'):
+                        try:
+                            saved_version = ssl.PROTOCOL_SSLv2
+                            del ssl.PROTOCOL_SSLv2
+                        except AttributeError:
+                            saved_version = None
+                        with self.assertRaises(ValueError) as error:
+                            self.class_under_test(mock_logger, mock_publisher, config)
+                        if saved_version:
+                            ssl.PROTOCOL_SSLv2 = saved_version
+                        self.assertEqual(error.exception.args[0], f"Invalid 'tls_version'., {tls_version}")
+
+    def test_missing_PROTOCOL_SSLv23(self):
+        mock_logger = mock.Mock()
+        mock_publisher = mock.Mock()
+
+        tls_version = 'sslv23'
+        config_dict = {
+            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
+            'clientid': helpers.random_string(),
+            'log_mqtt': random.choice([True, False]),
+            'username': helpers.random_string(),
+            'password': helpers.random_string(),
+            'host': helpers.random_string(),
+            'port': random.randint(1, 65535),
+            'keepalive': random.randint(1, 30),
+            'max_retries': random.randint(0, 10),
+            'tls': {
+                'enable': True,
+                'ca_certs': helpers.random_string(),
+                'tls_version': tls_version,
+            }
+        }
+        config = configobj.ConfigObj(config_dict)
+
+        with mock.patch('user.mqttpublish.time'):
+            with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
+                with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
+                    with mock.patch.object(user.mqttpublish.mqtt.Client, 'tls_set'):
+                        try:
+                            saved_version = ssl.PROTOCOL_SSLv23
+                            del ssl.PROTOCOL_SSLv23
+                        except AttributeError:
+                            saved_version = None
+                        with self.assertRaises(ValueError) as error:
+                            self.class_under_test(mock_logger, mock_publisher, config)
+                        if saved_version:
+                            ssl.PROTOCOL_SSLv23 = saved_version
+                        self.assertEqual(error.exception.args[0], f"Invalid 'tls_version'., {tls_version}")
+
+    def test_missing_PROTOCOL_SSLv3(self):
+        mock_logger = mock.Mock()
+        mock_publisher = mock.Mock()
+
+        tls_version = 'sslv3'
+        config_dict = {
+            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
+            'clientid': helpers.random_string(),
+            'log_mqtt': random.choice([True, False]),
+            'username': helpers.random_string(),
+            'password': helpers.random_string(),
+            'host': helpers.random_string(),
+            'port': random.randint(1, 65535),
+            'keepalive': random.randint(1, 30),
+            'max_retries': random.randint(0, 10),
+            'tls': {
+                'enable': True,
+                'ca_certs': helpers.random_string(),
+                'tls_version': tls_version,
+            }
+        }
+        config = configobj.ConfigObj(config_dict)
+
+        with mock.patch('user.mqttpublish.time'):
+            with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
+                with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
+                    with mock.patch.object(user.mqttpublish.mqtt.Client, 'tls_set'):
+                        try:
+                            saved_version = ssl.PROTOCOL_SSLv3
+                            del ssl.PROTOCOL_SSLv3
+                        except AttributeError:
+                            saved_version = None
+                        with self.assertRaises(ValueError) as error:
+                            self.class_under_test(mock_logger, mock_publisher, config)
+                        if saved_version:
+                            ssl.PROTOCOL_SSLv3 = saved_version
+                        self.assertEqual(error.exception.args[0], f"Invalid 'tls_version'., {tls_version}")
