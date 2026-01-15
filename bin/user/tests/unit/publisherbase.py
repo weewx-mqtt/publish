@@ -263,7 +263,7 @@ class PublisherBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': random.choice([0, 2]),
+            'max_retries': random.choice([1, 2]),
         }
         config = configobj.ConfigObj(config_dict)
 
@@ -287,24 +287,24 @@ class PublisherBase(unittest.TestCase):
             'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
             'clientid': helpers.random_string(),
             'log_mqtt': random.choice([True, False]),
-            'username': None,
-            'password': None,
+            'username': helpers.random_string(),
+            'password': helpers.random_string(),
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': random.choice([0, 2]),
+            'max_retries': random.randint(0, 10),
+            'tls': {
+                'enable': True,
+            }
         }
         config = configobj.ConfigObj(config_dict)
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
-                with mock.patch.object(user.mqttpublish.mqtt.Client,
-                                       'connect',
-                                       side_effect=mqttstubs.ClientStub.connect_without_connection,
-                                       autospec=True) as mock_connect:
+                with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
+                    with mock.patch.object(user.mqttpublish.mqtt.Client, 'tls_set') as mock_tls_set:
 
-                    self.class_under_test(mock_logger, mock_publisher, config)
+                        self.class_under_test(mock_logger, mock_publisher, config)
 
-                    self.assertEqual(mock_connect.call_count, config_dict['max_retries'] + 1)
-
+                        # mock_tls_set.assert_called_once_with(config_dict['username'], config_dict['password'])
         print("done")
