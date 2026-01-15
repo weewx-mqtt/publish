@@ -106,3 +106,12 @@ class ClientStub:
             self.on_connect(self, self.userdata, 0, 0)
 
         return
+
+    # used to 'override' the on_connect method and raise an exceptioin
+    def connect_exception_first_call(self, host, port, keepalive, clean_start=None):  # need to match pylint: disable=unused-argument
+        self.on_connect_call_count += 1
+        if self.on_connect_call_count == 1:
+            raise ConnetExceptionTest()
+
+class ConnetExceptionTest(Exception):
+    ''' Test Connect Exception'''
