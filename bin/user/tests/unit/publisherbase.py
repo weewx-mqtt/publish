@@ -178,7 +178,7 @@ class PublisherBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': random.choice[0, 2],
+            'max_retries': random.choice([0, 2]),
         }
         config = configobj.ConfigObj(config_dict)
 
