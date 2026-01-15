@@ -303,11 +303,10 @@ class PublisherBase(unittest.TestCase):
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
                 with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
-                    with mock.patch.object(user.mqttpublish.mqtt.Client, 'tls_set') as mock_tls_set:
+                    with mock.patch.object(user.mqttpublish.mqtt.Client, 'tls_set'):
 
                         self.class_under_test(mock_logger, mock_publisher, config)
 
-                        # mock_tls_set.assert_called_once_with(config_dict['username'], config_dict['password'])
         print("done")
 
 class TLSBase(unittest.TestCase):
@@ -616,3 +615,42 @@ class TLSBase(unittest.TestCase):
                         if saved_version:
                             ssl.PROTOCOL_SSLv3 = saved_version
                         self.assertEqual(error.exception.args[0], f"Invalid 'tls_version'., {tls_version}")
+
+
+    def test_invalid_certs_required(self):
+        mock_logger = mock.Mock()
+        mock_publisher = mock.Mock()
+
+        certs_required = helpers.random_string()
+        config_dict = {
+            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
+            'clientid': helpers.random_string(),
+            'log_mqtt': random.choice([True, False]),
+            'username': helpers.random_string(),
+            'password': helpers.random_string(),
+            'host': helpers.random_string(),
+            'port': random.randint(1, 65535),
+            'keepalive': random.randint(1, 30),
+            'max_retries': random.randint(0, 10),
+            'tls': {
+                'enable': True,
+                'ca_certs': helpers.random_string(),
+                'certs_required': certs_required
+            }
+        }
+        config = configobj.ConfigObj(config_dict)
+
+        with mock.patch('user.mqttpublish.time'):
+            with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
+                with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
+                    with mock.patch.object(user.mqttpublish.mqtt.Client, 'tls_set'):
+                        try:
+                            saved_version = ssl.PROTOCOL_SSLv3
+                            del ssl.PROTOCOL_SSLv3
+                        except AttributeError:
+                            saved_version = None
+                        with self.assertRaises(ValueError) as error:
+                            self.class_under_test(mock_logger, mock_publisher, config)
+                        if saved_version:
+                            ssl.PROTOCOL_SSLv3 = saved_version
+                        self.assertEqual(error.exception.args[0], f"Invalid 'certs_required'., {certs_required}")
