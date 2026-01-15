@@ -18,7 +18,7 @@ import helpers
 import configobj
 import user.mqttpublish
 
-from user.tests.unit.publisherbase import PublisherBase
+from user.tests.unit.publisherbase import PublisherBase, TLSBase
 
 @unittest.skipIf(not hasattr(paho.mqtt.client, 'CallbackAPIVersion'), "paho-mqtt is v1, skipping tests.")
 class TestTemplate(PublisherBase):
@@ -54,9 +54,14 @@ class TestTemplate(PublisherBase):
                                                         userdata=None,
                                                         clean_session=True)
 
+@unittest.skipIf(not hasattr(paho.mqtt.client, 'CallbackAPIVersion'), "paho-mqtt is v1, skipping tests.")
+class TestTLS(TLSBase):
+    class_under_test = user.mqttpublish.PublisherV2MQTT3
+    protocol_string = random.choice(['MQTTv31', 'MQTTv311'])
+
 # The del is needed to prevent unittest from collecting and running tests in the base class.
 # The base class cannot be run directly because it does notdefine the required attributes and will fail.
-del PublisherBase
+del PublisherBase, TLSBase
 
 if __name__ == '__main__':
     helpers.run_tests()
