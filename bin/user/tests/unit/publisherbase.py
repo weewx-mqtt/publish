@@ -279,7 +279,7 @@ class PublisherBase(unittest.TestCase):
                     self.assertEqual(mock_connect.call_count, config_dict['max_retries'] + 1)
                     self.assertEqual(mock_logger.logerr.call_count, config_dict['max_retries'] * 2)
 
-    def test_test(self):
+    def test_will_set_with_defaults(self):
         mock_logger = mock.Mock()
         mock_publisher = mock.Mock()
 
@@ -293,7 +293,7 @@ class PublisherBase(unittest.TestCase):
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
             'max_retries': random.randint(0, 10),
-            'tls': {
+            'lwt': {
                 'enable': True,
             }
         }
@@ -302,10 +302,47 @@ class PublisherBase(unittest.TestCase):
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
                 with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
-                    with mock.patch.object(user.mqttpublish.mqtt.Client, 'tls_set'):
+                    with mock.patch.object(user.mqttpublish.mqtt.Client, 'will_set') as mock_will_set:
 
                         self.class_under_test(mock_logger, mock_publisher, config)
 
+                        mock_will_set.assert_called_once_with(topic='status', payload='offline', qos=0, retain=True)
+
+    def test_will_set_with_configured_values(self):
+        mock_logger = mock.Mock()
+        mock_publisher = mock.Mock()
+
+        config_dict = {
+            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
+            'clientid': helpers.random_string(),
+            'log_mqtt': random.choice([True, False]),
+            'username': helpers.random_string(),
+            'password': helpers.random_string(),
+            'host': helpers.random_string(),
+            'port': random.randint(1, 65535),
+            'keepalive': random.randint(1, 30),
+            'max_retries': random.randint(0, 10),
+            'lwt': {
+                'enable': True,
+                'topic': helpers.random_string(),
+                'offline_payload': helpers.random_string(),
+                'qos': random.randint(1,5),
+                'retain': False,
+            }
+        }
+        config = configobj.ConfigObj(config_dict)
+
+        with mock.patch('user.mqttpublish.time'):
+            with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
+                with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
+                    with mock.patch.object(user.mqttpublish.mqtt.Client, 'will_set') as mock_will_set:
+
+                        self.class_under_test(mock_logger, mock_publisher, config)
+
+                        mock_will_set.assert_called_once_with(topic=config_dict['lwt']['topic'],
+                                                              payload=config_dict['lwt']['offline_payload'],
+                                                              qos=config_dict['lwt']['qos'],
+                                                              retain=config_dict['lwt']['retain'])
         print("done")
 
 class TLSBase(unittest.TestCase):
