@@ -326,7 +326,7 @@ class PublisherBase(unittest.TestCase):
                 'enable': True,
                 'topic': helpers.random_string(),
                 'offline_payload': helpers.random_string(),
-                'qos': random.randint(1,5),
+                'qos': random.randint(1, 5),
                 'retain': False,
             }
         }
@@ -422,7 +422,6 @@ class TLSBase(unittest.TestCase):
                             ssl.PROTOCOL_TLS = saved_version
                         self.assertEqual(error.exception.args[0], f"Invalid 'tls_version'., {tls_version}")
 
-
     def test_missing_PROTOCOL_TLSv1(self):
         mock_logger = mock.Mock()
         mock_publisher = mock.Mock()
@@ -498,7 +497,6 @@ class TLSBase(unittest.TestCase):
                         if saved_version:
                             ssl.PROTOCOL_TLSv1_1 = saved_version
                         self.assertEqual(error.exception.args[0], f"Invalid 'tls_version'., {tls_version}")
-
 
     def test_missing_PROTOCOL_TLSv1_2(self):
         mock_logger = mock.Mock()
@@ -651,7 +649,6 @@ class TLSBase(unittest.TestCase):
                         if saved_version:
                             ssl.PROTOCOL_SSLv3 = saved_version
                         self.assertEqual(error.exception.args[0], f"Invalid 'tls_version'., {tls_version}")
-
 
     def test_invalid_certs_required(self):
         mock_logger = mock.Mock()
