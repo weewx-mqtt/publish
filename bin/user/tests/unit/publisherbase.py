@@ -368,7 +368,7 @@ class PublisherBase(unittest.TestCase):
                         with mock.patch.object(user.mqttpublish.mqtt.Client, 'publish') as mock_publish:
 
                             SUT = self.class_under_test(mock_logger, mock_publisher, config)
-                            # def publish_message(self, time_stamp, qos, retain, topic, data)
+
                             SUT.connected = True
                             time_stamp = random.randint(10, 10000)
                             qos = random.randint(0, 10)
@@ -404,7 +404,7 @@ class PublisherBase(unittest.TestCase):
                         with mock.patch.object(user.mqttpublish.mqtt.Client, 'publish') as mock_publish:
 
                             SUT = self.class_under_test(mock_logger, mock_publisher, config)
-                            # def publish_message(self, time_stamp, qos, retain, topic, data)
+
                             SUT.connected = False
                             time_stamp = random.randint(10, 10000)
                             qos = random.randint(0, 10)
@@ -436,16 +436,11 @@ class PublisherBase(unittest.TestCase):
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
                 with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
-                    with mock.patch.object(user.mqttpublish.AbstractPublisher, '_reconnect'):
-                        with mock.patch.object(user.mqttpublish.mqtt.Client, 'publish'):
 
-                            SUT = self.class_under_test(mock_logger, mock_publisher, config)
-                            # def publish_message(self, time_stamp, qos, retain, topic, data)
-                            # SUT.connected = True
-                            time_stamp = random.randint(10, 10000)
-                            SUT.publish_message(time_stamp, "qos", "retain", "topic", "data")
+                    SUT = self.class_under_test(mock_logger, mock_publisher, config)
+                    SUT._reconnect()
 
-                            print("done 1")
+                    print("done 1")
 
         print("done 2")
 
