@@ -343,7 +343,111 @@ class PublisherBase(unittest.TestCase):
                                                               payload=config_dict['lwt']['offline_payload'],
                                                               qos=config_dict['lwt']['qos'],
                                                               retain=config_dict['lwt']['retain'])
-        print("done")
+
+    def test_publish_when_connected(self):
+        mock_logger = mock.Mock()
+        mock_publisher = mock.Mock()
+
+        config_dict = {
+            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
+            'clientid': helpers.random_string(),
+            'log_mqtt': random.choice([True, False]),
+            'username': helpers.random_string(),
+            'password': helpers.random_string(),
+            'host': helpers.random_string(),
+            'port': random.randint(1, 65535),
+            'keepalive': random.randint(1, 30),
+            'max_retries': random.randint(0, 10),
+        }
+        config = configobj.ConfigObj(config_dict)
+
+        with mock.patch('user.mqttpublish.time'):
+            with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
+                with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
+                    with mock.patch.object(user.mqttpublish.AbstractPublisher, '_reconnect') as mock_reconnect:
+                        with mock.patch.object(user.mqttpublish.mqtt.Client, 'publish') as mock_publish:
+
+                            SUT = self.class_under_test(mock_logger, mock_publisher, config)
+                            # def publish_message(self, time_stamp, qos, retain, topic, data)
+                            SUT.connected = True
+                            time_stamp = random.randint(10, 10000)
+                            qos = random.randint(0, 10)
+                            retain = random.choice([True, False])
+                            topic = helpers.random_string()
+                            data = helpers.random_string()
+                            SUT.publish_message(time_stamp, qos, retain, topic, data)
+
+                            mock_reconnect.assert_not_called()
+                            mock_publish.assert_called_once_with(topic, data, qos=qos, retain=retain)
+
+    def test_publish_when_not_connected(self):
+        mock_logger = mock.Mock()
+        mock_publisher = mock.Mock()
+
+        config_dict = {
+            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
+            'clientid': helpers.random_string(),
+            'log_mqtt': random.choice([True, False]),
+            'username': helpers.random_string(),
+            'password': helpers.random_string(),
+            'host': helpers.random_string(),
+            'port': random.randint(1, 65535),
+            'keepalive': random.randint(1, 30),
+            'max_retries': random.randint(0, 10),
+        }
+        config = configobj.ConfigObj(config_dict)
+
+        with mock.patch('user.mqttpublish.time'):
+            with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
+                with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
+                    with mock.patch.object(user.mqttpublish.AbstractPublisher, '_reconnect') as mock_reconnect:
+                        with mock.patch.object(user.mqttpublish.mqtt.Client, 'publish') as mock_publish:
+
+                            SUT = self.class_under_test(mock_logger, mock_publisher, config)
+                            # def publish_message(self, time_stamp, qos, retain, topic, data)
+                            SUT.connected = False
+                            time_stamp = random.randint(10, 10000)
+                            qos = random.randint(0, 10)
+                            retain = random.choice([True, False])
+                            topic = helpers.random_string()
+                            data = helpers.random_string()
+                            SUT.publish_message(time_stamp, qos, retain, topic, data)
+
+                            mock_reconnect.assert_called_once_with()
+                            mock_publish.assert_called_once_with(topic, data, qos=qos, retain=retain)
+
+    def test_test(self):
+        mock_logger = mock.Mock()
+        mock_publisher = mock.Mock()
+
+        config_dict = {
+            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
+            'clientid': helpers.random_string(),
+            'log_mqtt': random.choice([True, False]),
+            'username': helpers.random_string(),
+            'password': helpers.random_string(),
+            'host': helpers.random_string(),
+            'port': random.randint(1, 65535),
+            'keepalive': random.randint(1, 30),
+            'max_retries': random.randint(0, 10),
+        }
+        config = configobj.ConfigObj(config_dict)
+
+        with mock.patch('user.mqttpublish.time'):
+            with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
+                with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
+                    with mock.patch.object(user.mqttpublish.AbstractPublisher, '_reconnect'):
+                        with mock.patch.object(user.mqttpublish.mqtt.Client, 'publish'):
+
+                            SUT = self.class_under_test(mock_logger, mock_publisher, config)
+                            # def publish_message(self, time_stamp, qos, retain, topic, data)
+                            # SUT.connected = True
+                            time_stamp = random.randint(10, 10000)
+                            SUT.publish_message(time_stamp, "qos", "retain", "topic", "data")
+
+                            print("done 1")
+
+        print("done 2")
 
 class TLSBase(unittest.TestCase):
     class_under_test = object
