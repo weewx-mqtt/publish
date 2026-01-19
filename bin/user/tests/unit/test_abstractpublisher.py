@@ -34,8 +34,6 @@ class TestAbstractPublisher(unittest.TestCase):
 
         with mock.patch('user.mqttpublish.PublisherV1') as mock_client:
             with mqttstubs.patch_delattr(user.mqttpublish.mqtt, 'CallbackAPIVersion'):
-                # with mock.patch('builtins.hasattr'):
-                # CallbackAPIVersion
                 user.mqttpublish.AbstractPublisher.get_publisher(mock_logger, mock_publisher, config)
 
                 mock_client.assert_called_once_with(mock_logger, mock_publisher, config)

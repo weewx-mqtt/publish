@@ -12,6 +12,8 @@ import contextlib
 
 from collections import namedtuple
 
+import helpers
+
 @contextlib.contextmanager
 def patch(module, old, new):
     original = getattr(module, old)
@@ -23,12 +25,27 @@ def patch(module, old, new):
 
 @contextlib.contextmanager
 def patch_delattr(module, old):
-    original = getattr(module, old)
-    delattr(module, old)
+    original = None
+    if hasattr(module, old):
+        original = getattr(module, old)
+        delattr(module, old)
     try:
         yield
     finally:
-        setattr(module, old, original)
+        if original:
+            setattr(module, old, original)
+
+@contextlib.contextmanager
+def patch_addattr(module, old):
+    test_value = None
+    if not hasattr(module, old):
+        test_value = helpers.random_string()
+        setattr(module, old, test_value)
+    try:
+        yield
+    finally:
+        if test_value:
+            delattr(module, old)
 
 class ClientStub:
     '''
