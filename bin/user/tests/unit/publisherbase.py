@@ -416,7 +416,7 @@ class PublisherBase(unittest.TestCase):
                             mock_reconnect.assert_called_once_with()
                             mock_publish.assert_called_once_with(topic, data, qos=qos, retain=retain)
 
-    def test_test(self):
+    def test_reconnect_connection(self):
         mock_logger = mock.Mock()
         mock_publisher = mock.Mock()
 
@@ -436,13 +436,46 @@ class PublisherBase(unittest.TestCase):
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
                 with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
+                    with mock.patch.object(user.mqttpublish.mqtt.Client,
+                                           'reconnect',
+                                           side_effect=mqttstubs.ClientStub.reconnect_with_connection,
+                                           autospec=True) as mock_reconnect:
 
-                    SUT = self.class_under_test(mock_logger, mock_publisher, config)
-                    SUT._reconnect()
+                        SUT = self.class_under_test(mock_logger, mock_publisher, config)
+                        SUT._reconnect()
 
-                    print("done 1")
+                        mock_reconnect.assert_called_once()
 
-        print("done 2")
+    def test_reconnect_no_connection(self):
+        mock_logger = mock.Mock()
+        mock_publisher = mock.Mock()
+
+        config_dict = {
+            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
+            'clientid': helpers.random_string(),
+            'log_mqtt': random.choice([True, False]),
+            'username': helpers.random_string(),
+            'password': helpers.random_string(),
+            'host': helpers.random_string(),
+            'port': random.randint(1, 65535),
+            'keepalive': random.randint(1, 30),
+            'max_retries': random.randint(0, 10),
+        }
+        config = configobj.ConfigObj(config_dict)
+
+        with mock.patch('user.mqttpublish.time'):
+            with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
+                with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
+                    with mock.patch.object(user.mqttpublish.mqtt.Client,
+                                           'reconnect',
+                                           side_effect=mqttstubs.ClientStub.reconnect_without_connection,
+                                           autospec=True) as mock_reconnect:
+
+                        SUT = self.class_under_test(mock_logger, mock_publisher, config)
+                        SUT._reconnect()
+
+                        self.assertEqual(mock_reconnect.call_count, config_dict['max_retries'] + 1)
+
 
 class TLSBase(unittest.TestCase):
     class_under_test = object
