@@ -21,7 +21,7 @@ import user.mqttpublish
 from user.tests.unit.publisherbase import PublisherBase, TLSBase
 
 @unittest.skipIf(not hasattr(paho.mqtt.client, 'CallbackAPIVersion'), "paho-mqtt is v1, skipping tests.")
-class TestTemplate(PublisherBase):
+class TestPublisherV2(PublisherBase):
     class_under_test = user.mqttpublish.PublisherV2
     protocol_string = 'MQTTv5'
 
