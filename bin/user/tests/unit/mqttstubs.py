@@ -21,6 +21,15 @@ def patch(module, old, new):
     finally:
         setattr(module, old, original)
 
+@contextlib.contextmanager
+def patch_delattr(module, old):
+    original = getattr(module, old)
+    delattr(module, old)
+    try:
+        yield
+    finally:
+        setattr(module, old, original)
+
 class ClientStub:
     '''
     Stub the paho mqtt Client class.

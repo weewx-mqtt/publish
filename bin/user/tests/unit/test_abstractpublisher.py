@@ -17,6 +17,7 @@ import random
 import paho.mqtt
 
 import user.mqttpublish
+import mqttstubs
 
 class TestAbstractPublisher(unittest.TestCase):
     def test_get_publisher_for_mqtt_v2(self):
@@ -31,12 +32,13 @@ class TestAbstractPublisher(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
-        with mock.patch('user.mqttpublish.PublisherV2MQTT3') as mock_client:
-            #with mock.patch('builtins.hasattr'):
+        with mock.patch('user.mqttpublish.PublisherV1') as mock_client:
+            with mqttstubs.patch_delattr(user.mqttpublish.mqtt, 'CallbackAPIVersion'):
+                # with mock.patch('builtins.hasattr'):
+                # CallbackAPIVersion
+                user.mqttpublish.AbstractPublisher.get_publisher(mock_logger, mock_publisher, config)
 
-            user.mqttpublish.AbstractPublisher.get_publisher(mock_logger, mock_publisher, config)
-
-            mock_client.assert_called_once_with(mock_logger, mock_publisher, config)
+                mock_client.assert_called_once_with(mock_logger, mock_publisher, config)
 
         print("done")
 
