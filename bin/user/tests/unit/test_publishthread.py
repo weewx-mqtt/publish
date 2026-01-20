@@ -47,7 +47,7 @@ class TestPublishWeeWXThread(unittest.TestCase):
             # 'conversion_type': 'string',
             'format': '%s',
             'fields': {
-                field1: {
+            #    field1: {
             #        'name': field1,
             #        'unit': None,
             #        'ignore': False,
@@ -55,7 +55,7 @@ class TestPublishWeeWXThread(unittest.TestCase):
             #        'append_unit_label': False,
             #        'conversion_type': 'string',
             #        'format_string': '%s'
-                }
+            #    }
             },
             'aggregates': {
             #    aggreagate1: {
