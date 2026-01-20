@@ -64,7 +64,7 @@ period_timespan = {
     'week': lambda time_stamp: weeutil.weeutil.archiveWeekSpan(time_stamp),
     'month': lambda time_stamp: weeutil.weeutil.archiveMonthSpan(time_stamp),
     'year': lambda time_stamp: weeutil.weeutil.archiveYearSpan(time_stamp),
-    'last24hours': lambda time_stamp: TimeSpan(time_stamp, time_stamp - 86400),
+    'last24hours': lambda time_stamp: TimeSpan(time_stamp - 86400, time_stamp),
     'last7days': lambda time_stamp: TimeSpan(time.mktime((datetime.date.fromtimestamp(time_stamp) -
                                                           datetime.timedelta(days=7)).timetuple()),
                                              time_stamp),
