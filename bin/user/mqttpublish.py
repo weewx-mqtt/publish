@@ -65,15 +65,15 @@ period_timespan = {
     'month': lambda time_stamp: weeutil.weeutil.archiveMonthSpan(time_stamp),
     'year': lambda time_stamp: weeutil.weeutil.archiveYearSpan(time_stamp),
     'last24hours': lambda time_stamp: TimeSpan(time_stamp, time_stamp - 86400),
-    'last7days': lambda time_stamp: TimeSpan(time_stamp,
-                                             time.mktime((datetime.date.fromtimestamp(time_stamp) -
-                                                          datetime.timedelta(days=7)).timetuple())),
-    'last31days': lambda time_stamp: TimeSpan(time_stamp,
-                                              time.mktime((datetime.date.fromtimestamp(time_stamp) -
-                                                           datetime.timedelta(days=31)).timetuple())),
-    'last366days': lambda time_stamp: TimeSpan(time_stamp,
-                                               time.mktime((datetime.date.fromtimestamp(time_stamp) -
-                                                            datetime.timedelta(days=366)).timetuple()))
+    'last7days': lambda time_stamp: TimeSpan(time.mktime((datetime.date.fromtimestamp(time_stamp) -
+                                                          datetime.timedelta(days=7)).timetuple()),
+                                             time_stamp),
+    'last31days': lambda time_stamp: TimeSpan(time.mktime((datetime.date.fromtimestamp(time_stamp) -
+                                                           datetime.timedelta(days=31)).timetuple()),
+                                              time_stamp),
+    'last366days': lambda time_stamp: TimeSpan(time.mktime((datetime.date.fromtimestamp(time_stamp) -
+                                                            datetime.timedelta(days=366)).timetuple()),
+                                               time_stamp)
 }
 # pylint: enable=unnecessary-lambda
 

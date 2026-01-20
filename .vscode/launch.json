@@ -9,13 +9,13 @@
             "type": "debugpy",
             "request": "launch",
             //"program": "${file}",
-            "program": "bin/user/tests/unit/test_mqttpublish.py",
+            "program": "bin/user/tests/unit/test_publishthread.py",
             "console": "integratedTerminal",
             "args": [
                 //"TestInit",
                 //"test_PublishWeeWX_stanza_is_deprecated",
 
-                "TestConfigureTopics",
+                "TestPublishWeeWXThread",
                 "test_test",
             ],
         },
