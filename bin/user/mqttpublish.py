@@ -803,6 +803,7 @@ class PublishWeeWXThread(threading.Thread):
     def run(self):
         self.running = True
         self.logger.loginf(f"Starting publishing loop {self.name}.")
+        threading.current_thread().name = f"MQTTPublish-{threading.get_native_id()}"
 
         # need to instantiate inside thread
         self.publisher = AbstractPublisher.get_publisher(self.logger, self, self.mqtt_config)
