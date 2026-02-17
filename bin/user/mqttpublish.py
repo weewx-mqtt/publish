@@ -28,7 +28,7 @@ from weeutil.weeutil import to_bool, to_float, to_int, TimeSpan
 import weewx
 from weewx.engine import StdService
 
-VERSION = "1.0.0-rc02a"
+VERSION = "1.0.1-rc01a"
 
 # log = logging.getLogger(__name__)
 def setup_logging(logging_level, config_dict):
