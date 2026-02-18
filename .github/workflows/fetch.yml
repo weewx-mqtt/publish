@@ -12,4 +12,4 @@ jobs:
     with:
       upstream_url: "https://github.com/weewx-mqtt/publish.git"
     secrets:
-      token: ${{ secrets.GITHUB_TOKEN }}
+      workflow_token: ${{ secrets.GITHUB_TOKEN }}
