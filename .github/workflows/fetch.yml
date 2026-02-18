@@ -9,7 +9,7 @@ on:
 jobs:
   fetch:
     permissions: write-all
-    uses: weewx-extensions/development-tools/.github/workflows/fetch.yml@master
+    uses: weewx-extensions/development-tools/.github/workflows/fetch.yml@latest
     with:
       upstream_url: "https://github.com/weewx-mqtt/publish.git"
     secrets:
