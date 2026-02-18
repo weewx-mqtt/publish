@@ -8,6 +8,8 @@ on:
 
 jobs:
   fetch:
-    uses: weewx-extensions/development-tools/.github/workflows/fetch.yml@latest
+    uses: weewx-extensions/development-tools/.github/workflows/fetch.yml@master
     with:
       upstream_url: "https://github.com/weewx-mqtt/publish.git"
+    secrets:
+      token: ${{ secrets.GITHUB_TOKEN }}
