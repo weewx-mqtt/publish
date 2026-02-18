@@ -213,6 +213,8 @@ class AbstractPublisher(abc.ABC):
         if ca_certs == '':
             ca_certs = None
 
+        # ToDo: fix ceertfile = None default
+
         valid_cert_reqs = valid_cert_reqs.get(tls_dict.get('certs_required', 'required'))
         if valid_cert_reqs is None:
             raise ValueError(f"Invalid 'certs_required'., {tls_dict['certs_required']}")
