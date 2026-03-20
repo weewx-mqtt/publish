@@ -9,30 +9,33 @@
             "type": "debugpy",
             "request": "launch",
             //"program": "${file}",
-            "program": "bin/user/tests/unit/test_publishthread.py",
+            "program": "bin/user/tests/unit/test_mqttpublish.py",
             "console": "integratedTerminal",
             "args": [
-                //"TestInit",
-                //"test_PublishWeeWX_stanza_is_deprecated",
+                "TestInit",
+                "test_PublishWeeWX_stanza_is_deprecated",
 
-                "TestPublishWeeWXThread",
-                "test_test",
+                //"TestPublishWeeWXThread",
+                //"test_test",
             ],
         },
         {
-            "name": "Current File",
+            "name": "Test File",
             "type": "debugpy",
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
+        },
+        {
+            "name": "Run MQTTPublish",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "bin/user/mqttpublish.py",
+            "console": "integratedTerminal",
             "args": [
-                //"TestInit",
-                //"test_PublishWeeWX_stanza_is_deprecated",
-
-                //"TestPublishWeeWXThread",
                 "--messages", "tmp/message.json",
                 "tmp/publish.conf",
             ],
-        }
+        },
     ]
 }
