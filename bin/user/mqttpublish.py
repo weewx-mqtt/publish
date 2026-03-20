@@ -915,6 +915,10 @@ if __name__ == "__main__":
             packets = json.load(file_object)
 
         for packet in packets:
+            for key in packet.keys():
+                obs = packet[key]
+                if isinstance(obs, str) and obs.lower() == 'none':
+                    packet[key] = None
             new_loop_packet_event = weewx.Event(weewx.NEW_LOOP_PACKET, packet=packet)
             engine.dispatchEvent(new_loop_packet_event)
 
