@@ -28,7 +28,7 @@ from weeutil.weeutil import to_bool, to_float, to_int, TimeSpan
 import weewx
 from weewx.engine import StdService
 
-VERSION = "1.1.0-rc01a"
+VERSION = "1.1.0-rc02a"
 
 # log = logging.getLogger(__name__)
 def setup_logging(logging_level, config_dict):
@@ -452,6 +452,9 @@ class MQTTPublish(StdService):
             self.logger.loginf("Not enabled, exiting.")
             return
 
+        data_binding = service_dict.get('data_binding', 'wx_binding')
+        self.manager_dict = weewx.manager.get_manager_dict_from_config(config_dict, data_binding)
+
         self.topics_loop, self.topics_archive = self.configure_topics(service_dict)
         # self.logger.logdbg(f"archive topic configuration is: {self.topics_archive}")
         # self.logger.logdbg(f"loop topic configuration is: {self.topics_loop}")
@@ -494,7 +497,12 @@ class MQTTPublish(StdService):
         if 'archive' in binding:
             self.bind(weewx.NEW_ARCHIVE_RECORD, self.new_archive_record)
 
-        self._thread = PublishWeeWXThread(self.logger, self.mqtt_config, self.topics_loop, self.topics_archive, self.data_queue)
+        self._thread = PublishWeeWXThread(self.logger,
+                                          self.manager_dict,
+                                          self.mqtt_config,
+                                          self.topics_loop,
+                                          self.topics_archive,
+                                          self.data_queue)
         self.thread_start()
 
     def configure_fields(self,
@@ -647,7 +655,12 @@ class MQTTPublish(StdService):
             if self.thread_restarts < self.max_thread_restarts:
                 self.thread_restarts += 1
                 self._thread = \
-                    PublishWeeWXThread(self.logger, self.mqtt_config, self.topics_loop, self.topics_archive, self.data_queue)
+                    PublishWeeWXThread(self.logger,
+                                       self.manager_dict,
+                                       self.mqtt_config,
+                                       self.topics_loop,
+                                       self.topics_archive,
+                                       self.data_queue)
                 self.thread_start()
 
                 self.data_queue.put({'time_stamp': data['dateTime'], 'type': data_type, 'data': data})
@@ -692,12 +705,13 @@ class PublishWeeWXThread(threading.Thread):
         'unix_epoch': None,
     }
 
-    def __init__(self, logger, mqtt_config, topics_loop, topics_archive, data_queue):
+    def __init__(self, logger, manager_dict, mqtt_config, topics_loop, topics_archive, data_queue):
         threading.Thread.__init__(self)
         self.logger = logger
 
         self.logger.loginf("Initializing publishing thread.")
 
+        self.manager_dict = manager_dict
         self.publisher = None
         self.running = False
 
@@ -832,26 +846,28 @@ class PublishWeeWXThread(threading.Thread):
         # need to instantiate inside thread
         self.publisher = AbstractPublisher.get_publisher(self.logger, self, self.mqtt_config)
 
-        while self.running:
-            try:
-                data2 = self.data_queue.get_nowait()
-                # self.logger.logdbg(f"pulled from the data_queue: {data2}")
-                time_stamp = data2['time_stamp']
-                data_type = data2['type']
-                data = data2['data']
-                if data_type == 'loop':
-                    self.publish_row(time_stamp, data, self.topics_loop)
-                elif data_type == 'archive':
-                    self.publish_row(time_stamp, data, self.topics_archive)
-                else:
-                    self.logger.logerr(f"Unknown data type, {data_type}")
-            except Queue.Empty:
-                # ToDo: this causes another connection, seems to cause no harm
-                # does cause a socket error/disconnect message on the server
-                self.publisher.client.loop(timeout=0.1)
-                # ToDo: - investigate my 'sleep' implementation
-                self.threading_event.wait(self.mqtt_config['keepalive'] / 4)
-                self.threading_event.clear()
+        with weewx.manager.open_manager(self.manager_dict) as db_manager:
+            self.db_manager = db_manager
+            while self.running:
+                try:
+                    data2 = self.data_queue.get_nowait()
+                    # self.logger.logdbg(f"pulled from the data_queue: {data2}")
+                    time_stamp = data2['time_stamp']
+                    data_type = data2['type']
+                    data = data2['data']
+                    if data_type == 'loop':
+                        self.publish_row(time_stamp, data, self.topics_loop)
+                    elif data_type == 'archive':
+                        self.publish_row(time_stamp, data, self.topics_archive)
+                    else:
+                        self.logger.logerr(f"Unknown data type, {data_type}")
+                except Queue.Empty:
+                    # ToDo: this causes another connection, seems to cause no harm
+                    # does cause a socket error/disconnect message on the server
+                    self.publisher.client.loop(timeout=0.1)
+                    # ToDo: - investigate my 'sleep' implementation
+                    self.threading_event.wait(self.mqtt_config['keepalive'] / 4)
+                    self.threading_event.clear()
 
         self.logger.loginf(f"Exited publishing loop {self.name}.")
 

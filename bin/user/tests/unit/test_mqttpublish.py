@@ -30,11 +30,12 @@ class TestInit(unittest.TestCase):
         config = configobj.ConfigObj(config_dict)
 
         # with mock.patch('user.mqttpublish.mqtt'):
-        with mock.patch('user.mqttpublish.PublishWeeWXThread'):
-            with mock.patch('user.mqttpublish.Logger'):
-                SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
-                SUT.logger.logerr.assert_called_once_with(
-                    "'PublishWeeWX' is deprecated. Move options to top level, '[MQTTPublish]'.")
+        with mock.patch('user.mqttpublish.weewx.manager'):
+            with mock.patch('user.mqttpublish.PublishWeeWXThread'):
+                with mock.patch('user.mqttpublish.Logger'):
+                    SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
+                    SUT.logger.logerr.assert_called_once_with(
+                        "'PublishWeeWX' is deprecated. Move options to top level, '[MQTTPublish]'.")
 
 class TestConfigureTopics(unittest.TestCase):
     def test_config_topics(self):

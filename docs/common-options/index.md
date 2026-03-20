@@ -15,6 +15,11 @@ Whether the service is enabled or not.
 Valid values are `true` or `false`.
 The default value is `true`.
 
+### data_binding
+
+The WeeWX data_binding to use when calculating aggregates.
+The default value is `wx_binding`.
+
 ### log_mqtt
 
 Controls the MQTT logging.
