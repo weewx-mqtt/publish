@@ -213,7 +213,17 @@ class AbstractPublisher(abc.ABC):
         if ca_certs == '':
             ca_certs = None
 
-        # ToDo: fix ceertfile = None default
+        certfile = tls_dict.get('certfile')
+        if certfile and certfile.lower() == 'none':
+            certfile = None
+
+        keyfile = tls_dict.get('keyfile')
+        if keyfile and keyfile.lower() == 'none':
+            keyfile = None
+
+        ciphers = tls_dict.get('ciphers')
+        if ciphers and ciphers.lower() == 'none':
+            ciphers = None
 
         valid_cert_reqs = valid_cert_reqs.get(tls_dict.get('certs_required', 'required'))
         if valid_cert_reqs is None:
@@ -224,11 +234,11 @@ class AbstractPublisher(abc.ABC):
             raise ValueError(f"Invalid 'tls_version'., {tls_dict['tls_version']}")
 
         self.client.tls_set(ca_certs=ca_certs,
-                            certfile=tls_dict.get('certfile'),
-                            keyfile=tls_dict.get('keyfile'),
+                            certfile=certfile,
+                            keyfile=keyfile,
                             cert_reqs=valid_cert_reqs,
                             tls_version=tls_version,
-                            ciphers=tls_dict.get('ciphers'))
+                            ciphers=ciphers)
 
     def publish_message(self, time_stamp, qos, retain, topic, data):
         """ Publish the message. """
@@ -846,8 +856,26 @@ class PublishWeeWXThread(threading.Thread):
         self.logger.loginf(f"Exited publishing loop {self.name}.")
 
 if __name__ == "__main__":
+    import argparse
+    import os
+
     def main():  # pragma: no cover
         """ Run it. """
+        parser = argparse.ArgumentParser()
+        parser.add_argument('--version', action='version', version=f'%(prog)s {VERSION}')
+
+        parser.add_argument("--messages", required=True, type=str, dest="message_file",
+                            help="The file with the test messages")
+
+        parser.add_argument("config_file")
+
+        options = parser.parse_args()
+
+        message_file = options.message_file
+
+        config_path = os.path.abspath(options.config_file)
+        config = configobj.ConfigObj(config_path, file_error=True)
+
         min_config_dict = {
             'Station': {
                 'altitude': [0, 'foot'],
@@ -864,33 +892,10 @@ if __name__ == "__main__":
         }
         engine = weewx.engine.StdEngine(min_config_dict)
 
-        config_dict = {
-            'debug': 1,
-            'MQTTPublish': {
-                'topics': {
-                    'test/loop': {
-                        'binding': 'loop',
-                        'type': 'json'
-                    }
-                }
-            },
-            'Logging': {
-                'root': {
-                    'handlers': ['syslog', 'console']
-                },
-                'loggers': {
-                    'user.mqttpublish': {
-                        'level': 'DEBUG'
-                    }
-                }
-            }
-        }
-        config = configobj.ConfigObj(config_dict)
-
-        setup_logging(True, config_dict)
+        setup_logging(True, config)
         mqtt_publish = MQTTPublish(engine, config)
 
-        with open('tmp/message.json', encoding='UTF-8') as file_object:
+        with open(message_file, encoding='UTF-8') as file_object:
             packets = json.load(file_object)
 
         for packet in packets:

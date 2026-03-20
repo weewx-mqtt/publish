@@ -24,7 +24,15 @@
             "type": "debugpy",
             "request": "launch",
             "program": "${file}",
-            "console": "integratedTerminal"
+            "console": "integratedTerminal",
+            "args": [
+                //"TestInit",
+                //"test_PublishWeeWX_stanza_is_deprecated",
+
+                //"TestPublishWeeWXThread",
+                "--messages", "tmp/message.json",
+                "tmp/publish.conf",
+            ],
         }
     ]
 }
