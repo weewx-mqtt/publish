@@ -1,0 +1,10 @@
+1.1.0 
+Fixes
+- Better handling of tls related default values.
+- Support aggregate values
+  Ability to configure the WeeWX database binding used to calculate aggregates. (#7)
+  Support fo specifying a WeeWX unit systemt to convert all observations to. (#8)
+  When an observation has a unit specified, use that when appending to the observation name.
+
+Enhancements
+- Improvements when running in 'standalone mode'.
