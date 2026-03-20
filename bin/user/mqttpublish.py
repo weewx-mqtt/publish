@@ -760,7 +760,7 @@ class PublishWeeWXThread(threading.Thread):
                     weewx.xtypes.get_aggregate(topic_dict['aggregates'][aggregate_observation]['observation'],
                                                time_span, topic_dict['aggregates'][aggregate_observation]['aggregation'],
                                                self.db_manager)
-                aggregate_value = weewx.units.convertStd(aggregate_value_tuple, record['usUnits'])[0]
+                aggregate_value = weewx.units.convertStd(aggregate_value_tuple, updated_record['usUnits'])[0]
                 # ToDo: only do once?
                 weewx.units.obs_group_dict[aggregate_observation] = aggregate_value_tuple[2]
 
