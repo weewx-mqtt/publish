@@ -783,9 +783,14 @@ class PublishWeeWXThread(threading.Thread):
     def update_field(topic_dict, fieldinfo, field, value, unit_system):
         """ Update field. """
         name = fieldinfo.get('name', field)
+        unit = fieldinfo.get('unit', None)
         append_unit_label = fieldinfo.get('append_unit_label', topic_dict.get('append_unit_label'))
+
         if append_unit_label:
-            (unit_type, _) = weewx.units.getStandardUnitType(unit_system, name)
+            if unit is None:
+                (unit_type, _) = weewx.units.getStandardUnitType(unit_system, name)
+            else:
+                unit_type = unit
             unit_type = PublishWeeWXThread.UNIT_REDUCTIONS.get(unit_type, unit_type)
             if unit_type is not None:
                 name = f"{name}_{unit_type}"

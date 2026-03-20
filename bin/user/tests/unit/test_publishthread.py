@@ -114,7 +114,7 @@ class TestPublishWeeWXThread(unittest.TestCase):
                                                  updated_record[field1],
                                                  updated_record['usUnits'])
 
-                self.assertEqual(name, f"{field1}_{unit_type}")
+                self.assertEqual(name, f"{field1}_{topic_dict['fields'][field1]['unit']}")
                 self.assertEqual(value, converted_value)
 
 if __name__ == '__main__':
