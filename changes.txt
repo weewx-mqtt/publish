@@ -7,4 +7,5 @@ Fixes
   When an observation has a unit specified, use that when appending to the observation name.
 
 Enhancements
+- Use the week_start configuration option of the the `[station]` when calculating week aggregates.
 - Improvements when running in 'standalone mode'.
