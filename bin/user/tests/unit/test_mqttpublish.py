@@ -148,7 +148,8 @@ class TestConfigureTopics(unittest.TestCase):
 
         topic1 = helpers.random_string()
         aggreagate1 = helpers.random_string()
-        period = random.choice(list(user.mqttpublish.period_timespan.keys()))
+        period_timespans = user.mqttpublish.PeriodTimespan(6)  # ToDo: - random int to instantiate
+        period = random.choice(list(period_timespans.period_timespans.keys()))
         service_dict = {
             'topics': {
                 topic1: {

@@ -25,11 +25,12 @@ class TestPublishWeeWXThread(unittest.TestCase):
         topics_archive = None
         data_queue = None
 
-        SUT = user.mqttpublish.PublishWeeWXThread(mock_logger, None, config, topics_loop, topics_archive, data_queue)
+        SUT = user.mqttpublish.PublishWeeWXThread(mock_logger, None, config, topics_loop, topics_archive, data_queue, mock.Mock())
 
         field1 = helpers.random_string()
         aggreagate1 = helpers.random_string()
-        period = random.choice(list(user.mqttpublish.period_timespan.keys()))
+        period_timespans = user.mqttpublish.PeriodTimespan(6)  # ToDo: - random int to instantiate
+        period = random.choice(list(period_timespans.period_timespans.keys()))
 
         topic_dict = {
             'unit_system': 1,
@@ -80,7 +81,7 @@ class TestPublishWeeWXThread(unittest.TestCase):
         topics_archive = None
         data_queue_mock = mock.Mock()
 
-        SUT = user.mqttpublish.PublishWeeWXThread(mock_logger, None, config, topics_loop, topics_archive, data_queue_mock)
+        SUT = user.mqttpublish.PublishWeeWXThread(mock_logger, None, config, topics_loop, topics_archive, data_queue_mock, None)
 
         field1 = helpers.random_string()
 

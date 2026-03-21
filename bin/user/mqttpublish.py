@@ -55,27 +55,66 @@ class Logger:
         """ log error messages """
         self.log.error("%s %s", threading.get_native_id(), msg)
 
-# ToDo: need to rethink
-period_timespan = {
-    # pylint: disable=unnecessary-lambda
-    'hour': lambda time_stamp: weeutil.weeutil.archiveHoursAgoSpan(time_stamp),
-    'day': lambda time_stamp: weeutil.weeutil.archiveDaySpan(time_stamp),
-    'yesterday': lambda time_stamp: weeutil.weeutil.archiveDaySpan(time_stamp, 1),
-    'week': lambda time_stamp: weeutil.weeutil.archiveWeekSpan(time_stamp),
-    'month': lambda time_stamp: weeutil.weeutil.archiveMonthSpan(time_stamp),
-    'year': lambda time_stamp: weeutil.weeutil.archiveYearSpan(time_stamp),
-    'last24hours': lambda time_stamp: TimeSpan(time_stamp - 86400, time_stamp),
-    'last7days': lambda time_stamp: TimeSpan(time.mktime((datetime.date.fromtimestamp(time_stamp) -
-                                                          datetime.timedelta(days=7)).timetuple()),
-                                             time_stamp),
-    'last31days': lambda time_stamp: TimeSpan(time.mktime((datetime.date.fromtimestamp(time_stamp) -
-                                                           datetime.timedelta(days=31)).timetuple()),
-                                              time_stamp),
-    'last366days': lambda time_stamp: TimeSpan(time.mktime((datetime.date.fromtimestamp(time_stamp) -
-                                                            datetime.timedelta(days=366)).timetuple()),
-                                               time_stamp)
-}
-# pylint: enable=unnecessary-lambda
+class PeriodTimespan:
+    ''' Manage the timespans. '''
+    def __init__(self, week_start):
+        self.week_start = week_start
+        self.period_timespans = {
+            'hour': self.hour,
+            'day': self.day,
+            'yesterday': self.yesterday,
+            'week': self.week,
+            'month': self.month,
+            'year': self.year,
+            'last24hours': self.last24hours,
+            'last7days': self.last7days,
+            'last31days': self.last31days,
+            'last366days': self.last366days,
+        }
+
+    def get_timespan(self, interval, timestamp):
+        ''' Get a timespan for the interval and timstamp. '''
+        return self.period_timespans[interval](timestamp)
+
+    def hour(self, timestamp):
+        ''' Get a timespan for the hour. '''
+        return weeutil.weeutil.archiveHoursAgoSpan(timestamp)
+
+    def day(self, timestamp):
+        ''' Get a timespan for the day. '''
+        return weeutil.weeutil.archiveDaySpan(timestamp)
+
+    def yesterday(self, timestamp):
+        ''' Get a timespan for yesterday. '''
+        return weeutil.weeutil.archiveDaySpan(timestamp, 1)
+
+    def week(self, timestamp):
+        ''' Get a timespan for the running week. '''
+        return weeutil.weeutil.archiveWeekSpan(timestamp, startOfWeek=self.week_start)
+
+    def month(self, timestamp):
+        ''' Get a timespan for the running month. '''
+        return weeutil.weeutil.archiveMonthSpan(timestamp)
+
+    def year(self, timestamp):
+        ''' Get a timespan for the running year. '''
+        return weeutil.weeutil.archiveYearSpan(timestamp)
+
+    def last24hours(self, timestamp):
+        ''' Get a timespan for the last 24 hours. '''
+        return TimeSpan(timestamp - 86400, timestamp)
+
+    def last7days(self, timestamp):
+        ''' Get a timespan for the last 7 days. '''
+        return TimeSpan(time.mktime((datetime.date.fromtimestamp(timestamp) - datetime.timedelta(days=7)).timetuple()), timestamp)
+
+    def last31days(self, timestamp):
+        ''' Get a timespan for the last 31 days. '''
+        return TimeSpan(time.mktime((datetime.date.fromtimestamp(timestamp) - datetime.timedelta(days=31)).timetuple()), timestamp)
+
+    def last366days(self, timestamp):
+        ''' Get a timespan for the last 366 days. '''
+        return TimeSpan(time.mktime((datetime.date.fromtimestamp(timestamp) - datetime.timedelta(days=366)).timetuple()), timestamp)
 
 class AbstractPublisher(abc.ABC):
     """ Managing publishing to MQTT. """
@@ -447,6 +486,9 @@ class MQTTPublish(StdService):
             self.logger.logerr("'PublishWeeWX' is deprecated. Move options to top level, '[MQTTPublish]'.")
             service_dict = config_dict.get('MQTTPublish', {}).get('PublishWeeWX', {})
 
+        # ToDo: Move this after the enable check (need to fix unit tests to allow this)
+        self.period_timespans = PeriodTimespan(6)
+
         self.enable = to_bool(service_dict.get('enable', True))
         if not self.enable:
             self.logger.loginf("Not enabled, exiting.")
@@ -502,7 +544,8 @@ class MQTTPublish(StdService):
                                           self.mqtt_config,
                                           self.topics_loop,
                                           self.topics_archive,
-                                          self.data_queue)
+                                          self.data_queue,
+                                          self.period_timespans)
         self.thread_start()
 
     def configure_fields(self,
@@ -576,7 +619,8 @@ class MQTTPublish(StdService):
             aggregates = topic_dict.get('aggregates', {})
             if aggregates:
                 for aggregate in aggregates:
-                    if to_bool(aggregates[aggregate].get('enable', True)) and aggregates[aggregate]['period'] not in period_timespan:
+                    if to_bool(aggregates[aggregate].get('enable', True)) \
+                        and aggregates[aggregate]['period'] not in self.period_timespans.period_timespans:
                         raise ValueError(f"Invalid 'period', {aggregates[aggregate]['period']}")
                 weeutil.config.merge_config(aggregates, self.configure_fields(aggregates,
                                                                               ignore,
@@ -660,7 +704,8 @@ class MQTTPublish(StdService):
                                        self.mqtt_config,
                                        self.topics_loop,
                                        self.topics_archive,
-                                       self.data_queue)
+                                       self.data_queue,
+                                       self.period_timespans)
                 self.thread_start()
 
                 self.data_queue.put({'time_stamp': data['dateTime'], 'type': data_type, 'data': data})
@@ -705,7 +750,7 @@ class PublishWeeWXThread(threading.Thread):
         'unix_epoch': None,
     }
 
-    def __init__(self, logger, manager_dict, mqtt_config, topics_loop, topics_archive, data_queue):
+    def __init__(self, logger, manager_dict, mqtt_config, topics_loop, topics_archive, data_queue, period_timespans):
         threading.Thread.__init__(self)
         self.logger = logger
 
@@ -722,6 +767,7 @@ class PublishWeeWXThread(threading.Thread):
         self.topics_archive = topics_archive
 
         self.data_queue = data_queue
+        self.period_timespans = period_timespans
         self.threading_event = threading.Event()
 
     def update_record(self, topic_dict, record):
@@ -753,7 +799,8 @@ class PublishWeeWXThread(threading.Thread):
             if not to_bool(topic_dict['aggregates'][aggregate_observation].get('enable', True)):
                 continue
 
-            time_span = period_timespan[topic_dict['aggregates'][aggregate_observation]['period']](record['dateTime'])
+            time_span = self.period_timespans.get_timespan(topic_dict['aggregates'][aggregate_observation]['period'],
+                                                           record['dateTime'])
 
             try:
                 aggregate_value_tuple = \
