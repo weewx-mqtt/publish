@@ -487,7 +487,7 @@ class MQTTPublish(StdService):
             service_dict = config_dict.get('MQTTPublish', {}).get('PublishWeeWX', {})
 
         # ToDo: Move this after the enable check (need to fix unit tests to allow this)
-        self.period_timespans = PeriodTimespan(6)
+        self.period_timespans = PeriodTimespan(engine.stn_info.week_start)
 
         self.enable = to_bool(service_dict.get('enable', True))
         if not self.enable:
