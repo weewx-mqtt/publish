@@ -106,15 +106,18 @@ class PeriodTimespan:
 
     def last7days(self, timestamp):
         ''' Get a timespan for the last 7 days. '''
-        return TimeSpan(time.mktime((datetime.date.fromtimestamp(timestamp) - datetime.timedelta(days=7)).timetuple()), timestamp)
+        return self._last_n_days(7, timestamp)
 
     def last31days(self, timestamp):
         ''' Get a timespan for the last 31 days. '''
-        return TimeSpan(time.mktime((datetime.date.fromtimestamp(timestamp) - datetime.timedelta(days=31)).timetuple()), timestamp)
+        return self._last_n_days(31, timestamp)
 
     def last366days(self, timestamp):
         ''' Get a timespan for the last 366 days. '''
-        return TimeSpan(time.mktime((datetime.date.fromtimestamp(timestamp) - datetime.timedelta(days=366)).timetuple()), timestamp)
+        return self._last_n_days(366, timestamp)
+
+    def _last_n_days(self, days, timestamp):
+        return TimeSpan(time.mktime((datetime.date.fromtimestamp(timestamp) - datetime.timedelta(days=days)).timetuple()), timestamp)
 
 class AbstractPublisher(abc.ABC):
     """ Managing publishing to MQTT. """
