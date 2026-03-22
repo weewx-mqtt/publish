@@ -15,10 +15,25 @@ import random
 import time
 
 import helpers
+
+import weeutil.weeutil
 import user.mqttpublish
 
-class TestLastNDays(unittest.TestCase):
-    def test1(self):
+class TestGetTimeSpan(unittest.TestCase):
+    def test_week(self):
+        with mock.patch('weeutil.weeutil.archiveWeekSpan')as mock_archive_week_span:
+            os.environ['TZ'] = 'America/New_York'
+            time.tzset()
+
+            week_start = random.randint(0, 6)
+            timespan_provider = user.mqttpublish.TimeSpanProvider(week_start)
+
+            now = 1771939800
+            timespan_provider.week(now)
+
+            mock_archive_week_span.assert_called_once_with(now, startOfWeek=week_start)
+
+    def test_last_n_days(self):
         with mock.patch('user.mqttpublish.TimeSpan')as mock_TimeSpan:
             os.environ['TZ'] = 'America/New_York'
             time.tzset()
