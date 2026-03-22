@@ -29,7 +29,8 @@ class TestPublishWeeWXThread(unittest.TestCase):
 
         field1 = helpers.random_string()
         aggreagate1 = helpers.random_string()
-        timespan_provider = user.mqttpublish.TimeSpanProvider(6)  # ToDo: - random int to instantiate
+        week_start = random.randint(0, 6)
+        timespan_provider = user.mqttpublish.TimeSpanProvider(week_start)
         period = random.choice(list(timespan_provider.period_timespans.keys()))
 
         topic_dict = {
