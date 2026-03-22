@@ -55,7 +55,7 @@ class Logger:
         """ log error messages """
         self.log.error("%s %s", threading.get_native_id(), msg)
 
-class PeriodTimespan:
+class TimeSpanProvider:
     ''' Manage the timespans. '''
     def __init__(self, week_start):
         self.week_start = week_start
@@ -490,7 +490,7 @@ class MQTTPublish(StdService):
             service_dict = config_dict.get('MQTTPublish', {}).get('PublishWeeWX', {})
 
         # ToDo: Move this after the enable check (need to fix unit tests to allow this)
-        self.period_timespans = PeriodTimespan(engine.stn_info.week_start)
+        self.timespan_provider = TimeSpanProvider(engine.stn_info.week_start)
 
         self.enable = to_bool(service_dict.get('enable', True))
         if not self.enable:
@@ -548,7 +548,7 @@ class MQTTPublish(StdService):
                                           self.topics_loop,
                                           self.topics_archive,
                                           self.data_queue,
-                                          self.period_timespans)
+                                          self.timespan_provider)
         self.thread_start()
 
     def configure_fields(self,
@@ -623,7 +623,7 @@ class MQTTPublish(StdService):
             if aggregates:
                 for aggregate in aggregates:
                     if to_bool(aggregates[aggregate].get('enable', True)) \
-                        and aggregates[aggregate]['period'] not in self.period_timespans.period_timespans:
+                        and aggregates[aggregate]['period'] not in self.timespan_provider.period_timespans:
                         raise ValueError(f"Invalid 'period', {aggregates[aggregate]['period']}")
                 weeutil.config.merge_config(aggregates, self.configure_fields(aggregates,
                                                                               ignore,
@@ -708,7 +708,7 @@ class MQTTPublish(StdService):
                                        self.topics_loop,
                                        self.topics_archive,
                                        self.data_queue,
-                                       self.period_timespans)
+                                       self.timespan_provider)
                 self.thread_start()
 
                 self.data_queue.put({'time_stamp': data['dateTime'], 'type': data_type, 'data': data})
@@ -753,7 +753,7 @@ class PublishWeeWXThread(threading.Thread):
         'unix_epoch': None,
     }
 
-    def __init__(self, logger, manager_dict, mqtt_config, topics_loop, topics_archive, data_queue, period_timespans):
+    def __init__(self, logger, manager_dict, mqtt_config, topics_loop, topics_archive, data_queue, timespan_provider):
         threading.Thread.__init__(self)
         self.logger = logger
 
@@ -770,7 +770,7 @@ class PublishWeeWXThread(threading.Thread):
         self.topics_archive = topics_archive
 
         self.data_queue = data_queue
-        self.period_timespans = period_timespans
+        self.timespan_provider = timespan_provider
         self.threading_event = threading.Event()
 
     def update_record(self, topic_dict, record):
@@ -802,7 +802,7 @@ class PublishWeeWXThread(threading.Thread):
             if not to_bool(topic_dict['aggregates'][aggregate_observation].get('enable', True)):
                 continue
 
-            time_span = self.period_timespans.get_timespan(topic_dict['aggregates'][aggregate_observation]['period'],
+            time_span = self.timespan_provider.get_timespan(topic_dict['aggregates'][aggregate_observation]['period'],
                                                            record['dateTime'])
 
             try:

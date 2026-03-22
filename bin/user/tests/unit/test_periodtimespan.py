@@ -20,11 +20,11 @@ class TestLastNDays(unittest.TestCase):
         with mock.patch('user.mqttpublish.TimeSpan')as mock_TimeSpan:
 
             week_start = random.randint(0, 6)
-            period_timespans = user.mqttpublish.PeriodTimespan(week_start)
+            timespan_provider = user.mqttpublish.TimeSpanProvider(week_start)
 
             days = 7
             now = 1771939800
-            period_timespans._last_n_days(days, now)
+            timespan_provider._last_n_days(days, now)
 
             day_start_timestamp = 1771304400.0
             mock_TimeSpan.assert_called_once_with(day_start_timestamp, now)
