@@ -10,7 +10,9 @@
 import unittest
 import mock
 
+import os
 import random
+import time
 
 import helpers
 import user.mqttpublish
@@ -18,6 +20,8 @@ import user.mqttpublish
 class TestLastNDays(unittest.TestCase):
     def test1(self):
         with mock.patch('user.mqttpublish.TimeSpan')as mock_TimeSpan:
+            os.environ['TZ'] = 'America/New_York'
+            time.tzset()
 
             week_start = random.randint(0, 6)
             timespan_provider = user.mqttpublish.TimeSpanProvider(week_start)
