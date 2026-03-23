@@ -16,10 +16,48 @@ import time
 
 import helpers
 
-import weeutil.weeutil
 import user.mqttpublish
 
 class TestGetTimeSpan(unittest.TestCase):
+    def test_hour(self):
+        with mock.patch('weeutil.weeutil.archiveHoursAgoSpan')as mock_archive_hours_ago_span:
+            os.environ['TZ'] = 'America/New_York'
+            time.tzset()
+
+            week_start = random.randint(0, 6)
+            timespan_provider = user.mqttpublish.TimeSpanProvider(week_start)
+
+            now = 1771939800
+            timespan_provider.hour(now)
+
+            mock_archive_hours_ago_span.assert_called_once_with(now)
+
+    def test_day(self):
+        with mock.patch('weeutil.weeutil.archiveDaySpan')as mock_archive_day_span:
+            os.environ['TZ'] = 'America/New_York'
+            time.tzset()
+
+            week_start = random.randint(0, 6)
+            timespan_provider = user.mqttpublish.TimeSpanProvider(week_start)
+
+            now = 1771939800
+            timespan_provider.day(now)
+
+            mock_archive_day_span.assert_called_once_with(now)
+
+    def test_yesterday(self):
+        with mock.patch('weeutil.weeutil.archiveDaySpan')as mock_archive_day_span:
+            os.environ['TZ'] = 'America/New_York'
+            time.tzset()
+
+            week_start = random.randint(0, 6)
+            timespan_provider = user.mqttpublish.TimeSpanProvider(week_start)
+
+            now = 1771939800
+            timespan_provider.yesterday(now)
+
+            mock_archive_day_span.assert_called_once_with(now, 1)
+
     def test_week(self):
         with mock.patch('weeutil.weeutil.archiveWeekSpan')as mock_archive_week_span:
             os.environ['TZ'] = 'America/New_York'
@@ -32,6 +70,46 @@ class TestGetTimeSpan(unittest.TestCase):
             timespan_provider.week(now)
 
             mock_archive_week_span.assert_called_once_with(now, startOfWeek=week_start)
+
+    def test_month(self):
+        with mock.patch('weeutil.weeutil.archiveMonthSpan')as mock_archive_month_span:
+            os.environ['TZ'] = 'America/New_York'
+            time.tzset()
+
+            week_start = random.randint(0, 6)
+            timespan_provider = user.mqttpublish.TimeSpanProvider(week_start)
+
+            now = 1771939800
+            timespan_provider.month(now)
+
+            mock_archive_month_span.assert_called_once_with(now)
+
+    def test_year(self):
+        with mock.patch('weeutil.weeutil.archiveYearSpan')as mock_archive_year_span:
+            os.environ['TZ'] = 'America/New_York'
+            time.tzset()
+
+            week_start = random.randint(0, 6)
+            timespan_provider = user.mqttpublish.TimeSpanProvider(week_start)
+
+            now = 1771939800
+            timespan_provider.year(now)
+
+            mock_archive_year_span.assert_called_once_with(now)
+
+    def test_last24hours(self):
+        with mock.patch('user.mqttpublish.TimeSpan')as mock_TimeSpan:
+            os.environ['TZ'] = 'America/New_York'
+            time.tzset()
+
+            week_start = random.randint(0, 6)
+            timespan_provider = user.mqttpublish.TimeSpanProvider(week_start)
+
+            now = 1771939800
+            timespan_provider.last24hours(now)
+
+            day_start_timestamp = now - 86400
+            mock_TimeSpan.assert_called_once_with(day_start_timestamp, now)
 
     def test_last_n_days(self):
         with mock.patch('user.mqttpublish.TimeSpan')as mock_TimeSpan:
