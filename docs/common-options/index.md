@@ -29,7 +29,13 @@ The default value is `true`.
 ### max_retries
 
 The maximum number of times to try to reconnect.
+If unable to connect within `max_retries`, the publishing thread will be shutdown.
 The default value is `5`.
+
+### wait_between_retries
+
+The number of secconds to wait before trying to reconnect when there is a connection error.
+The default is `5`.
 
 ### clientid
 

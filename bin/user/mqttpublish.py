@@ -183,7 +183,7 @@ class AbstractPublisher(abc.ABC):
             self.logger.logdbg("Waiting to connect.")
             # loop seems to break before connect, perhaps due to logging
             self.client.loop(timeout=0.1)
-            time.sleep(5)
+            time.sleep(self.mqtt_config['wait_between_retries'])
 
             retries += 1
             if retries > self.mqtt_config['max_retries']:
@@ -209,7 +209,8 @@ class AbstractPublisher(abc.ABC):
         self.client.loop(timeout=1.0)
         while not self.connected:
             self.logger.logdbg("Waiting to (re)connect.")
-            self.client.loop(timeout=5.0)
+            self.client.loop(timeout=0.1)
+            time.sleep(self.mqtt_config['wait_between_retries'])
 
             retries += 1
             if retries > self.mqtt_config['max_retries']:
@@ -517,6 +518,7 @@ class MQTTPublish(StdService):
         self.mqtt_config['keepalive'] = to_int(service_dict.get('keepalive', 60))
 
         self.mqtt_config['max_retries'] = to_int(service_dict.get('max_retries', 5))
+        self.mqtt_config['wait_between_retries'] = to_int(service_dict.get('wait_between_retries', 5))
         self.mqtt_config['log_mqtt'] = to_bool(service_dict.get('mqtt_log', False))
         self.mqtt_config['host'] = service_dict.get('host', 'localhost')
         self.mqtt_config['port'] = to_int(service_dict.get('port', 1883))
