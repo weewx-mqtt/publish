@@ -196,7 +196,11 @@ class AbstractPublisher(abc.ABC):
 
     def _reconnect(self):
         self.logger.logdbg("Attempting to reconnect.")
-        self.client.reconnect()
+        try:
+            self.client.reconnect()
+        except Exception as exception:  # want to catch all pylint: disable=broad-exception-caught
+            self.logger.logerr(f"MQTT reconnect failed with {type(exception)} and reason {exception}.")
+            self.logger.logerr(f"{traceback.format_exc()}")
         self.logger.logdbg("After reconnect call.")
         retries = 0
         self.client.loop(timeout=1.0)
@@ -210,7 +214,11 @@ class AbstractPublisher(abc.ABC):
                 self.publisher.running = False
                 return
 
-            self.client.reconnect()
+            try:
+                self.client.reconnect()
+            except Exception as exception:  # want to catch all pylint: disable=broad-exception-caught
+                self.logger.logerr(f"MQTT reconnect failed with {type(exception)} and reason {exception}.")
+                self.logger.logerr(f"{traceback.format_exc()}")
 
     def _config_tls(self, tls_dict):
         """ Configure TLS."""
@@ -286,6 +294,7 @@ class AbstractPublisher(abc.ABC):
         """ Publish the message. """
         if not self.connected:
             self._reconnect()
+        # ToDo: Handle reconnect failure
         # self.logger.logdbg(f"publishing: {topic} {data}")
         mqtt_message_info = self.client.publish(topic, data, qos=qos, retain=retain)
         self.logger.logdbg(f"At {int(time.time())} publishing: {int(time_stamp)} {mqtt_message_info.mid} {qos} {topic}")
