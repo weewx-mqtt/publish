@@ -30,6 +30,9 @@ from weewx.engine import StdService
 
 VERSION = "1.1.0-rc02b"
 
+class CannotConnectError(ConnectionError):
+    """" Cannot connect to broker. """
+
 # log = logging.getLogger(__name__)
 def setup_logging(logging_level, config_dict):
     """ Setup logging for running in standalone mode."""
@@ -210,9 +213,7 @@ class AbstractPublisher(abc.ABC):
 
             retries += 1
             if retries > self.mqtt_config['max_retries']:
-                # Shut thread down, a bit of a hack
-                self.publisher.running = False
-                return
+                raise CannotConnectError
 
             try:
                 self.client.reconnect()
@@ -294,7 +295,6 @@ class AbstractPublisher(abc.ABC):
         """ Publish the message. """
         if not self.connected:
             self._reconnect()
-        # ToDo: Handle reconnect failure
         # self.logger.logdbg(f"publishing: {topic} {data}")
         mqtt_message_info = self.client.publish(topic, data, qos=qos, retain=retain)
         self.logger.logdbg(f"At {int(time.time())} publishing: {int(time_stamp)} {mqtt_message_info.mid} {qos} {topic}")
@@ -535,7 +535,6 @@ class MQTTPublish(StdService):
         self.logger.logdbg(f"sanitized_mqtt_config is {sanitized_mqtt_config}")
 
         # ToDo: make configurable
-        self.kill_weewx = []
         self.max_thread_restarts = 2
         self.thread_restarts = 0
 
@@ -722,7 +721,7 @@ class MQTTPublish(StdService):
 
                 self.data_queue.put({'time_stamp': data['dateTime'], 'type': data_type, 'data': data})
                 self._thread.threading_event.set()
-            elif 'threadEnded' in self.kill_weewx:
+            else:
                 raise weewx.StopNow("MQTT publishing thread has stopped.")
         else:
             self.data_queue.put({'time_stamp': data['dateTime'], 'type': data_type, 'data': data})
@@ -932,6 +931,8 @@ class PublishWeeWXThread(threading.Thread):
                     # ToDo: - investigate my 'sleep' implementation
                     self.threading_event.wait(self.mqtt_config['keepalive'] / 4)
                     self.threading_event.clear()
+                except CannotConnectError:
+                    self.running = False
 
         self.logger.loginf(f"Exited publishing loop {self.name}.")
 
