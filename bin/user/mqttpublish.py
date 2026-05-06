@@ -179,7 +179,7 @@ class AbstractPublisher(abc.ABC):
         # loop seems to break before connect, perhaps due to logging
         self.client.loop(timeout=0.1)
         time.sleep(1)
-        while not self.connected:
+        while not self.connected and self.publisher.running:
             self.logger.logdbg("Waiting to connect.")
             # loop seems to break before connect, perhaps due to logging
             self.client.loop(timeout=0.1)
@@ -207,7 +207,7 @@ class AbstractPublisher(abc.ABC):
         self.logger.logdbg("After reconnect call.")
         retries = 0
         self.client.loop(timeout=1.0)
-        while not self.connected:
+        while not self.connected and self.publisher.running:
             self.logger.logdbg("Waiting to (re)connect.")
             self.client.loop(timeout=0.1)
             time.sleep(self.mqtt_config['wait_between_retries'])
