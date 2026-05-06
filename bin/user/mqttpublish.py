@@ -726,7 +726,6 @@ class MQTTPublish(StdService):
             else:
                 raise weewx.StopNow("MQTT publishing thread has stopped.")
         else:
-            self.thread_restarts = 0
             self.data_queue.put({'time_stamp': data['dateTime'], 'type': data_type, 'data': data})
             self._thread.threading_event.set()
 
