@@ -536,8 +536,8 @@ class MQTTPublish(StdService):
         self.logger.logdbg(f"sanitized mqtt_config removed {exclude_keys}")
         self.logger.logdbg(f"sanitized_mqtt_config is {sanitized_mqtt_config}")
 
-        # ToDo: make configurable
-        self.max_thread_restarts = 2
+        self.max_thread_restarts = to_int(service_dict.get('max_thread_restarts', 2))
+        # ToDo: change this so it gets reset to zero when the thread is fully up and running (connected) - not as easy as it sounds
         self.thread_restarts = 0
 
         # ToDo: tie this into the topic bindings somehow...

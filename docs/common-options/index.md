@@ -37,6 +37,11 @@ The default value is `5`.
 The number of secconds to wait before trying to reconnect when there is a connection error.
 The default is `5`.
 
+### max_thread_restarts
+
+The total number of times to attempt to start the publishing thread.
+The default is `2`.
+
 ### clientid
 
 The clientid to connect with.

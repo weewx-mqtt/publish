@@ -5,7 +5,11 @@ Fixes
   Ability to configure the WeeWX database binding used to calculate aggregates. (#7)
   Support fo specifying a WeeWX unit systemt to convert all observations to. (#8)
   When an observation has a unit specified, use that when appending to the observation name.
+- Reconnect logic (#14)
+- Allow shutdown when attempting to (re)connect (#14)
 
 Enhancements
 - Use the week_start configuration option of the the `[station]` when calculating week aggregates.
 - Improvements when running in 'standalone mode'.
+- Ability to configure how long to wait between connection attemps (#14)
+- Ability to configure the maximum attempts to start the publishing thread (#14)
