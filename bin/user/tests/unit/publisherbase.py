@@ -207,6 +207,7 @@ class PublisherBase(unittest.TestCase):
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
             'max_retries': random.choice([0, 2]),
+            'wait_between_retries': random.randint(0, 10),
         }
         config = configobj.ConfigObj(config_dict)
 
@@ -235,6 +236,7 @@ class PublisherBase(unittest.TestCase):
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
             'max_retries': random.choice([0, 2]),
+            'wait_between_retries': random.randint(0, 10),
         }
         config = configobj.ConfigObj(config_dict)
 
@@ -264,6 +266,7 @@ class PublisherBase(unittest.TestCase):
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
             'max_retries': random.choice([1, 2]),
+            'wait_between_retries': random.randint(0, 10),
         }
         config = configobj.ConfigObj(config_dict)
 
@@ -460,6 +463,7 @@ class PublisherBase(unittest.TestCase):
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
             'max_retries': random.randint(0, 10),
+            'wait_between_retries': random.randint(0, 10),
         }
         config = configobj.ConfigObj(config_dict)
 
@@ -471,10 +475,11 @@ class PublisherBase(unittest.TestCase):
                                            side_effect=mqttstubs.ClientStub.reconnect_without_connection,
                                            autospec=True) as mock_reconnect:
 
-                        SUT = self.class_under_test(mock_logger, mock_publisher, config)
-                        SUT._reconnect()
+                        with self.assertRaises(user.mqttpublish.CannotConnectError):
+                            SUT = self.class_under_test(mock_logger, mock_publisher, config)
+                            SUT._reconnect()
 
-                        self.assertEqual(mock_reconnect.call_count, config_dict['max_retries'] + 1)
+                            self.assertEqual(mock_reconnect.call_count, config_dict['max_retries'] + 1)
 
 
 class TLSBase(unittest.TestCase):
