@@ -28,7 +28,7 @@ from weeutil.weeutil import to_bool, to_float, to_int, TimeSpan
 import weewx
 from weewx.engine import StdService
 
-VERSION = "1.1.0-rc03a"
+VERSION = "1.1.1"
 
 class CannotConnectError(ConnectionError):
     """" Cannot connect to broker. """
@@ -73,10 +73,17 @@ class TimeSpanProvider:
             'last7days': self.last7days,
             'last31days': self.last31days,
             'last366days': self.last366days,
+            'since': self.since,
         }
 
-    def get_timespan(self, interval, timestamp):
+    def get_timespan(self, agg_dict, timestamp):
         ''' Get a timespan for the interval and timstamp. '''
+
+        interval = agg_dict["period"]
+
+        if interval == "since":
+            return self.since(agg_dict, timestamp)
+
         return self.period_timespans[interval](timestamp)
 
     def hour(self, timestamp):
@@ -121,6 +128,38 @@ class TimeSpanProvider:
 
     def _last_n_days(self, days, timestamp):
         return TimeSpan(time.mktime((datetime.date.fromtimestamp(timestamp) - datetime.timedelta(days=days)).timetuple()), timestamp)
+
+    def since(self, agg_dict, timestamp):
+
+        now = datetime.datetime.now()
+        current_stop_time = datetime.datetime.fromtimestamp(timestamp)
+
+        since_hour = int(agg_dict.get("since_hour", 0))
+
+        if to_bool(agg_dict.get("yesterday", False)):
+            stop_time = current_stop_time.replace(hour=since_hour, minute=0, second=0, microsecond=0)
+            if stop_time > now:
+                stop_time -= datetime.timedelta(days=1)
+            start_time = stop_time - datetime.timedelta(days=1)
+            stop_time -= datetime.timedelta(microseconds=1)
+        elif to_bool(agg_dict.get("month", False)):
+            stop_time = current_stop_time
+            start_time = stop_time.replace(day=1, hour=since_hour, minute=0, second=0, microsecond=0)
+            if stop_time < start_time:
+                stop_time = current_stop_time.replace(day=1, hour=since_hour, minute=0, second=0, microsecond=0)
+                start_time = current_stop_time.replace(day=1, hour=0, minute=0, second=0, microsecond=0) - datetime.timedelta(microseconds=1)
+                start_time = start_time.replace(day=1, hour=since_hour, minute=0, second=0, microsecond=0)
+        elif to_bool(agg_dict.get("year", False)):
+            stop_time = current_stop_time
+            start_time = stop_time.replace(month=1, day=1, hour=since_hour, minute=0, second=0, microsecond=0)
+        else:
+            stop_time = current_stop_time
+            start_time = current_stop_time.replace(hour=since_hour, minute=0, second=0, microsecond=0)
+            if stop_time < start_time:
+                stop_time = start_time - datetime.timedelta(microseconds=1)
+                start_time -= datetime.timedelta(days=1)
+
+        return TimeSpan(int(start_time.timestamp()), int(stop_time.timestamp()))
 
 class AbstractPublisher(abc.ABC):
     """ Managing publishing to MQTT. """
@@ -812,7 +851,7 @@ class PublishWeeWXThread(threading.Thread):
             if not to_bool(topic_dict['aggregates'][aggregate_observation].get('enable', True)):
                 continue
 
-            time_span = self.timespan_provider.get_timespan(topic_dict['aggregates'][aggregate_observation]['period'],
+            time_span = self.timespan_provider.get_timespan(topic_dict['aggregates'][aggregate_observation],
                                                            record['dateTime'])
 
             try:
