@@ -336,6 +336,10 @@ class AbstractPublisher(abc.ABC):
             So, in V1 the additional paramters are made as 'optional'."""
         raise NotImplementedError("Method 'on_publish' is not implemented")
 
+    def on_message(self, _client, userdata, msg):
+        """ The on_message callback. """
+        self.logger.logdbg(f"Received: {userdata} {msg}")
+
 class PublisherV1(AbstractPublisher):
     ''' MQTTPublish that communicates with paho mqtt v1.'''
     def __init__(self, logger, publisher, mqtt_config):
