@@ -20,7 +20,7 @@ import user.mqttpublish
 class TestPublishWeeWXThread(unittest.TestCase):
     def test_update_record(self):
         mock_logger = mock.Mock()
-        config = None
+        config = {}
         topics_loop = None
         topics_archive = None
         data_queue = None
@@ -75,7 +75,7 @@ class TestPublishWeeWXThread(unittest.TestCase):
         mock_logger = mock.Mock()
         config_dict = {}
         config = configobj.ConfigObj(config_dict)
-        config = None
+        config = {}
         topics_loop = {}
         topics_loop = None
         topics_archive = {}
