@@ -64,6 +64,7 @@ class TimeSpanProvider:
         self.week_start = week_start
         self.period_timespans = {
             'hour': self.hour,
+            'hour3': self.hour3,
             'day': self.day,
             'yesterday': self.yesterday,
             'week': self.week,
@@ -89,6 +90,10 @@ class TimeSpanProvider:
     def hour(self, timestamp):
         ''' Get a timespan for the hour. '''
         return weeutil.weeutil.archiveHoursAgoSpan(timestamp)
+
+    def hour3(self, timestamp):
+        ''' Get a timespan for the past 3 hours. '''
+        return weeutil.weeutil.archiveHoursAgoSpan(timestamp, 3)
 
     def day(self, timestamp):
         ''' Get a timespan for the day. '''
@@ -193,6 +198,8 @@ class AbstractPublisher(abc.ABC):
                                  payload=self.lwt_dict.get('offline_payload', 'offline'),
                                  qos=to_int(self.lwt_dict.get('qos', 0)),
                                  retain=to_bool(self.lwt_dict.get('retain', True)))
+
+        self.last_message = None
 
         self._connect()
 
@@ -335,6 +342,12 @@ class AbstractPublisher(abc.ABC):
         """ Publish the message. """
         if not self.connected:
             self._reconnect()
+
+        if self.last_message == data:
+            return
+
+        self.last_message = data
+
         # self.logger.logdbg(f"publishing: {topic} {data}")
         mqtt_message_info = self.client.publish(topic, data, qos=qos, retain=retain)
         self.logger.logdbg(f"At {int(time.time())} publishing: {int(time_stamp)} {mqtt_message_info.mid} {qos} {topic}")
@@ -816,7 +829,9 @@ class PublishWeeWXThread(threading.Thread):
 
         self.mqtt_config = mqtt_config
         self.topics_loop = topics_loop
+        self.values_loop = {}
         self.topics_archive = topics_archive
+        self.values_archive = {}
 
         self.data_queue = data_queue
         self.timespan_provider = timespan_provider
@@ -826,7 +841,6 @@ class PublishWeeWXThread(threading.Thread):
         """ Update the record. """
         final_record = {}
         updated_record = weewx.units.to_std_system(record, topic_dict['unit_system'])
-        # self.logger.logdbg(f"record after unit conversion is: {updated_record}")
 
         for field in updated_record:
             fieldinfo = topic_dict['fields'].get(field, {})
@@ -871,9 +885,16 @@ class PublishWeeWXThread(threading.Thread):
                 # ToDo: check if observation already in record
                 final_record[name] = value
 
-            except (weewx.CannotCalculate, weewx.UnknownAggregation, weewx.UnknownType) as exception:
-                self.logger.logerr(f"Aggregation failed: {exception}")
+            except (weewx.CannotCalculate, weewx.UnknownAggregation, weewx.UnknownType, KeyError) as exception:
+                self.logger.logerr(f"Aggregation failed: {exception} for {aggregate_observation}")
                 self.logger.logerr(traceback.format_exc())
+
+        if "interval" not in record:
+            self.values_loop.update(final_record)
+            final_record = self.values_loop.copy()
+        else:
+            self.values_archive.update(final_record)
+            final_record = self.values_archive.copy()
 
         # self.logger.logdbg(f"record after aggregation calculation is:  {final_record}")
         return final_record
