@@ -6,6 +6,8 @@ nav_order: 2
 
 ## The `[[lwt]]` section
 
+Along with configuring MQTT's LWT, this configures an 'online' messgae sent on connection and an 'offline' message sent prior to disconnect.
+
 ### enable
 
 Whether LWT (Last Will and Testament) is enabled or not.
