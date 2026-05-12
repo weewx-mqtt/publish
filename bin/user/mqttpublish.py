@@ -149,7 +149,7 @@ class AbstractPublisher(abc.ABC):
             self._config_tls(tls_dict)
 
         self.lwt_dict = mqtt_config.get('lwt')
-        if self.lwt_dict and to_bool(self.lwt_dict.get('enable', True)):
+        if self.lwt_dict is not None and to_bool(self.lwt_dict.get('enable', True)):
             self.client.will_set(topic=self.lwt_dict.get('topic', 'status'),
                                  payload=self.lwt_dict.get('offline_payload', 'offline'),
                                  qos=to_int(self.lwt_dict.get('qos', 0)),
@@ -936,6 +936,7 @@ class PublishWeeWXThread(threading.Thread):
                 except CannotConnectError:
                     self.running = False
 
+        self.publisher.client.disconnect()
         self.logger.loginf(f"Exited publishing loop {self.name}.")
 
 if __name__ == "__main__":
