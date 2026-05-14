@@ -122,10 +122,43 @@ class TimeSpanProvider:
     def _last_n_days(self, days, timestamp):
         return TimeSpan(time.mktime((datetime.date.fromtimestamp(timestamp) - datetime.timedelta(days=days)).timetuple()), timestamp)
 
+class PluginManager():
+    """ Manage the plugin callbacks. """
+    def __init__(self, logger):
+        self.logger = logger
+        self.plugins = {}
+        self.callbacks = {
+            'on_weewx_data': {
+                'immediate': {},
+                'delay': {}
+            },
+            'on_mqtt_connect': {
+                'immediate': {},
+                'delay': {}
+            },
+            'on_mqtt_message': {
+                'immediate': {},
+                'delay': {}
+            }
+        }
+
+    def create_plugin(self, plugin_name):
+        """ Create the plugin. """
+        self.plugins[plugin_name] = {}
+        plugin_class = weeutil.weeutil.get_object(plugin_name)
+        plugin = plugin_class(self.logger, plugin_name)
+        self.plugins[plugin_name]['plugin'] = plugin
+        callbacks = plugin.get_callbacks()
+        for callback in callbacks:
+            for callback_name in callback:
+                timing = callback[callback_name]['timing']
+                self.callbacks[callback_name][timing][plugin_name] = callback[callback_name]['callback']
+
 class AbstractPublisher(abc.ABC):
     """ Managing publishing to MQTT. """
-    def __init__(self, logger, publisher, mqtt_config):
+    def __init__(self, logger, plugin_manager, publisher, mqtt_config):
         self.logger = logger
+        self.plugin_manager = plugin_manager
         self.connected = False
         self.mqtt_logger = {
             mqtt.MQTT_LOG_INFO: self.logger.loginf,
@@ -158,16 +191,16 @@ class AbstractPublisher(abc.ABC):
         self._connect()
 
     @classmethod
-    def get_publisher(cls, logger, publisher, mqtt_config):
+    def get_publisher(cls, logger, plugin_manager, publisher, mqtt_config):
         ''' Factory method to get appropriate MQTTPublish for paho mqtt version. '''
         if hasattr(mqtt, 'CallbackAPIVersion'):
             protocol = mqtt_config['protocol']
             if protocol in [mqtt.MQTTv31, mqtt.MQTTv311]:
-                return PublisherV2MQTT3(logger, publisher, mqtt_config)
+                return PublisherV2MQTT3(logger, plugin_manager, publisher, mqtt_config)
 
-            return PublisherV2(logger, publisher, mqtt_config)
+            return PublisherV2(logger, plugin_manager, publisher, mqtt_config)
 
-        return PublisherV1(logger, publisher, mqtt_config)
+        return PublisherV1(logger, plugin_manager, publisher, mqtt_config)
 
     def _connect(self):
         try:
@@ -336,18 +369,23 @@ class AbstractPublisher(abc.ABC):
             So, in V1 the additional paramters are made as 'optional'."""
         raise NotImplementedError("Method 'on_publish' is not implemented")
 
-    def on_message(self, _client, userdata, msg):
+    def on_message(self, client, userdata, msg):
         """ The on_message callback. """
         self.logger.logdbg(f"Received: {userdata} {msg}")
+        for plugin_name in self.plugin_manager.callbacks['on_mqtt_message']['immediate']:
+            self.plugin_manager.callbacks['on_mqtt_message']['immediate'][plugin_name](client, userdata, msg)
+
+        for plugin_name in self.plugin_manager.callbacks['on_mqtt_message']['delay']:
+            self.plugin_manager.callbacks['on_mqtt_message']['delay'][plugin_name](client, userdata, msg)
 
 class PublisherV1(AbstractPublisher):
     ''' MQTTPublish that communicates with paho mqtt v1.'''
-    def __init__(self, logger, publisher, mqtt_config):
+    def __init__(self, logger, plugin_manager, publisher, mqtt_config):
         protocol = mqtt_config['protocol']
         if protocol not in [mqtt.MQTTv31, mqtt.MQTTv311]:
             raise ValueError(f"Invalid protocol, {protocol}.")
 
-        super().__init__(logger, publisher, mqtt_config)
+        super().__init__(logger, plugin_manager, publisher, mqtt_config)
 
     def get_client(self, client_id, protocol):
         return mqtt.Client(  # depends on version of paho.mqtt pylint: disable=no-value-for-parameter
@@ -361,6 +399,7 @@ class PublisherV1(AbstractPublisher):
         self.client.on_connect = self.on_connect
         self.client.on_disconnect = self.on_disconnect
         self.client.on_publish = self.on_publish
+        self.client.on_message = self.on_message
 
     def connect(self, host, port, keepalive):
         self.client.connect(host, port, keepalive)
@@ -368,7 +407,7 @@ class PublisherV1(AbstractPublisher):
     def on_log(self, _client, _userdata, level, msg):
         self.mqtt_logger[level](f"MQTT log: {msg}")
 
-    def on_connect(self, _client, _userdata, flags, reason_code, properties=None):
+    def on_connect(self, client, userdata, flags, reason_code, properties=None):
         # https://pypi.org/project/paho-mqtt/#on-connect
         # reason_code:
         # 0: Connection successful
@@ -380,11 +419,23 @@ class PublisherV1(AbstractPublisher):
         # 6-255: Currently unused.
         self.logger.loginf(f"Connected with result code {int(reason_code)}, {mqtt.error_string(reason_code)}")
         self.logger.loginf(f"Connected flags {str(flags)}")
+
+        for plugin_name in self.plugin_manager.callbacks['on_mqtt_connect']['immediate']:
+            self.plugin_manager.callbacks['on_mqtt_connect']['immediate'][plugin_name](client,
+                                                                                       userdata,
+                                                                                       flags,
+                                                                                       reason_code,
+                                                                                       properties)
+
         if self.lwt_dict is not None and to_bool(self.lwt_dict.get('enable', True)):
             self.client.publish(topic=self.lwt_dict.get('topic', 'status'),
                                 payload=self.lwt_dict.get('online_payload', 'online'),
                                 qos=to_int(self.lwt_dict.get('qos', 0)),
                                 retain=to_bool(self.lwt_dict.get('retain', True)))
+
+        for plugin_name in self.plugin_manager.callbacks['on_mqtt_connect']['delay']:
+            self.plugin_manager.callbacks['on_mqtt_connect']['delay'][plugin_name](client, userdata, flags, reason_code, properties)
+
         self.connected = True
 
     def on_disconnect(self, _client, _userdata, flags_rc, reason_code=None, properties=None):
@@ -423,6 +474,7 @@ class PublisherV2(AbstractPublisher):
         self.client.on_connect = self.on_connect
         self.client.on_disconnect = self.on_disconnect
         self.client.on_publish = self.on_publish
+        self.client.on_message = self.on_message
 
     def connect(self, host, port, keepalive):
         self.client.connect(host=host, port=port, keepalive=keepalive, clean_start=True)
@@ -430,14 +482,26 @@ class PublisherV2(AbstractPublisher):
     def on_log(self, _client, _userdata, level, msg):
         self.mqtt_logger[level](f"MQTT log: {msg}")
 
-    def on_connect(self, _client, _userdata, flags, reason_code, _properties):
+    def on_connect(self, client, userdata, flags, reason_code, properties):
         self.logger.loginf(f"Connected with result code {int(int(reason_code.value))}")
         self.logger.loginf(f"Connected flags {str(flags)}")
+
+        for plugin_name in self.plugin_manager.callbacks['on_mqtt_connect']['immediate']:
+            self.plugin_manager.callbacks['on_mqtt_connect']['immediate'][plugin_name](client,
+                                                                                       userdata,
+                                                                                       flags,
+                                                                                       reason_code,
+                                                                                       properties)
+
         if self.lwt_dict is not None and to_bool(self.lwt_dict.get('enable', True)):
             self.client.publish(topic=self.lwt_dict.get('topic', 'status'),
                                 payload=self.lwt_dict.get('online_payload', 'online'),
                                 qos=to_int(self.lwt_dict.get('qos', 0)),
                                 retain=to_bool(self.lwt_dict.get('retain', True)))
+
+        for plugin_name in self.plugin_manager.callbacks['on_mqtt_connect']['delay']:
+            self.plugin_manager.callbacks['on_mqtt_connect']['delay'][plugin_name](client, userdata, flags, reason_code, properties)
+
         self.connected = True
 
     def on_disconnect(self, _client, _userdata, _flags, reason_code, _properties):
@@ -778,6 +842,7 @@ class PublishWeeWXThread(threading.Thread):
         self.running = False
 
         self.db_manager = None
+        self.plugin_manager = None
 
         self.mqtt_config = mqtt_config
         self.topics_loop = topics_loop
@@ -913,8 +978,12 @@ class PublishWeeWXThread(threading.Thread):
         self.logger.loginf(f"Starting publishing loop {self.name}.")
         threading.current_thread().name = f"MQTTPublish-{threading.get_native_id()}"
 
+        self.plugin_manager = PluginManager(self.logger)
+        plugin_name = 'user.mqtthaconfig.MQTTHomeAssistantConfig'
+        self.plugin_manager.create_plugin(plugin_name)
+
         # need to instantiate inside thread
-        self.publisher = AbstractPublisher.get_publisher(self.logger, self, self.mqtt_config)
+        self.publisher = AbstractPublisher.get_publisher(self.logger, self.plugin_manager, self, self.mqtt_config)
 
         with weewx.manager.open_manager(self.manager_dict) as db_manager:
             self.db_manager = db_manager
@@ -922,6 +991,9 @@ class PublishWeeWXThread(threading.Thread):
                 try:
                     data2 = self.data_queue.get_nowait()
                     # self.logger.logdbg(f"pulled from the data_queue: {data2}")
+                    for plugin_name in self.plugin_manager.callbacks['on_weewx_data']['immediate']:
+                        self.plugin_manager.callbacks['on_weewx_data']['immediate'][plugin_name](data2)
+
                     time_stamp = data2['time_stamp']
                     data_type = data2['type']
                     data = data2['data']
@@ -931,6 +1003,9 @@ class PublishWeeWXThread(threading.Thread):
                         self.publish_row(time_stamp, data, self.topics_archive)
                     else:
                         self.logger.logerr(f"Unknown data type, {data_type}")
+
+                    for plugin_name in self.plugin_manager.callbacks['on_weewx_data']['delay']:
+                        self.plugin_manager.callbacks['on_weewx_data']['delay'][plugin_name](data2)
                 except Queue.Empty:
                     # ToDo: this causes another connection, seems to cause no harm
                     # does cause a socket error/disconnect message on the server

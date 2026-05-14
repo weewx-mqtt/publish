@@ -46,7 +46,7 @@ class TestPublisherV2(PublisherBase):
             with mock.patch('user.mqttpublish.mqtt.Client') as mock_client:
                 with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
 
-                    self.class_under_test(mock_logger, mock_publisher, config)
+                    self.class_under_test(mock_logger, None, mock_publisher, config)
 
                     mock_client.assert_called_once_with(callback_api_version=paho.mqtt.client.CallbackAPIVersion.VERSION2,
                                                         client_id=config_dict['clientid'],
