@@ -30,6 +30,9 @@ from weewx.engine import StdService
 
 VERSION = "1.1.1"
 
+ET = 0
+rain = 0
+
 class CannotConnectError(ConnectionError):
     """" Cannot connect to broker. """
 
@@ -821,7 +824,9 @@ class PublishWeeWXThread(threading.Thread):
 
         self.mqtt_config = mqtt_config
         self.topics_loop = topics_loop
+        self.values_loop = {}
         self.topics_archive = topics_archive
+        self.values_archive = {}
 
         self.data_queue = data_queue
         self.timespan_provider = timespan_provider
@@ -829,6 +834,9 @@ class PublishWeeWXThread(threading.Thread):
 
     def update_record(self, topic_dict, record):
         """ Update the record. """
+
+        global ET, rain
+
         final_record = {}
         updated_record = weewx.units.to_std_system(record, topic_dict['unit_system'])
         # self.logger.logdbg(f"record after unit conversion is: {updated_record}")
@@ -838,17 +846,50 @@ class PublishWeeWXThread(threading.Thread):
             ignore = fieldinfo.get('ignore', topic_dict.get('ignore'))
             publish_none_value = fieldinfo.get('publish_none_value', topic_dict.get('publish_none_value'))
 
-            if ignore:
-                continue
-            if updated_record[field] is None and not publish_none_value:
-                continue
-
             (name, value) = self.update_field(topic_dict,
                                               fieldinfo,
                                               field,
                                               updated_record[field],
                                               updated_record['usUnits'])
-            final_record[name] = value
+
+            if ignore:
+                continue
+            if value is None and not publish_none_value:
+                continue
+
+            # Add the incremental ET and rain value since last archive
+            if name == "ET":
+                if "interval" not in updated_record:
+                    if value is not None:
+                        ET += value
+                        self.logger.loginf(f"ET was: {value}")
+                        self.logger.loginf(f"ET: {ET}")
+                        final_record["ET_since_last_archive"] = ET
+                    else:
+                        final_record["ET_since_last_archive"] = value
+                else:
+                    self.logger.loginf(f"ET was: {ET}")
+                    ET = 0
+                    self.logger.loginf(f"resetting loop packet ET to 0")
+                    final_record[name] = value
+
+            if name == "rain":
+                if "interval" not in updated_record:
+                    if value is not None:
+                        rain += value
+                        self.logger.loginf(f"rain was: {value}")
+                        self.logger.loginf(f"rain: {rain}")
+                        final_record["rain_since_last_archive"] = rain
+                    else:
+                        final_record["rain_since_last_archive"] = value
+                else:
+                    self.logger.loginf(f"rain was: {rain}")
+                    rain = 0
+                    self.logger.loginf(f"resetting loop packet rain to 0")
+                    final_record[name] = value
+            else:
+                final_record[name] = value
+
         # self.logger.logdbg(f"record after field updates is: {final_record}")
 
         for aggregate_observation in topic_dict['aggregates']:
@@ -879,6 +920,14 @@ class PublishWeeWXThread(threading.Thread):
             except (weewx.CannotCalculate, weewx.UnknownAggregation, weewx.UnknownType, KeyError) as exception:
                 self.logger.logerr(f"Aggregation failed: {exception} for {aggregate_observation}")
                 self.logger.logerr(traceback.format_exc())
+
+        # Davis Vantage Pro 2 and no doubt other weather stations stuff values in alternating loop packets
+        if "interval" not in record:
+            self.values_loop.update(final_record)
+            final_record = self.values_loop.copy()
+        else:
+            self.values_archive.update(final_record)
+            final_record = self.values_archive.copy()
 
         # self.logger.logdbg(f"record after aggregation calculation is:  {final_record}")
         return final_record
