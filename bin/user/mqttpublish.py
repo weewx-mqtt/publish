@@ -873,7 +873,7 @@ class PublishWeeWXThread(threading.Thread):
                     self.logger.loginf(f"resetting loop packet ET to 0")
                     final_record[name] = value
 
-            if name == "rain":
+            elif name == "rain":
                 if "interval" not in updated_record:
                     if value is not None:
                         rain += value
@@ -887,6 +887,7 @@ class PublishWeeWXThread(threading.Thread):
                     rain = 0
                     self.logger.loginf(f"resetting loop packet rain to 0")
                     final_record[name] = value
+
             else:
                 final_record[name] = value
 
