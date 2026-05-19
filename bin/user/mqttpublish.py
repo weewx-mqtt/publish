@@ -31,7 +31,7 @@ from weewx.engine import StdService
 VERSION = "1.1.1"
 
 ET = 0
-rain = 0
+RAIN = 0
 
 class CannotConnectError(ConnectionError):
     """" Cannot connect to broker. """
@@ -835,7 +835,7 @@ class PublishWeeWXThread(threading.Thread):
     def update_record(self, topic_dict, record):
         """ Update the record. """
 
-        global ET, rain
+        global ET, RAIN
 
         final_record = {}
         updated_record = weewx.units.to_std_system(record, topic_dict['unit_system'])
@@ -876,16 +876,16 @@ class PublishWeeWXThread(threading.Thread):
             elif name == "rain":
                 if "interval" not in updated_record:
                     if value is not None:
-                        rain += value
+                        RAIN += value
                         self.logger.loginf(f"rain was: {value}")
                         self.logger.loginf(f"rain: {rain}")
-                        final_record["rain_since_last_archive"] = rain
+                        final_record["rain_since_last_archive"] = RAIN
                     else:
                         final_record["rain_since_last_archive"] = 0.0
                 else:
                     self.logger.loginf(f"rain was: {rain}")
-                    rain = 0
-                    self.logger.loginf(f"resetting loop packet rain to 0")
+                    RAIN = 0
+                    self.logger.loginf("resetting loop packet rain to 0")
                     final_record[name] = value
 
             else:
