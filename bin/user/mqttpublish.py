@@ -138,7 +138,7 @@ class TimeSpanProvider:
         return TimeSpan(time.mktime((datetime.date.fromtimestamp(timestamp) - datetime.timedelta(days=days)).timetuple()), timestamp)
 
     def since(self, agg_dict, timestamp):
-
+        """ Get a timestamp for rain resets at times other than midnight """
         now = datetime.datetime.now()
         current_stop_time = datetime.datetime.fromtimestamp(timestamp)
 
@@ -155,7 +155,8 @@ class TimeSpanProvider:
             start_time = stop_time.replace(day=1, hour=since_hour, minute=0, second=0, microsecond=0)
             if stop_time < start_time:
                 stop_time = current_stop_time.replace(day=1, hour=since_hour, minute=0, second=0, microsecond=0)
-                start_time = current_stop_time.replace(day=1, hour=0, minute=0, second=0, microsecond=0) - datetime.timedelta(microseconds=1)
+                start_time = current_stop_time.replace(day=1, hour=0, minute=0, second=0, microsecond=0) - \
+                               datetime.timedelta(microseconds=1)
                 start_time = start_time.replace(day=1, hour=since_hour, minute=0, second=0, microsecond=0)
         elif to_bool(agg_dict.get("year", False)):
             stop_time = current_stop_time
@@ -870,7 +871,7 @@ class PublishWeeWXThread(threading.Thread):
                 else:
                     self.logger.loginf(f"ET was: {ET}")
                     ET = 0
-                    self.logger.loginf(f"resetting loop packet ET to 0")
+                    self.logger.loginf("resetting loop packet ET to 0")
                     final_record[name] = value
 
             elif name == "rain":
@@ -878,12 +879,12 @@ class PublishWeeWXThread(threading.Thread):
                     if value is not None:
                         RAIN += value
                         self.logger.loginf(f"rain was: {value}")
-                        self.logger.loginf(f"rain: {rain}")
+                        self.logger.loginf(f"rain: {RAIN}")
                         final_record["rain_since_last_archive"] = RAIN
                     else:
                         final_record["rain_since_last_archive"] = 0.0
                 else:
-                    self.logger.loginf(f"rain was: {rain}")
+                    self.logger.loginf(f"rain was: {RAIN}")
                     RAIN = 0
                     self.logger.loginf("resetting loop packet rain to 0")
                     final_record[name] = value
