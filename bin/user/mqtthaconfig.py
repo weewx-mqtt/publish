@@ -11,7 +11,8 @@ class MQTTHomeAssistantConfig:
         self.name = name
 
         # ToDo: Figure out how to configure
-        self.discovery_topic = "homeassistant/status"
+        self.birth_topic = "homeassistant/status"
+        self.lwt_topic = "homeassistant/status"
         self.qos = 1
 
     def get_callbacks(self):
@@ -44,10 +45,21 @@ class MQTTHomeAssistantConfig:
     def on_mqtt_message(self, _client, userdata, msg):
         """ Handle the MQTT on_message callback. """
         self.logger.logdbg(f"Received: {userdata} {msg}")
+        if msg.topic == self.birth_topic and  msg.payload == b"online":
+            self.logger.loginf("ToDo: resend the configuration data to HA")
+        elif msg.topic == self.lwt_topic and  msg.payload == b"offline":
+            self.logger.loginf(f"Received LWT {msg.payload} on topic: {msg.topic}.")
+        else:
+            self.logger.logerr(f"Received invalid {msg.payload} on topic: {msg.topic}.")
 
     def on_mqtt_connect(self, mqtt_client, _userdata, _flags, _reason_code, _properties):
         """ Handle the MQTT on_connect callback. """
-        (result, mid) = mqtt_client.subscribe(self.discovery_topic, self.qos)
-        self.logger.loginf(f"Subscribing to topic {self.discovery_topic} "
+        (result, mid) = mqtt_client.subscribe(self.birth_topic, self.qos)
+        self.logger.loginf(f"Subscribing to topic {self.birth_topic} "
+                           f"returned mid {int(mid)} "
+                           f"and result {int(result)}.")
+
+        (result, mid) = mqtt_client.subscribe(self.lwt_topic, self.qos)
+        self.logger.loginf(f"Subscribing to topic {self.lwt_topic} "
                            f"returned mid {int(mid)} "
                            f"and result {int(result)}.")
