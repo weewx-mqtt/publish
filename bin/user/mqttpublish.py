@@ -866,7 +866,7 @@ class PublishWeeWXThread(threading.Thread):
                         self.logger.loginf(f"ET: {ET}")
                         final_record["ET_since_last_archive"] = ET
                     else:
-                        final_record["ET_since_last_archive"] = value
+                        final_record["ET_since_last_archive"] = 0.0
                 else:
                     self.logger.loginf(f"ET was: {ET}")
                     ET = 0
@@ -881,7 +881,7 @@ class PublishWeeWXThread(threading.Thread):
                         self.logger.loginf(f"rain: {rain}")
                         final_record["rain_since_last_archive"] = rain
                     else:
-                        final_record["rain_since_last_archive"] = value
+                        final_record["rain_since_last_archive"] = 0.0
                 else:
                     self.logger.loginf(f"rain was: {rain}")
                     rain = 0
