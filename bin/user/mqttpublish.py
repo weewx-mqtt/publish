@@ -830,7 +830,7 @@ class PublishWeeWXThread(threading.Thread):
         self.timespan_provider = timespan_provider
         self.threading_event = threading.Event()
         self.rain = 0
-        self.ET = 0
+        self.evapotranspiration = 0
 
     def update_record(self, topic_dict, record):
         """ Update the record. """
@@ -859,15 +859,15 @@ class PublishWeeWXThread(threading.Thread):
             if name == "ET":
                 if "interval" not in updated_record:
                     if value is not None:
-                        self.ET += value
+                        self.evapotranspiration += value
                         self.logger.logdbg(f"ET was: {value}")
-                        self.logger.logdbg(f"ET: {self.ET}")
-                        final_record["ET_since_last_archive"] = self.ET
+                        self.logger.logdbg(f"ET: {self.evapotranspiration}")
+                        final_record["ET_since_last_archive"] = self.evapotranspiration
                     else:
                         final_record["ET_since_last_archive"] = 0.0
                 else:
-                    self.logger.logdbg(f"ET was: {self.ET}")
-                    self.ET = 0
+                    self.logger.logdbg(f"ET was: {self.evapotranspiration}")
+                    self.evapotranspiration = 0
                     self.logger.logdbg("resetting loop packet ET to 0")
                     final_record[name] = value
 
