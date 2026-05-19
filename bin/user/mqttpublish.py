@@ -196,7 +196,7 @@ class AbstractPublisher(abc.ABC):
             self._config_tls(tls_dict)
 
         self.lwt_dict = mqtt_config.get('lwt')
-        if self.lwt_dict and to_bool(self.lwt_dict.get('enable', True)):
+        if self.lwt_dict is not None and to_bool(self.lwt_dict.get('enable', True)):
             self.client.will_set(topic=self.lwt_dict.get('topic', 'status'),
                                  payload=self.lwt_dict.get('offline_payload', 'offline'),
                                  qos=to_int(self.lwt_dict.get('qos', 0)),
@@ -423,7 +423,7 @@ class PublisherV1(AbstractPublisher):
         # 6-255: Currently unused.
         self.logger.loginf(f"Connected with result code {int(reason_code)}, {mqtt.error_string(reason_code)}")
         self.logger.loginf(f"Connected flags {str(flags)}")
-        if self.lwt_dict and to_bool(self.lwt_dict.get('enable', True)):
+        if self.lwt_dict is not None and to_bool(self.lwt_dict.get('enable', True)):
             self.client.publish(topic=self.lwt_dict.get('topic', 'status'),
                                 payload=self.lwt_dict.get('online_payload', 'online'),
                                 qos=to_int(self.lwt_dict.get('qos', 0)),
@@ -476,7 +476,7 @@ class PublisherV2(AbstractPublisher):
     def on_connect(self, _client, _userdata, flags, reason_code, _properties):
         self.logger.loginf(f"Connected with result code {int(int(reason_code.value))}")
         self.logger.loginf(f"Connected flags {str(flags)}")
-        if self.lwt_dict and to_bool(self.lwt_dict.get('enable', True)):
+        if self.lwt_dict is not None and to_bool(self.lwt_dict.get('enable', True)):
             self.client.publish(topic=self.lwt_dict.get('topic', 'status'),
                                 payload=self.lwt_dict.get('online_payload', 'online'),
                                 qos=to_int(self.lwt_dict.get('qos', 0)),
@@ -827,7 +827,7 @@ class PublishWeeWXThread(threading.Thread):
         self.values_loop = {}
         self.topics_archive = topics_archive
         self.values_archive = {}
-
+        self.lwt_dict = mqtt_config.get('lwt')
         self.data_queue = data_queue
         self.timespan_provider = timespan_provider
         self.threading_event = threading.Event()
@@ -1030,6 +1030,15 @@ class PublishWeeWXThread(threading.Thread):
                 except CannotConnectError:
                     self.running = False
 
+        # MQTT's LWT is sent from the broker on an unexpected disconnect.
+        # So we need to send an offline message on an 'expected' disconnect.
+        if self.lwt_dict is not None and to_bool(self.lwt_dict.get('enable', True)):
+            self.publisher.client.publish(topic=self.lwt_dict.get('topic', 'status'),
+                                          payload=self.lwt_dict.get('offline_payload', 'offline'),
+                                          qos=to_int(self.lwt_dict.get('qos', 0)),
+                                          retain=to_bool(self.lwt_dict.get('retain', True)))
+
+        self.publisher.client.disconnect()
         self.logger.loginf(f"Exited publishing loop {self.name}.")
 
 if __name__ == "__main__":
