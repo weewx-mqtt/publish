@@ -30,9 +30,6 @@ from weewx.engine import StdService
 
 VERSION = "1.1.1"
 
-ET = 0
-RAIN = 0
-
 class CannotConnectError(ConnectionError):
     """" Cannot connect to broker. """
 
@@ -832,11 +829,11 @@ class PublishWeeWXThread(threading.Thread):
         self.data_queue = data_queue
         self.timespan_provider = timespan_provider
         self.threading_event = threading.Event()
+        self.rain = 0
+        self.ET = 0
 
     def update_record(self, topic_dict, record):
         """ Update the record. """
-
-        global ET, RAIN
 
         final_record = {}
         updated_record = weewx.units.to_std_system(record, topic_dict['unit_system'])
@@ -862,31 +859,31 @@ class PublishWeeWXThread(threading.Thread):
             if name == "ET":
                 if "interval" not in updated_record:
                     if value is not None:
-                        ET += value
-                        self.logger.loginf(f"ET was: {value}")
-                        self.logger.loginf(f"ET: {ET}")
-                        final_record["ET_since_last_archive"] = ET
+                        self.ET += value
+                        self.logger.logdbg(f"ET was: {value}")
+                        self.logger.logdbg(f"ET: {self.ET}")
+                        final_record["ET_since_last_archive"] = self.ET
                     else:
                         final_record["ET_since_last_archive"] = 0.0
                 else:
-                    self.logger.loginf(f"ET was: {ET}")
-                    ET = 0
-                    self.logger.loginf("resetting loop packet ET to 0")
+                    self.logger.logdbg(f"ET was: {self.ET}")
+                    self.ET = 0
+                    self.logger.logdbg("resetting loop packet ET to 0")
                     final_record[name] = value
 
             elif name == "rain":
                 if "interval" not in updated_record:
                     if value is not None:
-                        RAIN += value
-                        self.logger.loginf(f"rain was: {value}")
-                        self.logger.loginf(f"rain: {RAIN}")
-                        final_record["rain_since_last_archive"] = RAIN
+                        self.rain += value
+                        self.logger.logdbg(f"rain was: {value}")
+                        self.logger.logdbg(f"rain: {self.rain}")
+                        final_record["rain_since_last_archive"] = self.rain
                     else:
                         final_record["rain_since_last_archive"] = 0.0
                 else:
-                    self.logger.loginf(f"rain was: {RAIN}")
-                    RAIN = 0
-                    self.logger.loginf("resetting loop packet rain to 0")
+                    self.logger.logdbg(f"rain was: {self.rain}")
+                    self.rain = 0
+                    self.logger.logdbg("resetting loop packet rain to 0")
                     final_record[name] = value
 
             else:
