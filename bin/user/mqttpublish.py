@@ -64,7 +64,7 @@ class TimeSpanProvider:
         self.week_start = week_start
         self.period_timespans = {
             'hour': self.hour,
-            'last3hours': self.hour3,
+            'last3hours': self.last3hours,
             'day': self.day,
             'yesterday': self.yesterday,
             'week': self.week,
