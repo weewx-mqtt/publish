@@ -6,4 +6,6 @@ nav_order: 1
 
 ## The `[[topics]]` section
 
-This has the the MQTT topics that are to be published to along with options used to control processing of the messages.
+This has the MQTT topics that are to be published to along with options used to control processing of the messages.
+
+ignore = true can be used to ignore all fields and only include fields or aggregates

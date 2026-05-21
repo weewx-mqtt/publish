@@ -14,3 +14,4 @@ Enhancements
 - Improvements when running in 'standalone mode'.
 - Ability to configure how long to wait between connection attemps (#14)
 - Ability to configure the maximum attempts to start the publishing thread (#14)
+- Added options for last3hours and since, eg rainfall since 9am

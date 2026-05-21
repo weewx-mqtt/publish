@@ -28,4 +28,4 @@ See, [https://www.weewx.com/docs/customizing.htm#aggregation_types](https://www.
 ### period
 
 The time period over which the aggregation should occurr.
-Valid values are `hour`, `day`, `week`, `month`, `year`, `yesterday`, `last24hours`, `last7days`, `last31days`, or `last366days`.
+Valid values are `hour`, `last3hours`, `day`, `week`, `month`, `year`, `yesterday`, `last24hours`, `last7days`, `last31days`, `last366days` or `since`.
