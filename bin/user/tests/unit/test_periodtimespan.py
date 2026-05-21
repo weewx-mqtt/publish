@@ -32,19 +32,6 @@ class TestGetTimeSpan(unittest.TestCase):
 
             mock_archive_hours_ago_span.assert_called_once_with(now)
 
-    def test_last3hours(self):
-        with mock.patch('weeutil.weeutil.archiveHoursAgoSpan')as mock_archive_last3hours_span:
-            os.environ['TZ'] = 'America/New_York'
-            time.tzset()
-
-            week_start = random.randint(0, 6)
-            timespan_provider = user.mqttpublish.TimeSpanProvider(week_start)
-
-            now = 1771939800
-            timespan_provider.last3hours(now)
-
-            mock_archive_last3hours_span.assert_called_once_with(now)
-
     def test_day(self):
         with mock.patch('weeutil.weeutil.archiveDaySpan')as mock_archive_day_span:
             os.environ['TZ'] = 'America/New_York'
@@ -139,25 +126,47 @@ class TestGetTimeSpan(unittest.TestCase):
             day_start_timestamp = 1771304400.0
             mock_TimeSpan.assert_called_once_with(day_start_timestamp, now)
 
-    def test_since(self):
-        with mock.patch('weeutil.weeutil.archiveYearSpan')as mock_archive_since:
+    def test_last3hours(self):
+        with mock.patch('weeutil.weeutil.archiveHoursAgoSpan')as mock_archive_hours_ago_span:
             os.environ['TZ'] = 'America/New_York'
             time.tzset()
 
             week_start = random.randint(0, 6)
             timespan_provider = user.mqttpublish.TimeSpanProvider(week_start)
 
-            since_hour = 0
             now = 1771939800
-            timespan_provider.since(now)
+            timespan_provider.last3hours(now)
 
-            mock_archive_since.assert_called_once_with(now)
+            mock_archive_hours_ago_span.assert_called_once_with(now, 3)
 
-            since_hour = 9
+    def test_since_empty(self):
+        with mock.patch('user.mqttpublish.TimeSpan')as mock_archive_since:
+            os.environ['TZ'] = 'America/New_York'
+            time.tzset()
+
+            week_start = random.randint(0, 6)
+            timespan_provider = user.mqttpublish.TimeSpanProvider(week_start)
+
+            test_dict = {}
             now = 1771939800
-            timespan_provider.since(now)
+            timespan_provider.since(test_dict, now)
 
-            mock_archive_since.assert_called_once_with(now)
+            mock_archive_since.assert_called_once_with(1771909200, 1771939800)
+
+    def test_since_9am(self):
+        with mock.patch('user.mqttpublish.TimeSpan')as mock_archive_since:
+            os.environ['TZ'] = 'America/New_York'
+            time.tzset()
+
+            week_start = random.randint(0, 6)
+            timespan_provider = user.mqttpublish.TimeSpanProvider(week_start)
+
+            test_dict = {}
+            test_dict["since_hour"] = 9
+            now = 1771939800
+            timespan_provider.since(test_dict, now)
+
+            mock_archive_since.assert_called_once_with(1771855200, 1771941599)
 
 if __name__ == '__main__':
     helpers.run_tests()
