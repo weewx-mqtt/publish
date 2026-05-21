@@ -32,6 +32,19 @@ class TestGetTimeSpan(unittest.TestCase):
 
             mock_archive_hours_ago_span.assert_called_once_with(now)
 
+    def test_last3hours(self):
+        with mock.patch('weeutil.weeutil.archiveHoursAgoSpan')as mock_archive_last3hours_span:
+            os.environ['TZ'] = 'America/New_York'
+            time.tzset()
+
+            week_start = random.randint(0, 6)
+            timespan_provider = user.mqttpublish.TimeSpanProvider(week_start)
+
+            now = 1771939800
+            timespan_provider.last3hours(now)
+
+            mock_archive_last3hours_span.assert_called_once_with(now)
+
     def test_day(self):
         with mock.patch('weeutil.weeutil.archiveDaySpan')as mock_archive_day_span:
             os.environ['TZ'] = 'America/New_York'
@@ -125,6 +138,26 @@ class TestGetTimeSpan(unittest.TestCase):
 
             day_start_timestamp = 1771304400.0
             mock_TimeSpan.assert_called_once_with(day_start_timestamp, now)
+
+    def test_since(self):
+        with mock.patch('weeutil.weeutil.archiveYearSpan')as mock_archive_since:
+            os.environ['TZ'] = 'America/New_York'
+            time.tzset()
+
+            week_start = random.randint(0, 6)
+            timespan_provider = user.mqttpublish.TimeSpanProvider(week_start)
+
+            since_hour = 0
+            now = 1771939800
+            timespan_provider.since(now)
+
+            mock_archive_since.assert_called_once_with(now)
+
+            since_hour = 9
+            now = 1771939800
+            timespan_provider.since(now)
+
+            mock_archive_since.assert_called_once_with(now)
 
 if __name__ == '__main__':
     helpers.run_tests()
