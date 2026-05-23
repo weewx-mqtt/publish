@@ -174,7 +174,6 @@ class AbstractPublisher(abc.ABC):
             self.connect(self.mqtt_config['host'], self.mqtt_config['port'], self.mqtt_config['keepalive'])
         except Exception as exception:  # want to catch all pylint: disable=broad-exception-caught
             self.logger.logerr(f"MQTT connect failed with {type(exception)} and reason {exception}.")
-            self.logger.logerr(f"{traceback.format_exc()}")
         retries = 0
         # loop seems to break before connect, perhaps due to logging
         self.client.loop(timeout=0.1)
@@ -194,8 +193,7 @@ class AbstractPublisher(abc.ABC):
             try:
                 self.connect(self.mqtt_config['host'], self.mqtt_config['port'], self.mqtt_config['keepalive'])
             except Exception as exception:  # want to catch all pylint: disable=broad-exception-caught
-                self.logger.logerr(f"MQTT connect failed with {type(exception)} and reason {exception}.")
-                self.logger.logerr(f"{traceback.format_exc()}")
+                self.logger.logerr(f"MQTT connect retry {retries} failed with {type(exception)} and reason {exception}.")
 
     def _reconnect(self):
         self.logger.logdbg("Attempting to reconnect.")
@@ -203,7 +201,6 @@ class AbstractPublisher(abc.ABC):
             self.client.reconnect()
         except Exception as exception:  # want to catch all pylint: disable=broad-exception-caught
             self.logger.logerr(f"MQTT reconnect failed with {type(exception)} and reason {exception}.")
-            self.logger.logerr(f"{traceback.format_exc()}")
         self.logger.logdbg("After reconnect call.")
         retries = 0
         self.client.loop(timeout=1.0)
@@ -219,8 +216,7 @@ class AbstractPublisher(abc.ABC):
             try:
                 self.client.reconnect()
             except Exception as exception:  # want to catch all pylint: disable=broad-exception-caught
-                self.logger.logerr(f"MQTT reconnect failed with {type(exception)} and reason {exception}.")
-                self.logger.logerr(f"{traceback.format_exc()}")
+                self.logger.logerr(f"MQTT reconnect {retries} failed with {type(exception)} and reason {exception}.")
 
     def _config_tls(self, tls_dict):
         """ Configure TLS."""
@@ -771,7 +767,6 @@ class PublishWeeWXThread(threading.Thread):
 
         self.manager_dict = manager_dict
         self.publisher = None
-        self.running = False
 
         self.db_manager = None
 
@@ -783,6 +778,9 @@ class PublishWeeWXThread(threading.Thread):
         self.data_queue = data_queue
         self.timespan_provider = timespan_provider
         self.threading_event = threading.Event()
+
+        # ToDo: Rename? It doesn't truly signfy running - more that the thread exists
+        self.running = True
 
     def update_record(self, topic_dict, record):
         """ Update the record. """
@@ -905,7 +903,6 @@ class PublishWeeWXThread(threading.Thread):
                                                    value)
 
     def run(self):
-        self.running = True
         self.logger.loginf(f"Starting publishing loop {self.name}.")
         threading.current_thread().name = f"MQTTPublish-{threading.get_native_id()}"
 
