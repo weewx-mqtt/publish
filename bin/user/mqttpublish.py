@@ -31,7 +31,7 @@ from weewx.engine import StdService
 VERSION = "1.1.0-rc03b"
 
 class CannotConnectError(ConnectionError):
-    """" Cannot connect to broker. """
+    """ Cannot connect to broker. """
 
 # log = logging.getLogger(__name__)
 def setup_logging(logging_level, config_dict):
@@ -60,7 +60,7 @@ class Logger:
 
 class TimeSpanProvider:
     ''' Manage the timespans. '''
-    def __init__(self, week_start):
+    def __init__(self, week_start, since_hour=0):
         self.week_start = week_start
         self.period_timespans = {
             'hour': self.hour,
@@ -77,13 +77,18 @@ class TimeSpanProvider:
             'since': self.since,
         }
 
+        if 0 < since_hour > 23:
+            raise ValueError("since_hour must be between 0 and 23 or not set")
+
+        self.since_seconds = since_hour * 3600
+
     def get_timespan(self, agg_dict, timestamp):
         ''' Get a timespan for the interval and timstamp. '''
 
         interval = agg_dict["period"]
 
         if interval == "since":
-            return self.since(agg_dict, timestamp)
+            return self.since(timestamp, agg_dict)
 
         return self.period_timespans[interval](timestamp)
 
@@ -132,40 +137,41 @@ class TimeSpanProvider:
         return self._last_n_days(366, timestamp)
 
     def _last_n_days(self, days, timestamp):
+        """ Get a TimeSpan for the last N days """
         return TimeSpan(time.mktime((datetime.date.fromtimestamp(timestamp) - datetime.timedelta(days=days)).timetuple()), timestamp)
 
-    def since(self, agg_dict, timestamp):
-        """ Get a timestamp for rain resets at times other than midnight """
-        now = datetime.datetime.now()
-        current_stop_time = datetime.datetime.fromtimestamp(timestamp)
+    def shift_timespan(self, current_timespan):
+        """ Shift the start/stop time by since_seconds """
+        return TimeSpan(current_timespan.start + self.since_seconds, current_timespan.stop + self.since_seconds)
 
-        since_hour = int(agg_dict.get("since_hour", 0))
+    def since(self, agg_dict, timestamp, orig_timestamp=None):
+        """ Get a TimeSpan for offset of since_hours from midnight """
+
+        if orig_timestamp is None:
+            if to_bool(agg_dict.get("yesterday", False)):
+                timestamp -= 86400
+                orig_timestamp = timestamp
+            else:
+                orig_timestamp = timestamp
 
         if to_bool(agg_dict.get("yesterday", False)):
-            stop_time = current_stop_time.replace(hour=since_hour, minute=0, second=0, microsecond=0)
-            if stop_time > now:
-                stop_time -= datetime.timedelta(days=1)
-            start_time = stop_time - datetime.timedelta(days=1)
-            stop_time -= datetime.timedelta(microseconds=1)
+            timespan = weeutil.weeutil.archiveDaySpan(timestamp)
+        elif to_bool(agg_dict.get("week", False)):
+            timespan = weeutil.weeutil.archiveWeekSpan(timestamp, startOfWeek=self.week_start)
         elif to_bool(agg_dict.get("month", False)):
-            stop_time = current_stop_time
-            start_time = stop_time.replace(day=1, hour=since_hour, minute=0, second=0, microsecond=0)
-            if stop_time < start_time:
-                stop_time = current_stop_time.replace(day=1, hour=since_hour, minute=0, second=0, microsecond=0)
-                start_time = current_stop_time.replace(day=1, hour=0, minute=0, second=0, microsecond=0) - \
-                               datetime.timedelta(microseconds=1)
-                start_time = start_time.replace(day=1, hour=since_hour, minute=0, second=0, microsecond=0)
+            timespan = weeutil.weeutil.archiveMonthSpan(timestamp)
         elif to_bool(agg_dict.get("year", False)):
-            stop_time = current_stop_time
-            start_time = stop_time.replace(month=1, day=1, hour=since_hour, minute=0, second=0, microsecond=0)
+            timespan = weeutil.weeutil.archiveYearSpan(timestamp)
         else:
-            stop_time = current_stop_time
-            start_time = current_stop_time.replace(hour=since_hour, minute=0, second=0, microsecond=0)
-            if stop_time < start_time:
-                stop_time = start_time - datetime.timedelta(microseconds=1)
-                start_time -= datetime.timedelta(days=1)
+            timespan = weeutil.weeutil.archiveDaySpan(timestamp)
 
-        return TimeSpan(int(start_time.timestamp()), int(stop_time.timestamp()))
+        if self.since_seconds > 0:
+            timespan = self.shift_timespan(timespan)
+
+        if timespan.start <= orig_timestamp <= timespan.stop:
+            return timespan
+
+        return self.since(agg_dict, timestamp - 86400, orig_timestamp)
 
 class AbstractPublisher(abc.ABC):
     """ Managing publishing to MQTT. """
@@ -545,7 +551,7 @@ class MQTTPublish(StdService):
             service_dict = config_dict.get('MQTTPublish', {}).get('PublishWeeWX', {})
 
         # ToDo: Move this after the enable check (need to fix unit tests to allow this)
-        self.timespan_provider = TimeSpanProvider(engine.stn_info.week_start)
+        self.timespan_provider = TimeSpanProvider(engine.stn_info.week_start, int(service_dict.get("since_hour", 0)))
 
         self.enable = to_bool(service_dict.get('enable', True))
         if not self.enable:

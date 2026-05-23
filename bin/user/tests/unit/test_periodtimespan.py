@@ -18,6 +18,9 @@ import helpers
 
 import user.mqttpublish
 
+from user.mqttpublish import TimeSpan as RealTimeSpan
+from weeutil.weeutil import TimeSpan
+
 class TestGetTimeSpan(unittest.TestCase):
     def test_hour(self):
         with mock.patch('weeutil.weeutil.archiveHoursAgoSpan')as mock_archive_hours_ago_span:
@@ -140,33 +143,106 @@ class TestGetTimeSpan(unittest.TestCase):
             mock_archive_hours_ago_span.assert_called_once_with(now, 3)
 
     def test_since_empty(self):
-        with mock.patch('user.mqttpublish.TimeSpan')as mock_archive_since:
+        with mock.patch('user.mqttpublish.TimeSpan')as mock_TimeSpan:
             os.environ['TZ'] = 'America/New_York'
             time.tzset()
 
-            week_start = random.randint(0, 6)
-            timespan_provider = user.mqttpublish.TimeSpanProvider(week_start)
+            timespan_provider = user.mqttpublish.TimeSpanProvider(0)
+
+            mock_TimeSpan.side_effect = lambda *a, **k: RealTimeSpan(*a, **k)
 
             test_dict = {}
-            now = 1771939800
-            timespan_provider.since(test_dict, now)
+            ts = timespan_provider.since(test_dict, 1771939800)
 
-            mock_archive_since.assert_called_once_with(1771909200, 1771939800)
+            assert ts == TimeSpan(1771909200, 1771995600)
+
+    def test_since_mn(self):
+        with mock.patch('user.mqttpublish.TimeSpan')as mock_TimeSpan:
+            os.environ['TZ'] = 'America/New_York'
+            time.tzset()
+
+            timespan_provider = user.mqttpublish.TimeSpanProvider(0, 0)
+
+            mock_TimeSpan.side_effect = lambda *a, **k: RealTimeSpan(*a, **k)
+
+            test_dict = {}
+            ts = timespan_provider.since(test_dict, 1771939800)
+
+            assert ts == TimeSpan(1771909200, 1771995600)
 
     def test_since_9am(self):
-        with mock.patch('user.mqttpublish.TimeSpan')as mock_archive_since:
+        with mock.patch('user.mqttpublish.TimeSpan')as mock_TimeSpan:
             os.environ['TZ'] = 'America/New_York'
             time.tzset()
 
-            week_start = random.randint(0, 6)
-            timespan_provider = user.mqttpublish.TimeSpanProvider(week_start)
+            timespan_provider = user.mqttpublish.TimeSpanProvider(0, 9)
+
+            mock_TimeSpan.side_effect = lambda *a, **k: RealTimeSpan(*a, **k)
 
             test_dict = {}
-            test_dict["since_hour"] = 9
-            now = 1771939800
-            timespan_provider.since(test_dict, now)
+            ts = timespan_provider.since(test_dict, 1771939800)
 
-            mock_archive_since.assert_called_once_with(1771855200, 1771941599)
+            assert ts == TimeSpan(1771855200, 1771941600)
+
+    def test_since_9am_yesterday(self):
+        with mock.patch('user.mqttpublish.TimeSpan')as mock_TimeSpan:
+            os.environ['TZ'] = 'America/New_York'
+            time.tzset()
+
+            timespan_provider = user.mqttpublish.TimeSpanProvider(0, 9)
+
+            mock_TimeSpan.side_effect = lambda *a, **k: RealTimeSpan(*a, **k)
+
+            test_dict = {}
+            test_dict["yesterday"] = True
+            ts = timespan_provider.since(test_dict, 1771939800)
+
+            assert ts == TimeSpan(1771768800, 1771855200)
+
+    def test_since_9am_week(self):
+        with mock.patch('user.mqttpublish.TimeSpan')as mock_TimeSpan:
+            os.environ['TZ'] = 'America/New_York'
+            time.tzset()
+
+            timespan_provider = user.mqttpublish.TimeSpanProvider(0, 9)
+
+            mock_TimeSpan.side_effect = lambda *a, **k: RealTimeSpan(*a, **k)
+
+            test_dict = {}
+            test_dict["week"] = True
+            ts = timespan_provider.since(test_dict, 1771939800)
+
+            assert ts == TimeSpan(1771855200, 1772460000)
+
+    def test_since_9am_month(self):
+        with mock.patch('user.mqttpublish.TimeSpan')as mock_TimeSpan:
+            os.environ['TZ'] = 'America/New_York'
+            time.tzset()
+
+            timespan_provider = user.mqttpublish.TimeSpanProvider(0, 9)
+
+            mock_TimeSpan.side_effect = lambda *a, **k: RealTimeSpan(*a, **k)
+
+            test_dict = {}
+            test_dict["month"] = True
+            ts = timespan_provider.since(test_dict, 1771939800)
+
+            assert ts == TimeSpan(1769954400, 1772373600)
+
+    def test_since_9am_year(self):
+        with mock.patch('user.mqttpublish.TimeSpan')as mock_TimeSpan:
+            os.environ['TZ'] = 'America/New_York'
+            time.tzset()
+
+            timespan_provider = user.mqttpublish.TimeSpanProvider(0, 9)
+
+            mock_TimeSpan.side_effect = lambda *a, **k: RealTimeSpan(*a, **k)
+
+            test_dict = {}
+            test_dict["year"] = True
+            ts = timespan_provider.since(test_dict, 1771939800)
+
+            assert ts == TimeSpan(1767276000, 1798812000)
 
 if __name__ == '__main__':
     helpers.run_tests()
