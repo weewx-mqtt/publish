@@ -28,7 +28,7 @@ from weeutil.weeutil import to_bool, to_float, to_int, TimeSpan
 import weewx
 from weewx.engine import StdService
 
-VERSION = "1.1.0-rc04a"
+VERSION = "1.1.0-rc04b"
 
 class CannotConnectError(ConnectionError):
     """" Cannot connect to broker. """
