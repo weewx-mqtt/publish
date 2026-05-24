@@ -139,7 +139,7 @@ class AbstractPublisher(abc.ABC):
         self.mqtt_config = mqtt_config
 
         # Number of seconds to wait for connection processing
-        # ToDo: make configurable 
+        # ToDo: make configurable
         self.wait_for_connection = 1
 
         self.client = self.get_client(mqtt_config['clientid'], mqtt_config['protocol'])
