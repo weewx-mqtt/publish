@@ -218,7 +218,8 @@ class AbstractPublisher(abc.ABC):
 
             try:
                 self.client.reconnect()
-                self.client.loop(timeout=1.0)
+                time.sleep(1)
+                self.client.loop(timeout=.1)
                 self.logger.logdbg("After retrying reconnect call.")
             except Exception as exception:  # want to catch all pylint: disable=broad-exception-caught
                 self.logger.logerr(f"MQTT reconnect {retries} failed with {type(exception)} and reason {exception}.")
