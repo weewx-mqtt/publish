@@ -180,6 +180,8 @@ class AbstractPublisher(abc.ABC):
         time.sleep(1)
         while not self.connected and self.publisher.running:
             self.logger.logdbg(f"Waiting {self.mqtt_config['wait_between_retries']} seconds to connect.")
+            # loop seems to break before connect, perhaps due to logging
+            self.client.loop(timeout=0.1)
             time.sleep(self.mqtt_config['wait_between_retries'])
 
             retries += 1
