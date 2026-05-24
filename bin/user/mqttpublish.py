@@ -179,9 +179,7 @@ class AbstractPublisher(abc.ABC):
         self.client.loop(timeout=0.1)
         time.sleep(1)
         while not self.connected and self.publisher.running:
-            self.logger.logdbg("Waiting to connect.")
-            # loop seems to break before connect, perhaps due to logging
-            self.client.loop(timeout=0.1)
+            self.logger.logdbg(f"Waiting {self.mqtt_config['wait_between_retries']} seconds to connect.")
             time.sleep(self.mqtt_config['wait_between_retries'])
 
             retries += 1
@@ -192,6 +190,8 @@ class AbstractPublisher(abc.ABC):
 
             try:
                 self.connect(self.mqtt_config['host'], self.mqtt_config['port'], self.mqtt_config['keepalive'])
+                self.client.loop(timeout=1.0)
+                self.logdbg("After retrying connect call.")
             except Exception as exception:  # want to catch all pylint: disable=broad-exception-caught
                 self.logger.logerr(f"MQTT connect retry {retries} failed with {type(exception)} and reason {exception}.")
 
@@ -205,7 +205,7 @@ class AbstractPublisher(abc.ABC):
         retries = 0
         self.client.loop(timeout=1.0)
         while not self.connected and self.publisher.running:
-            self.logger.logdbg("Waiting to (re)connect.")
+            self.logger.logdbg(f"Waiting {self.mqtt_config['wait_between_retries']} seconds to (re)connect.")
             self.client.loop(timeout=0.1)
             time.sleep(self.mqtt_config['wait_between_retries'])
 
@@ -215,6 +215,8 @@ class AbstractPublisher(abc.ABC):
 
             try:
                 self.client.reconnect()
+                self.client.loop(timeout=1.0)
+                self.logdbg("After retrying reconnect call.")
             except Exception as exception:  # want to catch all pylint: disable=broad-exception-caught
                 self.logger.logerr(f"MQTT reconnect {retries} failed with {type(exception)} and reason {exception}.")
 

@@ -250,7 +250,7 @@ class PublisherBase(unittest.TestCase):
                     self.class_under_test(mock_logger, mock_publisher, config)
 
                     self.assertEqual(mock_connect.call_count, config_dict['max_retries'] + 1)
-                    self.assertEqual(mock_logger.logerr.call_count, 1)
+                    self.assertEqual(mock_logger.logerr.call_count, config_dict['max_retries'] + 1)
 
     def test_connect_subsequent_call_exception(self):
         mock_logger = mock.Mock()
