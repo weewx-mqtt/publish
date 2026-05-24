@@ -138,6 +138,10 @@ class AbstractPublisher(abc.ABC):
         self.publisher = publisher
         self.mqtt_config = mqtt_config
 
+        # Number of seconds to wait for connection processing
+        # ToDo: make configurable 
+        self.wait_for_connection = 1
+
         self.client = self.get_client(mqtt_config['clientid'], mqtt_config['protocol'])
         self.set_callbacks(mqtt_config['log_mqtt'])
 
@@ -176,7 +180,7 @@ class AbstractPublisher(abc.ABC):
             self.logger.logerr(f"MQTT connect failed with {type(exception)} and reason {exception}.")
         retries = 0
         # Give the connection logic some time to execute
-        time.sleep(1)
+        time.sleep(self.wait_for_connection)
         # Allow the MQTT processing to happen, after allowing the connection processing to complete.
         self.client.loop(timeout=0.1)
         while not self.connected and self.publisher.running:
@@ -193,7 +197,7 @@ class AbstractPublisher(abc.ABC):
 
             try:
                 self.connect(self.mqtt_config['host'], self.mqtt_config['port'], self.mqtt_config['keepalive'])
-                time.sleep(1)
+                time.sleep(self.wait_for_connection)
                 self.client.loop(timeout=.1)
                 self.logger.logdbg("After retrying connect call.")
             except Exception as exception:  # want to catch all pylint: disable=broad-exception-caught
@@ -207,7 +211,8 @@ class AbstractPublisher(abc.ABC):
             self.logger.logerr(f"MQTT reconnect failed with {type(exception)} and reason {exception}.")
         self.logger.logdbg("After reconnect call.")
         retries = 0
-        self.client.loop(timeout=1.0)
+        time.sleep(self.wait_for_connection)
+        self.client.loop(timeout=0.1)
         while not self.connected and self.publisher.running:
             self.logger.loginf(f"Waiting {self.mqtt_config['wait_between_retries']} seconds to (re)connect.")
             self.client.loop(timeout=0.1)
@@ -219,7 +224,7 @@ class AbstractPublisher(abc.ABC):
 
             try:
                 self.client.reconnect()
-                time.sleep(1)
+                time.sleep(self.wait_for_connection)
                 self.client.loop(timeout=.1)
                 self.logger.logdbg("After retrying reconnect call.")
             except Exception as exception:  # want to catch all pylint: disable=broad-exception-caught
