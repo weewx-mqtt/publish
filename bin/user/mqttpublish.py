@@ -191,7 +191,7 @@ class AbstractPublisher(abc.ABC):
             try:
                 self.connect(self.mqtt_config['host'], self.mqtt_config['port'], self.mqtt_config['keepalive'])
                 self.client.loop(timeout=1.0)
-                self.logdbg("After retrying connect call.")
+                self.logger.logdbg("After retrying connect call.")
             except Exception as exception:  # want to catch all pylint: disable=broad-exception-caught
                 self.logger.logerr(f"MQTT connect retry {retries} failed with {type(exception)} and reason {exception}.")
 
@@ -216,7 +216,7 @@ class AbstractPublisher(abc.ABC):
             try:
                 self.client.reconnect()
                 self.client.loop(timeout=1.0)
-                self.logdbg("After retrying reconnect call.")
+                self.logger.logdbg("After retrying reconnect call.")
             except Exception as exception:  # want to catch all pylint: disable=broad-exception-caught
                 self.logger.logerr(f"MQTT reconnect {retries} failed with {type(exception)} and reason {exception}.")
 
