@@ -28,7 +28,7 @@ from weeutil.weeutil import to_bool, to_float, to_int, TimeSpan
 import weewx
 from weewx.engine import StdService
 
-VERSION = "1.1.0-rc03b"
+VERSION = "1.1.0-rc04b"
 
 class CannotConnectError(ConnectionError):
     """" Cannot connect to broker. """
@@ -171,6 +171,10 @@ class AbstractPublisher(abc.ABC):
         self.publisher = publisher
         self.mqtt_config = mqtt_config
 
+        # Number of seconds to wait for connection processing
+        # ToDo: make configurable
+        self.wait_for_connection = 1
+
         self.client = self.get_client(mqtt_config['clientid'], mqtt_config['protocol'])
         self.set_callbacks(mqtt_config['log_mqtt'])
 
@@ -207,13 +211,13 @@ class AbstractPublisher(abc.ABC):
             self.connect(self.mqtt_config['host'], self.mqtt_config['port'], self.mqtt_config['keepalive'])
         except Exception as exception:  # want to catch all pylint: disable=broad-exception-caught
             self.logger.logerr(f"MQTT connect failed with {type(exception)} and reason {exception}.")
-            self.logger.logerr(f"{traceback.format_exc()}")
         retries = 0
-        # loop seems to break before connect, perhaps due to logging
+        # Give the connection logic some time to execute
+        time.sleep(self.wait_for_connection)
+        # Allow the MQTT processing to happen, after allowing the connection processing to complete.
         self.client.loop(timeout=0.1)
-        time.sleep(1)
         while not self.connected and self.publisher.running:
-            self.logger.logdbg("Waiting to connect.")
+            self.logger.loginf(f"Waiting {self.mqtt_config['wait_between_retries']} seconds to connect.")
             # loop seems to break before connect, perhaps due to logging
             self.client.loop(timeout=0.1)
             time.sleep(self.mqtt_config['wait_between_retries'])
@@ -226,9 +230,11 @@ class AbstractPublisher(abc.ABC):
 
             try:
                 self.connect(self.mqtt_config['host'], self.mqtt_config['port'], self.mqtt_config['keepalive'])
+                time.sleep(self.wait_for_connection)
+                self.client.loop(timeout=.1)
+                self.logger.logdbg("After retrying connect call.")
             except Exception as exception:  # want to catch all pylint: disable=broad-exception-caught
-                self.logger.logerr(f"MQTT connect failed with {type(exception)} and reason {exception}.")
-                self.logger.logerr(f"{traceback.format_exc()}")
+                self.logger.logerr(f"MQTT connect retry {retries} failed with {type(exception)} and reason {exception}.")
 
     def _reconnect(self):
         self.logger.logdbg("Attempting to reconnect.")
@@ -236,12 +242,12 @@ class AbstractPublisher(abc.ABC):
             self.client.reconnect()
         except Exception as exception:  # want to catch all pylint: disable=broad-exception-caught
             self.logger.logerr(f"MQTT reconnect failed with {type(exception)} and reason {exception}.")
-            self.logger.logerr(f"{traceback.format_exc()}")
         self.logger.logdbg("After reconnect call.")
         retries = 0
-        self.client.loop(timeout=1.0)
+        time.sleep(self.wait_for_connection)
+        self.client.loop(timeout=0.1)
         while not self.connected and self.publisher.running:
-            self.logger.logdbg("Waiting to (re)connect.")
+            self.logger.loginf(f"Waiting {self.mqtt_config['wait_between_retries']} seconds to (re)connect.")
             self.client.loop(timeout=0.1)
             time.sleep(self.mqtt_config['wait_between_retries'])
 
@@ -251,9 +257,11 @@ class AbstractPublisher(abc.ABC):
 
             try:
                 self.client.reconnect()
+                time.sleep(self.wait_for_connection)
+                self.client.loop(timeout=.1)
+                self.logger.logdbg("After retrying reconnect call.")
             except Exception as exception:  # want to catch all pylint: disable=broad-exception-caught
-                self.logger.logerr(f"MQTT reconnect failed with {type(exception)} and reason {exception}.")
-                self.logger.logerr(f"{traceback.format_exc()}")
+                self.logger.logerr(f"MQTT reconnect {retries} failed with {type(exception)} and reason {exception}.")
 
     def _config_tls(self, tls_dict):
         """ Configure TLS."""
@@ -839,7 +847,6 @@ class PublishWeeWXThread(threading.Thread):
 
         self.manager_dict = manager_dict
         self.publisher = None
-        self.running = False
 
         self.db_manager = None
         self.plugin_manager = None
@@ -852,6 +859,9 @@ class PublishWeeWXThread(threading.Thread):
         self.data_queue = data_queue
         self.timespan_provider = timespan_provider
         self.threading_event = threading.Event()
+
+        # ToDo: Rename? It doesn't truly signfy running - more that the thread exists
+        self.running = True
 
     def update_record(self, topic_dict, record):
         """ Update the record. """
@@ -974,7 +984,6 @@ class PublishWeeWXThread(threading.Thread):
                                                    value)
 
     def run(self):
-        self.running = True
         self.logger.loginf(f"Starting publishing loop {self.name}.")
         threading.current_thread().name = f"MQTTPublish-{threading.get_native_id()}"
 
