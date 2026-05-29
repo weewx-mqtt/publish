@@ -30,18 +30,18 @@ CONFIG_STR = """
             sw_version = 2.1
             support_url = https://bla2mqtt.example.com/support
         [[[components]]]
-            [[[[some_unique_component_id1]]]]
+            [[[[outTemp]]]]
                 platform = sensor
-                device_class = temperature
-                unit_of_measurement = °F
+                #device_class = temperature
+                #unit_of_measurement = °F
                 value_template = {{ value_json.outTemp}}
-                unique_id = temp01ae_t
-            [[[[some_unique_id2]]]]
+                unique_id = outTemp
+            [[[[outHumidity]]]]
                 platform = sensor
-                device_class = humidity
-                unit_of_measurement = %
+                #device_class = humidity
+                #unit_of_measurement = %
                 value_template = {{ value_json.outHumidity}}
-                unique_id = temp01ae_hs
+                unique_id = outHumidity
         [[[availability]]]
             topic = status
             payload_available = online
@@ -54,9 +54,16 @@ class MQTTHomeAssistantConfig:
         self.logger = logger
         self.name = name
 
+        self.config = configobj.ConfigObj(StringIO(CONFIG_STR))
+        self.state_topics = {}
+        for device_id in self.config['devices']:
+            device_config = self.config['devices'][device_id]
+            device_config['device']['identifiers'] = device_id
+            self.state_topics[device_config['state_topic']] = {}
+
         # ToDo: Figure out how to configure
-        self.birth_topic = "homeassistant/status"
-        self.lwt_topic = "homeassistant/status"
+        self.birth_topic = "status"
+        self.lwt_topic = "status"
         self.qos = 1
 
     def get_callbacks(self):
@@ -112,24 +119,19 @@ class MQTTHomeAssistantConfig:
                            f"returned mid {int(mid)} "
                            f"and result {int(result)}.")
 
-    def publish_message(self, mqtt_client, _topic, _data, _qos, _retain):
+    def publish_message(self, mqtt_client, topic, _data, _qos, _retain):
         """ Run code when MQTT message is published. """
         # ToDo: proof of concept code
-        config = configobj.ConfigObj(StringIO(CONFIG_STR))
-        # print(config['devices'])
-        for device_id in config['devices']:
-            print(device_id)
-            device_config = config['devices'][device_id]
-            device_config['device']['identifiers'] = device_id
-            print(device_config)
-            payload = json.dumps(device_config)
-            print(payload)
+        for device_id in self.config['devices']:
+            device_config = self.config['devices'][device_id]
+            if topic in self.state_topics:
+                payload = json.dumps(device_config)
 
-            topic = 'homeassistant/device/ea334450945afc/config'
-            qos = 0
-            retain = False
+                topic = 'homeassistant/device/ea334450945afc/config'
+                qos = 0
+                retain = False
 
-            #mqtt_message_info = mqtt_client.publish(topic, payload, qos=qos, retain=retain)
-            #self.logger.logdbg(f"publishing: {mqtt_message_info.mid} {qos} {topic}")
+                mqtt_message_info = mqtt_client.publish(topic, payload, qos=qos, retain=retain)
+                self.logger.logdbg(f"publishing: {mqtt_message_info.mid} {qos} {topic}")
 
-        self.logger.loginf("done")
+        self.logger.logdbg("done")
