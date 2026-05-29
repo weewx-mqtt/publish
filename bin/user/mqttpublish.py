@@ -23,7 +23,7 @@ import configobj
 import paho.mqtt.client as mqtt
 
 import weeutil
-from weeutil.weeutil import to_bool, to_float, to_int, TimeSpan
+from weeutil.weeutil import to_bool, to_float, to_int
 
 import weewx
 from weewx.engine import StdService
@@ -57,70 +57,6 @@ class Logger:
     def logerr(self, msg):
         """ log error messages """
         self.log.error("%s %s", threading.get_native_id(), msg)
-
-class TimeSpanProvider:
-    ''' Manage the timespans. '''
-    def __init__(self, week_start):
-        self.week_start = week_start
-        self.period_timespans = {
-            'hour': self.hour,
-            'day': self.day,
-            'yesterday': self.yesterday,
-            'week': self.week,
-            'month': self.month,
-            'year': self.year,
-            'last24hours': self.last24hours,
-            'last7days': self.last7days,
-            'last31days': self.last31days,
-            'last366days': self.last366days,
-        }
-
-    def get_timespan(self, interval, timestamp):
-        ''' Get a timespan for the interval and timstamp. '''
-        return self.period_timespans[interval](timestamp)
-
-    def hour(self, timestamp):
-        ''' Get a timespan for the hour. '''
-        return weeutil.weeutil.archiveHoursAgoSpan(timestamp)
-
-    def day(self, timestamp):
-        ''' Get a timespan for the day. '''
-        return weeutil.weeutil.archiveDaySpan(timestamp)
-
-    def yesterday(self, timestamp):
-        ''' Get a timespan for yesterday. '''
-        return weeutil.weeutil.archiveDaySpan(timestamp, 1)
-
-    def week(self, timestamp):
-        ''' Get a timespan for the running week. '''
-        return weeutil.weeutil.archiveWeekSpan(timestamp, startOfWeek=self.week_start)
-
-    def month(self, timestamp):
-        ''' Get a timespan for the running month. '''
-        return weeutil.weeutil.archiveMonthSpan(timestamp)
-
-    def year(self, timestamp):
-        ''' Get a timespan for the running year. '''
-        return weeutil.weeutil.archiveYearSpan(timestamp)
-
-    def last24hours(self, timestamp):
-        ''' Get a timespan for the last 24 hours. '''
-        return TimeSpan(timestamp - 86400, timestamp)
-
-    def last7days(self, timestamp):
-        ''' Get a timespan for the last 7 days. '''
-        return self._last_n_days(7, timestamp)
-
-    def last31days(self, timestamp):
-        ''' Get a timespan for the last 31 days. '''
-        return self._last_n_days(31, timestamp)
-
-    def last366days(self, timestamp):
-        ''' Get a timespan for the last 366 days. '''
-        return self._last_n_days(366, timestamp)
-
-    def _last_n_days(self, days, timestamp):
-        return TimeSpan(time.mktime((datetime.date.fromtimestamp(timestamp) - datetime.timedelta(days=days)).timetuple()), timestamp)
 
 class AbstractPublisher(abc.ABC):
     """ Managing publishing to MQTT. """
@@ -507,9 +443,6 @@ class MQTTPublish(StdService):
             self.logger.logerr("'PublishWeeWX' is deprecated. Move options to top level, '[MQTTPublish]'.")
             service_dict = config_dict.get('MQTTPublish', {}).get('PublishWeeWX', {})
 
-        # ToDo: Move this after the enable check (need to fix unit tests to allow this)
-        self.timespan_provider = TimeSpanProvider(engine.stn_info.week_start)
-
         self.enable = to_bool(service_dict.get('enable', True))
         if not self.enable:
             self.logger.loginf("Not enabled, exiting.")
@@ -565,8 +498,7 @@ class MQTTPublish(StdService):
                                           self.mqtt_config,
                                           self.topics_loop,
                                           self.topics_archive,
-                                          self.data_queue,
-                                          self.timespan_provider)
+                                          self.data_queue)
         self.thread_start()
 
     def configure_fields(self,
@@ -637,21 +569,6 @@ class MQTTPublish(StdService):
                                                conversion_type,
                                                format_string)
 
-            aggregates = topic_dict.get('aggregates', {})
-            if aggregates:
-                for aggregate in aggregates:
-                    if to_bool(aggregates[aggregate].get('enable', True)) \
-                        and aggregates[aggregate]['period'] not in self.timespan_provider.period_timespans:
-                        raise ValueError(f"Invalid 'period', {aggregates[aggregate]['period']}")
-                weeutil.config.merge_config(aggregates, self.configure_fields(aggregates,
-                                                                              ignore,
-                                                                              publish_none_value,
-                                                                              append_unit_label,
-                                                                              conversion_type,
-                                                                              format_string))
-
-            # self.logger.logdbg(f"Configured aggregates: {aggregates}.")
-
             if 'loop' in binding:
                 if not publish:
                     continue
@@ -668,7 +585,6 @@ class MQTTPublish(StdService):
                 topics_loop[topic]['conversion_type'] = conversion_type
                 topics_loop[topic]['format'] = format_string
                 topics_loop[topic]['fields'] = dict(fields)
-                topics_loop[topic]['aggregates'] = dict(aggregates)
 
             if 'archive' in binding:
                 if not publish:
@@ -686,7 +602,6 @@ class MQTTPublish(StdService):
                 topics_archive[topic]['conversion_type'] = conversion_type
                 topics_archive[topic]['format'] = format_string
                 topics_archive[topic]['fields'] = dict(fields)
-                topics_archive[topic]['aggregates'] = dict(aggregates)
 
         self.logger.logdbg(f"Loop topics: {topics_loop}")
         self.logger.logdbg(f"Archive topics: {topics_archive}")
@@ -725,8 +640,7 @@ class MQTTPublish(StdService):
                                        self.mqtt_config,
                                        self.topics_loop,
                                        self.topics_archive,
-                                       self.data_queue,
-                                       self.timespan_provider)
+                                       self.data_queue)
                 self.thread_start()
 
                 self.data_queue.put({'time_stamp': data['dateTime'], 'type': data_type, 'data': data})
@@ -771,7 +685,7 @@ class PublishWeeWXThread(threading.Thread):
         'unix_epoch': None,
     }
 
-    def __init__(self, logger, manager_dict, mqtt_config, topics_loop, topics_archive, data_queue, timespan_provider):
+    def __init__(self, logger, manager_dict, mqtt_config, topics_loop, topics_archive, data_queue):
         threading.Thread.__init__(self)
         self.logger = logger
 
@@ -788,7 +702,6 @@ class PublishWeeWXThread(threading.Thread):
         self.lwt_dict = mqtt_config.get('lwt')
 
         self.data_queue = data_queue
-        self.timespan_provider = timespan_provider
         self.threading_event = threading.Event()
 
         # ToDo: Rename? It doesn't truly signfy running - more that the thread exists
@@ -816,38 +729,7 @@ class PublishWeeWXThread(threading.Thread):
                                               updated_record[field],
                                               updated_record['usUnits'])
             final_record[name] = value
-        # self.logger.logdbg(f"record after field updates is: {final_record}")
 
-        for aggregate_observation in topic_dict['aggregates']:
-            # self.logger.logdbg(topic_dict['aggregates'][aggregate_observation])
-            if not to_bool(topic_dict['aggregates'][aggregate_observation].get('enable', True)):
-                continue
-
-            time_span = self.timespan_provider.get_timespan(topic_dict['aggregates'][aggregate_observation]['period'],
-                                                            record['dateTime'])
-
-            try:
-                aggregate_value_tuple = \
-                    weewx.xtypes.get_aggregate(topic_dict['aggregates'][aggregate_observation]['observation'],
-                                               time_span, topic_dict['aggregates'][aggregate_observation]['aggregation'],
-                                               self.db_manager)
-                aggregate_value = weewx.units.convertStd(aggregate_value_tuple, updated_record['usUnits'])[0]
-                # ToDo: only do once?
-                weewx.units.obs_group_dict[aggregate_observation] = aggregate_value_tuple[2]
-
-                (name, value) = self.update_field(topic_dict, topic_dict['aggregates'][aggregate_observation],
-                                                  aggregate_observation,
-                                                  aggregate_value,
-                                                  updated_record['usUnits'])
-
-                # ToDo: check if observation already in record
-                final_record[name] = value
-
-            except (weewx.CannotCalculate, weewx.UnknownAggregation, weewx.UnknownType) as exception:
-                self.logger.logerr(f"Aggregation failed: {exception}")
-                self.logger.logerr(traceback.format_exc())
-
-        # self.logger.logdbg(f"record after aggregation calculation is:  {final_record}")
         return final_record
 
     @staticmethod
