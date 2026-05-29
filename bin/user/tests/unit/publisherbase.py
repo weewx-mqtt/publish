@@ -357,15 +357,8 @@ class PublisherBase(unittest.TestCase):
 
     def test_publish_when_connected(self):
         mock_logger = mock.Mock()
-        mock_plugin_manager = mock.Mock()
         mock_publisher = mock.Mock()
 
-        mock_plugin_manager.callbacks = {
-            'publish_message': {
-                'immediate': {},
-                'delay': {}
-            },
-        }
         config_dict = {
             'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
             'clientid': helpers.random_string(),
@@ -385,7 +378,7 @@ class PublisherBase(unittest.TestCase):
                     with mock.patch.object(user.mqttpublish.AbstractPublisher, '_reconnect') as mock_reconnect:
                         with mock.patch.object(user.mqttpublish.mqtt.Client, 'publish') as mock_publish:
 
-                            SUT = self.class_under_test(mock_logger, mock_plugin_manager, mock_publisher, config)
+                            SUT = self.class_under_test(mock_logger, None, mock_publisher, config)
 
                             SUT.connected = True
                             time_stamp = random.randint(10, 10000)
@@ -400,15 +393,7 @@ class PublisherBase(unittest.TestCase):
 
     def test_publish_when_not_connected(self):
         mock_logger = mock.Mock()
-        mock_plugin_manager = mock.Mock()
         mock_publisher = mock.Mock()
-
-        mock_plugin_manager.callbacks = {
-            'publish_message': {
-                'immediate': {},
-                'delay': {}
-            },
-        }
 
         config_dict = {
             'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
@@ -429,7 +414,7 @@ class PublisherBase(unittest.TestCase):
                     with mock.patch.object(user.mqttpublish.AbstractPublisher, '_reconnect') as mock_reconnect:
                         with mock.patch.object(user.mqttpublish.mqtt.Client, 'publish') as mock_publish:
 
-                            SUT = self.class_under_test(mock_logger, mock_plugin_manager, mock_publisher, config)
+                            SUT = self.class_under_test(mock_logger, None, mock_publisher, config)
 
                             SUT.connected = False
                             time_stamp = random.randint(10, 10000)

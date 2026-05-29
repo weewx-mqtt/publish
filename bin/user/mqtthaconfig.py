@@ -15,7 +15,7 @@ import configobj
 CONFIG_STR = """
 [devices]
     [[ea334450945afc]]
-        state_topic = weather/archive
+        state_topic = weather/loop
         qos = 2
         [[[device]]]
             identifiers =
@@ -86,9 +86,9 @@ class MQTTHomeAssistantConfig:
                     'timing': 'immediate',
                     'callback': self.on_mqtt_message
                 },
-                'publish_message': {
+                'publish_record': {
                     'timing': 'immediate',
-                    'callback': self.publish_message
+                    'callback': self.publish_record
                 },
             },
         ]
@@ -119,19 +119,24 @@ class MQTTHomeAssistantConfig:
                            f"returned mid {int(mid)} "
                            f"and result {int(result)}.")
 
-    def publish_message(self, mqtt_client, topic, _data, _qos, _retain):
+    def publish_record(self, mqtt_client, topic, data, _qos, _retain):
         """ Run code when MQTT message is published. """
         # ToDo: proof of concept code
+        self.logger.logdbg("start")
         for device_id in self.config['devices']:
+            new_sensor = False
             device_config = self.config['devices'][device_id]
             if topic in self.state_topics:
-                payload = json.dumps(device_config)
-
-                topic = 'homeassistant/device/ea334450945afc/config'
-                qos = 0
-                retain = False
-
-                mqtt_message_info = mqtt_client.publish(topic, payload, qos=qos, retain=retain)
-                self.logger.logdbg(f"publishing: {mqtt_message_info.mid} {qos} {topic}")
+                for field in data:
+                    if field not in self.state_topics[topic]:
+                        new_sensor = True
+                        print(field)
+                        self.state_topics[topic][field] = {}
+                
+                if new_sensor:
+                    payload = json.dumps(device_config)
+                    topic = 'homeassistant/device/ea334450945afc/config'
+                    mqtt_message_info = mqtt_client.publish(topic, payload, qos=0, retain=False)
+                    self.logger.logdbg(f"publishing: {mqtt_message_info.mid} {topic}")
 
         self.logger.logdbg("done")

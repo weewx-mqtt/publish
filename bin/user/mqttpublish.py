@@ -140,7 +140,7 @@ class PluginManager():
                 'immediate': {},
                 'delay': {}
             },
-            'publish_message': {
+            'publish_record': {
                 'immediate': {},
                 'delay': {}
             },
@@ -342,24 +342,11 @@ class AbstractPublisher(abc.ABC):
         if not self.connected:
             self._reconnect()
         # self.logger.logdbg(f"publishing: {topic} {data}")
-        for plugin_name in self.plugin_manager.callbacks['publish_message']['immediate']:
-            self.plugin_manager.callbacks['publish_message']['immediate'][plugin_name](self.client,
-                                                                                       topic,
-                                                                                       data,
-                                                                                       qos,
-                                                                                       retain)
 
         mqtt_message_info = self.client.publish(topic, data, qos=qos, retain=retain)
         self.logger.logdbg(f"At {int(time.time())} publishing: {int(time_stamp)} {mqtt_message_info.mid} {qos} {topic}")
 
         self.client.loop(timeout=0.1)
-
-        for plugin_name in self.plugin_manager.callbacks['publish_message']['delay']:
-            self.plugin_manager.callbacks['publish_message']['delay'][plugin_name](self.client,
-                                                                                   topic,
-                                                                                   data,
-                                                                                   qos,
-                                                                                   retain)
 
     def get_client(self, client_id, protocol):
         ''' Get the MQTT client. '''
@@ -977,15 +964,21 @@ class PublishWeeWXThread(threading.Thread):
         record = data
 
         for topic in topics:
+            updated_record = self.update_record(topics[topic], record)
+            for plugin_name in self.publisher.plugin_manager.callbacks['publish_record']['immediate']:
+                self.publisher.plugin_manager.callbacks['publish_record']['immediate'][plugin_name](self.publisher.client,
+                                                                                                    topic,
+                                                                                                    record,
+                                                                                                    topics[topic]['qos'],
+                                                                                                    topics[topic]['retain'])
+
             if topics[topic]['type'] == 'json':
-                updated_record = self.update_record(topics[topic], record)
                 self.publisher.publish_message(time_stamp,
                                                topics[topic]['qos'],
                                                topics[topic]['retain'],
                                                topic,
                                                json.dumps(updated_record))
             if topics[topic]['type'] == 'keyword':
-                updated_record = self.update_record(topics[topic], record)
                 data_keyword = ', '.join(f"{key}={val}" for (key, val) in updated_record.items())
                 self.publisher.publish_message(time_stamp,
                                                topics[topic]['qos'],
@@ -993,13 +986,18 @@ class PublishWeeWXThread(threading.Thread):
                                                topic,
                                                data_keyword)
             if topics[topic]['type'] == 'individual':
-                updated_record = self.update_record(topics[topic], record)
                 for key, value in updated_record.items():
                     self.publisher.publish_message(time_stamp,
                                                    topics[topic]['qos'],
                                                    topics[topic]['retain'],
                                                    topic + '/' + key,
                                                    value)
+            for plugin_name in self.publisher.plugin_manager.callbacks['publish_record']['delay']:
+                self.publisher.plugin_manager.callbacks['publish_record']['delay'][plugin_name](self.publisher.client,
+                                                                                                topic,
+                                                                                                record,
+                                                                                                topics[topic]['qos'],
+                                                                                                topics[topic]['retain'])
 
     def run(self):
         self.logger.loginf(f"Starting publishing loop {self.name}.")
