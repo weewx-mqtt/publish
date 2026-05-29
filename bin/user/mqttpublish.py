@@ -494,10 +494,10 @@ class MQTTPublish(StdService):
             self.bind(weewx.NEW_ARCHIVE_RECORD, self.new_archive_record)
 
         self._thread = PublishWeeWXThread(self.logger,
-                                          self.manager_dict,
-                                          self.mqtt_config,
-                                          self.topics_loop,
-                                          self.topics_archive,
+                                          (self.manager_dict,
+                                          self.mqtt_config),
+                                          (self.topics_loop,
+                                          self.topics_archive),
                                           self.data_queue)
         self.thread_start()
 
@@ -636,10 +636,10 @@ class MQTTPublish(StdService):
                 self.thread_restarts += 1
                 self._thread = \
                     PublishWeeWXThread(self.logger,
-                                       self.manager_dict,
-                                       self.mqtt_config,
-                                       self.topics_loop,
-                                       self.topics_archive,
+                                       (self.manager_dict,
+                                       self.mqtt_config),
+                                       (self.topics_loop,
+                                       self.topics_archive),
                                        self.data_queue)
                 self.thread_start()
 
@@ -685,11 +685,14 @@ class PublishWeeWXThread(threading.Thread):
         'unix_epoch': None,
     }
 
-    def __init__(self, logger, manager_dict, mqtt_config, topics_loop, topics_archive, data_queue):
+    def __init__(self, logger, configs, topics, data_queue):
         threading.Thread.__init__(self)
         self.logger = logger
 
         self.logger.loginf("Initializing publishing thread.")
+
+        manager_dict, mqtt_config = configs
+        topics_loop, topics_archive = topics
 
         self.manager_dict = manager_dict
         self.publisher = None
