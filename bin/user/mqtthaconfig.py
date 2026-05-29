@@ -78,7 +78,11 @@ class MQTTHomeAssistantConfig:
                 'on_mqtt_message': {
                     'timing': 'immediate',
                     'callback': self.on_mqtt_message
-                }
+                },
+                'publish_message': {
+                    'timing': 'immediate',
+                    'callback': self.publish_message
+                },
             },
         ]
 
@@ -108,7 +112,9 @@ class MQTTHomeAssistantConfig:
                            f"returned mid {int(mid)} "
                            f"and result {int(result)}.")
 
-        # ToDo: For now, put here
+    def publish_message(self, mqtt_client, _topic, _data, _qos, _retain):
+        """ Run code when MQTT message is published. """
+        # ToDo: proof of concept code
         config = configobj.ConfigObj(StringIO(CONFIG_STR))
         # print(config['devices'])
         for device_id in config['devices']:
@@ -123,7 +129,7 @@ class MQTTHomeAssistantConfig:
             qos = 0
             retain = False
 
-            mqtt_message_info = mqtt_client.publish(topic, payload, qos=qos, retain=retain)
-            self.logger.logdbg(f"publishing: {mqtt_message_info.mid} {qos} {topic}")
+            #mqtt_message_info = mqtt_client.publish(topic, payload, qos=qos, retain=retain)
+            #self.logger.logdbg(f"publishing: {mqtt_message_info.mid} {qos} {topic}")
 
         self.logger.loginf("done")

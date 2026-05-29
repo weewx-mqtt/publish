@@ -139,7 +139,11 @@ class PluginManager():
             'on_mqtt_message': {
                 'immediate': {},
                 'delay': {}
-            }
+            },
+            'publish_message': {
+                'immediate': {},
+                'delay': {}
+            },
         }
 
     def create_plugin(self, plugin_name):
@@ -338,10 +342,24 @@ class AbstractPublisher(abc.ABC):
         if not self.connected:
             self._reconnect()
         # self.logger.logdbg(f"publishing: {topic} {data}")
+        for plugin_name in self.plugin_manager.callbacks['publish_message']['immediate']:
+            self.plugin_manager.callbacks['publish_message']['immediate'][plugin_name](self.client,
+                                                                                       topic,
+                                                                                       data,
+                                                                                       qos,
+                                                                                       retain)
+
         mqtt_message_info = self.client.publish(topic, data, qos=qos, retain=retain)
         self.logger.logdbg(f"At {int(time.time())} publishing: {int(time_stamp)} {mqtt_message_info.mid} {qos} {topic}")
 
         self.client.loop(timeout=0.1)
+
+        for plugin_name in self.plugin_manager.callbacks['publish_message']['delay']:
+            self.plugin_manager.callbacks['publish_message']['delay'][plugin_name](self.client,
+                                                                                   topic,
+                                                                                   data,
+                                                                                   qos,
+                                                                                   retain)
 
     def get_client(self, client_id, protocol):
         ''' Get the MQTT client. '''
