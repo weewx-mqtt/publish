@@ -4,6 +4,50 @@
 #    See the file LICENSE.txt for your full rights.
 #
 
+""" Plugin to perform Home Assistant MQTT Discovery """
+
+from io import StringIO
+import json
+
+import configobj
+
+# homeassistant/device/ea334450945afc/config
+CONFIG_STR = """
+[devices]
+    [[ea334450945afc]]
+        state_topic = weather/archive
+        qos = 2
+        [[[device]]]
+            identifiers =
+            name = Kitchen
+            manufacturer = Bla electronics
+            model = xya
+            sw_version = 1.0
+            serial_number = ea334450945afc
+            hw_version = 1.0rev2
+        [[[origin]]]
+            name = bla2mqtt
+            sw_version = 2.1
+            support_url = https://bla2mqtt.example.com/support
+        [[[components]]]
+            [[[[some_unique_component_id1]]]]
+                platform = sensor
+                device_class = temperature
+                unit_of_measurement = °F
+                value_template = {{ value_json.outTemp}}
+                unique_id = temp01ae_t
+            [[[[some_unique_id2]]]]
+                platform = sensor
+                device_class = humidity
+                unit_of_measurement = %
+                value_template = {{ value_json.outHumidity}}
+                unique_id = temp01ae_hs
+        [[[availability]]]
+            topic = status
+            payload_available = online
+            payload_not_available = offline
+"""
+
 class MQTTHomeAssistantConfig:
     """ Publish Home Assistant sensor configuration data. """
     def __init__(self, logger, name):
@@ -45,9 +89,9 @@ class MQTTHomeAssistantConfig:
     def on_mqtt_message(self, _client, userdata, msg):
         """ Handle the MQTT on_message callback. """
         self.logger.logdbg(f"Received: {userdata} {msg}")
-        if msg.topic == self.birth_topic and  msg.payload == b"online":
+        if msg.topic == self.birth_topic and msg.payload == b"online":
             self.logger.loginf("ToDo: resend the configuration data to HA")
-        elif msg.topic == self.lwt_topic and  msg.payload == b"offline":
+        elif msg.topic == self.lwt_topic and msg.payload == b"offline":
             self.logger.loginf(f"Received LWT {msg.payload} on topic: {msg.topic}.")
         else:
             self.logger.logerr(f"Received invalid {msg.payload} on topic: {msg.topic}.")
@@ -63,3 +107,23 @@ class MQTTHomeAssistantConfig:
         self.logger.loginf(f"Subscribing to topic {self.lwt_topic} "
                            f"returned mid {int(mid)} "
                            f"and result {int(result)}.")
+
+        # ToDo: For now, put here
+        config = configobj.ConfigObj(StringIO(CONFIG_STR))
+        # print(config['devices'])
+        for device_id in config['devices']:
+            print(device_id)
+            device_config = config['devices'][device_id]
+            device_config['device']['identifiers'] = device_id
+            print(device_config)
+            payload = json.dumps(device_config)
+            print(payload)
+
+            topic = 'homeassistant/device/ea334450945afc/config'
+            qos = 0
+            retain = False
+
+            mqtt_message_info = mqtt_client.publish(topic, payload, qos=qos, retain=retain)
+            self.logger.logdbg(f"publishing: {mqtt_message_info.mid} {qos} {topic}")
+
+        self.logger.loginf("done")
