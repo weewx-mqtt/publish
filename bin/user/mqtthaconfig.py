@@ -30,18 +30,18 @@ CONFIG_STR = """
             sw_version = 2.1
             support_url = https://bla2mqtt.example.com/support
         [[[components]]]
-            [[[[outTemp]]]]
-                platform = sensor
-                #device_class = temperature
-                #unit_of_measurement = °F
-                value_template = {{ value_json.outTemp | default(this.state)}}
-                unique_id = outTemp
-            [[[[outHumidity]]]]
-                platform = sensor
-                #device_class = humidity
-                #unit_of_measurement = %
-                value_template = {{ value_json.outHumidity | default(this.state) }}
-                unique_id = outHumidity
+            #[[[[outTemp]]]]
+            #    platform = sensor
+            #    #device_class = temperature
+            #    #unit_of_measurement = °F
+            #    value_template = {{ value_json.outTemp | default(this.state)}}
+            #    unique_id = outTemp
+            #[[[[outHumidity]]]]
+            #    platform = sensor
+            #    #device_class = humidity
+            #    #unit_of_measurement = %
+            #    value_template = {{ value_json.outHumidity | default(this.state) }}
+            #    unique_id = outHumidity
         [[[availability]]]
             topic = status
             payload_available = online
@@ -125,16 +125,21 @@ class MQTTHomeAssistantConfig:
         self.logger.logdbg("start")
         for device_id in self.config['devices']:
             new_sensor = False
-            device_config = self.config['devices'][device_id]
             if topic in self.state_topics:
                 for field in data:
                     if field not in self.state_topics[topic]:
                         new_sensor = True
-                        print(field)
                         self.state_topics[topic][field] = {}
-                
+                        value_template = '{{ value_json.' + field + ' | default(this.state) }}'
+                        self.config['devices'][device_id]['components'][field] = {
+                            'platform': 'sensor',
+                            'value_template': value_template,
+                            'unique_id': field,
+                            'name': field,
+                        }
+
                 if new_sensor:
-                    payload = json.dumps(device_config)
+                    payload = json.dumps(self.config['devices'][device_id])
                     topic = 'homeassistant/device/ea334450945afc/config'
                     mqtt_message_info = mqtt_client.publish(topic, payload, qos=0, retain=False)
                     self.logger.logdbg(f"publishing: {mqtt_message_info.mid} {topic}")
