@@ -34,13 +34,13 @@ CONFIG_STR = """
                 platform = sensor
                 #device_class = temperature
                 #unit_of_measurement = °F
-                value_template = {{ value_json.outTemp}}
+                value_template = {{ value_json.outTemp | default(this.state)}}
                 unique_id = outTemp
             [[[[outHumidity]]]]
                 platform = sensor
                 #device_class = humidity
                 #unit_of_measurement = %
-                value_template = {{ value_json.outHumidity}}
+                value_template = {{ value_json.outHumidity | default(this.state) }}
                 unique_id = outHumidity
         [[[availability]]]
             topic = status
