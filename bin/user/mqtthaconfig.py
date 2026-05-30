@@ -11,11 +11,13 @@ import json
 
 import configobj
 
+import weewx.units
+
 # homeassistant/device/ea334450945afc/config
 CONFIG_STR = """
 [devices]
     [[ea334450945afc]]
-        state_topic = weather/loop
+        state_topic = weather/archive
         qos = 2
         [[[device]]]
             identifiers =
@@ -251,9 +253,42 @@ CONFIG_STR = """
         [[windrun]]
         [[windSpeed]]
             class = wind_speed
+    [units]
+        cm = cm
+        degree_C = °C
+        degree_F = °F
+        degree_K = K
+        degree_compass = °
+        foot = ft
+        gallon = gal
+        hPa = hPa
+        hour = h
+        inHg = inHg
+        inch = in
+        kPa = kPa
+        kilowatt = kW
+        kilowatt_hour = kWh
+        km_per_hour = km/h
+        knot = kn
+        liter = L
+        lux = lx
+        mbar = mbar
+        meter = m
+        meter_per_second = m/s
+        mile_per_hour = mph
+        minute = min
+        mm = mm
+        mmHg = mmHg
+        mm_per_hour = mm/h
+        percent = %
+        percent_battery = %
+        second = s
+        volt = V
+        watt = W
+        watt_hour = Wh
+        watt_per_meter_squared = W/m²
 
 """
-
 class MQTTHomeAssistantConfig:
     """ Publish Home Assistant sensor configuration data. """
     def __init__(self, logger, name, defaults_dict):
@@ -347,6 +382,11 @@ class MQTTHomeAssistantConfig:
                             'unique_id': field,
                             'name': self.defaults_dict['Labels']['Generic'].get(field, field),
                         }
+                        (unit, _) = weewx.units.getStandardUnitType(data['usUnits'], field)
+                        if unit:
+                            unit_of_measurement = self.config['units'].get(unit)
+                            if unit_of_measurement:
+                                self.config['devices'][device_id]['components'][field]['unit_of_measurement'] = unit_of_measurement
                         #if self.config['device_data'].get(field, {}).get('class'):
                         #    self.config['devices'][device_id]['components'][field]['device_class'] = \
                         #        self.config['device_data'][field].get('class')
