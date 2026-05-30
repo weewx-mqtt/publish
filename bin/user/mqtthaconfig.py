@@ -50,9 +50,10 @@ CONFIG_STR = """
 
 class MQTTHomeAssistantConfig:
     """ Publish Home Assistant sensor configuration data. """
-    def __init__(self, logger, name):
+    def __init__(self, logger, name, defaults_dict):
         self.logger = logger
         self.name = name
+        self.defaults_dict = defaults_dict
 
         self.config = configobj.ConfigObj(StringIO(CONFIG_STR))
         self.state_topics = {}

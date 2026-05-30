@@ -26,6 +26,7 @@ import weeutil
 from weeutil.weeutil import to_bool, to_float, to_int, TimeSpan
 
 import weewx
+import weewx.defaults
 from weewx.engine import StdService
 
 VERSION = "1.1.0-rc04b"
@@ -146,11 +147,11 @@ class PluginManager():
             },
         }
 
-    def create_plugin(self, plugin_name):
+    def create_plugin(self, plugin_name, defaults_dict):
         """ Create the plugin. """
         self.plugins[plugin_name] = {}
         plugin_class = weeutil.weeutil.get_object(plugin_name)
-        plugin = plugin_class(self.logger, plugin_name)
+        plugin = plugin_class(self.logger, plugin_name, defaults_dict)
         self.plugins[plugin_name]['plugin'] = plugin
         callbacks = plugin.get_callbacks()
         for callback in callbacks:
@@ -591,6 +592,11 @@ class MQTTPublish(StdService):
         data_binding = service_dict.get('data_binding', 'wx_binding')
         self.manager_dict = weewx.manager.get_manager_dict_from_config(config_dict, data_binding)
 
+        self.defaults_dict = weeutil.config.deep_copy(weewx.defaults.defaults)
+        self.defaults_dict.interpolation = False
+        if 'Defaults' in config_dict['StdReport']:
+            weeutil.config.merge_config(self.defaults_dict, config_dict['StdReport']['Defaults'])
+
         self.topics_loop, self.topics_archive = self.configure_topics(service_dict)
         # self.logger.logdbg(f"archive topic configuration is: {self.topics_archive}")
         # self.logger.logdbg(f"loop topic configuration is: {self.topics_loop}")
@@ -634,6 +640,7 @@ class MQTTPublish(StdService):
             self.bind(weewx.NEW_ARCHIVE_RECORD, self.new_archive_record)
 
         self._thread = PublishWeeWXThread(self.logger,
+                                          self.defaults_dict,
                                           self.manager_dict,
                                           self.mqtt_config,
                                           self.topics_loop,
@@ -794,6 +801,7 @@ class MQTTPublish(StdService):
                 self.thread_restarts += 1
                 self._thread = \
                     PublishWeeWXThread(self.logger,
+                                       self.defaults_dict,
                                        self.manager_dict,
                                        self.mqtt_config,
                                        self.topics_loop,
@@ -844,12 +852,13 @@ class PublishWeeWXThread(threading.Thread):
         'unix_epoch': None,
     }
 
-    def __init__(self, logger, manager_dict, mqtt_config, topics_loop, topics_archive, data_queue, timespan_provider):
+    def __init__(self, logger, defaults_dict, manager_dict, mqtt_config, topics_loop, topics_archive, data_queue, timespan_provider):
         threading.Thread.__init__(self)
         self.logger = logger
 
         self.logger.loginf("Initializing publishing thread.")
 
+        self.defaults_dict = defaults_dict
         self.manager_dict = manager_dict
         self.publisher = None
 
@@ -1005,7 +1014,7 @@ class PublishWeeWXThread(threading.Thread):
 
         self.plugin_manager = PluginManager(self.logger)
         plugin_name = 'user.mqtthaconfig.MQTTHomeAssistantConfig'
-        self.plugin_manager.create_plugin(plugin_name)
+        self.plugin_manager.create_plugin(plugin_name, self.defaults_dict)
 
         # need to instantiate inside thread
         self.publisher = AbstractPublisher.get_publisher(self.logger, self.plugin_manager, self, self.mqtt_config)
