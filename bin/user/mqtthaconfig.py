@@ -15,39 +15,6 @@ import weewx.units
 
 # homeassistant/device/ea334450945afc/config
 CONFIG_STR = """
-[devices]
-    [[ea334450945afc]]
-        state_topic = weather/archive
-        qos = 2
-        [[[device]]]
-            identifiers =
-            name = Kitchen
-            manufacturer = Bla electronics
-            model = xya
-            sw_version = 1.0
-            serial_number = ea334450945afc
-            hw_version = 1.0rev2
-        [[[origin]]]
-            name = bla2mqtt
-            sw_version = 2.1
-            support_url = https://bla2mqtt.example.com/support
-        [[[components]]]
-            #[[[[outTemp]]]]
-            #    platform = sensor
-            #    #device_class = temperature
-            #    #unit_of_measurement = °F
-            #    value_template = {{ value_json.outTemp | default(this.state)}}
-            #    unique_id = outTemp
-            #[[[[outHumidity]]]]
-            #    platform = sensor
-            #    #device_class = humidity
-            #    #unit_of_measurement = %
-            #    value_template = {{ value_json.outHumidity | default(this.state) }}
-            #    unique_id = outHumidity
-        [[[availability]]]
-            topic = status
-            payload_available = online
-            payload_not_available = offline
     [device_data]
         [[dateTime]]
             # class = timestamp
@@ -294,12 +261,13 @@ class MQTTHomeAssistantConfig:
     def __init__(self, logger, name, plugin_dict, defaults_dict):
         self.logger = logger
         self.name = name
+        self.plugin_dict = plugin_dict
         self.defaults_dict = defaults_dict
 
         self.config = configobj.ConfigObj(StringIO(CONFIG_STR))
         self.state_topics = {}
-        for device_id in self.config['devices']:
-            device_config = self.config['devices'][device_id]
+        for device_id in self.plugin_dict['devices']:
+            device_config = self.plugin_dict['devices'][device_id]
             device_config['device']['identifiers'] = device_id
             self.state_topics[device_config['state_topic']] = {}
 
@@ -365,7 +333,7 @@ class MQTTHomeAssistantConfig:
         """ Run code when MQTT message is published. """
         # ToDo: proof of concept code
         self.logger.logdbg("start")
-        for device_id in self.config['devices']:
+        for device_id in self.plugin_dict['devices']:
             new_sensor = False
             if topic in self.state_topics:
                 for field in data:
@@ -376,7 +344,7 @@ class MQTTHomeAssistantConfig:
                         new_sensor = True
                         self.state_topics[topic][field] = {}
                         value_template = '{{ value_json.' + field + ' | default(this.state) }}'
-                        self.config['devices'][device_id]['components'][field] = {
+                        self.plugin_dict['devices'][device_id]['components'][field] = {
                             'platform': 'sensor',
                             'value_template': value_template,
                             'unique_id': field,
@@ -387,13 +355,13 @@ class MQTTHomeAssistantConfig:
                         if unit:
                             unit_of_measurement = self.config['units'].get(unit)
                             if unit_of_measurement:
-                                self.config['devices'][device_id]['components'][field]['unit_of_measurement'] = unit_of_measurement
+                                self.plugin_dict['devices'][device_id]['components'][field]['unit_of_measurement'] = unit_of_measurement
                         device_class = self.config['device_data'].get(field, {}).get('class')
                         if device_class and unit_of_measurement is not None:
-                            self.config['devices'][device_id]['components'][field]['device_class'] = device_class
+                            self.plugin_dict['devices'][device_id]['components'][field]['device_class'] = device_class
 
                 if new_sensor:
-                    payload = json.dumps(self.config['devices'][device_id])
+                    payload = json.dumps(self.plugin_dict['devices'][device_id])
                     topic = 'homeassistant/device/ea334450945afc/config'
                     mqtt_message_info = mqtt_client.publish(topic, payload, qos=0, retain=False)
                     self.logger.logdbg(f"publishing: {mqtt_message_info.mid} {topic}")
