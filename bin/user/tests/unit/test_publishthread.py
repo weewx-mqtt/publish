@@ -26,6 +26,7 @@ class TestPublishWeeWXThread(unittest.TestCase):
         data_queue = None
 
         SUT = user.mqttpublish.PublishWeeWXThread(mock_logger,
+                                                  {},
                                                   None,
                                                   None,
                                                   config,
@@ -90,6 +91,7 @@ class TestPublishWeeWXThread(unittest.TestCase):
         data_queue_mock = mock.Mock()
 
         SUT = user.mqttpublish.PublishWeeWXThread(mock_logger,
+                                                  {},
                                                   None,
                                                   None,
                                                   config,
