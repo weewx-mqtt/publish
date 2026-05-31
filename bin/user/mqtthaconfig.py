@@ -191,7 +191,7 @@ CONFIG_STR = """
         [[radiation]]
             class = irradiance
         [[rain]]
-            class = radiation
+            class = precipitation
         [[rainBatteryStatus]]
             class = battery
         [[rainRate]]
@@ -387,9 +387,9 @@ class MQTTHomeAssistantConfig:
                             unit_of_measurement = self.config['units'].get(unit)
                             if unit_of_measurement:
                                 self.config['devices'][device_id]['components'][field]['unit_of_measurement'] = unit_of_measurement
-                        #if self.config['device_data'].get(field, {}).get('class'):
-                        #    self.config['devices'][device_id]['components'][field]['device_class'] = \
-                        #        self.config['device_data'][field].get('class')
+                        device_class = self.config['device_data'].get(field, {}).get('class')
+                        if device_class and unit is not None:
+                            self.config['devices'][device_id]['components'][field]['device_class'] = device_class
 
                 if new_sensor:
                     payload = json.dumps(self.config['devices'][device_id])
