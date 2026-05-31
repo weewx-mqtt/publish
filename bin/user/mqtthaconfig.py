@@ -269,6 +269,8 @@ class MQTTHomeAssistantConfig:
         for device_id in self.plugin_dict['devices']:
             device_config = self.plugin_dict['devices'][device_id]
             device_config['device']['identifiers'] = device_id
+            if 'components' not in device_config:
+                device_config['components'] = {}
             self.state_topics[device_config['state_topic']] = {}
 
         # ToDo: Figure out how to configure
@@ -340,7 +342,8 @@ class MQTTHomeAssistantConfig:
                     # ToDo: temp hack to ignore None values (probably should be configured to not publish)
                     if data[field] is None:
                         continue
-                    if field not in self.state_topics[topic]:
+                    # ToDo: Maybe allow overriding certain attributes of the field, for example platform
+                    if field not in self.plugin_dict['devices'][device_id]['components']:
                         new_sensor = True
                         self.state_topics[topic][field] = {}
                         value_template = '{{ value_json.' + field + ' | default(this.state) }}'
