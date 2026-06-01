@@ -3,6 +3,7 @@ title: Plugins
 nav_order: 2
 #nav_exclude: true
 ---
+{% include plugins_warning.html %}
 
 ## The `[plugins]` section
 
