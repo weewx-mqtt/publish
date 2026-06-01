@@ -25,7 +25,15 @@ class TestPublishWeeWXThread(unittest.TestCase):
         topics_archive = None
         data_queue = None
 
-        SUT = user.mqttpublish.PublishWeeWXThread(mock_logger, None, config, topics_loop, topics_archive, data_queue, mock.Mock())
+        SUT = user.mqttpublish.PublishWeeWXThread(mock_logger,
+                                                  {},
+                                                  None,
+                                                  None,
+                                                  config,
+                                                  topics_loop,
+                                                  topics_archive,
+                                                  data_queue,
+                                                  mock.Mock())
 
         field1 = helpers.random_string()
         aggreagate1 = helpers.random_string()
@@ -82,7 +90,15 @@ class TestPublishWeeWXThread(unittest.TestCase):
         topics_archive = None
         data_queue_mock = mock.Mock()
 
-        SUT = user.mqttpublish.PublishWeeWXThread(mock_logger, None, config, topics_loop, topics_archive, data_queue_mock, None)
+        SUT = user.mqttpublish.PublishWeeWXThread(mock_logger,
+                                                  {},
+                                                  None,
+                                                  None,
+                                                  config,
+                                                  topics_loop,
+                                                  topics_archive,
+                                                  data_queue_mock,
+                                                  None)
 
         field1 = helpers.random_string()
 

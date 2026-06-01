@@ -21,6 +21,7 @@ class TestInit(unittest.TestCase):
     def test_PublishWeeWX_stanza_is_deprecated(self):
         mock_engine = mock.Mock()
         config_dict = {
+            'StdReport': {},
             'MQTTPublish': {
                 'PublishWeeWX': {
                     'topics': {}
