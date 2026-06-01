@@ -1,7 +1,7 @@
 ---
 title: Plugins
 nav_order: 2
-nav_exclude: true
+#nav_exclude: true
 ---
 
 ## The `[plugins]` section
