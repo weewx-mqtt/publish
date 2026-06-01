@@ -268,6 +268,8 @@ class MQTTHomeAssistantConfig:
         self.state_topics = {}
         for device_id in self.plugin_dict['devices']:
             device_config = self.plugin_dict['devices'][device_id]
+            if 'device' not in device_config:
+                device_config['device'] = {}
             device_config['device']['identifiers'] = device_id
             if 'components' not in device_config:
                 device_config['components'] = {}
