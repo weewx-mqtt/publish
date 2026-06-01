@@ -360,7 +360,8 @@ class MQTTHomeAssistantConfig:
                         if unit:
                             unit_of_measurement = self.config['units'].get(unit)
                             if unit_of_measurement:
-                                self.plugin_dict['devices'][device_id]['components'][field]['unit_of_measurement'] = unit_of_measurement
+                                self.plugin_dict['devices'][device_id]['components'][field]['unit_of_measurement'] = \
+                                    unit_of_measurement
                         device_class = self.config['device_data'].get(field, {}).get('class')
                         if device_class and unit_of_measurement is not None:
                             self.plugin_dict['devices'][device_id]['components'][field]['device_class'] = device_class
