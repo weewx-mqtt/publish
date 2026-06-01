@@ -275,10 +275,10 @@ class MQTTHomeAssistantConfig:
                 device_config['components'] = {}
             self.state_topics[device_config['state_topic']] = {}
 
+        self.qos = self.plugin_dict['qos']
         # ToDo: Figure out how to configure
-        self.birth_topic = "status"
-        self.lwt_topic = "status"
-        self.qos = 1
+        self.birth_topic = "homeassistant/status"
+        self.lwt_topic = "homeassistant/status"
 
     def get_callbacks(self):
         """ The callbacks. """
