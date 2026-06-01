@@ -13,6 +13,8 @@ import configobj
 
 import weewx.units
 
+from weeutil.weeutil import to_int
+
 # homeassistant/device/ea334450945afc/config
 CONFIG_STR = """
     [device_data]
@@ -275,10 +277,9 @@ class MQTTHomeAssistantConfig:
                 device_config['components'] = {}
             self.state_topics[device_config['state_topic']] = {}
 
-        self.qos = self.plugin_dict['qos']
-        # ToDo: Figure out how to configure
-        self.birth_topic = "homeassistant/status"
-        self.lwt_topic = "homeassistant/status"
+        self.qos = to_int(self.plugin_dict['qos'])
+        self.birth_topic = self.plugin_dict['birth_topic']
+        self.lwt_topic = self.plugin_dict['lwt_topic']
 
     def get_callbacks(self):
         """ The callbacks. """
