@@ -12,6 +12,7 @@ import json
 import configobj
 
 import weewx.units
+import weeutil
 
 from weeutil.weeutil import to_int
 
@@ -267,14 +268,15 @@ class MQTTHomeAssistantConfig:
         self.defaults_dict = defaults_dict
 
         self.config = configobj.ConfigObj(StringIO(CONFIG_STR))
+        weeutil.config.merge_config(self.config['device_data'], self.plugin_dict['device_data'])
+
         self.state_topics = {}
         for device_id in self.plugin_dict['devices']:
             device_config = self.plugin_dict['devices'][device_id]
             if 'device' not in device_config:
                 device_config['device'] = {}
             device_config['device']['identifiers'] = device_id
-            if 'components' not in device_config:
-                device_config['components'] = {}
+            device_config['components'] = {}
             self.state_topics[device_config['state_topic']] = {}
 
         self.qos = to_int(self.plugin_dict['qos'])
@@ -345,10 +347,9 @@ class MQTTHomeAssistantConfig:
                     # ToDo: temp hack to ignore None values (probably should be configured to not publish)
                     if data[field] is None:
                         continue
-                    # ToDo: Maybe allow overriding certain attributes of the field, for example platform
                     if field not in self.plugin_dict['devices'][device_id]['components']:
                         new_sensor = True
-                        self.state_topics[topic][field] = {}
+
                         value_template = '{{ value_json.' + field + ' | default(this.state) }}'
                         self.plugin_dict['devices'][device_id]['components'][field] = {
                             'platform': 'sensor',
@@ -366,6 +367,9 @@ class MQTTHomeAssistantConfig:
                         device_class = self.config['device_data'].get(field, {}).get('class')
                         if device_class and unit_of_measurement is not None:
                             self.plugin_dict['devices'][device_id]['components'][field]['device_class'] = device_class
+
+                        weeutil.config.merge_config(self.plugin_dict['devices'][device_id]['components'][field],
+                                                    self.config['device_data'].get(field, {}))
 
                 if new_sensor:
                     payload = json.dumps(self.plugin_dict['devices'][device_id])
