@@ -20,7 +20,9 @@ from weeutil.weeutil import to_int
 CONFIG_STR = """
     [component_data]
         [[dateTime]]
-            # class = timestamp
+            class = timestamp
+            value_template = '{{ as_datetime(value_json.dateTime | default(this.value)) }}'
+            icon = mdi:clock
         [[usUnits]]
             class = enum
         [[interval]]
