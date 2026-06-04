@@ -16,7 +16,7 @@ import weeutil
 
 from weeutil.weeutil import to_int
 
-# homeassistant/device/ea334450945afc/config
+# hDevice class and unit of measure: https://developers.home-assistant.io/docs/core/entity/sensor/#available-device-classes
 CONFIG_STR = """
     [component_data]
         [[dateTime]]
