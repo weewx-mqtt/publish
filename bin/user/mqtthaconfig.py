@@ -18,7 +18,7 @@ from weeutil.weeutil import to_int
 
 # homeassistant/device/ea334450945afc/config
 CONFIG_STR = """
-    [device_data]
+    [component_data]
         [[dateTime]]
             # class = timestamp
         [[usUnits]]
@@ -268,7 +268,7 @@ class MQTTHomeAssistantConfig:
         self.defaults_dict = defaults_dict
 
         self.config = configobj.ConfigObj(StringIO(CONFIG_STR))
-        weeutil.config.merge_config(self.config['device_data'], self.plugin_dict['device_data'])
+        weeutil.config.merge_config(self.config['component_data'], self.plugin_dict['component_data'])
 
         self.state_topics = {}
         for device_id in self.plugin_dict['devices']:
@@ -364,12 +364,12 @@ class MQTTHomeAssistantConfig:
                             if unit_of_measurement:
                                 self.plugin_dict['devices'][device_id]['components'][field]['unit_of_measurement'] = \
                                     unit_of_measurement
-                        device_class = self.config['device_data'].get(field, {}).get('class')
+                        device_class = self.config['component_data'].get(field, {}).get('class')
                         if device_class and unit_of_measurement is not None:
                             self.plugin_dict['devices'][device_id]['components'][field]['device_class'] = device_class
 
                         weeutil.config.merge_config(self.plugin_dict['devices'][device_id]['components'][field],
-                                                    self.config['device_data'].get(field, {}))
+                                                    self.config['component_data'].get(field, {}))
 
                 if new_sensor:
                     payload = json.dumps(self.plugin_dict['devices'][device_id])
