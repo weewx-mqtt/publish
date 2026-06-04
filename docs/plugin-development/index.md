@@ -61,7 +61,16 @@ It is called with the following parameters.
 
 ## Required methods
 
-example
+The plugin must implement the `get_callbacks` method.
+This method takes no paramters.
+It returns a list of callback definitions.
+A callback definition is a dictionary whose name is the name of the callback.
+It has two entries.
+
+1. timing: It can be one of `immediate` or `delayed`. `immnediate` means the callback is invoked before MQTTPublishing processing. `delayed` means the callout is invoked after the MQTTPublish processing.
+2. callback: The actual method to be invoked.
+
+Here is an example `get_callbacks` method.
 
 ``` python
     def get_callbacks(self):
@@ -93,6 +102,18 @@ example
 ```
 
 ## Required configuration information
+
+The plugin must a section below the `[[plugins]]` configuration section.
+The section name is the name of the plugin.
+
+### module
+
+This is set to the module name of the plugin.
+
+### Plugin specific configuration data
+
+Following the `module` setting, any settings for the plugin can be specified;
+followed by any plugin specific sub-sections.
 
 ``` text
 [MQTTPublish]
