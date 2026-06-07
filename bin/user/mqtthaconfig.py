@@ -277,9 +277,9 @@ class MQTTHomeAssistantConfig:
         weeutil.config.merge_config(self.defaults['component_data'], plugin_dict['component_data'])
 
         self.state_topics = {}
-        self.qos = to_int(plugin_dict['qos'])
-        self.birth_topic = plugin_dict['birth_topic']
-        self.lwt_topic = plugin_dict['lwt_topic']
+        self.qos = to_int(plugin_dict.get('qos', 0))
+        self.birth_topic = plugin_dict.get('birth_topic', 'homeassistant/status')
+        self.lwt_topic = plugin_dict.get('lqt_topic', 'homeassistant/status')
         self.mqtt_config = {}
         self.configuration = {}
         self.configuration['devices'] = weeutil.config.deep_copy(plugin_dict['devices'])
