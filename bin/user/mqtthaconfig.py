@@ -286,6 +286,8 @@ class MQTTHomeAssistantConfig:
             device_config['components'] = {}
             self.state_topics[device_config['state_topic']] = {}
 
+        self.configuration = self.plugin_dict
+
         self.qos = to_int(self.plugin_dict['qos'])
         self.birth_topic = self.plugin_dict['birth_topic']
         self.lwt_topic = self.plugin_dict['lwt_topic']
@@ -350,18 +352,18 @@ class MQTTHomeAssistantConfig:
         """ Run code when MQTT message is published. """
         # ToDo: proof of concept code
         self.logger.logdbg("start")
-        for device_id in self.plugin_dict['devices']:
+        for device_id in self.configuration['devices']:
             new_sensor = False
             if topic in self.state_topics:
                 for field in data:
                     # ToDo: temp hack to ignore None values (probably should be configured to not publish)
                     if data[field] is None:
                         continue
-                    if field not in self.plugin_dict['devices'][device_id]['components']:
+                    if field not in self.configuration['devices'][device_id]['components']:
                         new_sensor = True
 
                         value_template = '{{ value_json.' + field + ' | default(this.state) }}'
-                        self.plugin_dict['devices'][device_id]['components'][field] = {
+                        self.configuration['devices'][device_id]['components'][field] = {
                             'platform': 'sensor',
                             'value_template': value_template,
                             'unique_id': field,
@@ -373,17 +375,17 @@ class MQTTHomeAssistantConfig:
                         if unit:
                             unit_of_measurement = self.defaults['units'].get(unit)
                             if unit_of_measurement:
-                                self.plugin_dict['devices'][device_id]['components'][field]['unit_of_measurement'] = \
+                                self.configuration['devices'][device_id]['components'][field]['unit_of_measurement'] = \
                                     unit_of_measurement
                         device_class = self.defaults['component_data'].get(field, {}).get('class')
                         if device_class and unit_of_measurement is not None:
-                            self.plugin_dict['devices'][device_id]['components'][field]['device_class'] = device_class
+                            self.configuration['devices'][device_id]['components'][field]['device_class'] = device_class
 
-                        weeutil.config.merge_config(self.plugin_dict['devices'][device_id]['components'][field],
+                        weeutil.config.merge_config(self.configuration['devices'][device_id]['components'][field],
                                                     self.defaults['component_data'].get(field, {}))
 
                 if new_sensor:
-                    payload = json.dumps(self.plugin_dict['devices'][device_id])
+                    payload = json.dumps(self.configuration['devices'][device_id])
                     topic = f'homeassistant/device/{device_id}/config'
                     mqtt_message_info = mqtt_client.publish(topic, payload, qos=0, retain=False)
                     self.logger.loginf(f"publishing: {mqtt_message_info.mid} {topic} {payload}")
