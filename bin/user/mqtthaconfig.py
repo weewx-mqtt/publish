@@ -14,7 +14,7 @@ import configobj
 import weewx.units
 import weeutil
 
-from weeutil.weeutil import to_int
+from weeutil.weeutil import to_bool, to_int
 
 # hDevice class and unit of measure: https://developers.home-assistant.io/docs/core/entity/sensor/#available-device-classes
 CONFIG_STR = """
@@ -268,6 +268,11 @@ class MQTTHomeAssistantConfig:
         self.name = name
         self.plugin_dict = plugin_dict
         self.defaults_dict = defaults_dict
+        self.enabled = to_bool(self.plugin_dict.get('enable', True))
+
+        if not self.enabled:
+            self.logger.loginf(f"Plugin {self.name} is not enabled.")
+            return
 
         self.config = configobj.ConfigObj(StringIO(CONFIG_STR))
         weeutil.config.merge_config(self.config['component_data'], self.plugin_dict['component_data'])
@@ -287,6 +292,9 @@ class MQTTHomeAssistantConfig:
 
     def get_callbacks(self):
         """ The callbacks. """
+        if not self.enabled:
+            return []
+
         return [
             {
                 'on_weewx_data': {
@@ -357,6 +365,7 @@ class MQTTHomeAssistantConfig:
                             'platform': 'sensor',
                             'value_template': value_template,
                             'unique_id': field,
+                            'object_id': f'y_{field}_x',
                             'name': self.defaults_dict['Labels']['Generic'].get(field, field),
                         }
                         (unit, _) = weewx.units.getStandardUnitType(data['usUnits'], field)
@@ -375,8 +384,8 @@ class MQTTHomeAssistantConfig:
 
                 if new_sensor:
                     payload = json.dumps(self.plugin_dict['devices'][device_id])
-                    topic = 'homeassistant/device/ea334450945afc/config'
+                    topic = f'homeassistant/device/{device_id}/config'
                     mqtt_message_info = mqtt_client.publish(topic, payload, qos=0, retain=False)
-                    self.logger.logdbg(f"publishing: {mqtt_message_info.mid} {topic}")
+                    self.logger.loginf(f"publishing: {mqtt_message_info.mid} {topic} {payload}")
 
         self.logger.logdbg("done")
