@@ -302,6 +302,8 @@ class MQTTHomeAssistantConfig:
                 del device_config['retain']
             else:
                 self.mqtt_config[device_id]['retain'] = False
+            if 'origin' not in device_config:
+                self.mqtt_config[device_id]['orig'] = {'name': 'WeeWX'}
 
     def get_callbacks(self):
         """ The callbacks. """
