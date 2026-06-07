@@ -17,7 +17,7 @@ import weeutil
 from weeutil.weeutil import to_bool, to_int
 
 # hDevice class and unit of measure: https://developers.home-assistant.io/docs/core/entity/sensor/#available-device-classes
-CONFIG_STR = """
+DEFAULTS_STR = """
     [component_data]
         [[dateTime]]
             class = timestamp
@@ -263,19 +263,19 @@ CONFIG_STR = """
 """
 class MQTTHomeAssistantConfig:
     """ Publish Home Assistant sensor configuration data. """
-    def __init__(self, logger, name, plugin_dict, defaults_dict):
+    def __init__(self, logger, name, plugin_dict, weewx_defaults):
         self.logger = logger
         self.name = name
         self.plugin_dict = plugin_dict
-        self.defaults_dict = defaults_dict
+        self.weewx_defaults = weewx_defaults
         self.enabled = to_bool(self.plugin_dict.get('enable', True))
 
         if not self.enabled:
             self.logger.loginf(f"Plugin {self.name} is not enabled.")
             return
 
-        self.config = configobj.ConfigObj(StringIO(CONFIG_STR))
-        weeutil.config.merge_config(self.config['component_data'], self.plugin_dict['component_data'])
+        self.defaults = configobj.ConfigObj(StringIO(DEFAULTS_STR))
+        weeutil.config.merge_config(self.defaults['component_data'], self.plugin_dict['component_data'])
 
         self.state_topics = {}
         for device_id in self.plugin_dict['devices']:
@@ -366,21 +366,21 @@ class MQTTHomeAssistantConfig:
                             'value_template': value_template,
                             'unique_id': field,
                             'object_id': f'y_{field}_x',
-                            'name': self.defaults_dict['Labels']['Generic'].get(field, field),
+                            'name': self.weewx_defaults['Labels']['Generic'].get(field, field),
                         }
                         (unit, _) = weewx.units.getStandardUnitType(data['usUnits'], field)
                         unit_of_measurement = None
                         if unit:
-                            unit_of_measurement = self.config['units'].get(unit)
+                            unit_of_measurement = self.defaults['units'].get(unit)
                             if unit_of_measurement:
                                 self.plugin_dict['devices'][device_id]['components'][field]['unit_of_measurement'] = \
                                     unit_of_measurement
-                        device_class = self.config['component_data'].get(field, {}).get('class')
+                        device_class = self.defaults['component_data'].get(field, {}).get('class')
                         if device_class and unit_of_measurement is not None:
                             self.plugin_dict['devices'][device_id]['components'][field]['device_class'] = device_class
 
                         weeutil.config.merge_config(self.plugin_dict['devices'][device_id]['components'][field],
-                                                    self.config['component_data'].get(field, {}))
+                                                    self.defaults['component_data'].get(field, {}))
 
                 if new_sensor:
                     payload = json.dumps(self.plugin_dict['devices'][device_id])
