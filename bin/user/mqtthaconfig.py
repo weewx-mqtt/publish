@@ -307,7 +307,6 @@ class MQTTHomeAssistantConfig:
             else:
                 self.mqtt_config[device_id]['retain'] = False
 
-
     def get_callbacks(self):
         """ The callbacks. """
         if not self.enabled:
@@ -403,7 +402,10 @@ class MQTTHomeAssistantConfig:
                 if new_sensor:
                     payload = json.dumps(self.configuration['devices'][device_id])
                     topic = f'homeassistant/device/{device_id}/config'
-                    mqtt_message_info = mqtt_client.publish(topic, payload, qos=self.mqtt_config[device_id]['qos'], retain=self.mqtt_config[device_id]['retain'])
+                    mqtt_message_info = mqtt_client.publish(topic,
+                                                            payload,
+                                                            qos=self.mqtt_config[device_id]['qos'],
+                                                            retain=self.mqtt_config[device_id]['retain'])
                     self.logger.loginf(f"publishing: {mqtt_message_info.mid} {topic} {payload}")
 
         self.logger.logdbg("done")

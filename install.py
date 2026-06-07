@@ -214,7 +214,9 @@ class MQTTPublishInstaller(ExtensionInstaller):
             'description': ' Publish WeeWX data to a MQTT broker.',
             'author': "Rich Bell",
             'author_email': "bellrichm@gmail.com",
-            'files': [('bin/user', ['bin/user/mqttpublish.py'])]
+            'files': [('bin/user', ['bin/user/mqttpublish.py',
+                                    'bin/user/mqtthaconfig.py',
+                                    ])]
         }
 
         mqttpublish_dict = configobj.ConfigObj(StringIO(MQTTPUBLISH_CONFIG))
