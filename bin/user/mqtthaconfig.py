@@ -290,6 +290,10 @@ class MQTTHomeAssistantConfig:
                 device_config['device'] = {}
             device_config['device']['identifiers'] = device_id
             device_config['components'] = {}
+            if 'state_topic' not in device_config:
+                device_config['state_topic'] = 'weather/loop'
+            if 'origin' not in device_config:
+                device_config['origin'] = {'name': 'WeeWX'}
             self.state_topics[device_config['state_topic']] = {}
             self.mqtt_config[device_id] = {}
             if 'qos' in device_config:
@@ -302,8 +306,7 @@ class MQTTHomeAssistantConfig:
                 del device_config['retain']
             else:
                 self.mqtt_config[device_id]['retain'] = False
-            if 'origin' not in device_config:
-                device_config['origin'] = {'name': 'WeeWX'}
+
 
     def get_callbacks(self):
         """ The callbacks. """
