@@ -266,31 +266,42 @@ class MQTTHomeAssistantConfig:
     def __init__(self, logger, name, plugin_dict, weewx_defaults):
         self.logger = logger
         self.name = name
-        self.plugin_dict = plugin_dict
         self.weewx_defaults = weewx_defaults
-        self.enabled = to_bool(self.plugin_dict.get('enable', True))
+        self.enabled = to_bool(plugin_dict.get('enable', True))
 
         if not self.enabled:
             self.logger.loginf(f"Plugin {self.name} is not enabled.")
             return
 
         self.defaults = configobj.ConfigObj(StringIO(DEFAULTS_STR))
-        weeutil.config.merge_config(self.defaults['component_data'], self.plugin_dict['component_data'])
+        weeutil.config.merge_config(self.defaults['component_data'], plugin_dict['component_data'])
 
         self.state_topics = {}
-        for device_id in self.plugin_dict['devices']:
-            device_config = self.plugin_dict['devices'][device_id]
+        self.qos = to_int(plugin_dict['qos'])
+        self.birth_topic = plugin_dict['birth_topic']
+        self.lwt_topic = plugin_dict['lwt_topic']
+        self.mqtt_config = {}
+        self.configuration = {}
+        self.configuration['devices'] = weeutil.config.deep_copy(plugin_dict['devices'])
+
+        for device_id in self.configuration['devices']:
+            device_config = self.configuration['devices'][device_id]
             if 'device' not in device_config:
                 device_config['device'] = {}
             device_config['device']['identifiers'] = device_id
             device_config['components'] = {}
             self.state_topics[device_config['state_topic']] = {}
-
-        self.configuration = self.plugin_dict
-
-        self.qos = to_int(self.plugin_dict['qos'])
-        self.birth_topic = self.plugin_dict['birth_topic']
-        self.lwt_topic = self.plugin_dict['lwt_topic']
+            self.mqtt_config[device_id] = {}
+            if 'qos' in device_config:
+                self.mqtt_config[device_id]['qos'] = to_int(device_config['qos'])
+                del device_config['qos']
+            else:
+                self.mqtt_config[device_id]['qos'] = 0
+            if 'retain' in device_config:
+                self.mqtt_config[device_id]['retain'] = to_bool(device_config['retain'])
+                del device_config['retain']
+            else:
+                self.mqtt_config[device_id]['retain'] = False
 
     def get_callbacks(self):
         """ The callbacks. """
@@ -387,7 +398,7 @@ class MQTTHomeAssistantConfig:
                 if new_sensor:
                     payload = json.dumps(self.configuration['devices'][device_id])
                     topic = f'homeassistant/device/{device_id}/config'
-                    mqtt_message_info = mqtt_client.publish(topic, payload, qos=0, retain=False)
+                    mqtt_message_info = mqtt_client.publish(topic, payload, qos=self.mqtt_config[device_id]['qos'], retain=self.mqtt_config[device_id]['retain'])
                     self.logger.loginf(f"publishing: {mqtt_message_info.mid} {topic} {payload}")
 
         self.logger.logdbg("done")
