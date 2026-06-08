@@ -382,7 +382,6 @@ class MQTTHomeAssistantConfig:
                             'platform': 'sensor',
                             'value_template': value_template,
                             'unique_id': field,
-                            'object_id': f'y_{field}_x',
                             'name': self.weewx_defaults['Labels']['Generic'].get(field, field),
                         }
                         (unit, _) = weewx.units.getStandardUnitType(data['usUnits'], field)
