@@ -7,4 +7,14 @@ nav_order: 1
 
 ## The `[[component-id]]` section
 
-component-id
+### device_class
+
+The type/class of the sensor to set the icon in the frontend.
+
+### unit_of_measureent
+
+Defines the units of measurement of the sensor, if any.
+
+### name
+
+The name of the MQTT sensor.
