@@ -196,6 +196,83 @@ MQTTPUBLISH_CONFIG = """
                     # Valid values: hour, day, week, month, year, yesterday, last24hours, last7days, last31days, last366days
                     period =
 
+    [[plugins]]
+        # The name of the plugin. Do not change
+        [[[MQTTHomeAssistantConfig]]]
+            # The module to be loaded. Do not change.
+            module = user.mqtthaconfig
+
+            # Whether the service is enabled or not.
+            # Valid values: true or false
+            # Default is true.
+            enable = False
+
+            # The MQTT qos when subscribing to the birth and lwt topics.
+            # Valid values: 0, 1, 2
+            # Default is 0
+            qos = 0
+
+            # The Home Assistant birth topic.
+            # Default is homeassistant/status
+            birth_topic = homeassistant/status
+
+            # The Home Assistant lwt topic.
+            # Default is homeassistant/status.
+            lwt_topic = homeassistant/status
+
+            [[[[devices]]]]
+                # The object_id of the device.
+                [[[[[REPLACE_ME]]]]]
+
+                    # The MQTT qos when publishing the device discovery message.
+                    # Valid values: 0, 1, 2
+                    # Default is 0.
+                    qos = 0
+
+                    # The retain value when publishing the device discovery message.
+                    # Valid values: true or false
+                    # Default is false.
+                    retain = False
+
+                    # The topic that the sensor data is published to.
+                    # The default is weather/loop
+                    # state_topic = weather/loop
+
+                    # https://www.home-assistant.io/integrations/sensor.mqtt/#device
+                    [[[[[[device]]]]]]
+                        # The hardware version of the device.
+                        # hw_version =
+
+                        # A list of IDs that uniquely identify the device. For example a serial number.
+                        # Default is the object_id of the device.
+                        # identifiers =
+
+                        # The manufacturer of the device.
+                        # manufacturer =
+
+                        # The model of the device.
+                        # model =
+
+                        # The firmware version of the device.
+                        # sw_version =
+
+                        # The serial number of the device.
+                        # serial_number =
+
+                        # The name of the device.
+                        name = REPLACE_ME
+
+                    # https://www.home-assistant.io/integrations/mqtt/#name
+                    [[[[[[origin]]]]]]
+                        # Software version of the application that supplies the discovered MQTT item.
+                        # sw_version =
+
+                        # Support URL of the application that supplies the discovered MQTT item.
+                        # support_url =
+
+                        # The name of the application that is the origin of the discovered MQTT item.
+                        name = REPLACE_ME
+
 """
 
 def loader():
