@@ -29,7 +29,7 @@ import weewx
 import weewx.defaults
 from weewx.engine import StdService
 
-VERSION = "1.1.0-rc04b"
+VERSION = "1.1.0-rc05a"
 
 class CannotConnectError(ConnectionError):
     """" Cannot connect to broker. """
