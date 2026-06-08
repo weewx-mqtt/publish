@@ -1,8 +1,6 @@
 ---
 title: Plugins
 nav_order: 2
-# Hide documentation for code being developed
-nav_exclude: true
 ---
 {% include plugins_warning.html %}
 
