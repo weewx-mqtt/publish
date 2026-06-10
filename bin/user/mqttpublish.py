@@ -721,6 +721,14 @@ class MQTTPublish(StdService):
 
             aggregates = topic_dict.get('aggregates', {})
             if aggregates:
+                # Temporarily build the MQTTAggregateValues plugin configuration
+                if 'MQTTAggregateValues' not in self.plugins:
+                    self.plugins['MQTTAggregateValues'] = {}
+                    self.plugins['MQTTAggregateValues']['module'] = 'user.mqttaggregatevalues'
+                    self.plugins['MQTTAggregateValues']['topics'] = {}
+
+                self.plugins['MQTTAggregateValues']['topics'][topic] = aggregates
+                print(self.plugins)
                 for aggregate in aggregates:
                     if to_bool(aggregates[aggregate].get('enable', True)) \
                         and aggregates[aggregate]['period'] not in self.timespan_provider.period_timespans:
