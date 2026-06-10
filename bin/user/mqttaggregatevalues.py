@@ -137,4 +137,4 @@ class MQTTAggregateValues:
                 self.logger.logerr(f"Aggregation failed: {exception}")
                 self.logger.logerr(traceback.format_exc())
 
-        print(aggregates)
+        data.update(aggregates)

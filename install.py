@@ -293,6 +293,7 @@ class MQTTPublishInstaller(ExtensionInstaller):
             'author_email': "bellrichm@gmail.com",
             'files': [('bin/user', ['bin/user/mqttpublish.py',
                                     'bin/user/mqtthaconfig.py',
+                                    'bin/user/mqttaggregatevalues.py',
                                     ])]
         }
 
