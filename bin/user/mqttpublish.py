@@ -147,11 +147,11 @@ class PluginManager():
             },
         }
 
-    def create_plugin(self, plugin_name, plugin_dict, defaults_dict):
+    def create_plugin(self, plugin_name, plugin_dict, weewx_dict):
         """ Create the plugin. """
         self.plugins[plugin_name] = {}
         plugin_class = weeutil.weeutil.get_object(plugin_name)
-        plugin = plugin_class(self.logger, plugin_name, plugin_dict, defaults_dict)
+        plugin = plugin_class(self.logger, plugin_name, plugin_dict, weewx_dict)
         self.plugins[plugin_name]['plugin'] = plugin
         callbacks = plugin.get_callbacks()
         for callback in callbacks:
@@ -593,10 +593,13 @@ class MQTTPublish(StdService):
         data_binding = service_dict.get('data_binding', 'wx_binding')
         self.manager_dict = weewx.manager.get_manager_dict_from_config(config_dict, data_binding)
 
-        self.defaults_dict = weeutil.config.deep_copy(weewx.defaults.defaults)
-        self.defaults_dict.interpolation = False
+        self.weewx_dict = {}
+        self.weewx_dict['stn_info'] = engine.stn_info
+        self.weewx_dict['manager_dict'] = self.manager_dict
+        self.weewx_dict['defaults'] = weeutil.config.deep_copy(weewx.defaults.defaults)
+        self.weewx_dict['defaults'].interpolation = False
         if 'Defaults' in config_dict['StdReport']:
-            weeutil.config.merge_config(self.defaults_dict, config_dict['StdReport']['Defaults'])
+            weeutil.config.merge_config(self.weewx_dict['defaults'], config_dict['StdReport']['Defaults'])
 
         self.topics_loop, self.topics_archive = self.configure_topics(service_dict)
         # self.logger.logdbg(f"archive topic configuration is: {self.topics_archive}")
@@ -642,7 +645,7 @@ class MQTTPublish(StdService):
 
         self._thread = PublishWeeWXThread(self.logger,
                                           self.plugins,
-                                          self.defaults_dict,
+                                          self.weewx_dict,
                                           self.manager_dict,
                                           self.mqtt_config,
                                           self.topics_loop,
@@ -812,7 +815,7 @@ class MQTTPublish(StdService):
                 self._thread = \
                     PublishWeeWXThread(self.logger,
                                        self.plugins,
-                                       self.defaults_dict,
+                                       self.weewx_dict,
                                        self.manager_dict,
                                        self.mqtt_config,
                                        self.topics_loop,
@@ -866,7 +869,7 @@ class PublishWeeWXThread(threading.Thread):
     def __init__(self,
                  logger,
                  plugins,
-                 defaults_dict,
+                 weewx_dict,
                  manager_dict,
                  mqtt_config,
                  topics_loop,
@@ -879,7 +882,7 @@ class PublishWeeWXThread(threading.Thread):
         self.logger.loginf("Initializing publishing thread.")
 
         self.plugins = plugins
-        self.defaults_dict = defaults_dict
+        self.weewx_dict = weewx_dict
         self.manager_dict = manager_dict
         self.publisher = None
 
@@ -1035,7 +1038,7 @@ class PublishWeeWXThread(threading.Thread):
         self.plugin_manager = PluginManager(self.logger)
         for plugin in self.plugins:
             plugin_name = self.plugins[plugin]['module'] + '.' + plugin
-            self.plugin_manager.create_plugin(plugin_name, self.plugins[plugin], self.defaults_dict)
+            self.plugin_manager.create_plugin(plugin_name, self.plugins[plugin], self.weewx_dict)
 
         # need to instantiate inside thread
         self.publisher = AbstractPublisher.get_publisher(self.logger, self.plugin_manager, self, self.mqtt_config)

@@ -263,10 +263,10 @@ DEFAULTS_STR = """
 """
 class MQTTHomeAssistantConfig:
     """ Publish Home Assistant sensor configuration data. """
-    def __init__(self, logger, name, plugin_dict, weewx_defaults):
+    def __init__(self, logger, name, plugin_dict, weewx_dict):
         self.logger = logger
         self.name = name
-        self.weewx_defaults = weewx_defaults
+        self.weewx_defaults = weewx_dict['defaults']
         self.enabled = to_bool(plugin_dict.get('enable', True))
 
         if not self.enabled:
