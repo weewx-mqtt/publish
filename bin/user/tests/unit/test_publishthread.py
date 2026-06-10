@@ -45,13 +45,6 @@ class TestPublishWeeWXThread(unittest.TestCase):
             'unit_system': 1,
             'format': '%s',
             'fields': {},
-            'aggregates': {
-                aggreagate1: {
-                    'period': period,
-                    'observation': helpers.random_string(),
-                    'aggregation': helpers.random_string(),
-                },
-            },
         }
 
         record = {
@@ -73,7 +66,6 @@ class TestPublishWeeWXThread(unittest.TestCase):
 
                     expected_record = {
                         field1: str(field_value),
-                        aggreagate1: str(field_value),
                         'usUnits': '1',
                     }
 
