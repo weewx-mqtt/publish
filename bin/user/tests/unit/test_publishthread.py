@@ -32,14 +32,9 @@ class TestPublishWeeWXThread(unittest.TestCase):
                                                   config,
                                                   topics_loop,
                                                   topics_archive,
-                                                  data_queue,
-                                                  mock.Mock())
+                                                  data_queue)
 
         field1 = helpers.random_string()
-        aggreagate1 = helpers.random_string()
-        week_start = random.randint(0, 6)
-        timespan_provider = user.mqttpublish.TimeSpanProvider(week_start)
-        period = random.choice(list(timespan_provider.period_timespans.keys()))
 
         topic_dict = {
             'unit_system': 1,
@@ -89,8 +84,7 @@ class TestPublishWeeWXThread(unittest.TestCase):
                                                   config,
                                                   topics_loop,
                                                   topics_archive,
-                                                  data_queue_mock,
-                                                  None)
+                                                  data_queue_mock)
 
         field1 = helpers.random_string()
 

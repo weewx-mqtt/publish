@@ -82,6 +82,7 @@ class TimeSpanProvider:
 class MQTTAggregateValues:
     """ Calculate aggregate values. """
     def __init__(self, logger, name, plugin_dict, weewx_dict):
+        # ToDo need to add 'enable flag'
         self.logger = logger
         self.name = name
         self.plugin_dict = plugin_dict
@@ -89,7 +90,12 @@ class MQTTAggregateValues:
 
         self.timespan_provider = TimeSpanProvider(weewx_dict['stn_info'].week_start)
 
-        # ToDo: need to figure out
+        for topic in self.plugin_dict['topics']:
+            for (_, aggregate) in self.plugin_dict['topics'][topic].items():
+                    if to_bool(aggregate.get('enable', True)) \
+                        and aggregate['period'] not in self.timespan_provider.period_timespans:
+                        raise ValueError(f"Invalid 'period', {aggregate['period']}")
+
         self.db_manager = weewx.manager.open_manager(weewx_dict['manager_dict'])
 
     def get_callbacks(self):

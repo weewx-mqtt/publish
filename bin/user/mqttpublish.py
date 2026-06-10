@@ -581,8 +581,7 @@ class MQTTPublish(StdService):
                                           self.mqtt_config,
                                           self.topics_loop,
                                           self.topics_archive,
-                                          self.data_queue,
-                                          self.timespan_provider)
+                                          self.data_queue)
         self.thread_start()
 
     def configure_fields(self,
@@ -662,11 +661,6 @@ class MQTTPublish(StdService):
                     self.plugins['MQTTAggregateValues']['topics'] = {}
                 self.plugins['MQTTAggregateValues']['topics'][topic] = aggregates
 
-                for aggregate in aggregates:
-                    if to_bool(aggregates[aggregate].get('enable', True)) \
-                        and aggregates[aggregate]['period'] not in self.timespan_provider.period_timespans:
-                        raise ValueError(f"Invalid 'period', {aggregates[aggregate]['period']}")
-
             if 'loop' in binding:
                 if not publish:
                     continue
@@ -740,8 +734,7 @@ class MQTTPublish(StdService):
                                        self.mqtt_config,
                                        self.topics_loop,
                                        self.topics_archive,
-                                       self.data_queue,
-                                       self.timespan_provider)
+                                       self.data_queue)
                 self.thread_start()
 
                 self.data_queue.put({'time_stamp': data['dateTime'], 'type': data_type, 'data': data})
@@ -794,8 +787,7 @@ class PublishWeeWXThread(threading.Thread):
                  mqtt_config,
                  topics_loop,
                  topics_archive,
-                 data_queue,
-                 timespan_provider):
+                 data_queue):
         threading.Thread.__init__(self)
         self.logger = logger
 
@@ -815,7 +807,6 @@ class PublishWeeWXThread(threading.Thread):
         self.lwt_dict = mqtt_config.get('lwt')
 
         self.data_queue = data_queue
-        self.timespan_provider = timespan_provider
         self.threading_event = threading.Event()
 
         # ToDo: Rename? It doesn't truly signfy running - more that the thread exists
