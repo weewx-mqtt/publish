@@ -141,7 +141,7 @@ class PluginManager():
                 'immediate': {},
                 'delay': {}
             },
-            'publish_record': {
+            'update_record': {
                 'immediate': {},
                 'delay': {}
             },
@@ -890,6 +890,33 @@ class PublishWeeWXThread(threading.Thread):
         # ToDo: Rename? It doesn't truly signfy running - more that the thread exists
         self.running = True
 
+    def new_aggregation(self, topic_dict, record):
+        """ ToDo: move to plugin """
+        aggregates = {}
+        for aggregate_observation in topic_dict['aggregates']:
+            # self.logger.logdbg(topic_dict['aggregates'][aggregate_observation])
+            if not to_bool(topic_dict['aggregates'][aggregate_observation].get('enable', True)):
+                continue
+
+            time_span = self.timespan_provider.get_timespan(topic_dict['aggregates'][aggregate_observation]['period'],
+                                                            record['dateTime'])
+
+            try:
+                aggregate_value_tuple = \
+                    weewx.xtypes.get_aggregate(topic_dict['aggregates'][aggregate_observation]['observation'],
+                                               time_span, topic_dict['aggregates'][aggregate_observation]['aggregation'],
+                                               self.db_manager)
+                # ToDo: only do once?
+                weewx.units.obs_group_dict[aggregate_observation] = aggregate_value_tuple[2]
+
+                aggregates[aggregate_observation] = aggregate_value_tuple[0]
+
+            except (weewx.CannotCalculate, weewx.UnknownAggregation, weewx.UnknownType) as exception:
+                self.logger.logerr(f"Aggregation failed: {exception}")
+                self.logger.logerr(traceback.format_exc())
+
+        return aggregates
+
     def update_record(self, topic_dict, record):
         """ Update the record. """
         final_record = {}
@@ -913,35 +940,6 @@ class PublishWeeWXThread(threading.Thread):
                                               updated_record['usUnits'])
             final_record[name] = value
         # self.logger.logdbg(f"record after field updates is: {final_record}")
-
-        for aggregate_observation in topic_dict['aggregates']:
-            # self.logger.logdbg(topic_dict['aggregates'][aggregate_observation])
-            if not to_bool(topic_dict['aggregates'][aggregate_observation].get('enable', True)):
-                continue
-
-            time_span = self.timespan_provider.get_timespan(topic_dict['aggregates'][aggregate_observation]['period'],
-                                                            record['dateTime'])
-
-            try:
-                aggregate_value_tuple = \
-                    weewx.xtypes.get_aggregate(topic_dict['aggregates'][aggregate_observation]['observation'],
-                                               time_span, topic_dict['aggregates'][aggregate_observation]['aggregation'],
-                                               self.db_manager)
-                aggregate_value = weewx.units.convertStd(aggregate_value_tuple, updated_record['usUnits'])[0]
-                # ToDo: only do once?
-                weewx.units.obs_group_dict[aggregate_observation] = aggregate_value_tuple[2]
-
-                (name, value) = self.update_field(topic_dict, topic_dict['aggregates'][aggregate_observation],
-                                                  aggregate_observation,
-                                                  aggregate_value,
-                                                  updated_record['usUnits'])
-
-                # ToDo: check if observation already in record
-                final_record[name] = value
-
-            except (weewx.CannotCalculate, weewx.UnknownAggregation, weewx.UnknownType) as exception:
-                self.logger.logerr(f"Aggregation failed: {exception}")
-                self.logger.logerr(traceback.format_exc())
 
         # self.logger.logdbg(f"record after aggregation calculation is:  {final_record}")
         return final_record
@@ -986,13 +984,20 @@ class PublishWeeWXThread(threading.Thread):
         record = data
 
         for topic in topics:
+            for plugin_name in self.publisher.plugin_manager.callbacks['update_record']['immediate']:
+                self.publisher.plugin_manager.callbacks['update_record']['immediate'][plugin_name](self.publisher.client,
+                                                                                                   topic,
+                                                                                                   record,
+                                                                                                   topics[topic]['qos'],
+                                                                                                   topics[topic]['retain'])
+            record.update(self.new_aggregation(topics[topic], record))
             updated_record = self.update_record(topics[topic], record)
-            for plugin_name in self.publisher.plugin_manager.callbacks['publish_record']['immediate']:
-                self.publisher.plugin_manager.callbacks['publish_record']['immediate'][plugin_name](self.publisher.client,
-                                                                                                    topic,
-                                                                                                    record,
-                                                                                                    topics[topic]['qos'],
-                                                                                                    topics[topic]['retain'])
+            for plugin_name in self.publisher.plugin_manager.callbacks['update_record']['delay']:
+                self.publisher.plugin_manager.callbacks['update_record']['delay'][plugin_name](self.publisher.client,
+                                                                                               topic,
+                                                                                               record,
+                                                                                               topics[topic]['qos'],
+                                                                                               topics[topic]['retain'])
 
             if topics[topic]['type'] == 'json':
                 self.publisher.publish_message(time_stamp,
@@ -1014,12 +1019,6 @@ class PublishWeeWXThread(threading.Thread):
                                                    topics[topic]['retain'],
                                                    topic + '/' + key,
                                                    value)
-            for plugin_name in self.publisher.plugin_manager.callbacks['publish_record']['delay']:
-                self.publisher.plugin_manager.callbacks['publish_record']['delay'][plugin_name](self.publisher.client,
-                                                                                                topic,
-                                                                                                record,
-                                                                                                topics[topic]['qos'],
-                                                                                                topics[topic]['retain'])
 
     def run(self):
         self.logger.loginf(f"Starting publishing loop {self.name}.")

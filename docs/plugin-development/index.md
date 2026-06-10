@@ -12,7 +12,7 @@ Currently these steps support callouts:
 1. on_weewx_data
 2. on_connect
 3. on_message
-4. publish_record
+4. update_record
 
 Each of these callouts can be called either before MQTTPublish does its processing or after.
 
@@ -48,9 +48,9 @@ It is called with the following parameters.
 - userdata: the private user data as set in Client() or user_data_set()
 - msg: the received message. This is a class with members topic, payload, qos, retain.
 
-### publish_record
+### update_record
 
-This is when the data is published to MQTT.
+This is when the data to be published is manipulated by MQTTPublish.
 It is called with the following parameters.
 
 - mqtt_client: the client instance to be used when publising the message
@@ -93,9 +93,9 @@ Here is an example `get_callbacks` method.
                     'timing': 'immediate',
                     'callback': self.on_mqtt_message
                 },
-                'publish_record': {
+                'update_record': {
                     'timing': 'immediate',
-                    'callback': self.publish_record
+                    'callback': self.update_record
                 },
             },
         ]

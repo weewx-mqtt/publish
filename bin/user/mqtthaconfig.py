@@ -330,9 +330,9 @@ class MQTTHomeAssistantConfig:
                     'timing': 'immediate',
                     'callback': self.on_mqtt_message
                 },
-                'publish_record': {
-                    'timing': 'immediate',
-                    'callback': self.publish_record
+                'update_record': {
+                    'timing': 'delay',
+                    'callback': self.update_record
                 },
             },
         ]
@@ -363,7 +363,7 @@ class MQTTHomeAssistantConfig:
                            f"returned mid {int(mid)} "
                            f"and result {int(result)}.")
 
-    def publish_record(self, mqtt_client, topic, data, _qos, _retain):
+    def update_record(self, mqtt_client, topic, data, _qos, _retain):
         """ Run code when MQTT message is published. """
         # ToDo: proof of concept code
         self.logger.logdbg("start")
