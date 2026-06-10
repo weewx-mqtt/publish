@@ -59,6 +59,8 @@ It is called with the following parameters.
 - qos: The quality of service level to use.
 - retain: If set to true, the message will be set as the “last known good”/retained message for the topic.
 
+## `__init__` signature
+
 ## Required methods
 
 The plugin must implement the `get_callbacks` method.
