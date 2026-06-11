@@ -136,6 +136,7 @@ class MQTTAggregateValues:
                                                time_span, aggregate_dict[aggregate_observation]['aggregation'],
                                                self.db_manager)
                 # ToDo: only do once?
+                #  unit_type, group = weewx.units.getStandardUnitType(db_manager.std_unit_system, obs_type, aggregate_type)
                 weewx.units.obs_group_dict[aggregate_observation] = aggregate_value_tuple[2]
 
                 aggregates[aggregate_observation] = aggregate_value_tuple[0]
