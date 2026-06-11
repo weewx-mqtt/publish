@@ -658,8 +658,10 @@ class MQTTPublish(StdService):
                 if 'MQTTAggregateValues' not in self.plugins:
                     self.plugins['MQTTAggregateValues'] = {}
                     self.plugins['MQTTAggregateValues']['module'] = 'user.mqttaggregatevalues'
+                if 'topics' not in self.plugins['MQTTAggregateValues']:
                     self.plugins['MQTTAggregateValues']['topics'] = {}
-                self.plugins['MQTTAggregateValues']['topics'][topic] = aggregates
+                for aggregate in topic_dict['aggregates']:
+                    self.plugins['MQTTAggregateValues']['topics'][topic][aggregate] = topic_dict['aggregates'][aggregate]
 
             if 'loop' in binding:
                 if not publish:

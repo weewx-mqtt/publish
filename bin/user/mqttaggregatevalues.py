@@ -92,9 +92,10 @@ class MQTTAggregateValues:
 
         for topic in self.plugin_dict['topics']:
             for (_, aggregate) in self.plugin_dict['topics'][topic].items():
-                    if to_bool(aggregate.get('enable', True)) \
-                        and aggregate['period'] not in self.timespan_provider.period_timespans:
-                        raise ValueError(f"Invalid 'period', {aggregate['period']}")
+                if to_bool(aggregate.get('enable', True)) \
+                    and aggregate['period'] not in self.timespan_provider.period_timespans:
+                    self.logger.logerr(f"Invalid 'period', {aggregate['period']}")
+                    raise ValueError(f"Invalid 'period', {aggregate['period']}")
 
         self.db_manager = weewx.manager.open_manager(weewx_dict['manager_dict'])
 
