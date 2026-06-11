@@ -11,6 +11,7 @@ import time
 import traceback
 
 import weewx
+import weewx.manager
 import weeutil
 
 from weeutil.weeutil import to_bool, TimeSpan
