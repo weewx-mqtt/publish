@@ -15,7 +15,6 @@ jobs:
       function-test: false
       integration-test: false
       e2e-test: false
-      codacy-upload: true
       #flake-extra-parms: '--exclude tests'
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
