@@ -1,6 +1,7 @@
 ---
 title: topic-name
-parent: Topics
+parent: topics
+grand_parent: Configuring MQTTPublish
 nav_order: 1
 ---
 

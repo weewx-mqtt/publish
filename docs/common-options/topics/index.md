@@ -1,5 +1,5 @@
 ---
-title: Topics
+title: topics
 parent: Configuring MQTTPublish
 nav_order: 1
 ---
