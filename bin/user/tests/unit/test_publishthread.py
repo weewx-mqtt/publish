@@ -32,26 +32,14 @@ class TestPublishWeeWXThread(unittest.TestCase):
                                                   config,
                                                   topics_loop,
                                                   topics_archive,
-                                                  data_queue,
-                                                  mock.Mock())
+                                                  data_queue)
 
         field1 = helpers.random_string()
-        aggreagate1 = helpers.random_string()
-        week_start = random.randint(0, 6)
-        timespan_provider = user.mqttpublish.TimeSpanProvider(week_start)
-        period = random.choice(list(timespan_provider.period_timespans.keys()))
 
         topic_dict = {
             'unit_system': 1,
             'format': '%s',
             'fields': {},
-            'aggregates': {
-                aggreagate1: {
-                    'period': period,
-                    'observation': helpers.random_string(),
-                    'aggregation': helpers.random_string(),
-                },
-            },
         }
 
         record = {
@@ -73,7 +61,6 @@ class TestPublishWeeWXThread(unittest.TestCase):
 
                     expected_record = {
                         field1: str(field_value),
-                        aggreagate1: str(field_value),
                         'usUnits': '1',
                     }
 
@@ -97,8 +84,7 @@ class TestPublishWeeWXThread(unittest.TestCase):
                                                   config,
                                                   topics_loop,
                                                   topics_archive,
-                                                  data_queue_mock,
-                                                  None)
+                                                  data_queue_mock)
 
         field1 = helpers.random_string()
 

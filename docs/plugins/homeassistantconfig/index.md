@@ -38,7 +38,7 @@ The module must be set to: `user.mqtthaconfig`.
 
 ### enable
 
-Whether the service is enabled or not.
+Whether the plugin is enabled or not.
 Valid values: `true` or `false`
 Default is `true`.
 

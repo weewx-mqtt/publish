@@ -8,4 +8,3 @@ nav_order: 1
 ## The `[[component_data]]` section
 
 component information
-

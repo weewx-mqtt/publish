@@ -1,4 +1,4 @@
-#    Copyright (c) 2025 Rich Bell <bellrichm@gmail.com>
+#    Copyright (c) 2025-2026 Rich Bell <bellrichm@gmail.com>
 #
 #    See the file LICENSE.txt for your full rights.
 #
@@ -293,6 +293,7 @@ class MQTTPublishInstaller(ExtensionInstaller):
             'author_email': "bellrichm@gmail.com",
             'files': [('bin/user', ['bin/user/mqttpublish.py',
                                     'bin/user/mqtthaconfig.py',
+                                    'bin/user/mqttaggregatevalues.py',
                                     ])]
         }
 

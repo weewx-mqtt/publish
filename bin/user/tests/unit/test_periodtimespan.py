@@ -1,4 +1,4 @@
-#    Copyright (c) 2028 Rich Bell <bellrichm@gmail.com>
+#    Copyright (c) 2025-2026 Rich Bell <bellrichm@gmail.com>
 #
 #    See the file LICENSE.txt for your full rights.
 #
@@ -16,7 +16,7 @@ import time
 
 import helpers
 
-import user.mqttpublish
+import user.mqttaggregatevalues
 
 class TestGetTimeSpan(unittest.TestCase):
     def test_hour(self):
@@ -25,7 +25,7 @@ class TestGetTimeSpan(unittest.TestCase):
             time.tzset()
 
             week_start = random.randint(0, 6)
-            timespan_provider = user.mqttpublish.TimeSpanProvider(week_start)
+            timespan_provider = user.mqttaggregatevalues.TimeSpanProvider(week_start)
 
             now = 1771939800
             timespan_provider.hour(now)
@@ -38,7 +38,7 @@ class TestGetTimeSpan(unittest.TestCase):
             time.tzset()
 
             week_start = random.randint(0, 6)
-            timespan_provider = user.mqttpublish.TimeSpanProvider(week_start)
+            timespan_provider = user.mqttaggregatevalues.TimeSpanProvider(week_start)
 
             now = 1771939800
             timespan_provider.day(now)
@@ -51,7 +51,7 @@ class TestGetTimeSpan(unittest.TestCase):
             time.tzset()
 
             week_start = random.randint(0, 6)
-            timespan_provider = user.mqttpublish.TimeSpanProvider(week_start)
+            timespan_provider = user.mqttaggregatevalues.TimeSpanProvider(week_start)
 
             now = 1771939800
             timespan_provider.yesterday(now)
@@ -64,7 +64,7 @@ class TestGetTimeSpan(unittest.TestCase):
             time.tzset()
 
             week_start = random.randint(0, 6)
-            timespan_provider = user.mqttpublish.TimeSpanProvider(week_start)
+            timespan_provider = user.mqttaggregatevalues.TimeSpanProvider(week_start)
 
             now = 1771939800
             timespan_provider.week(now)
@@ -77,7 +77,7 @@ class TestGetTimeSpan(unittest.TestCase):
             time.tzset()
 
             week_start = random.randint(0, 6)
-            timespan_provider = user.mqttpublish.TimeSpanProvider(week_start)
+            timespan_provider = user.mqttaggregatevalues.TimeSpanProvider(week_start)
 
             now = 1771939800
             timespan_provider.month(now)
@@ -90,7 +90,7 @@ class TestGetTimeSpan(unittest.TestCase):
             time.tzset()
 
             week_start = random.randint(0, 6)
-            timespan_provider = user.mqttpublish.TimeSpanProvider(week_start)
+            timespan_provider = user.mqttaggregatevalues.TimeSpanProvider(week_start)
 
             now = 1771939800
             timespan_provider.year(now)
@@ -98,12 +98,12 @@ class TestGetTimeSpan(unittest.TestCase):
             mock_archive_year_span.assert_called_once_with(now)
 
     def test_last24hours(self):
-        with mock.patch('user.mqttpublish.TimeSpan')as mock_TimeSpan:
+        with mock.patch('user.mqttaggregatevalues.TimeSpan')as mock_TimeSpan:
             os.environ['TZ'] = 'America/New_York'
             time.tzset()
 
             week_start = random.randint(0, 6)
-            timespan_provider = user.mqttpublish.TimeSpanProvider(week_start)
+            timespan_provider = user.mqttaggregatevalues.TimeSpanProvider(week_start)
 
             now = 1771939800
             timespan_provider.last24hours(now)
@@ -112,12 +112,12 @@ class TestGetTimeSpan(unittest.TestCase):
             mock_TimeSpan.assert_called_once_with(day_start_timestamp, now)
 
     def test_last_n_days(self):
-        with mock.patch('user.mqttpublish.TimeSpan')as mock_TimeSpan:
+        with mock.patch('user.mqttaggregatevalues.TimeSpan')as mock_TimeSpan:
             os.environ['TZ'] = 'America/New_York'
             time.tzset()
 
             week_start = random.randint(0, 6)
-            timespan_provider = user.mqttpublish.TimeSpanProvider(week_start)
+            timespan_provider = user.mqttaggregatevalues.TimeSpanProvider(week_start)
 
             days = 7
             now = 1771939800

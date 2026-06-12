@@ -263,10 +263,10 @@ DEFAULTS_STR = """
 """
 class MQTTHomeAssistantConfig:
     """ Publish Home Assistant sensor configuration data. """
-    def __init__(self, logger, name, plugin_dict, weewx_defaults):
+    def __init__(self, logger, name, plugin_dict, weewx_dict):
         self.logger = logger
         self.name = name
-        self.weewx_defaults = weewx_defaults
+        self.weewx_defaults = weewx_dict['defaults']
         self.enabled = to_bool(plugin_dict.get('enable', True))
 
         if not self.enabled:
@@ -330,9 +330,9 @@ class MQTTHomeAssistantConfig:
                     'timing': 'immediate',
                     'callback': self.on_mqtt_message
                 },
-                'publish_record': {
-                    'timing': 'immediate',
-                    'callback': self.publish_record
+                'update_record': {
+                    'timing': 'delay',
+                    'callback': self.update_record
                 },
             },
         ]
@@ -363,7 +363,7 @@ class MQTTHomeAssistantConfig:
                            f"returned mid {int(mid)} "
                            f"and result {int(result)}.")
 
-    def publish_record(self, mqtt_client, topic, data, _qos, _retain):
+    def update_record(self, mqtt_client, topic, data, _qos, _retain):
         """ Run code when MQTT message is published. """
         # ToDo: proof of concept code
         self.logger.logdbg("start")
