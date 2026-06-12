@@ -10,15 +10,18 @@
 import unittest
 import mock
 
+import copy
 import time
 
 import helpers
 
 import user.mqttaggregatevalues
 
+import weewx
+
 class Test_MQTTAggregateValues(unittest.TestCase):
     def test_update_record(self):
-        logger = mock.Mock()
+        mock_logger = mock.Mock()
         name = helpers.random_string()
         topic = helpers.random_string()
         period = helpers.random_string()
@@ -47,18 +50,101 @@ class Test_MQTTAggregateValues(unittest.TestCase):
                     mock_xtype.get_aggregate.return_value = (aggregate_value, 'bar', 'foobar')
                     date_time = time.time()
 
-                    SUT = user.mqttaggregatevalues.MQTTAggregateValues(logger, name, plugin_dict, weewx_dict)
+                    SUT = user.mqttaggregatevalues.MQTTAggregateValues(mock_logger, name, plugin_dict, weewx_dict)
 
                     record = {
                         'dateTime': date_time
                     }
                     SUT.update_record(None, topic, record, None, None)
 
-                    expected_record = record
+                    expected_record = copy.deepcopy(record)
                     expected_record.update({
                         aggregate: aggregate_value
                     })
                     self.assertDictEqual(record, expected_record)
+
+    def test_update_record_aggregate_exception(self):
+        mock_logger = mock.Mock()
+        name = helpers.random_string()
+        topic = helpers.random_string()
+        period = helpers.random_string()
+        aggregate = helpers.random_string()
+        plugin_dict = {
+            'topics': {
+                topic: {
+                    aggregate: {
+                        'observation': helpers.random_string(),
+                        'aggregation': helpers.random_string(),
+                        'period': period
+                    }
+                }
+            }
+        }
+        weewx_dict = {
+            'stn_info': mock.Mock(),
+            'manager_dict': {}
+        }
+
+        with mock.patch('user.mqttaggregatevalues.TimeSpanProvider') as mock_timespan_provider:
+            with mock.patch('user.mqttaggregatevalues.weewx.manager'):
+                with mock.patch('user.mqttpublish.weewx.xtypes') as mock_xtype:
+                    mock_timespan_provider.return_value.period_timespans = [period]
+                    mock_xtype.get_aggregate.side_effect = weewx.CannotCalculate
+                    date_time = time.time()
+
+                    SUT = user.mqttaggregatevalues.MQTTAggregateValues(mock_logger, name, plugin_dict, weewx_dict)
+
+                    record = {
+                        'dateTime': date_time
+                    }
+                    SUT.update_record(None, topic, record, None, None)
+
+                    expected_record = copy.deepcopy(record)
+
+                    self.assertDictEqual(record, expected_record)
+                    self.assertEqual(mock_logger.logerr.call_count, 2)
+
+    def test_get_callbacks(self):
+        mock_logger = mock.Mock()
+        name = helpers.random_string()
+        topic = helpers.random_string()
+        period = helpers.random_string()
+        aggregate = helpers.random_string()
+        plugin_dict = {
+            'topics': {
+                topic: {
+                    aggregate: {
+                        'observation': helpers.random_string(),
+                        'aggregation': helpers.random_string(),
+                        'period': period
+                    }
+                }
+            }
+        }
+        weewx_dict = {
+            'stn_info': mock.Mock(),
+            'manager_dict': {}
+        }
+
+        with mock.patch('user.mqttaggregatevalues.TimeSpanProvider') as mock_timespan_provider:
+            with mock.patch('user.mqttaggregatevalues.weewx.manager'):
+                with mock.patch('user.mqttpublish.weewx.xtypes') as mock_xtype:
+                    mock_timespan_provider.return_value.period_timespans = [period]
+                    mock_xtype.get_aggregate.side_effect = weewx.CannotCalculate
+
+                    SUT = user.mqttaggregatevalues.MQTTAggregateValues(mock_logger, name, plugin_dict, weewx_dict)
+
+                    callbacks = SUT.get_callbacks()
+
+                    expected_callbacks = [
+                        {
+                            'update_record': {
+                                'timing': 'immediate',
+                                'callback': SUT.update_record
+                            },
+                        },
+                    ]
+                    self.assertEqual(callbacks, expected_callbacks)
 
 if __name__ == '__main__':
     helpers.run_tests()
