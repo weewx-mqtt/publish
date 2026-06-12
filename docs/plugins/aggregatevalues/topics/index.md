@@ -7,4 +7,4 @@ nav_order: 1
 
 ## The `[[topics]]` section
 
-topic information for aggregate values
+This has the the MQTT topics that will have aggregate values add to the MQTT message.
