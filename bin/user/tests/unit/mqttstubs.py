@@ -80,7 +80,6 @@ class ClientStub:
         # Some variables that are only used for testing
         self.connect_call_count = 0
         self.reconnect_call_count = 0
-        return
 
     def username_pw_set(self, username, password):  # need to match pylint: disable=unused-argument
         return
@@ -91,7 +90,6 @@ class ClientStub:
     def reconnect(self):
         # default is for reconnection to be sucessful (call on_connect)
         self.reconnect_with_connection()
-        return
 
     def tls_set(self, ca_certs, certfile, keyfile, cert_reqs, tls_version, ciphers):  # need to match pylint: disable=unused-argument
         return
@@ -105,7 +103,6 @@ class ClientStub:
     def connect(self, host, port, keepalive, clean_start=None):  # need to match pylint: disable=unused-argument
         # default is for connection to be sucessful (call on_connect)
         self.connect_with_connection(host, port, keepalive, clean_start)
-        return
 
     def subscribe(self, topic, qos):  # need to match pylint: disable=unused-argument
         self.topic = topic
@@ -119,7 +116,6 @@ class ClientStub:
     # used to 'override' the connect method and not 'perform' the connection (call on_connect)
     def connect_without_connection(self, host, port, keepalive, clean_start=None):  # need to match pylint: disable=unused-argument
         self.connect_call_count += 1
-        return
 
     # used to 'override' the connect method and 'perform' the connection (call on_connect)
     def connect_with_connection(self, host, port, keepalive, clean_start=None):  # need to match pylint: disable=unused-argument
@@ -133,8 +129,6 @@ class ClientStub:
             self.on_connect(self, self.userdata, 0, reason_code, 0)
         else:
             self.on_connect(self, self.userdata, 0, 0)
-
-        return
 
     # used to 'override' the on_connect method and raise an exceptioin
     def connect_exception_first_call(self, host, port, keepalive, clean_start=None):  # need to match pylint: disable=unused-argument
@@ -155,7 +149,6 @@ class ClientStub:
     # used to 'override' the reconnect method and not 'perform' the reconnection (call on_connect)
     def reconnect_without_connection(self):
         self.reconnect_call_count += 1
-        return
 
     # used to 'override' the reconnect method and 'perform' the reconnection (call on_connect)
     def reconnect_with_connection(self):
@@ -169,8 +162,6 @@ class ClientStub:
             self.on_connect(self, self.userdata, 0, reason_code, 0)
         else:
             self.on_connect(self, self.userdata, 0, 0)
-
-        return
 
 class ConnetExceptionTest(Exception):
     ''' Test Connect Exception'''
