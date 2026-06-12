@@ -116,7 +116,6 @@ class MQTTAggregateValues:
 
     def update_record(self, _mqtt_client, topic, data, _qos, _retain):
         """ Run code when MQTT record is updated. """
-
         aggregates = {}
 
         if topic not in self.plugin_dict['topics']:
@@ -124,7 +123,6 @@ class MQTTAggregateValues:
         aggregate_dict = self.plugin_dict['topics'][topic]
 
         for aggregate_observation in aggregate_dict:
-            # self.logger.logdbg(aggregate_dict[aggregate_observation])
             if not to_bool(aggregate_dict[aggregate_observation].get('enable', True)):
                 continue
 
