@@ -247,6 +247,7 @@ DEFAULTS_STR = """
         mbar = mbar
         meter = m
         meter_per_second = m/s
+        microgram_per_meter_cubed = μg/m³
         mile_per_hour = mph
         minute = min
         mm = mm
