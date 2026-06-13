@@ -287,6 +287,7 @@ class MQTTHomeAssistantConfig:
 
         for device_id in self.configuration['devices']:
             device_config = self.configuration['devices'][device_id]
+            device_config['ignore_none_value'] = to_bool(device_config.get('ignore_none_value', True))
             if 'device' not in device_config:
                 device_config['device'] = {}
             device_config['device']['identifiers'] = device_id
@@ -374,8 +375,7 @@ class MQTTHomeAssistantConfig:
                     if 'ignore_fields' in self.configuration['devices'][device_id] and \
                         field in self.configuration['devices'][device_id]['ignore_fields']:
                         continue
-                    # ToDo: temp hack to ignore None values (probably should be configured to not publish)
-                    if data[field] is None:
+                    if data[field] is None and self.configuration['devices'][device_id]['ignore_none_value']:
                         continue
                     if field not in self.configuration['devices'][device_id]['components']:
                         new_sensor = True
