@@ -370,6 +370,9 @@ class MQTTHomeAssistantConfig:
             new_sensor = False
             if topic in self.state_topics:
                 for field in data:
+                    if 'ignore_fields' in self.configuration['devices'][device_id] and \
+                        field in self.configuration['devices'][device_id]['ignore_fields']:
+                        continue
                     # ToDo: temp hack to ignore None values (probably should be configured to not publish)
                     if data[field] is None:
                         continue
