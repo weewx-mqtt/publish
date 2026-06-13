@@ -341,11 +341,12 @@ class MQTTHomeAssistantConfig:
         """ Handle WeeWX archive and loop data. """
         self.logger.logdbg(data)
 
-    def on_mqtt_message(self, _client, userdata, msg):
+    def on_mqtt_message(self, client, userdata, msg):
         """ Handle the MQTT on_message callback. """
         self.logger.logdbg(f"Received: {userdata} {msg}")
         if msg.topic == self.birth_topic and msg.payload == b"online":
-            self.logger.loginf("ToDo: resend the configuration data to HA")
+            for device_id in self.configuration['devices']:
+                self.publish_record(client, device_id)
         elif msg.topic == self.lwt_topic and msg.payload == b"offline":
             self.logger.loginf(f"Received LWT {msg.payload} on topic: {msg.topic}.")
         else:
@@ -365,8 +366,6 @@ class MQTTHomeAssistantConfig:
 
     def update_record(self, mqtt_client, topic, data, _qos, _retain):
         """ Run code when MQTT message is published. """
-        # ToDo: proof of concept code
-        self.logger.logdbg("start")
         for device_id in self.configuration['devices']:
             new_sensor = False
             if topic in self.state_topics:
@@ -399,12 +398,14 @@ class MQTTHomeAssistantConfig:
                                                     self.defaults['component_data'].get(field, {}))
 
                 if new_sensor:
-                    payload = json.dumps(self.configuration['devices'][device_id])
-                    topic = f'homeassistant/device/{device_id}/config'
-                    mqtt_message_info = mqtt_client.publish(topic,
-                                                            payload,
-                                                            qos=self.mqtt_config[device_id]['qos'],
-                                                            retain=self.mqtt_config[device_id]['retain'])
-                    self.logger.loginf(f"publishing: {mqtt_message_info.mid} {topic} {payload}")
+                    self.publish_record(mqtt_client, device_id)
 
-        self.logger.logdbg("done")
+    def publish_record(self, mqtt_client, device_id):
+        """ Publish the HA device discovery configuration data. """
+        payload = json.dumps(self.configuration['devices'][device_id])
+        topic = f'homeassistant/device/{device_id}/config'
+        mqtt_message_info = mqtt_client.publish(topic,
+                                                payload,
+                                                qos=self.mqtt_config[device_id]['qos'],
+                                                retain=self.mqtt_config[device_id]['retain'])
+        self.logger.loginf(f"publishing: {mqtt_message_info.mid} {topic} {payload}")
