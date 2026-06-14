@@ -15,8 +15,6 @@ import mock
 import helpers
 import user.mqttpublish
 
-import random
-
 class TestInit(unittest.TestCase):
     def test_PublishWeeWX_stanza_is_deprecated(self):
         mock_engine = mock.Mock()
@@ -73,7 +71,8 @@ class TestConfigureTopics(unittest.TestCase):
                         'append_unit_label': True,
                         'conversion_type': 'string',
                         'format': '%s',
-                        'fields': {}                    }
+                        'fields': {}
+                    }
                 }
 
                 self.assertDictEqual(topics_loop, expected_topics)
