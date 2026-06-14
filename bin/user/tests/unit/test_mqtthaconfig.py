@@ -31,13 +31,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
 
         callbacks = SUT.get_callbacks()
 
-        expected_callbacks =  [
-            {
-                'on_weewx_data': {
-                    'timing': 'immediate',
-                    'callback': SUT.on_weewx_data
-                }
-            },
+        expected_callbacks = [
             {
                 'on_mqtt_connect': {
                     'timing': 'immediate',

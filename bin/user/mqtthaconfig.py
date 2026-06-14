@@ -325,12 +325,6 @@ class MQTTHomeAssistantConfig:
 
         return [
             {
-                'on_weewx_data': {
-                    'timing': 'immediate',
-                    'callback': self.on_weewx_data
-                }
-            },
-            {
                 'on_mqtt_connect': {
                     'timing': 'immediate',
                     'callback': self.on_mqtt_connect
@@ -347,10 +341,6 @@ class MQTTHomeAssistantConfig:
                 },
             },
         ]
-
-    def on_weewx_data(self, data):
-        """ Handle WeeWX archive and loop data. """
-        self.logger.logdbg(data)
 
     def on_mqtt_message(self, client, userdata, msg):
         """ Handle the MQTT on_message callback. """
