@@ -287,6 +287,7 @@ class MQTTHomeAssistantConfig:
 
         for device_id in self.configuration['devices']:
             device_config = self.configuration['devices'][device_id]
+            device_config['availability_topic'] = 'status'
             if 'device' not in device_config:
                 device_config['device'] = {}
             device_config['device']['identifiers'] = device_id
