@@ -375,23 +375,6 @@ class MQTTHomeAssistantConfig:
                            f"returned mid {int(mid)} "
                            f"and result {int(result)}.")
 
-        # self.reset_configuration(mqtt_client)
-
-    def reset_configuration(self, mqtt_client):
-        """ Send an empty message to reset the HA configuration. """
-        for device_id in self.configuration['devices']:
-            topic = f'homeassistant/device/{device_id}/config'
-            payload = ''
-            mqtt_message_info = mqtt_client.publish(topic,
-                                                    payload,
-                                                    qos=self.mqtt_config[device_id]['qos'],
-                                                    retain=self.mqtt_config[device_id]['retain'])
-            self.logger.loginf(f"publishing: {mqtt_message_info.mid} {topic} {payload}")
-
-            self.publish_record(mqtt_client, device_id)
-
-        print("done")
-
     def update_record(self, mqtt_client, topic, data, _qos, _retain):
         """ Run code when MQTT message is published. """
         for device_id in self.configuration['devices']:
@@ -406,13 +389,6 @@ class MQTTHomeAssistantConfig:
                         new_sensor = True
 
                         value_template = '{{ value_json.' + field + ' | default(this.state) }}'
-
-                        #value_template = '{{ value_json.' + field + ' | this.state if has_value(this.state) else this.state +"foo"}}'
-
-                        #value_template = '{% if ' + field + ' in value_json %} {{value_json.' + field + '}} '
-                        #value_template += '{% elif has_value(this.state) %} {{this.state}} '
-                        #value_template += '{% else %} {{None}} '
-                        #value_template += '{% endif %}'
 
                         self.configuration['devices'][device_id]['components'][field] = {
                             'platform': 'sensor',
