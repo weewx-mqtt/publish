@@ -287,7 +287,6 @@ class MQTTHomeAssistantConfig:
 
         for device_id in self.configuration['devices']:
             device_config = self.configuration['devices'][device_id]
-            device_config['ignore_none_value'] = to_bool(device_config.get('ignore_none_value', True))
             if 'device' not in device_config:
                 device_config['device'] = {}
             device_config['device']['identifiers'] = device_id
@@ -298,6 +297,15 @@ class MQTTHomeAssistantConfig:
                 device_config['origin'] = {'name': 'WeeWX'}
             self.state_topics[device_config['state_topic']] = {}
             self.mqtt_config[device_id] = {}
+
+            if 'ignore_none_value' in device_config:
+                self.mqtt_config[device_id]['ignore_none_value'] = to_bool(device_config['ignore_none_value'])
+                del device_config['ignore_none_value']
+            else:
+                self.mqtt_config[device_id]['ignore_none_value'] = True
+            if 'ignore_fields' in device_config:
+                self.mqtt_config[device_id]['ignore_fields'] = device_config['ignore_fields']
+                del device_config['ignore_fields']
             if 'qos' in device_config:
                 self.mqtt_config[device_id]['qos'] = to_int(device_config['qos'])
                 del device_config['qos']
@@ -372,10 +380,9 @@ class MQTTHomeAssistantConfig:
             new_sensor = False
             if topic in self.state_topics:
                 for field in data:
-                    if 'ignore_fields' in self.configuration['devices'][device_id] and \
-                        field in self.configuration['devices'][device_id]['ignore_fields']:
+                    if 'ignore_fields' in self.mqtt_config[device_id] and field in self.mqtt_config[device_id]['ignore_fields']:
                         continue
-                    if data[field] is None and self.configuration['devices'][device_id]['ignore_none_value']:
+                    if data[field] is None and self.mqtt_config[device_id]['ignore_none_value']:
                         continue
                     if field not in self.configuration['devices'][device_id]['components']:
                         new_sensor = True
