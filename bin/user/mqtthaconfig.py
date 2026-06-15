@@ -14,7 +14,7 @@ import configobj
 import weewx.units
 import weeutil
 
-from weeutil.weeutil import to_bool, to_int
+from weeutil.weeutil import to_bool, to_int, to_list
 
 # hDevice class and unit of measure: https://developers.home-assistant.io/docs/core/entity/sensor/#available-device-classes
 DEFAULTS_STR = """
@@ -292,17 +292,26 @@ class MQTTHomeAssistantConfig:
         self.configuration['devices'] = weeutil.config.deep_copy(plugin_dict['devices'])
 
         for device_id in self.configuration['devices']:
+            self.state_topics[device_id] = {}
             device_config = self.configuration['devices'][device_id]
             device_config['availability_topic'] = 'status'
             if 'device' not in device_config:
                 device_config['device'] = {}
             device_config['device']['identifiers'] = device_id
             device_config['components'] = {}
-            if 'state_topic' not in device_config:
-                device_config['state_topic'] = 'weather/loop'
+            if 'topics' not in device_config:
+                if 'state_topic' in device_config:
+                    self.state_topics[device_id] = to_list(device_config['state_topic'])
+                else:
+                    self.state_topics[device_id] = ['weather/loop']
+            else:
+                self.state_topics[device_id] = {}
+                for state_topic in device_config['topics']:
+                    self.state_topics[device_id][state_topic] = {}
+                    self.state_topics[device_id][state_topic]['type'] = self.state_topics[device_id][state_topic].get('type', 'json')
+                del device_config['topics']
             if 'origin' not in device_config:
                 device_config['origin'] = {'name': 'WeeWX'}
-            self.state_topics[device_config['state_topic']] = {}
             self.mqtt_config[device_id] = {}
 
             if 'ignore_none_value' in device_config:
@@ -374,8 +383,10 @@ class MQTTHomeAssistantConfig:
     def update_record(self, mqtt_client, topic, data, _qos, _retain):
         """ Run code when MQTT message is published. """
         for device_id in self.configuration['devices']:
+            if topic == 'weather/archive2':
+                print(topic)
             new_sensor = False
-            if topic in self.state_topics:
+            if topic in self.state_topics[device_id]:
                 for field in data:
                     if 'ignore_fields' in self.mqtt_config[device_id] and field in self.mqtt_config[device_id]['ignore_fields']:
                         continue
@@ -387,6 +398,7 @@ class MQTTHomeAssistantConfig:
                         value_template = '{{ value_json.' + field + ' | default(this.state) }}'
 
                         self.configuration['devices'][device_id]['components'][field] = {
+                            'state_topic': topic,
                             'platform': 'sensor',
                             'value_template': value_template,
                             'unique_id': field,

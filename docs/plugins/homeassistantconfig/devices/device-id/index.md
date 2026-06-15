@@ -26,6 +26,8 @@ Default is `false`.
 The topic that the sensor data is published to.
 The default is `weather/loop`
 
+DEPRECATED
+
 ### ignore_fields
 
 A comma separated list of WeeWX fields that should not be configured in Home Assistant.

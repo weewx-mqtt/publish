@@ -661,6 +661,7 @@ class MQTTPublish(StdService):
                 if 'topics' not in self.plugins['MQTTAggregateValues']:
                     self.plugins['MQTTAggregateValues']['topics'] = {}
                 for aggregate in topic_dict['aggregates']:
+                    self.plugins['MQTTAggregateValues']['topics'][topic] = {}
                     self.plugins['MQTTAggregateValues']['topics'][topic][aggregate] = topic_dict['aggregates'][aggregate]
 
             if 'loop' in binding:
@@ -891,7 +892,7 @@ class PublishWeeWXThread(threading.Thread):
             for plugin_name in self.publisher.plugin_manager.callbacks['update_record']['delay']:
                 self.publisher.plugin_manager.callbacks['update_record']['delay'][plugin_name](self.publisher.client,
                                                                                                topic,
-                                                                                               record,
+                                                                                               updated_record,
                                                                                                topics[topic]['qos'],
                                                                                                topics[topic]['retain'])
 
