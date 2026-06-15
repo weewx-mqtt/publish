@@ -149,6 +149,7 @@ DEFAULTS_STR = """
             class = humidity
         [[outTemp]]
             class = temperature
+            state_class = measurement
         [[outTempBatteryStatus]]
             class = battery
         [[pb]]
@@ -164,6 +165,7 @@ DEFAULTS_STR = """
             class = irradiance
         [[rain]]
             class = precipitation
+            state_class = total
         [[rainBatteryStatus]]
             class = battery
         [[rainRate]]
@@ -219,9 +221,13 @@ DEFAULTS_STR = """
         [[windchill]]
             class = temperature
         [[windDir]]
+            class = wind_direction
+            state_class = measurement_angle
         [[windGust]]
             class = wind_speed
         [[windGustDir]]
+            class =wind_direction
+            state_class = measurement_angle
         [[windrun]]
         [[windSpeed]]
             class = wind_speed
@@ -397,9 +403,13 @@ class MQTTHomeAssistantConfig:
                         device_class = self.defaults['component_data'].get(field, {}).get('class')
                         if device_class and unit_of_measurement is not None:
                             self.configuration['devices'][device_id]['components'][field]['device_class'] = device_class
+                        state_class = self.defaults['component_data'].get(field, {}).get('state_class')
+                        if state_class:
+                            self.configuration['devices'][device_id]['components'][field]['state_class'] = state_class
 
                         weeutil.config.merge_config(self.configuration['devices'][device_id]['components'][field],
                                                     self.defaults['component_data'].get(field, {}))
+                        self.logger.loginf(f"New device configuration {field}: {self.configuration['devices'][device_id]['components'][field]}")
 
                 if new_sensor:
                     self.publish_record(mqtt_client, device_id)
