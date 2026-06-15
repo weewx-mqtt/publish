@@ -409,7 +409,8 @@ class MQTTHomeAssistantConfig:
 
                         weeutil.config.merge_config(self.configuration['devices'][device_id]['components'][field],
                                                     self.defaults['component_data'].get(field, {}))
-                        self.logger.loginf(f"New device configuration {field}: {self.configuration['devices'][device_id]['components'][field]}")
+                        self.logger.loginf((f"New device configuration {field}: "
+                                            f"{self.configuration['devices'][device_id]['components'][field]}"))
 
                 if new_sensor:
                     self.publish_record(mqtt_client, device_id)
@@ -422,4 +423,4 @@ class MQTTHomeAssistantConfig:
                                                 payload,
                                                 qos=self.mqtt_config[device_id]['qos'],
                                                 retain=self.mqtt_config[device_id]['retain'])
-        self.logger.loginf(f"publishing: {mqtt_message_info.mid} {topic} {payload}")
+        self.logger.logdbg(f"publishing: {mqtt_message_info.mid} {topic} {payload}")
