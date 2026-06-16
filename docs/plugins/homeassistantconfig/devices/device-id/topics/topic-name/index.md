@@ -1,7 +1,7 @@
 ---
 title: topic-name
 parent: topics
-grand_parent:device-id
+grand_parent: device-id
 nav_order: 1
 ---
 {% include plugins_warning.html %}
@@ -15,4 +15,3 @@ Each `topic-name` subsection has a section for each topic that publishes to this
 The MQTTPublish topic type.
 Valid values: `json`, `individual`
 Default is `json`.
-
