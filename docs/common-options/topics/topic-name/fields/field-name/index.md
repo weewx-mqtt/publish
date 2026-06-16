@@ -1,6 +1,7 @@
 ---
 title: field-name
 parent: Fields
+ancestor: Configuring MQTTPublish
 nav_order: 1
 ---
 

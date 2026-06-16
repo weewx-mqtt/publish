@@ -1,6 +1,7 @@
 ---
 title: observation-name
 parent: Aggregates
+ancestor: Configuring MQTTPublish
 nav_order: 1
 ---
 

@@ -1,7 +1,7 @@
 ---
 title: Aggregates
 parent: topic-name
-grand_parent: topics
+ancestor: Configuring MQTTPublish
 nav_order: 2
 ---
 
