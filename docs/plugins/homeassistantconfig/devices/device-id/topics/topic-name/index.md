@@ -1,6 +1,6 @@
 ---
 title: topic-name
-parent: topics
+parent: topics (MQTTHomeAssistantConfig)
 grand_parent: device-id
 nav_order: 1
 ---

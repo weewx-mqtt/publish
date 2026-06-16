@@ -1,5 +1,5 @@
 ---
-title: topics
+title: topics (MQTTHomeAssistantConfig)
 parent: device-id
 nav_order: 1
 ---
