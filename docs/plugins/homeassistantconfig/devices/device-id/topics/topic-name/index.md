@@ -1,6 +1,7 @@
 ---
 title: topic-name
 parent: topics
+grand_parentparent:device-id
 nav_order: 1
 ---
 {% include plugins_warning.html %}
