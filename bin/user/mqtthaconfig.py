@@ -308,7 +308,7 @@ class MQTTHomeAssistantConfig:
                 self.state_topics[device_id] = {}
                 for state_topic in device_config['topics']:
                     self.state_topics[device_id][state_topic] = {}
-                    self.state_topics[device_id][state_topic]['type'] = self.state_topics[device_id][state_topic].get('type', 'json')
+                    self.state_topics[device_id][state_topic]['type'] = device_config['topics'][state_topic].get('type', 'json')
                 del device_config['topics']
             if 'origin' not in device_config:
                 device_config['origin'] = {'name': 'WeeWX'}
@@ -383,8 +383,6 @@ class MQTTHomeAssistantConfig:
     def update_record(self, mqtt_client, topic, data, _qos, _retain):
         """ Run code when MQTT message is published. """
         for device_id in self.configuration['devices']:
-            if topic == 'weather/archive2':
-                print(topic)
             new_sensor = False
             if topic in self.state_topics[device_id]:
                 for field in data:
@@ -395,10 +393,15 @@ class MQTTHomeAssistantConfig:
                     if field not in self.configuration['devices'][device_id]['components']:
                         new_sensor = True
 
-                        value_template = '{{ value_json.' + field + ' | default(this.state) }}'
+                        if self.state_topics[device_id][topic]['type'] == 'individual':
+                            state_topic = f'{topic}/{field}'
+                            value_template = '{{ value }}'
+                        else:
+                            state_topic = topic
+                            value_template = '{{ value_json.' + field + ' | default(this.state) }}'
 
                         self.configuration['devices'][device_id]['components'][field] = {
-                            'state_topic': topic,
+                            'state_topic': state_topic,
                             'platform': 'sensor',
                             'value_template': value_template,
                             'unique_id': field,
