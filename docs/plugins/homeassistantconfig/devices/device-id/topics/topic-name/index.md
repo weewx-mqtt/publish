@@ -1,7 +1,7 @@
 ---
 title: topic-name
-parent: topics (MQTTHomeAssistantConfig)
-grand_parent: device-id
+parent: topics
+ancestor: MQTTHomeAssistantConfig
 nav_order: 1
 ---
 {% include plugins_warning.html %}

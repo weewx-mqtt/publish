@@ -1,7 +1,7 @@
 ---
 title: observation-name
 parent: topic-name
-grand_parent: topics (MQTTAggregateValues)
+ancestor: MQTTAggregateValues
 nav_order: 1
 ---
 

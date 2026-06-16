@@ -1,7 +1,7 @@
 ---
 title: origin
 parent: device-id
-grand_parent: devices
+ancestor: MQTTHomeAssistantConfig
 nav_order: 2
 ---
 {% include plugins_warning.html %}

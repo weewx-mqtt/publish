@@ -1,6 +1,7 @@
 ---
 title: coponent-id
 parent: component_data
+ancestor: MQTTHomeAssistantConfig
 nav_order: 1
 ---
 {% include plugins_warning.html %}

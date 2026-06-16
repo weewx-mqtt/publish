@@ -1,7 +1,7 @@
 ---
 title: topic-name
-parent: topics (MQTTAggregateValues)
-grand_parent: MQTTAggregateValues
+parent: topics
+ancestor: MQTTAggregateValues
 nav_order: 1
 ---
 
