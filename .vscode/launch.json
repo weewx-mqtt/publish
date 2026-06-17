@@ -5,6 +5,13 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Test File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+        },
+        {
             "name": "Specific test",
             "type": "debugpy",
             "request": "launch",
@@ -18,13 +25,6 @@
                 //"TestPublishWeeWXThread",
                 //"test_test",
             ],
-        },
-        {
-            "name": "Test File",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${file}",
-            "console": "integratedTerminal",
         },
         {
             "name": "Run MQTTPublish",
