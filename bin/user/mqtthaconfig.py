@@ -280,8 +280,11 @@ class MQTTHomeAssistantConfig:
             self.logger.loginf(f"Plugin {self.name} is not enabled.")
             return
 
+        if 'devices' not in plugin_dict or len(plugin_dict['devices'].sections) == 0:
+            raise ValueError("At least on device must be specified.")
+
         self.defaults = configobj.ConfigObj(StringIO(DEFAULTS_STR))
-        weeutil.config.merge_config(self.defaults['component_data'], plugin_dict['component_data'])
+        weeutil.config.merge_config(self.defaults['component_data'], plugin_dict.get('component_data', {}))
 
         self.state_topics = {}
         self.qos = to_int(plugin_dict.get('qos', 0))
@@ -297,15 +300,19 @@ class MQTTHomeAssistantConfig:
             device_config['availability_topic'] = 'status'
             if 'device' not in device_config:
                 device_config['device'] = {}
+            if 'name' not in device_config['device']:
+                device_config['device']['name'] = device_id
             device_config['device']['identifiers'] = device_id
             device_config['components'] = {}
             if 'topics' not in device_config:
                 if 'state_topic' in device_config:
+                    # ToDo: this needs a deprecated message
                     self.state_topics[device_id] = to_list(device_config['state_topic'])
                 else:
                     self.state_topics[device_id] = ['weather/loop']
             else:
                 self.state_topics[device_id] = {}
+                # ToDo: Need to handle when there is no 'topic-name' subsection
                 for state_topic in device_config['topics']:
                     self.state_topics[device_id][state_topic] = {}
                     self.state_topics[device_id][state_topic]['type'] = device_config['topics'][state_topic].get('type', 'json')
