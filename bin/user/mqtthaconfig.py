@@ -281,7 +281,7 @@ class MQTTHomeAssistantConfig:
             return
 
         if 'devices' not in plugin_dict or len(plugin_dict['devices'].sections) == 0:
-            raise ValueError("At least on device must be specified.")
+            raise ValueError("At least one device-id must be configured.")
 
         self.defaults = configobj.ConfigObj(StringIO(DEFAULTS_STR))
         weeutil.config.merge_config(self.defaults['component_data'], plugin_dict.get('component_data', {}))

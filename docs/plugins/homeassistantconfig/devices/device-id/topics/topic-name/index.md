@@ -6,9 +6,9 @@ nav_order: 1
 ---
 {% include plugins_warning.html %}
 
-## The `[[topic-name]]` section
+## The `[[[[[[[topic-name]]]]]]]` section
 
-Each `topic-name` subsection has a section for each topic that publishes to this Home Assistant device.
+Each `topic-name` subsection is for each topic that publishes to the `device-id` device.
 
 ### type
 

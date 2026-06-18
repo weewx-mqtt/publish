@@ -6,16 +6,12 @@ nav_order: 2
 ---
 {% include plugins_warning.html %}
 
-## The `[[origin]]` section
+## The `[[[[[[origin]]]]]]` section
+
+The origin option of the MQTT discovery payload.
+Settings in this subsection map directly to the HA options.
 
 ### name
 
-The name of the application that is the origin of the discovered MQTT item.
-
-### sw_version
-
-Software version of the application that supplies the discovered MQTT item.
-
-### support_url
-
-Support URL of the application that supplies the discovered MQTT item.
+The only `origin` option required by MQTTHomeAssistantConfig.
+The default value is `WeeWX`.
