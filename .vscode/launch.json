@@ -15,15 +15,13 @@
             "name": "Specific test",
             "type": "debugpy",
             "request": "launch",
-            //"program": "${file}",
-            "program": "bin/user/tests/unit/test_mqttpublish.py",
+            "program": "bin/user/tests/unit/test_mqtthaconfig.py",
             "console": "integratedTerminal",
             "args": [
-                "TestInit",
-                "test_PublishWeeWX_stanza_is_deprecated",
-
-                //"TestPublishWeeWXThread",
-                //"test_test",
+                // Class
+                "test_MQTTHomeAssistantConfig", 
+                //Method
+                "test_init00",
             ],
         },
         {
