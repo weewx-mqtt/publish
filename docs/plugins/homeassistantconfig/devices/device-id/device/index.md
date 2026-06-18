@@ -5,6 +5,7 @@ ancestor: MQTTHomeAssistantConfig
 nav_order: 1
 ---
 {% include plugins_warning.html %}
+
 The device option of the MQTT discovery payload.
 Settings in this subsection map directly to the HA options.
 For additional information see, https://www.home-assistant.io/integrations/sensor.mqtt/#device.

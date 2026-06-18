@@ -311,7 +311,7 @@ class MQTTHomeAssistantConfig:
             device_data['device']['identifiers'] = device_id
             if 'name' not in device_data['device']:
                 device_data['device']['name'] = device_id
-            
+
             self.configuration['devices'][device_id] = device_data
 
             if 'state_topic' in device_config:
