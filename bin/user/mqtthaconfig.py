@@ -301,15 +301,17 @@ class MQTTHomeAssistantConfig:
 
             device_data = {}
             device_data['availability_topic'] = 'status'
-            # ToDo: Move location of components in the config?
             device_data['components'] = {}
-            # ToDo: copy all of the origin section
-            device_data['origin'] = device_config.get('origin', {'name': 'WeeWX'})
 
-            # ToDo: copy all of the device section
-            device_data['device'] = {}
-            device_data['device']['name'] = device_config.get('device', {'name': device_id}).get('name', device_id)
+            device_data['origin'] = weeutil.config.deep_copy(device_config.get('origin', configobj.ConfigObj({})))
+            if 'name' not in device_data['origin']:
+                device_data['origin']['name'] = 'WeeWX'
+
+            device_data['device'] = weeutil.config.deep_copy(device_config.get('device', configobj.ConfigObj({})))
             device_data['device']['identifiers'] = device_id
+            if 'name' not in device_data['device']:
+                device_data['device']['name'] = device_id
+            
             self.configuration['devices'][device_id] = device_data
 
             if 'state_topic' in device_config:
