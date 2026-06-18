@@ -14,7 +14,7 @@ import configobj
 import weewx.units
 import weeutil
 
-from weeutil.weeutil import to_bool, to_int, to_list
+from weeutil.weeutil import to_bool, to_int
 
 # hDevice class and unit of measure: https://developers.home-assistant.io/docs/core/entity/sensor/#available-device-classes
 DEFAULTS_STR = """
@@ -273,7 +273,7 @@ class MQTTHomeAssistantConfig:
     def __init__(self, logger, name, plugin_dict, weewx_dict):
         self.logger = logger
         self.name = name
-        self.weewx_defaults = weewx_dict['defaults']
+        self.weewx_defaults = weewx_dict.get('defaults', {})
         self.enabled = to_bool(plugin_dict.get('enable', True))
 
         if not self.enabled:
@@ -291,54 +291,44 @@ class MQTTHomeAssistantConfig:
         self.birth_topic = plugin_dict.get('birth_topic', 'homeassistant/status')
         self.lwt_topic = plugin_dict.get('lqt_topic', 'homeassistant/status')
         self.mqtt_config = {}
-        self.configuration = {}
-        self.configuration['devices'] = weeutil.config.deep_copy(plugin_dict['devices'])
+        self.configuration = configobj.ConfigObj({})
+        self.configuration['devices'] = {}
 
-        for device_id in self.configuration['devices']:
+        for device_id in plugin_dict['devices']:
             self.state_topics[device_id] = {}
-            device_config = self.configuration['devices'][device_id]
-            device_config['availability_topic'] = 'status'
-            if 'device' not in device_config:
-                device_config['device'] = {}
-            if 'name' not in device_config['device']:
-                device_config['device']['name'] = device_id
-            device_config['device']['identifiers'] = device_id
-            device_config['components'] = {}
-            if 'topics' not in device_config:
-                if 'state_topic' in device_config:
-                    # ToDo: this needs a deprecated message
-                    self.state_topics[device_id] = to_list(device_config['state_topic'])
-                else:
-                    self.state_topics[device_id] = ['weather/loop']
-            else:
-                self.state_topics[device_id] = {}
-                # ToDo: Need to handle when there is no 'topic-name' subsection
-                for state_topic in device_config['topics']:
-                    self.state_topics[device_id][state_topic] = {}
-                    self.state_topics[device_id][state_topic]['type'] = device_config['topics'][state_topic].get('type', 'json')
-                del device_config['topics']
-            if 'origin' not in device_config:
-                device_config['origin'] = {'name': 'WeeWX'}
-            self.mqtt_config[device_id] = {}
+            self.configuration['devices'][device_id] = {}
+            device_config = plugin_dict['devices'][device_id]
 
-            if 'ignore_none_value' in device_config:
-                self.mqtt_config[device_id]['ignore_none_value'] = to_bool(device_config['ignore_none_value'])
-                del device_config['ignore_none_value']
-            else:
-                self.mqtt_config[device_id]['ignore_none_value'] = True
-            if 'ignore_fields' in device_config:
-                self.mqtt_config[device_id]['ignore_fields'] = device_config['ignore_fields']
-                del device_config['ignore_fields']
-            if 'qos' in device_config:
-                self.mqtt_config[device_id]['qos'] = to_int(device_config['qos'])
-                del device_config['qos']
-            else:
-                self.mqtt_config[device_id]['qos'] = 0
-            if 'retain' in device_config:
-                self.mqtt_config[device_id]['retain'] = to_bool(device_config['retain'])
-                del device_config['retain']
-            else:
-                self.mqtt_config[device_id]['retain'] = False
+            device_data = {}
+            device_data['availability_topic'] = 'status'
+            # ToDo: Move location of components in the config?
+            device_data['components'] = {}
+            # ToDo: copy all of the origin section
+            device_data['origin'] = device_config.get('origin', {'name': 'WeeWX'})
+
+            # ToDo: copy all of the device section
+            device_data['device'] = {}
+            device_data['device']['name'] = device_config.get('device', {'name': device_id}).get('name', device_id)
+            device_data['device']['identifiers'] = device_id
+            self.configuration['devices'][device_id] = device_data
+
+            if 'state_topic' in device_config:
+                raise ValueError("'state_topic' has been removed.")
+            if 'topics' not in device_config:
+                raise ValueError("'topics' is required.")
+            if len(device_config['topics'].sections) == 0:
+                raise ValueError("one 'topic' is required.")
+
+            self.state_topics[device_id] = {}
+            for state_topic in device_config['topics']:
+                self.state_topics[device_id][state_topic] = {}
+                self.state_topics[device_id][state_topic]['type'] = device_config['topics'][state_topic].get('type', 'json')
+
+            self.mqtt_config[device_id] = {}
+            self.mqtt_config[device_id]['ignore_none_value'] = to_bool(device_config.get('ignore_none_value', True))
+            self.mqtt_config[device_id]['ignore_fields'] = device_config.get('ignore_fields')
+            self.mqtt_config[device_id]['qos'] = device_config.get('qos', 0)
+            self.mqtt_config[device_id]['retain'] = to_bool(device_config.get('retain', False))
 
     def get_callbacks(self):
         """ The callbacks. """
