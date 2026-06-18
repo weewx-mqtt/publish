@@ -8,4 +8,5 @@ nav_order: 1
 
 ## The `[[component_data]]` section
 
-component information
+Component specific data.
+This can be used to override the MQTTHomeAssistantConfig defaults and/or add additional components/sensors.
