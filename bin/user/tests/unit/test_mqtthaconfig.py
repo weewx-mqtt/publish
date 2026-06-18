@@ -16,12 +16,66 @@ import helpers
 import user.mqtthaconfig
 
 class test_MQTTHomeAssistantConfig(unittest.TestCase):
+    def test_init(self):
+        mock_logger = mock.Mock()
+        name = helpers.random_string()
+        plugin_dict = {
+            'devices': {
+                helpers.random_string(): {
+                    'topics': {
+                        helpers.random_string(): {}
+                    }
+                }
+            },
+        }
+        weewx_dict = {
+            'defaults': {}
+        }
+
+        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger, name, configobj.ConfigObj(plugin_dict), weewx_dict)
+
+        print(SUT.mqtt_config)
+        print(SUT.configuration)
+        print(SUT.defaults)
+        print(SUT.state_topics)
+        print("done")
+
+    def test_init00(self):
+        mock_logger = mock.Mock()
+        name = helpers.random_string()
+        plugin_dict = {
+            'devices': {
+                helpers.random_string(): {
+                    'topics': {
+                        helpers.random_string(): {},
+                    },
+                    'origin': {},
+                },
+            },
+        }
+        weewx_dict = {
+            'defaults': {}
+        }
+
+        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger, name, configobj.ConfigObj(plugin_dict), weewx_dict)
+
+        print(SUT.mqtt_config)
+        print(SUT.configuration)
+        print(SUT.defaults)
+        print(SUT.state_topics)
+        print("done")
+
     def test_get_callbacks(self):
         mock_logger = mock.Mock()
         name = helpers.random_string()
         plugin_dict = {
-            'devices': {},
-            'component_data': {}
+            'devices': {
+                helpers.random_string(): {
+                    'topics': {
+                        helpers.random_string(): {},
+                    },
+                }
+            },
         }
         weewx_dict = {
             'defaults': {}
