@@ -11,13 +11,13 @@ import mock
 
 import configobj
 from io import StringIO
+import random
 
 import helpers
 
 import user.mqtthaconfig
 
 class test_MQTTHomeAssistantConfig(unittest.TestCase):
-    @unittest.skip("placeholder")
     def test_init(self):
         mock_logger = mock.Mock()
         name = helpers.random_string()
@@ -36,11 +36,70 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
 
         SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger, name, configobj.ConfigObj(plugin_dict), weewx_dict)
 
-        print(SUT.mqtt_config)
-        print(SUT.configuration)
-        print(SUT.defaults)
-        print(SUT.state_topics)
         print("done")
+
+    def test_init_mqtt_config(self):
+        mock_logger = mock.Mock()
+        name = helpers.random_string()
+        device_id = helpers.random_string()
+        qos = random.randint(0, 2)
+        ignore_fields = helpers.random_string()
+        plugin_dict = {
+            'devices': {
+                device_id: {
+                    'qos': qos,
+                    'ignore_fields': ignore_fields,
+                    'topics': {
+                        helpers.random_string(): {},
+                    },
+                },
+            },
+        }
+        weewx_dict = {
+            'defaults': {}
+        }
+
+        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger, name, configobj.ConfigObj(plugin_dict), weewx_dict)
+        expected_results = {
+            device_id: {
+                'ignore_none_value': True,
+                'ignore_fields': [ignore_fields],
+                'qos': qos,
+                'retain': False,
+            },
+        }
+
+        self.assertDictEqual(SUT.mqtt_config, expected_results)
+
+    def test_init_state_topics(self):
+        mock_logger = mock.Mock()
+        name = helpers.random_string()
+        device_id = helpers.random_string()
+        topic = helpers.random_string()
+        plugin_dict = {
+            'devices': {
+                device_id: {
+                    'topics': {
+                        topic: {},
+                    },
+                },
+            },
+        }
+        weewx_dict = {
+            'defaults': {}
+        }
+
+        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger, name, configobj.ConfigObj(plugin_dict), weewx_dict)
+
+        expected_result = {
+            device_id: {
+                topic: {
+                    'type': 'json'
+                },
+            },
+        }
+
+        self.assertDictEqual(SUT.state_topics, expected_result)
 
     def test_init_component_data(self):
         mock_logger = mock.Mock()
@@ -65,15 +124,10 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
 
         SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger, name, configobj.ConfigObj(plugin_dict), weewx_dict)
 
-        expected_defaults = configobj.ConfigObj(StringIO(user.mqtthaconfig.DEFAULTS_STR))
-        expected_defaults['component_data'][compoennt_key] = component_value
+        expected_result = configobj.ConfigObj(StringIO(user.mqtthaconfig.DEFAULTS_STR))
+        expected_result['component_data'][compoennt_key] = component_value
 
-        print(SUT.defaults)
-        print(expected_defaults)
-
-        self.assertDictEqual(SUT.defaults, expected_defaults)
-
-        print("done")
+        self.assertDictEqual(SUT.defaults, expected_result)
 
     def test_init_configuration(self):
         mock_logger = mock.Mock()
@@ -108,7 +162,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
 
         SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger, name, configobj.ConfigObj(plugin_dict), weewx_dict)
 
-        expected_config = {
+        expected_result = {
             'devices': {
                 device_id: {
                     'availability_topic': 'status',
@@ -126,7 +180,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
             }
         }
 
-        self.assertDictEqual(SUT.configuration.dict(), expected_config)
+        self.assertDictEqual(SUT.configuration.dict(), expected_result)
 
     def test_get_callbacks(self):
         mock_logger = mock.Mock()

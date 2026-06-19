@@ -14,7 +14,7 @@ import configobj
 import weewx.units
 import weeutil
 
-from weeutil.weeutil import to_bool, to_int
+from weeutil.weeutil import to_bool, to_int, to_list
 
 # hDevice class and unit of measure: https://developers.home-assistant.io/docs/core/entity/sensor/#available-device-classes
 DEFAULTS_STR = """
@@ -328,7 +328,7 @@ class MQTTHomeAssistantConfig:
 
             self.mqtt_config[device_id] = {}
             self.mqtt_config[device_id]['ignore_none_value'] = to_bool(device_config.get('ignore_none_value', True))
-            self.mqtt_config[device_id]['ignore_fields'] = device_config.get('ignore_fields')
+            self.mqtt_config[device_id]['ignore_fields'] = to_list(device_config.get('ignore_fields'))
             self.mqtt_config[device_id]['qos'] = device_config.get('qos', 0)
             self.mqtt_config[device_id]['retain'] = to_bool(device_config.get('retain', False))
 
