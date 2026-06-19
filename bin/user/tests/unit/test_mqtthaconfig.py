@@ -14,6 +14,7 @@ from io import StringIO
 import random
 
 import helpers
+import mqttstubs
 
 import user.mqtthaconfig
 
@@ -35,7 +36,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
         }
 
         SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger, name, configobj.ConfigObj(plugin_dict), weewx_dict)
-
+        print(SUT)
         print("done")
 
     def test_init_mqtt_config(self):
@@ -221,6 +222,82 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
             },
         ]
         self.assertEqual(callbacks, expected_callbacks)
+
+    def test_received_birth_message(self):
+        mock_client = mock.Mock()
+        mock_logger = mock.Mock()
+        name = helpers.random_string()
+        device_id = helpers.random_string()
+        plugin_dict = {
+            'devices': {
+                device_id: {
+                    'topics': {
+                        helpers.random_string(): {},
+                    },
+                },
+            },
+        }
+        weewx_dict = {
+            'defaults': {}
+        }
+
+        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger, name, configobj.ConfigObj(plugin_dict), weewx_dict)
+
+        qos = 0
+        retain = False
+        msg = mqttstubs.Msg('homeassistant/status', b'online', qos, retain)
+        SUT.on_mqtt_message(mock_client, None, msg)
+
+        topic = f'homeassistant/device/{device_id}/config'
+        payload = f'{{"availability_topic": "status", "components": {{}}, "origin": {{"name": "WeeWX"}}, "device": {{"identifiers": "{device_id}", "name": "{device_id}"}}}}'
+
+        mock_client.publish.assert_called_once_with(topic, payload, qos=qos, retain=retain)
+
+    def test_received_lwt_message(self):
+        mock_logger = mock.Mock()
+        name = helpers.random_string()
+        plugin_dict = {
+            'devices': {
+                helpers.random_string(): {
+                    'topics': {
+                        helpers.random_string(): {},
+                    },
+                },
+            },
+        }
+        weewx_dict = {
+            'defaults': {}
+        }
+
+        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger, name, configobj.ConfigObj(plugin_dict), weewx_dict)
+
+        msg = mqttstubs.Msg('homeassistant/status', b'offline', 0, False)
+        SUT.on_mqtt_message(mock.Mock(), None, msg)
+
+        mock_logger.loginf.assert_called_once_with("Received LWT b'offline' on topic: homeassistant/status.")
+
+    def test_unknown_message(self):
+        mock_logger = mock.Mock()
+        name = helpers.random_string()
+        plugin_dict = {
+            'devices': {
+                helpers.random_string(): {
+                    'topics': {
+                        helpers.random_string(): {},
+                    },
+                },
+            },
+        }
+        weewx_dict = {
+            'defaults': {}
+        }
+
+        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger, name, configobj.ConfigObj(plugin_dict), weewx_dict)
+
+        msg = mqttstubs.Msg('homeassistant/status', b'unknown', 0, False)
+        SUT.on_mqtt_message(mock.Mock(), None, msg)
+
+        mock_logger.logerr.assert_called_once_with("Received invalid b'unknown' on topic: homeassistant/status.")
 
 if __name__ == '__main__':
     helpers.run_tests()

@@ -165,3 +165,11 @@ class ClientStub:
 
 class ConnetExceptionTest(Exception):
     ''' Test Connect Exception'''
+
+class Msg:
+    ''' A helper class to create an MQTT message. '''
+    def __init__(self, topic, payload, qos, retain):
+        self.topic = topic
+        self.payload = payload
+        self.qos = qos
+        self.retain = retain
