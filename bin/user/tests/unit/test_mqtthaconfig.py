@@ -299,5 +299,29 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
 
         mock_logger.logerr.assert_called_once_with("Received invalid b'unknown' on topic: homeassistant/status.")
 
+    def test_on_connection(self):
+        mock_client = mock.Mock()
+        mock_logger = mock.Mock()
+        name = helpers.random_string()
+        plugin_dict = {
+            'devices': {
+                helpers.random_string(): {
+                    'topics': {
+                        helpers.random_string(): {},
+                    },
+                },
+            },
+        }
+        weewx_dict = {
+            'defaults': {}
+        }
+
+        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger, name, configobj.ConfigObj(plugin_dict), weewx_dict)
+        
+        mock_client.subscribe.return_value = (random.randint(0, 99), random.randint(0, 99))
+        SUT.on_mqtt_connect(mock_client, None, None, None, None)
+
+        self.assertEqual(mock_client.subscribe.call_count, 2)
+
 if __name__ == '__main__':
     helpers.run_tests()
