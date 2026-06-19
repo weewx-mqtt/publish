@@ -317,11 +317,64 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
         }
 
         SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger, name, configobj.ConfigObj(plugin_dict), weewx_dict)
-        
+
         mock_client.subscribe.return_value = (random.randint(0, 99), random.randint(0, 99))
         SUT.on_mqtt_connect(mock_client, None, None, None, None)
 
         self.assertEqual(mock_client.subscribe.call_count, 2)
+
+    def test_init00(self):
+        mock_logger = mock.Mock()
+        name = helpers.random_string()
+        device_id = helpers.random_string()
+        state_topic = helpers.random_string()
+        plugin_dict = {
+            'devices': {
+                device_id: {
+                    'topics': {
+                        state_topic: {},
+                    },
+                },
+            },
+        }
+        weewx_dict = {
+            'defaults': {
+                'Labels': {
+                    'Generic': {},
+                },
+            },
+        }
+
+        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger, name, configobj.ConfigObj(plugin_dict), weewx_dict)
+
+        with mock.patch.object(user.mqtthaconfig.weewx.units,
+                               'getStandardUnitType',
+                               side_effect=[(helpers.random_string(), helpers.random_string()),
+                                            ('inch', helpers.random_string())]):
+            record = {
+                'usUnits': 'foobar',
+                'rain': random.random()
+            }
+
+            mock_client = mock.Mock()
+
+            SUT.update_record(mock_client, state_topic, record, None, None)
+
+            topic = f'homeassistant/device/{device_id}/config'
+            payload = (
+                '{"availability_topic": "status", "components": {"usUnits": {"state_topic": '
+                f'"{state_topic}", "platform": "sensor", "value_template": '
+                '"{{ value_json.usUnits | default(this.state) }}", "unique_id": "usUnits", "name": "usUnits", "class": "enum"}, '
+                '"rain": {"state_topic": '
+                f'"{state_topic}", "platform": "sensor", "value_template": '
+                '"{{ value_json.rain | default(this.state) }}", "unique_id": "rain", "name": "rain", "unit_of_measurement": "in", '
+                '"device_class": "precipitation", "state_class": "total", "class": "precipitation"}}, '
+                '"origin": {"name": "WeeWX"}, "device": {"identifiers": '
+                f'"{device_id}", "name": "{device_id}"'
+                '}}'
+            )
+
+            mock_client.publish.assert_called_once_with(topic, payload, qos=0, retain=False)
 
 if __name__ == '__main__':
     helpers.run_tests()

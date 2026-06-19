@@ -328,7 +328,7 @@ class MQTTHomeAssistantConfig:
 
             self.mqtt_config[device_id] = {}
             self.mqtt_config[device_id]['ignore_none_value'] = to_bool(device_config.get('ignore_none_value', True))
-            self.mqtt_config[device_id]['ignore_fields'] = to_list(device_config.get('ignore_fields'))
+            self.mqtt_config[device_id]['ignore_fields'] = to_list(device_config.get('ignore_fields', []))
             self.mqtt_config[device_id]['qos'] = device_config.get('qos', 0)
             self.mqtt_config[device_id]['retain'] = to_bool(device_config.get('retain', False))
 
