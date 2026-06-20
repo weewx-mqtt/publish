@@ -61,6 +61,14 @@ It is called with the following parameters.
 
 ## `__init__` signature
 
+- logger: The logger.
+- name: The plugin class name:
+- plugin_dict: The plugin configuration section of weewx.conf.
+- weewx_dict
+  - stn_info: The WeeWX station information.
+  - manager_dict: The WeeWX DB manager dictionary.
+  - defaults: The WeeWX defaults data.
+
 ## Required methods
 
 The plugin must implement the `get_callbacks` method.
