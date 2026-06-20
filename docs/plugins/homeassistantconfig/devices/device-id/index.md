@@ -26,6 +26,7 @@ Default is `false`.
 ### ignore_fields
 
 A comma separated list of WeeWX fields that should not be configured in Home Assistant.
+The default is an empty list.
 
 ### ignore_none_value
 

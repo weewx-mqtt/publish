@@ -9,7 +9,7 @@ nav_order: 2
 ## The `[[[[[[origin]]]]]]` section
 
 The origin option of the MQTT discovery payload.
-Settings in this subsection map directly to the HA options.
+Settings in this subsection map directly to the Home Assistant options.
 
 ### name
 
