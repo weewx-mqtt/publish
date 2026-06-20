@@ -8,5 +8,6 @@ nav_order: 1
 
 ## The `[[component_data]]` section
 
-Component specific data.
-This can be used to override the MQTTHomeAssistantConfig defaults and/or add additional components/sensors.
+Each `component-id` subsection can be used to override existing WeeWX fieldname to sensor mapping;
+or to define new ones.
+The `component-id` must the name of a field in the MQTT payload.

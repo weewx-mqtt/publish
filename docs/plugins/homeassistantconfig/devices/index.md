@@ -8,5 +8,5 @@ nav_order: 1
 
 ## The `[[[[devices]]]]` section
 
-Each subsection configures a HA device.
+Each subsection configures a Home Assistant device.
 At least one `device-id` subsection must be configured.

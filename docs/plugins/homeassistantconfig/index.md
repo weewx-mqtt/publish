@@ -7,28 +7,43 @@ nav_order: 1
 
 MQTTHomeAssistantConfig uses the [device discovery](https://www.home-assistant.io/integrations/mqtt/#device-discovery-payload) functionality of the MQTT integration.
 This is a single json message with all of the sensors for a given device.
-Multiple devices are supported by publishing to multiple topics.
+Multiple Home Assistant devices can be configured.
+Each device has its own MQTT discovery message.
+A device can subscribe to multiple MQTT state topics.
 
-Each time a new WeeWX observation (HA sensor) is published, it is added to the discovery message and the updated message is sent.
+A design goal is to need very little configuration to use the functionality, but to make additional customization easily configured.
+The following is the smallest required configuration information
+
+``` text
+[MQTTPublish]
+    [[plugins]]
+        [[[MQTTHomeAssistantConfig]]]
+            [[[[devices]]]]
+                [[[[[REPLACE_ME_DEVICE]]]]]
+                    [[[[[[topics]]]]]]
+                        [[[[[[[REPLACE_ME_TOPIC]]]]]]]
+
+```
+
+This will create the device REPLACE_ME_DEVICE in Home Assistant.
+All of the fields published to the REPLACE_ME_TOPIC will be sensors associated with the device.
+By default the data published to REPLACE_ME_TOPIC is expected to be json.
+But, this can be configured for each WeeWX field to be published individually to topics named, REPLACE_ME_TOPIC/fieldname.
+
+THe following Home Assistant data is automatically derived from the data in WeeWX.
+
+- The sensor's `unique_id` is set to the name of the WeeWX observation.
+- The sensor's `name` is sourced from [WeeWX's labels](https://weewx.com/docs/5.0/custom/custom-reports/?h=label#changing-labels).
+- The sensor's `device_class` is set based on the WeeWX fieldname.
+- The sensor's units is set based on the units of the WeeWX data.
+
+All of these 'default' settings are easily overridden.
+In addition, it is easy to configure additional WeeWX fieldname to Home Assistant sensor mapping.
 
 MQTTHomeAssistantConfig subscribes to HA's "birth message".
 If a "birth message" is received, the discovery message is resent.
 This eliminates the need to publish the discovery message with `retain = True`.
-
-The sensor's `uniqe_id` is set to the name of the WeeWX observation.
-
-The sensor's `name` is sourced from [WeeWX's labels](https://weewx.com/docs/5.0/custom/custom-reports/?h=label#changing-labels).
-
-MQTTHomeAssistantConfig does a lookup to convert units from WeeWX nomenclature to Home Assistant nomenclature.
-
-MQTTHomeAssistantConfig does a lookup to set the Home Assistant `device_class` based on the WeeWX observation.
-
-The data is sent as json.
-The challenge is that Home Assistant expects that every sensor have a value in the json.
-It also makes it unreasonable to publish with `retain = True`.
-Because of this, in the future the data may be sent individually.
-
-MQTTHomeAssistantConfig can be configured to support additional sensors, override 'default' device_class, unique_ids, names, etc.
+But, the `retain = True` setting can easily be overridden.
 
 ## The `[[[MQTTHomeAssistantConfig]]]` section
 

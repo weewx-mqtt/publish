@@ -1,12 +1,12 @@
 ---
-title: coponent-id
+title: component-id
 parent: component_data
 ancestor: MQTTHomeAssistantConfig
 nav_order: 1
 ---
 {% include plugins_warning.html %}
 
-The `component-id` is the name of the WeeWX field to be configured in HA.
+The `component-id` is the name of the WeeWX field to be configured as a sensor in Home Assistant.
 For example, outTemp, rain, windGust, etc.
 
 ## The `[[[[[component-id]]]]]` section
