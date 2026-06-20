@@ -7,4 +7,4 @@ nav_order: 2
 
 ## [[[[aggregates]]]]
 
-The WeeWX aggregations to perform.
+Deprecated. See, https://weewx-mqtt.github.io/publish/plugins/aggregatevalues/

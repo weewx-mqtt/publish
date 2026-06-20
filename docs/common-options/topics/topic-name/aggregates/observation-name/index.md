@@ -3,6 +3,7 @@ title: observation-name
 parent: Aggregates
 ancestor: Configuring MQTTPublish
 nav_order: 1
+nav_exclude: true
 ---
 
 ## [[[[[observation-name]]]]] sections
