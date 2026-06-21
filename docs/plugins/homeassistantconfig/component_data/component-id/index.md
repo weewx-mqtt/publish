@@ -36,7 +36,7 @@ The lookup 'table' can be found near the beginnng of the `mqtthaconfig.py` file.
 ### unique_id
 
 An ID that uniquely identifies this sensor.
-Set to the `component-id` value.
+Set to the `device_id_component-id`.
 
 ### state_topic
 

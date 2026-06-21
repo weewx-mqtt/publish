@@ -403,7 +403,7 @@ class MQTTHomeAssistantConfig:
                             'state_topic': state_topic,
                             'platform': 'sensor',
                             'value_template': value_template,
-                            'unique_id': field,
+                            'unique_id': f'{device_id}_{field}',
                             'name': self.weewx_defaults['Labels']['Generic'].get(field, field),
                             # 'availability': '"{{ True if has_value(this.state) else False }}"',
                         }

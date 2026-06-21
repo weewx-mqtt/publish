@@ -32,7 +32,7 @@ But, this can be configured for each WeeWX field to be published individually to
 
 THe following Home Assistant data is automatically derived from the data in WeeWX.
 
-- The sensor's `unique_id` is set to the name of the WeeWX observation.
+- The sensor's `unique_id` is set to the device_id concatentated with the name of the WeeWX observation.
 - The sensor's `name` is sourced from [WeeWX's labels](https://weewx.com/docs/5.0/custom/custom-reports/?h=label#changing-labels).
 - The sensor's `device_class` is set based on the WeeWX fieldname.
 - The sensor's units is set based on the units of the WeeWX data.
