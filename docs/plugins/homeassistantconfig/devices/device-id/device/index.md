@@ -15,7 +15,7 @@ For additional information see, https://www.home-assistant.io/integrations/senso
 ### name
 
 The one of two `device` option required by MQTTHomeAssistantConfig.
-The default value is `WeeWX`.
+The default value is the `device_id` section value.
 
 ### identifiers
 
