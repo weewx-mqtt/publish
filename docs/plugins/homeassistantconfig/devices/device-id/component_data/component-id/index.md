@@ -6,10 +6,7 @@ nav_order: 1
 ---
 {% include plugins_warning.html %}
 
-The `component-id` is the name of the WeeWX field to be configured as a sensor in Home Assistant.
-For example, outTemp, rain, windGust, etc.
-
-## The `[[[[[component-id]]]]]` section
+## The `[[[[[[[component-id]]]]]]]` section
 
 The following options are set by MQTTHomeAssistantConfig.
 These can easily be overriden in `weewx.conf`.
@@ -46,8 +43,10 @@ Set to the MQTTPublish topic the data is being published to.
 ### value_template
 
 Defines the template to extract the value.
+{% raw %}
 For json payloads it is set to, `{{ value_json."compoent-id" | default(this.state) }}`
 For individual payloads it is set to `{{ value }}`
+{% endraw %}
 
 ### name
 
