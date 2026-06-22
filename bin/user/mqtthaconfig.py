@@ -17,221 +17,221 @@ import weeutil
 from weeutil.weeutil import to_bool, to_int, to_list
 
 # hDevice class and unit of measure: https://developers.home-assistant.io/docs/core/entity/sensor/#available-device-classes
-DEFAULTS_STR = """
-    [component_data]
-        [[dateTime]]
+DEFAULT_COMPONENT_DATA = """
+        [dateTime]
             class = timestamp
             value_template = '{{ as_datetime(value_json.dateTime | default(this.value)) }}'
             icon = mdi:clock
-        [[usUnits]]
+        [usUnits]
             class = enum
-        [[interval]]
-        [[altimeter]]
+        [interval]
+        [altimeter]
             class = atmospheric_pressure
-        [[appTemp]]
+        [appTemp]
             class = temperature
-        [[appTemp1]]
+        [appTemp1]
             class = temperature
-        [[barometer]]
+        [barometer]
             class = atmospheric_pressure
-        [[batteryStatus1]]
+        [batteryStatus1]
             class = battery
-        [[batteryStatus2]]
+        [batteryStatus2]
             class = battery
-        [[batteryStatus3]]
+        [batteryStatus3]
             class = battery
-        [[batteryStatus4]]
+        [batteryStatus4]
             class = battery
-        [[batteryStatus5]]
+        [batteryStatus5]
             class = battery
-        [[batteryStatus6]]
+        [batteryStatus6]
             class = battery
-        [[batteryStatus7]]
+        [batteryStatus7]
             class = battery
-        [[batteryStatus8]]
+        [batteryStatus8]
             class = battery
-        [[cloudbase]]
+        [cloudbase]
             class = distance
-        [[co]]
+        [co]
             class = carbon_monoxide
-        [[co2]]
+        [co2]
             class = carbon_dioxide
-        [[consBatteryVoltage]]
+        [consBatteryVoltage]
             class = voltage
-        [[dewpoint]]
+        [dewpoint]
             class = temperature
-        [[dewpoint1]]
+        [dewpoint1]
             class = temperature
-        [[ET]]
-        [[extraHumid1]]
+        [ET]
+        [extraHumid1]
             class = humidity
-        [[extraHumid2]]
+        [extraHumid2]
             class = humidity
-        [[extraHumid3]]
+        [extraHumid3]
             class = humidity
-        [[extraHumid4]]
+        [extraHumid4]
             class = humidity
-        [[extraHumid5]]
+        [extraHumid5]
             class = humidity
-        [[extraHumid6]]
+        [extraHumid6]
             class = humidity
-        [[extraHumid7]]
+        [extraHumid7]
             class = humidity
-        [[extraHumid8]]
+        [extraHumid8]
             class = humidity
-        [[extraTemp1]]
+        [extraTemp1]
             class = temperature
-        [[extraTemp2]]
+        [extraTemp2]
             class = temperature
-        [[extraTemp3]]
+        [extraTemp3]
             class = temperature
-        [[extraTemp4]]
+        [extraTemp4]
             class = temperature
-        [[extraTemp5]]
+        [extraTemp5]
             class = temperature
-        [[extraTemp6]]
+        [extraTemp6]
             class = temperature
-        [[extraTemp7]]
+        [extraTemp7]
             class = temperature
-        [[extraTemp8]]
+        [extraTemp8]
             class = temperature
-        [[forecast]]
-        [[hail]]
+        [forecast]
+        [hail]
             class = precipitation
-        [[hailBatteryStatus]]
+        [hailBatteryStatus]
             class = battery
-        [[hailRate]]
-        [[heatindex]]
+        [hailRate]
+        [heatindex]
             class = temperature
-        [[heatindex1]]
+        [heatindex1]
             class = temperature
-        [[heatingTemp]]
+        [heatingTemp]
             class = temperature
-        [[heatingVoltage]]
+        [heatingVoltage]
             class = voltage
-        [[humidex]]
-        [[humidex1]]
-        [[illuminance]]
+        [humidex]
+        [humidex1]
+        [illuminance]
             class = illuminance
-        [[inDewpoint]]
+        [inDewpoint]
             class = temperature
-        [[inHumidity]]
+        [inHumidity]
             class = humidity
-        [[inTemp]]
+        [inTemp]
             class = temperature
-        [[inTempBatteryStatus]]
+        [inTempBatteryStatus]
             class = battery
-        [[leafTemp1]]
+        [leafTemp1]
             class = temperature
-        [[leafTemp2]]
+        [leafTemp2]
             class = temperature
-        [[leafWet1]]
+        [leafWet1]
             class = moisture
-        [[leafWet2]]
+        [leafWet2]
             class = moisture
-        [[lightning_distance]]
+        [lightning_distance]
             class = distance
-        [[lightning_disturber_count]]
-        [[lightning_energy]]
-        [[lightning_noise_count]]
-        [[lightning_strike_count]]
-        [[luminosity]]
-        [[maxSolarRad]]
+        [lightning_disturber_count]
+        [lightning_energy]
+        [lightning_noise_count]
+        [lightning_strike_count]
+        [luminosity]
+        [maxSolarRad]
             class = irradiance
-        [[nh3]]
-        [[no2]]
+        [nh3]
+        [no2]
             class = nitogen_dioxide
-        [[noise]]
+        [noise]
             class = sound_pressure
-        [[o3]]
+        [o3]
             class = ozone
-        [[outHumidity]]
+        [outHumidity]
             class = humidity
-        [[outTemp]]
+        [outTemp]
             class = temperature
             state_class = measurement
-        [[outTempBatteryStatus]]
+        [outTempBatteryStatus]
             class = battery
-        [[pb]]
-        [[pm10_0]]
+        [pb]
+        [pm10_0]
             class = pm10
-        [[pm1_0]]
+        [pm1_0]
             class = pm1
-        [[pm2_5]]
+        [pm2_5]
             class = pm25
-        [[pressure]]
+        [pressure]
             class = atmospheric_pressure
-        [[radiation]]
+        [radiation]
             class = irradiance
-        [[rain]]
+        [rain]
             class = precipitation
             state_class = total
-        [[rainBatteryStatus]]
+        [rainBatteryStatus]
             class = battery
-        [[rainRate]]
+        [rainRate]
             class = precipitation_intensity
-        [[referenceVoltage]]
+        [referenceVoltage]
             class = voltage
-        [[rxCheckPercent]]
-        [[signal1]]
-        [[signal2]]
-        [[signal3]]
-        [[signal4]]
-        [[signal5]]
-        [[signal6]]
-        [[signal7]]
-        [[signal8]]
-        [[snow]]
+        [rxCheckPercent]
+        [signal1]
+        [signal2]
+        [signal3]
+        [signal4]
+        [signal5]
+        [signal6]
+        [signal7]
+        [signal8]
+        [snow]
             class = precipitation
-        [[snowBatteryStatus]]
+        [snowBatteryStatus]
             class = battery
-        [[snowDepth]]
+        [snowDepth]
             class = distance
-        [[snowMoisture]]
+        [snowMoisture]
             class = moisture
-        [[snowRate]]
+        [snowRate]
             class = precipitation_intensity
-        [[so2]]
+        [so2]
             class = sulphur_dioxide
-        [[soilMoist1]]
+        [soilMoist1]
             class = moisture
-        [[soilMoist2]]
+        [soilMoist2]
             class = moisture
-        [[soilMoist3]]
+        [soilMoist3]
             class = moisture
-        [[soilMoist4]]
+        [soilMoist4]
             class = moisture
-        [[soilTemp1]]
+        [soilTemp1]
             class = temperature
-        [[soilTemp2]]
+        [soilTemp2]
             class = temperature
-        [[soilTemp3]]
+        [soilTemp3]
             class = temperature
-        [[soilTemp4]]
+        [soilTemp4]
             class = temperature
-        [[supplyVoltage]]
+        [supplyVoltage]
             class = voltage
-        [[txBatteryStatus]]
+        [txBatteryStatus]
             class = battery
-        [[UV]]
-        [[uvBatteryStatus]]
+        [UV]
+        [uvBatteryStatus]
             class = battery
-        [[windBatteryStatus]]
+        [windBatteryStatus]
             class = battery
-        [[windchill]]
+        [windchill]
             class = temperature
-        [[windDir]]
+        [windDir]
             class = wind_direction
             state_class = measurement_angle
-        [[windGust]]
+        [windGust]
             class = wind_speed
-        [[windGustDir]]
+        [windGustDir]
             class =wind_direction
             state_class = measurement_angle
-        [[windrun]]
-        [[windSpeed]]
+        [windrun]
+        [windSpeed]
             class = wind_speed
-    [units]
+"""
+DEFAULT_UNITS = """
         cm = cm
         degree_C = °C
         degree_F = °F
@@ -283,8 +283,9 @@ class MQTTHomeAssistantConfig:
         if 'devices' not in plugin_dict or len(plugin_dict['devices'].sections) == 0:
             raise ValueError("At least one device-id must be configured.")
 
-        self.defaults = configobj.ConfigObj(StringIO(DEFAULTS_STR))
-        weeutil.config.merge_config(self.defaults['component_data'], plugin_dict.get('component_data', {}))
+        self.defaults = {}
+        self.defaults['component_data'] = {}
+        self.defaults['units'] = configobj.ConfigObj(StringIO(DEFAULT_UNITS))
 
         self.state_topics = {}
         self.qos = to_int(plugin_dict.get('qos', 0))
@@ -295,6 +296,11 @@ class MQTTHomeAssistantConfig:
         self.configuration['devices'] = {}
 
         for device_id in plugin_dict['devices']:
+            self.defaults['component_data'][device_id] = configobj.ConfigObj(StringIO(DEFAULT_COMPONENT_DATA))
+            # ToDo: Remove? Backwards compatibility of old location
+            weeutil.config.merge_config(self.defaults['component_data'][device_id], plugin_dict.get('component_data', {}))
+            # Now, get the correct location and override any other data
+            weeutil.config.merge_config(self.defaults['component_data'][device_id], plugin_dict['devices'][device_id].get('component_data', {}))
             self.state_topics[device_id] = {}
             self.configuration['devices'][device_id] = {}
             device_config = plugin_dict['devices'][device_id]
@@ -414,15 +420,15 @@ class MQTTHomeAssistantConfig:
                             if unit_of_measurement:
                                 self.configuration['devices'][device_id]['components'][field]['unit_of_measurement'] = \
                                     unit_of_measurement
-                        device_class = self.defaults['component_data'].get(field, {}).get('class')
+                        device_class = self.defaults['component_data'][device_id].get(field, {}).get('class')
                         if device_class and unit_of_measurement is not None:
                             self.configuration['devices'][device_id]['components'][field]['device_class'] = device_class
-                        state_class = self.defaults['component_data'].get(field, {}).get('state_class')
+                        state_class = self.defaults['component_data'][device_id].get(field, {}).get('state_class')
                         if state_class:
                             self.configuration['devices'][device_id]['components'][field]['state_class'] = state_class
 
                         weeutil.config.merge_config(self.configuration['devices'][device_id]['components'][field],
-                                                    self.defaults['component_data'].get(field, {}))
+                                                    self.defaults['component_data'][device_id].get(field, {}))
                         self.logger.loginf((f"New device configuration {field}: "
                                             f"{self.configuration['devices'][device_id]['components'][field]}"))
 

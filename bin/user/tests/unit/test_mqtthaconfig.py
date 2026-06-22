@@ -105,18 +105,19 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
     def test_init_component_data(self):
         mock_logger = mock.Mock()
         name = helpers.random_string()
-        compoennt_key = helpers.random_string()
+        component_key = helpers.random_string()
         component_value = helpers.random_string()
+        device_id = helpers.random_string()
         plugin_dict = {
             'devices': {
-                helpers.random_string(): {
+                device_id: {
                     'topics': {
                         helpers.random_string(): {},
                     },
                 },
             },
             'component_data': {
-                compoennt_key: component_value,
+                component_key: component_value,
             },
         }
         weewx_dict = {
@@ -125,8 +126,11 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
 
         SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger, name, configobj.ConfigObj(plugin_dict), weewx_dict)
 
-        expected_result = configobj.ConfigObj(StringIO(user.mqtthaconfig.DEFAULTS_STR))
-        expected_result['component_data'][compoennt_key] = component_value
+        expected_result = {}
+        expected_result['units'] = configobj.ConfigObj(StringIO(user.mqtthaconfig.DEFAULT_UNITS))
+        expected_result['component_data'] = {}
+        expected_result['component_data'][device_id] = configobj.ConfigObj(StringIO(user.mqtthaconfig.DEFAULT_COMPONENT_DATA))
+        expected_result['component_data'][device_id][component_key] = component_value
 
         self.assertDictEqual(SUT.defaults, expected_result)
 
@@ -249,7 +253,8 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
         SUT.on_mqtt_message(mock_client, None, msg)
 
         topic = f'homeassistant/device/{device_id}/config'
-        payload = f'{{"availability_topic": "status", "components": {{}}, "origin": {{"name": "WeeWX"}}, "device": {{"identifiers": "{device_id}", "name": "{device_id}"}}}}'
+        payload = (f'{{"availability_topic": "status", "components": {{}}, "origin": {{"name": "WeeWX"}}, '
+                   f'"device": {{"identifiers": "{device_id}", "name": "{device_id}"}}}}')
 
         mock_client.publish.assert_called_once_with(topic, payload, qos=qos, retain=retain)
 
@@ -323,7 +328,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
 
         self.assertEqual(mock_client.subscribe.call_count, 2)
 
-    def test_init00(self):
+    def test_update_record(self):
         mock_logger = mock.Mock()
         name = helpers.random_string()
         device_id = helpers.random_string()
