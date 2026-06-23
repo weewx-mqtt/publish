@@ -300,7 +300,8 @@ class MQTTHomeAssistantConfig:
             # ToDo: Remove? Backwards compatibility of old location
             weeutil.config.merge_config(self.defaults['component_data'][device_id], plugin_dict.get('component_data', {}))
             # Now, get the correct location and override any other data
-            weeutil.config.merge_config(self.defaults['component_data'][device_id], plugin_dict['devices'][device_id].get('component_data', {}))
+            weeutil.config.merge_config(self.defaults['component_data'][device_id],
+                                        plugin_dict['devices'][device_id].get('component_data', {}))
             self.state_topics[device_id] = {}
             self.configuration['devices'][device_id] = {}
             device_config = plugin_dict['devices'][device_id]
