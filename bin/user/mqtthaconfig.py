@@ -269,7 +269,7 @@ DEFAULT_UNITS = """
 
 """
 class MQTTHomeAssistantConfig:
-    """ Publish Home Assistant sensor configuration data. """
+    """ Publish Home Assistant MQTT devicde configuration data. """
     def __init__(self, logger, name, plugin_dict, weewx_dict):
         self.logger = logger
         self.name = name
@@ -389,7 +389,7 @@ class MQTTHomeAssistantConfig:
     def update_record(self, mqtt_client, topic, data, _qos, _retain):
         """ Run code when MQTT message is published. """
         for device_id in self.configuration['devices']:
-            new_sensor = False
+            new_component = False
             if topic in self.state_topics[device_id]:
                 for field in data:
                     if 'ignore_fields' in self.mqtt_config[device_id] and field in self.mqtt_config[device_id]['ignore_fields']:
@@ -397,7 +397,7 @@ class MQTTHomeAssistantConfig:
                     if data[field] is None and self.mqtt_config[device_id]['ignore_none_value']:
                         continue
                     if field not in self.configuration['devices'][device_id]['components']:
-                        new_sensor = True
+                        new_component = True
 
                         if self.state_topics[device_id][topic]['type'] == 'individual':
                             state_topic = f'{topic}/{field}'
@@ -433,7 +433,7 @@ class MQTTHomeAssistantConfig:
                         self.logger.loginf((f"New device configuration {field}: "
                                             f"{self.configuration['devices'][device_id]['components'][field]}"))
 
-                if new_sensor:
+                if new_component:
                     self.publish_record(mqtt_client, device_id)
 
     def publish_record(self, mqtt_client, device_id):

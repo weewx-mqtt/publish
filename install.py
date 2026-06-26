@@ -234,7 +234,7 @@ MQTTPUBLISH_CONFIG = """
                     # Default is false.
                     retain = False
 
-                    # The topic that the sensor data is published to.
+                    # The topic that the state data is published to.
                     # The default is weather/loop
                     # state_topic = weather/loop
 
