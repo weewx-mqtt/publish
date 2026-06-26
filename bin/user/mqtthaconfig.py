@@ -19,158 +19,158 @@ from weeutil.weeutil import to_bool, to_int, to_list
 # hDevice class and unit of measure: https://developers.home-assistant.io/docs/core/entity/sensor/#available-device-classes
 DEFAULT_COMPONENT_DATA = """
         [dateTime]
-            class = timestamp
+            device_class =  timestamp
             value_template = '{{ as_datetime(value_json.dateTime | default(this.value)) }}'
             icon = mdi:clock
         [usUnits]
-            class = enum
+            device_class =  enum
         [interval]
         [altimeter]
-            class = atmospheric_pressure
+            device_class =  atmospheric_pressure
         [appTemp]
-            class = temperature
+            device_class =  temperature
         [appTemp1]
-            class = temperature
+            device_class =  temperature
         [barometer]
-            class = atmospheric_pressure
+            device_class =  atmospheric_pressure
         [batteryStatus1]
-            class = battery
+            device_class =  battery
         [batteryStatus2]
-            class = battery
+            device_class =  battery
         [batteryStatus3]
-            class = battery
+            device_class =  battery
         [batteryStatus4]
-            class = battery
+            device_class =  battery
         [batteryStatus5]
-            class = battery
+            device_class =  battery
         [batteryStatus6]
-            class = battery
+            device_class =  battery
         [batteryStatus7]
-            class = battery
+            device_class =  battery
         [batteryStatus8]
-            class = battery
+            device_class =  battery
         [cloudbase]
-            class = distance
+            device_class =  distance
         [co]
-            class = carbon_monoxide
+            device_class =  carbon_monoxide
         [co2]
-            class = carbon_dioxide
+            device_class =  carbon_dioxide
         [consBatteryVoltage]
-            class = voltage
+            device_class =  voltage
         [dewpoint]
-            class = temperature
+            device_class =  temperature
         [dewpoint1]
-            class = temperature
+            device_class =  temperature
         [ET]
         [extraHumid1]
-            class = humidity
+            device_class =  humidity
         [extraHumid2]
-            class = humidity
+            device_class =  humidity
         [extraHumid3]
-            class = humidity
+            device_class =  humidity
         [extraHumid4]
-            class = humidity
+            device_class =  humidity
         [extraHumid5]
-            class = humidity
+            device_class =  humidity
         [extraHumid6]
-            class = humidity
+            device_class =  humidity
         [extraHumid7]
-            class = humidity
+            device_class =  humidity
         [extraHumid8]
-            class = humidity
+            device_class =  humidity
         [extraTemp1]
-            class = temperature
+            device_class =  temperature
         [extraTemp2]
-            class = temperature
+            device_class =  temperature
         [extraTemp3]
-            class = temperature
+            device_class =  temperature
         [extraTemp4]
-            class = temperature
+            device_class =  temperature
         [extraTemp5]
-            class = temperature
+            device_class =  temperature
         [extraTemp6]
-            class = temperature
+            device_class =  temperature
         [extraTemp7]
-            class = temperature
+            device_class =  temperature
         [extraTemp8]
-            class = temperature
+            device_class =  temperature
         [forecast]
         [hail]
-            class = precipitation
+            device_class =  precipitation
         [hailBatteryStatus]
-            class = battery
+            device_class =  battery
         [hailRate]
         [heatindex]
-            class = temperature
+            device_class =  temperature
         [heatindex1]
-            class = temperature
+            device_class =  temperature
         [heatingTemp]
-            class = temperature
+            device_class =  temperature
         [heatingVoltage]
-            class = voltage
+            device_class =  voltage
         [humidex]
         [humidex1]
         [illuminance]
-            class = illuminance
+            device_class =  illuminance
         [inDewpoint]
-            class = temperature
+            device_class =  temperature
         [inHumidity]
-            class = humidity
+            device_class =  humidity
         [inTemp]
-            class = temperature
+            device_class =  temperature
         [inTempBatteryStatus]
-            class = battery
+            device_class =  battery
         [leafTemp1]
-            class = temperature
+            device_class =  temperature
         [leafTemp2]
-            class = temperature
+            device_class =  temperature
         [leafWet1]
-            class = moisture
+            device_class =  moisture
         [leafWet2]
-            class = moisture
+            device_class =  moisture
         [lightning_distance]
-            class = distance
+            device_class =  distance
         [lightning_disturber_count]
         [lightning_energy]
         [lightning_noise_count]
         [lightning_strike_count]
         [luminosity]
         [maxSolarRad]
-            class = irradiance
+            device_class =  irradiance
         [nh3]
         [no2]
-            class = nitogen_dioxide
+            device_class =  nitogen_dioxide
         [noise]
-            class = sound_pressure
+            device_class =  sound_pressure
         [o3]
-            class = ozone
+            device_class =  ozone
         [outHumidity]
-            class = humidity
+            device_class =  humidity
         [outTemp]
-            class = temperature
+            device_class =  temperature
             state_class = measurement
         [outTempBatteryStatus]
-            class = battery
+            device_class =  battery
         [pb]
         [pm10_0]
-            class = pm10
+            device_class =  pm10
         [pm1_0]
-            class = pm1
+            device_class =  pm1
         [pm2_5]
-            class = pm25
+            device_class =  pm25
         [pressure]
-            class = atmospheric_pressure
+            device_class =  atmospheric_pressure
         [radiation]
-            class = irradiance
+            device_class =  irradiance
         [rain]
-            class = precipitation
+            device_class =  precipitation
             state_class = total
         [rainBatteryStatus]
-            class = battery
+            device_class =  battery
         [rainRate]
-            class = precipitation_intensity
+            device_class =  precipitation_intensity
         [referenceVoltage]
-            class = voltage
+            device_class =  voltage
         [rxCheckPercent]
         [signal1]
         [signal2]
@@ -181,55 +181,55 @@ DEFAULT_COMPONENT_DATA = """
         [signal7]
         [signal8]
         [snow]
-            class = precipitation
+            device_class =  precipitation
         [snowBatteryStatus]
-            class = battery
+            device_class =  battery
         [snowDepth]
-            class = distance
+            device_class =  distance
         [snowMoisture]
-            class = moisture
+            device_class =  moisture
         [snowRate]
-            class = precipitation_intensity
+            device_class =  precipitation_intensity
         [so2]
-            class = sulphur_dioxide
+            device_class =  sulphur_dioxide
         [soilMoist1]
-            class = moisture
+            device_class =  moisture
         [soilMoist2]
-            class = moisture
+            device_class =  moisture
         [soilMoist3]
-            class = moisture
+            device_class =  moisture
         [soilMoist4]
-            class = moisture
+            device_class =  moisture
         [soilTemp1]
-            class = temperature
+            device_class =  temperature
         [soilTemp2]
-            class = temperature
+            device_class =  temperature
         [soilTemp3]
-            class = temperature
+            device_class =  temperature
         [soilTemp4]
-            class = temperature
+            device_class =  temperature
         [supplyVoltage]
-            class = voltage
+            device_class =  voltage
         [txBatteryStatus]
-            class = battery
+            device_class =  battery
         [UV]
         [uvBatteryStatus]
-            class = battery
+            device_class =  battery
         [windBatteryStatus]
-            class = battery
+            device_class =  battery
         [windchill]
-            class = temperature
+            device_class =  temperature
         [windDir]
-            class = wind_direction
-            state_class = measurement_angle
+            device_class =  wind_direction
+            state_class =  measurement_angle
         [windGust]
-            class = wind_speed
+            device_class =  wind_speed
         [windGustDir]
-            class =wind_direction
+            device_class = wind_direction
             state_class = measurement_angle
         [windrun]
         [windSpeed]
-            class = wind_speed
+            device_class =  wind_speed
 """
 DEFAULT_UNITS = """
         cm = cm
@@ -421,7 +421,7 @@ class MQTTHomeAssistantConfig:
                             if unit_of_measurement:
                                 self.configuration['devices'][device_id]['components'][field]['unit_of_measurement'] = \
                                     unit_of_measurement
-                        device_class = self.defaults['component_data'][device_id].get(field, {}).get('class')
+                        device_class = self.defaults['component_data'][device_id].get(field, {}).get('device_class')
                         if device_class and unit_of_measurement is not None:
                             self.configuration['devices'][device_id]['components'][field]['device_class'] = device_class
                         state_class = self.defaults['component_data'][device_id].get(field, {}).get('state_class')
