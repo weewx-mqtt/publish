@@ -14,30 +14,30 @@ Additional options can be set in `weewx.conf`.
 
 ### device_class
 
-The type/class of the sensor.
+The device_class of the component.
 This is set by looking up the value for the given WeeWX fieldname.
 The lookup 'table' can be found at the beginnng of the `mqtthaconfig.py` file.
 
 ### state_class
 
-The type/class of the sensor state.
+The state_class of the component.
 This is set by looking up the value for the given WeeWX fieldname.
 The lookup 'table' can be found at the beginnng of the `mqtthaconfig.py` file.
 
 ### unit_of_measureent
 
-Defines the units of measurement of the sensor, if any.
+Defines the units of measurement of the component, if any.
 This is set by mapping the WeeWX unit to the HA unit.
 The lookup 'table' can be found near the beginnng of the `mqtthaconfig.py` file.
 
 ### unique_id
 
-An ID that uniquely identifies this sensor.
+An ID that uniquely identifies this component.
 Set to the `device_id_component-id`.
 
 ### state_topic
 
-The MQTT topic subscribed to receive sensor values.
+The MQTT topic subscribed to receive component values.
 Set to the MQTTPublish topic the data is being published to.
 
 ### value_template
@@ -50,7 +50,7 @@ For individual payloads it is set to `{{ value }}`
 
 ### name
 
-The name of the MQTT sensor.
+The name of the MQTT component.
 It defaults to the WeeWX label.
 If there is no WeeWX label, it is set to the `component-id`.
 
