@@ -2,7 +2,7 @@
 title: topics
 parent: device-id
 ancestor: MQTTHomeAssistantConfig
-nav_order: 1
+nav_order: 3
 ---
 {% include plugins_warning.html %}
 
