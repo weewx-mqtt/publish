@@ -243,6 +243,7 @@ DEFAULT_UNITS = """
         hour = h
         inHg = inHg
         inch = in
+        inch_per_hour = in/h
         kPa = kPa
         kilowatt = kW
         kilowatt_hour = kWh
