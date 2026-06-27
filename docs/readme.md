@@ -75,4 +75,4 @@ Feel free to
 [start a discussion in github](https://github.com/weewx-mqtt/publish/discussions/new),
 [post on WeeWX google group](https://groups.google.com/g/weewx-user).
 When doing so, see
-[Help! Posting to weewx user](https://github.com/weewx/weewx/wiki/) for information on capturing the log.
+[Help! Posting to weewx user](https://github.com/weewx/weewx/wiki/Help!-Posting-to-weewx-user) for information on capturing the log.
