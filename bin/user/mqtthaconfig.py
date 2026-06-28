@@ -308,6 +308,7 @@ DEFAULT_COMPONENT_DATA = """
             device_class =  wind_speed
             state_class = wind_speed
 """
+
 DEFAULT_UNITS = """
         cm = cm
         cm_per_hour = cm/h
@@ -352,8 +353,8 @@ DEFAULT_UNITS = """
         watt = W
         watt_hour = Wh
         watt_per_meter_squared = W/m²
-
 """
+
 class MQTTHomeAssistantConfig:
     """ Publish Home Assistant MQTT devicde configuration data. """
     def __init__(self, logger, name, plugin_dict, weewx_dict):
