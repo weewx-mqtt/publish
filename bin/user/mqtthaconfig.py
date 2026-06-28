@@ -247,7 +247,7 @@ DEFAULT_COMPONENT_DATA = """
         [signal8]
         [snow]
             device_class =  precipitation
-            device_class =  precipitation
+            state_class = total
         [snowBatteryStatus]
             device_class =  battery
         [snowDepth]
@@ -256,7 +256,7 @@ DEFAULT_COMPONENT_DATA = """
             device_class =  moisture
         [snowRate]
             device_class =  precipitation_intensity
-            device_class =  precipitation_intensity
+            state_class =  measurement
         [so2]
             device_class =  sulphur_dioxide
             state_class = measurement
