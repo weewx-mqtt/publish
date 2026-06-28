@@ -306,7 +306,7 @@ DEFAULT_COMPONENT_DATA = """
             device_class = distance
         [windSpeed]
             device_class =  wind_speed
-            state_class = wind_speed
+            state_class = measurement
 """
 
 DEFAULT_UNITS = """
