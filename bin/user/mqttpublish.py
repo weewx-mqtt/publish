@@ -603,7 +603,7 @@ class MQTTPublish(StdService):
                 fields[field]['publish_none_value'] = to_bool(field_dict.get('publish_none_value', publish_none_value))
                 fields[field]['append_unit_label'] = to_bool(field_dict.get('append_unit_label', append_unit_label))
                 fields[field]['conversion_type'] = field_dict.get('conversion_type', conversion_type)
-                fields[field]['format_string'] = field_dict.get('format_string', format_string)
+                fields[field]['format'] = field_dict.get('format', format_string)
 
         # self.logger.logdbg(f"Configured fields: {fields}.")
         return fields
@@ -667,7 +667,6 @@ class MQTTPublish(StdService):
                     self.plugins['MQTTAggregateValues']['topics'][topic][aggregate] = topic_dict['aggregates'][aggregate]
 
             for ignore_field in to_list(topic_dict.get('ignore_fields', [])):
-                print(ignore_field)
                 fields[ignore_field] = {
                     'ignore': True
                 }

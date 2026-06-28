@@ -125,7 +125,7 @@ class TestConfigureTopics(unittest.TestCase):
                                 'publish_none_value': False,
                                 'append_unit_label': True,
                                 'conversion_type': 'string',
-                                'format_string': '%s'
+                                'format': '%s'
                             }
                         }
                     }
