@@ -21,7 +21,7 @@ import configobj
 import paho.mqtt.client as mqtt
 
 import weeutil
-from weeutil.weeutil import to_bool, to_float, to_int
+from weeutil.weeutil import to_bool, to_float, to_int, to_list
 
 import weewx
 import weewx.defaults
@@ -665,6 +665,12 @@ class MQTTPublish(StdService):
                 for aggregate in topic_dict['aggregates']:
                     self.plugins['MQTTAggregateValues']['topics'][topic] = {}
                     self.plugins['MQTTAggregateValues']['topics'][topic][aggregate] = topic_dict['aggregates'][aggregate]
+
+            for ignore_field in to_list(topic_dict.get('ignore_fields', [])):
+                print(ignore_field)
+                fields[ignore_field] = {
+                    'ignore': True
+                }
 
             if 'loop' in binding:
                 if not publish:

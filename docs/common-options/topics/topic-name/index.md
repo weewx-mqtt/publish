@@ -40,3 +40,8 @@ The default value is `false`.
 
 The unit system for data published to this topic.
 The default value is `US`.
+
+### ignore_fields
+
+A comma seperated list of fields that are not published.
+This is a short hand notation for having to configure each field and setting `ignore = True` in its section.
