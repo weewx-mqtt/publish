@@ -27,12 +27,16 @@ DEFAULT_COMPONENT_DATA = """
         [interval]
         [altimeter]
             device_class =  atmospheric_pressure
+            state_class = measurement
         [appTemp]
             device_class =  temperature
+            state_class = measurement
         [appTemp1]
             device_class =  temperature
+            state_class = measurement
         [barometer]
             device_class =  atmospheric_pressure
+            state_class = measurement
         [batteryStatus1]
             device_class =  battery
         [batteryStatus2]
@@ -51,126 +55,187 @@ DEFAULT_COMPONENT_DATA = """
             device_class =  battery
         [cloudbase]
             device_class =  distance
+            state_class = measurement
         [co]
             device_class =  carbon_monoxide
+            state_class = measurement
         [co2]
             device_class =  carbon_dioxide
+            state_class = measurement
         [consBatteryVoltage]
             device_class =  voltage
+            state_class = measurement
         [dewpoint]
             device_class =  temperature
+            state_class = measurement
         [dewpoint1]
             device_class =  temperature
+            state_class = measurement
         [ET]
+            device_class =  precipitation
+            state_class = measurement
+            # force_update = True # ToDo: research
         [extraHumid1]
             device_class =  humidity
+            state_class = measurement
         [extraHumid2]
             device_class =  humidity
+            state_class = measurement
         [extraHumid3]
             device_class =  humidity
+            state_class = measurement
         [extraHumid4]
             device_class =  humidity
+            state_class = measurement
         [extraHumid5]
             device_class =  humidity
+            state_class = measurement
         [extraHumid6]
             device_class =  humidity
+            state_class = measurement
         [extraHumid7]
             device_class =  humidity
+            state_class = measurement
         [extraHumid8]
             device_class =  humidity
+            state_class = measurement
         [extraTemp1]
             device_class =  temperature
+            state_class = measurement
         [extraTemp2]
             device_class =  temperature
+            state_class = measurement
         [extraTemp3]
             device_class =  temperature
+            state_class = measurement
         [extraTemp4]
             device_class =  temperature
+            state_class = measurement
         [extraTemp5]
             device_class =  temperature
+            state_class = measurement
         [extraTemp6]
             device_class =  temperature
+            state_class = measurement
         [extraTemp7]
             device_class =  temperature
+            state_class = measurement
         [extraTemp8]
             device_class =  temperature
+            state_class = measurement
         [forecast]
         [hail]
             device_class =  precipitation
+            state_class = measurement
         [hailBatteryStatus]
             device_class =  battery
         [hailRate]
+            device_class =  precipitation_intensity
+            state_class = measurement
         [heatindex]
             device_class =  temperature
+            state_class = measurement
         [heatindex1]
             device_class =  temperature
+            state_class = measurement
         [heatingTemp]
             device_class =  temperature
+            state_class = measurement
         [heatingVoltage]
             device_class =  voltage
+            state_class = measurement
         [humidex]
+            state_class = measurement
         [humidex1]
+            state_class = measurement
         [illuminance]
             device_class =  illuminance
+            state_class = measurement
         [inDewpoint]
             device_class =  temperature
+            state_class = measurement
         [inHumidity]
             device_class =  humidity
+            state_class = measurement
         [inTemp]
             device_class =  temperature
+            state_class = measurement
         [inTempBatteryStatus]
             device_class =  battery
         [leafTemp1]
             device_class =  temperature
+            state_class = measurement
         [leafTemp2]
             device_class =  temperature
+            state_class = measurement
         [leafWet1]
             device_class =  moisture
+            state_class = measurement
         [leafWet2]
             device_class =  moisture
+            state_class = measurement
         [lightning_distance]
             device_class =  distance
+            state_class = measurement
         [lightning_disturber_count]
+            state_class = total_increasing
         [lightning_energy]
         [lightning_noise_count]
+            state_class = total_increasing
         [lightning_strike_count]
+            state_class = total_increasing
         [luminosity]
         [maxSolarRad]
             device_class =  irradiance
+            state_class = measurement
         [nh3]
+            state_class = measurement
         [no2]
             device_class =  nitogen_dioxide
+            state_class = measurement
         [noise]
             device_class =  sound_pressure
+            state_class = measurement
         [o3]
             device_class =  ozone
+            state_class = measurement
         [outHumidity]
             device_class =  humidity
+            state_class = measurement
         [outTemp]
             device_class =  temperature
             state_class = measurement
         [outTempBatteryStatus]
             device_class =  battery
         [pb]
+            state_class = measurement
         [pm10_0]
             device_class =  pm10
+            state_class = measurement
         [pm1_0]
             device_class =  pm1
+            state_class = measurement
         [pm2_5]
             device_class =  pm25
+            state_class = measurement
         [pressure]
             device_class =  atmospheric_pressure
+            state_class = measurement
         [radiation]
             device_class =  irradiance
+            state_class = measurement
         [rain]
             device_class =  precipitation
             state_class = total
+            # force_update = True # ToDo: research
         [rainBatteryStatus]
             device_class =  battery
         [rainRate]
             device_class =  precipitation_intensity
+            state_class = measurement
         [referenceVoltage]
             device_class =  voltage
+            state_class = measurement
         [rxCheckPercent]
         [signal1]
         [signal2]
@@ -182,6 +247,7 @@ DEFAULT_COMPONENT_DATA = """
         [signal8]
         [snow]
             device_class =  precipitation
+            device_class =  precipitation
         [snowBatteryStatus]
             device_class =  battery
         [snowDepth]
@@ -190,8 +256,10 @@ DEFAULT_COMPONENT_DATA = """
             device_class =  moisture
         [snowRate]
             device_class =  precipitation_intensity
+            device_class =  precipitation_intensity
         [so2]
             device_class =  sulphur_dioxide
+            state_class = measurement
         [soilMoist1]
             device_class =  moisture
         [soilMoist2]
@@ -202,17 +270,23 @@ DEFAULT_COMPONENT_DATA = """
             device_class =  moisture
         [soilTemp1]
             device_class =  temperature
+            state_class = measurement
         [soilTemp2]
             device_class =  temperature
+            state_class = measurement
         [soilTemp3]
             device_class =  temperature
+            state_class = measurement
         [soilTemp4]
             device_class =  temperature
+            state_class = measurement
         [supplyVoltage]
             device_class =  voltage
+            state_class = measurement
         [txBatteryStatus]
             device_class =  battery
         [UV]
+            state_class = measurement
         [uvBatteryStatus]
             device_class =  battery
         [windBatteryStatus]
@@ -224,12 +298,15 @@ DEFAULT_COMPONENT_DATA = """
             state_class =  measurement_angle
         [windGust]
             device_class =  wind_speed
+            state_class = measurement
         [windGustDir]
             device_class = wind_direction
             state_class = measurement_angle
         [windrun]
+            device_class = distance
         [windSpeed]
             device_class =  wind_speed
+            state_class = wind_speed
 """
 DEFAULT_UNITS = """
         cm = cm
