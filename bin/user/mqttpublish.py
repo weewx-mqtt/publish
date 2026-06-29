@@ -655,7 +655,7 @@ class MQTTPublish(StdService):
             aggregates = topic_dict.get('aggregates', {})
             if aggregates:
                 # Temporarily build the MQTTAggregateValues plugin configuration
-                self.logger.loginf(("'[aggregates]' is deprecated and has moved to a plugin. "
+                self.logger.logerr(("'[aggregates]' is deprecated and has moved to a plugin. "
                                     "To configure see, https://weewx-mqtt.github.io/publish/plugins/aggregatevalues/"))
                 if 'MQTTAggregateValues' not in self.plugins:
                     self.plugins['MQTTAggregateValues'] = {}
