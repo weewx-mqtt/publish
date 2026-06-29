@@ -347,6 +347,7 @@ DEFAULT_UNITS = """
         mm_per_hour2 = mm/h
         percent = %
         percent_battery = %
+        ppm = ppm
         second = s
         volt = V
         watt = W
