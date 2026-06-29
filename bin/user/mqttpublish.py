@@ -603,7 +603,7 @@ class MQTTPublish(StdService):
                 fields[field]['publish_none_value'] = to_bool(field_dict.get('publish_none_value', publish_none_value))
                 fields[field]['append_unit_label'] = to_bool(field_dict.get('append_unit_label', append_unit_label))
                 fields[field]['conversion_type'] = field_dict.get('conversion_type', conversion_type)
-                fields[field]['format'] = field_dict.get('format', format_string)
+                fields[field]['format_string'] = field_dict.get('format_string', format_string)
 
         # self.logger.logdbg(f"Configured fields: {fields}.")
         return fields
@@ -623,7 +623,7 @@ class MQTTPublish(StdService):
 
         default_append_label = service_dict.get('append_unit_label', True)
         default_conversion_type = service_dict.get('conversion_type', 'string')
-        default_format_string = service_dict.get('format', '%s')
+        default_format_string = service_dict.get('format_string', '%s')
 
         topics_loop = {}
         topics_archive = {}
@@ -641,7 +641,7 @@ class MQTTPublish(StdService):
             publish_none_value = to_bool(topic_dict.get('publish_none_value', False))
             append_unit_label = to_bool(topic_dict.get('append_unit_label', default_append_label))
             conversion_type = topic_dict.get('conversion_type', default_conversion_type)
-            format_string = topic_dict.get('format', default_format_string)
+            format_string = topic_dict.get('format_string', default_format_string)
             fields_dict = topic_dict.get('fields', None)
             fields = {}
             if fields_dict is not None:
@@ -685,7 +685,7 @@ class MQTTPublish(StdService):
                 topics_loop[topic]['ignore'] = ignore
                 topics_loop[topic]['append_unit_label'] = append_unit_label
                 topics_loop[topic]['conversion_type'] = conversion_type
-                topics_loop[topic]['format'] = format_string
+                topics_loop[topic]['format_string'] = format_string
                 topics_loop[topic]['fields'] = dict(fields)
 
             if 'archive' in binding:
@@ -702,7 +702,7 @@ class MQTTPublish(StdService):
                 topics_archive[topic]['ignore'] = ignore
                 topics_archive[topic]['append_unit_label'] = append_unit_label
                 topics_archive[topic]['conversion_type'] = conversion_type
-                topics_archive[topic]['format'] = format_string
+                topics_archive[topic]['format_string'] = format_string
                 topics_archive[topic]['fields'] = dict(fields)
 
         self.logger.logdbg(f"Loop topics: {topics_loop}")
@@ -874,7 +874,7 @@ class PublishWeeWXThread(threading.Thread):
             converted_value = value
 
         conversion_type = fieldinfo.get('conversion_type', topic_dict.get('conversion_type'))
-        format_string = fieldinfo.get('format', topic_dict.get('format'))
+        format_string = fieldinfo.get('format_string', topic_dict.get('format_string'))
         if conversion_type == 'integer':
             formatted_value = to_int(converted_value)
         else:

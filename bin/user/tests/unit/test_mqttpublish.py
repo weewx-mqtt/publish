@@ -70,7 +70,7 @@ class TestConfigureTopics(unittest.TestCase):
                         'ignore': False,
                         'append_unit_label': True,
                         'conversion_type': 'string',
-                        'format': '%s',
+                        'format_string': '%s',
                         'fields': {}
                     }
                 }
@@ -116,7 +116,7 @@ class TestConfigureTopics(unittest.TestCase):
                         'ignore': False,
                         'append_unit_label': True,
                         'conversion_type': 'string',
-                        'format': '%s',
+                        'format_string': '%s',
                         'fields': {
                             field1: {
                                 'name': field1,
@@ -125,7 +125,7 @@ class TestConfigureTopics(unittest.TestCase):
                                 'publish_none_value': False,
                                 'append_unit_label': True,
                                 'conversion_type': 'string',
-                                'format': '%s'
+                                'format_string': '%s'
                             }
                         }
                     }

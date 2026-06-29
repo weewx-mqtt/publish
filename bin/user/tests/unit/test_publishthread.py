@@ -38,7 +38,7 @@ class TestPublishWeeWXThread(unittest.TestCase):
 
         topic_dict = {
             'unit_system': 1,
-            'format': '%s',
+            'format_string': '%s',
             'fields': {},
         }
 
@@ -95,7 +95,7 @@ class TestPublishWeeWXThread(unittest.TestCase):
                     'unit': 'foobar',
                     'append_unit_label': True,
                     'conversion_type': 'float',
-                    'format': '%s'
+                    'format_string': '%s'
                 }
             },
         }
