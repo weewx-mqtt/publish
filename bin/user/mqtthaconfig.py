@@ -284,7 +284,6 @@ DEFAULT_COMPONENT_DATA = """
             device_class =  voltage
             state_class = measurement
         [txBatteryStatus]
-            device_class =  battery
         [UV]
             state_class = measurement
         [uvBatteryStatus]
