@@ -3,7 +3,7 @@ Fixes
 - Better handling of tls related default values.
 - Support aggregate values
   Ability to configure the WeeWX database binding used to calculate aggregates. (#7)
-  Support fo specifying a WeeWX unit systemt to convert all observations to. (#8)
+  Support for specifying a WeeWX unit systemt to convert all observations to. (#8)
   When an observation has a unit specified, use that when appending to the observation name.
 - Reconnect logic (#14)
 - Allow shutdown when attempting to (re)connect (#14)
