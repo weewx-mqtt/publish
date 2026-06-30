@@ -357,7 +357,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
                                side_effect=[(helpers.random_string(), helpers.random_string()),
                                             ('inch', helpers.random_string())]):
             record = {
-                'usUnits': 'foobar',
+                'usUnits': random.randint(0, 99),
                 'rain': random.random()
             }
 
