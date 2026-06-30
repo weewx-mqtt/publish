@@ -83,11 +83,14 @@ class TimeSpanProvider:
 class MQTTAggregateValues:
     """ Calculate aggregate values. """
     def __init__(self, logger, name, plugin_dict, weewx_dict):
-        # ToDo need to add 'enable flag'
         self.logger = logger
         self.name = name
         self.plugin_dict = plugin_dict
         self.enabled = to_bool(self.plugin_dict.get('enable', True))
+
+        if not self.enabled:
+            self.logger.loginf(f"Plugin {self.name} is not enabled.")
+            return
 
         self.timespan_provider = TimeSpanProvider(weewx_dict['stn_info'].week_start)
 
