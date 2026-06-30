@@ -214,10 +214,6 @@ MQTTPUBLISH_CONFIG = """
                     # Default is false.
                     retain = False
 
-                    # The topic that the state data is published to.
-                    # The default is weather/loop
-                    # state_topic = weather/loop
-
                     # https://www.home-assistant.io/integrations/sensor.mqtt/#device
                     [[[[[[device]]]]]]
                         # The hardware version of the device.
@@ -253,6 +249,47 @@ MQTTPUBLISH_CONFIG = """
                         # The name of the application that is the origin of the discovered MQTT item.
                         name = REPLACE_ME
 
+                    # The topics for this Device.
+                    [[[[[[topics]]]]]]
+                        # The topic name that has the data to be published to Home Assistant.
+                        [[[[[[[REPLACE_ME]]]]]]]
+                            # The format of the MQTT payload.
+                            # Currently support: individual, json
+                            # The default is 'json'
+                            type = json
+
+        # The name of the plugin. Do not change
+        [[[MQTTAggregateValues]]]
+            # The module to be loaded. Do not change.
+            module = user.mqttaggregatevalues
+
+            # Whether the service is enabled or not.
+            # Valid values: true or false
+            # Default is true.
+            enable = False
+
+            [[[[topics]]]]
+                # The name of the topic to add the aggregate values to.
+                [[[[[REPLACE_ME]]]]]
+
+                    # The name of the observation in the MQTT payload.
+                    # This can be any name. For example: rainSumDay, outTempMinHour, etc
+                    [[[[[[REPLACE_ME]]]]]]
+                        # Turn aggregates on and off.
+                        # Default is true.
+                        enable = false
+
+                        # The WeeWX observation to aggregate, rain, outTemp, etc,
+                        observation =
+
+                        # The type of aggregation to perform.
+                        # See, https://www.weewx.com/docs/customizing.htm#aggregation_types
+                        aggregation =
+
+                        # The time period over which the aggregation shoulf occurr.
+                        # Valid values: hour, day, week, month, year, yesterday, last24hours, last7days, last31days, last366days
+                        period =
+
 """
 
 def loader():
@@ -280,6 +317,6 @@ class MQTTPublishInstaller(ExtensionInstaller):
         mqttpublish_dict = configobj.ConfigObj(StringIO(MQTTPUBLISH_CONFIG))
         install_dict['config'] = mqttpublish_dict
         # ToDo: Better service group?
-        install_dict['restful_services'] = 'user.mqttpublish.PublishWeeWX'
+        install_dict['restful_services'] = 'user.mqttpublish.MQTTPublish'
 
         super().__init__(install_dict)
