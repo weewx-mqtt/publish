@@ -176,26 +176,6 @@ MQTTPUBLISH_CONFIG = """
                     # The default is '%s'.
                     format_string = %s
 
-            # The aggregations to perform
-            [[[[aggregates]]]]
-                # The name of the observation in the MQTT payload.
-                # This can be any name. For example: rainSumDay, outTempMinHour, etc
-                [[[[[REPLACE_ME]]]]]
-                    # Turn aggregates on and off.
-                    # Default is true.
-                    enable = false
-
-                    # The WeeWX observation to aggregate, rain, outTemp, etc,
-                    observation =
-
-                    # The type of aggregation to perform.
-                    # See, https://www.weewx.com/docs/customizing.htm#aggregation_types
-                    aggregation =
-
-                    # The time period over which the aggregation shoulf occurr.
-                    # Valid values: hour, day, week, month, year, yesterday, last24hours, last7days, last31days, last366days
-                    period =
-
     [[plugins]]
         # The name of the plugin. Do not change
         [[[MQTTHomeAssistantConfig]]]
