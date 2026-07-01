@@ -63,7 +63,6 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
         SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger, name, configobj.ConfigObj(plugin_dict), weewx_dict)
         expected_results = {
             device_id: {
-                'ignore_none_value': True,
                 'ignore_fields': [ignore_fields],
                 'qos': qos,
                 'retain': False,
