@@ -68,12 +68,22 @@ Default is `0`
 The Home Assistant birth topic.
 Default is `homeassistant/status`
 
+### birth_payload
+
+The Home Assistant birth payload.
+Default is `online`.
+
 ### lwt_topic
 
 The Home Assistant lwt topic.
 Default is `homeassistant/status`.
 
+### lwt_payload
+
+The Home Assistant lwt payload.
+Default is `offline`.
+
 ### discovery_topic_prefix
 
 THe Home Assistant discovery topic prefix.
-Default is 'homeassistant'.
+Default is `homeassistant`.

@@ -370,8 +370,6 @@ class MQTTHomeAssistantConfig:
         if 'devices' not in plugin_dict or len(plugin_dict['devices'].sections) == 0:
             raise ValueError("At least one device-id must be configured.")
 
-        self.discovery_topic_prefix = plugin_dict.get('discovery_topic_prefix', 'homeassistant')
-
         self.defaults = {}
         self.defaults['component_data'] = {}
         self.defaults['units'] = configobj.ConfigObj(StringIO(DEFAULT_UNITS))
@@ -379,7 +377,10 @@ class MQTTHomeAssistantConfig:
         self.state_topics = {}
         self.qos = to_int(plugin_dict.get('qos', 0))
         self.birth_topic = plugin_dict.get('birth_topic', 'homeassistant/status')
-        self.lwt_topic = plugin_dict.get('lqt_topic', 'homeassistant/status')
+        self.birth_payload = plugin_dict.get('birth_payload', 'online').encode('utf-8')
+        self.lwt_topic = plugin_dict.get('lwt_topic', 'homeassistant/status')
+        self.lwt_payload = plugin_dict.get('lwt_payload', 'offline').encode('utf-8')
+        self.discovery_topic_prefix = plugin_dict.get('discovery_topic_prefix', 'homeassistant')
         self.mqtt_config = {}
         self.configuration = configobj.ConfigObj({})
         self.configuration['devices'] = {}
@@ -455,11 +456,11 @@ class MQTTHomeAssistantConfig:
     def on_mqtt_message(self, client, userdata, msg):
         """ Handle the MQTT on_message callback. """
         self.logger.logdbg(f"Received: {userdata} {msg}")
-        if msg.topic == self.birth_topic and msg.payload == b"online":
+        if msg.topic == self.birth_topic and msg.payload == self.birth_payload:
             self.logger.loginf(f"Received 'birth message' {msg.payload} on topic: {msg.topic}.")
             for device_id in self.configuration['devices']:
                 self.publish_record(client, device_id)
-        elif msg.topic == self.lwt_topic and msg.payload == b"offline":
+        elif msg.topic == self.lwt_topic and msg.payload == self.lwt_payload:
             self.logger.loginf(f"Received LWT {msg.payload} on topic: {msg.topic}.")
         else:
             self.logger.logerr(f"Received invalid {msg.payload} on topic: {msg.topic}.")
