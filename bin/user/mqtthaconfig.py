@@ -370,6 +370,8 @@ class MQTTHomeAssistantConfig:
         if 'devices' not in plugin_dict or len(plugin_dict['devices'].sections) == 0:
             raise ValueError("At least one device-id must be configured.")
 
+        self.discovery_topic_prefix = plugin_dict.get('discovery_topic_prefix', 'homeassistant')
+
         self.defaults = {}
         self.defaults['component_data'] = {}
         self.defaults['units'] = configobj.ConfigObj(StringIO(DEFAULT_UNITS))
@@ -454,6 +456,7 @@ class MQTTHomeAssistantConfig:
         """ Handle the MQTT on_message callback. """
         self.logger.logdbg(f"Received: {userdata} {msg}")
         if msg.topic == self.birth_topic and msg.payload == b"online":
+            self.logger.loginf(f"Received 'birth message' {msg.payload} on topic: {msg.topic}.")
             for device_id in self.configuration['devices']:
                 self.publish_record(client, device_id)
         elif msg.topic == self.lwt_topic and msg.payload == b"offline":
@@ -527,7 +530,7 @@ class MQTTHomeAssistantConfig:
     def publish_record(self, mqtt_client, device_id):
         """ Publish the HA device discovery configuration data. """
         payload = json.dumps(self.configuration['devices'][device_id])
-        topic = f'homeassistant/device/{device_id}/config'
+        topic = f'{self.discovery_topic_prefix}/device/{device_id}/config'
         mqtt_message_info = mqtt_client.publish(topic,
                                                 payload,
                                                 qos=self.mqtt_config[device_id]['qos'],

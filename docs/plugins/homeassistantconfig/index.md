@@ -72,3 +72,8 @@ Default is `homeassistant/status`
 
 The Home Assistant lwt topic.
 Default is `homeassistant/status`.
+
+### discovery_topic_prefix
+
+THe Home Assistant discovery topic prefix.
+Default is 'homeassistant'.
