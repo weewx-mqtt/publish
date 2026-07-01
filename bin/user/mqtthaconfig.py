@@ -424,7 +424,6 @@ class MQTTHomeAssistantConfig:
                 self.state_topics[device_id][state_topic]['type'] = device_config['topics'][state_topic].get('type', 'json')
 
             self.mqtt_config[device_id] = {}
-            self.mqtt_config[device_id]['ignore_none_value'] = to_bool(device_config.get('ignore_none_value', True))
             self.mqtt_config[device_id]['ignore_fields'] = to_list(device_config.get('ignore_fields', []))
             self.mqtt_config[device_id]['qos'] = to_int(device_config.get('qos', 0))
             self.mqtt_config[device_id]['retain'] = to_bool(device_config.get('retain', False))
@@ -484,8 +483,6 @@ class MQTTHomeAssistantConfig:
             if topic in self.state_topics[device_id]:
                 for field in data:
                     if 'ignore_fields' in self.mqtt_config[device_id] and field in self.mqtt_config[device_id]['ignore_fields']:
-                        continue
-                    if data[field] is None and self.mqtt_config[device_id]['ignore_none_value']:
                         continue
                     if field not in self.configuration['devices'][device_id]['components']:
                         new_component = True

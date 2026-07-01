@@ -27,9 +27,3 @@ Default is `false`.
 
 A comma separated list of WeeWX fields that should not be configured in Home Assistant.
 The default is an empty list.
-
-### ignore_none_value
-
-Controls if observations with a value of `None` should be configured.
-Valid values: `true` or `false`
-Default is `true`.
