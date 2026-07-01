@@ -24,6 +24,8 @@ DEFAULT_COMPONENT_DATA = """
             icon = mdi:clock
         [usUnits]
             device_class =  enum
+            # ToDo: it comes from MQTTPublish as a float. Who should force it to an int?
+            # options = 1, 16, 17
         [interval]
         [altimeter]
             device_class =  atmospheric_pressure
