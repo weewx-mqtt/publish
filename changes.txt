@@ -1,5 +1,7 @@
 1.1.0 
 Fixes
+- Correct handling of conversion_type and format_string options.
+  Note: Now the default conversion_type is 'None', meaning no conversion is performed.
 - Better handling of tls related default values.
 - Support aggregate values
   Ability to configure the WeeWX database binding used to calculate aggregates. (#7)

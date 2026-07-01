@@ -95,7 +95,6 @@ class TestPublishWeeWXThread(unittest.TestCase):
                     'unit': 'foobar',
                     'append_unit_label': True,
                     'conversion_type': 'float',
-                    'format_string': '%s'
                 }
             },
         }

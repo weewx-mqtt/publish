@@ -370,7 +370,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
                 f'"{state_topic}", "platform": "sensor", "value_template": '
                 '"{{ value_json.usUnits | default(this.state) }}", '
                 f'"unique_id": "{device_id}_usUnits", '
-                '"name": "usUnits", "device_class": "enum"}, '
+                '"name": "usUnits", "device_class": "enum", "options": ["1", "16", "17"]}, '
                 '"rain": {"state_topic": '
                 f'"{state_topic}", "platform": "sensor", "value_template": '
                 '"{{ value_json.rain | default(this.state) }}", '

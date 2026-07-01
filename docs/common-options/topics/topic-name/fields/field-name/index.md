@@ -43,4 +43,4 @@ The default value is `string`.
 ### format_string
 
 The formatting to apply to the data being published.
-The default value is `%s`.
+The default value is `None`.

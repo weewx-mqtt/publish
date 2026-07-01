@@ -623,7 +623,7 @@ class MQTTPublish(StdService):
 
         default_append_label = service_dict.get('append_unit_label', True)
         default_conversion_type = service_dict.get('conversion_type', 'string')
-        default_format_string = service_dict.get('format_string', '%s')
+        default_format_string = service_dict.get('format_string', None)
 
         topics_loop = {}
         topics_archive = {}
@@ -876,11 +876,14 @@ class PublishWeeWXThread(threading.Thread):
         conversion_type = fieldinfo.get('conversion_type', topic_dict.get('conversion_type'))
         format_string = fieldinfo.get('format_string', topic_dict.get('format_string'))
         if conversion_type == 'integer':
-            formatted_value = to_int(converted_value)
-        else:
+            converted_value = to_int(converted_value)
+        elif conversion_type == 'float':
+            converted_value = to_float(converted_value)
+
+        if format_string is not None:
             formatted_value = format_string % converted_value
-            if conversion_type == 'float':
-                formatted_value = to_float(formatted_value)
+        else:
+            formatted_value = converted_value
 
         return name, formatted_value
 
