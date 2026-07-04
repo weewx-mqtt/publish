@@ -358,7 +358,7 @@ DEFAULT_UNITS = """
 
 class MQTTHomeAssistantConfig:
     """ Publish Home Assistant MQTT devicde configuration data. """
-    def __init__(self, logger, name, plugin_dict, weewx_dict):
+    def __init__(self, logger, name, plugin_dict, topics, weewx_dict):
         self.logger = logger
         self.name = name
         self.weewx_defaults = weewx_dict.get('defaults', {})
@@ -421,8 +421,10 @@ class MQTTHomeAssistantConfig:
 
             self.state_topics[device_id] = {}
             for state_topic in device_config['topics']:
+                if state_topic not in topics:
+                    raise ValueError(f"{state_topic} not found in topics being published.")
                 self.state_topics[device_id][state_topic] = {}
-                self.state_topics[device_id][state_topic]['type'] = device_config['topics'][state_topic].get('type', 'json')
+                self.state_topics[device_id][state_topic]['type'] = topics[state_topic]['type']
 
             self.mqtt_config[device_id] = {}
             self.mqtt_config[device_id]['ignore_fields'] = to_list(device_config.get('ignore_fields', []))

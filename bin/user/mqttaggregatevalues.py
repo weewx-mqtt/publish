@@ -82,7 +82,7 @@ class TimeSpanProvider:
 
 class MQTTAggregateValues:
     """ Calculate aggregate values. """
-    def __init__(self, logger, name, plugin_dict, weewx_dict):
+    def __init__(self, logger, name, plugin_dict, _topics, weewx_dict):
         self.logger = logger
         self.name = name
         self.plugin_dict = plugin_dict

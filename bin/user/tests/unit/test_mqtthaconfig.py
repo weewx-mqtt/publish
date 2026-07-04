@@ -22,12 +22,15 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
     def test_init(self):
         mock_logger = mock.Mock()
         name = helpers.random_string()
+        topics = {
+            helpers.random_string(): {
+                'type': helpers.random_string(),
+            },
+        }
         plugin_dict = {
             'devices': {
                 helpers.random_string(): {
-                    'topics': {
-                        helpers.random_string(): {},
-                    },
+                    'topics': topics,
                 },
             },
         }
@@ -35,9 +38,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
             'defaults': {}
         }
 
-        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger, name, configobj.ConfigObj(plugin_dict), weewx_dict)
-        print(SUT)
-        print("done")
+        user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger, name, configobj.ConfigObj(plugin_dict), topics, weewx_dict)
 
     def test_init_mqtt_config(self):
         mock_logger = mock.Mock()
@@ -45,14 +46,17 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
         device_id = helpers.random_string()
         qos = random.randint(0, 2)
         ignore_fields = helpers.random_string()
+        topics = {
+            helpers.random_string(): {
+                'type': helpers.random_string(),
+            },
+        }
         plugin_dict = {
             'devices': {
                 device_id: {
                     'qos': qos,
                     'ignore_fields': ignore_fields,
-                    'topics': {
-                        helpers.random_string(): {},
-                    },
+                    'topics': topics,
                 },
             },
         }
@@ -60,7 +64,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
             'defaults': {}
         }
 
-        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger, name, configobj.ConfigObj(plugin_dict), weewx_dict)
+        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger, name, configobj.ConfigObj(plugin_dict), topics, weewx_dict)
         expected_results = {
             device_id: {
                 'ignore_fields': [ignore_fields],
@@ -76,12 +80,16 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
         name = helpers.random_string()
         device_id = helpers.random_string()
         topic = helpers.random_string()
+        topic_type = helpers.random_string()
+        topics = {
+            topic: {
+                'type': topic_type,
+            },
+        }
         plugin_dict = {
             'devices': {
                 device_id: {
-                    'topics': {
-                        topic: {},
-                    },
+                    'topics': topics,
                 },
             },
         }
@@ -89,12 +97,12 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
             'defaults': {}
         }
 
-        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger, name, configobj.ConfigObj(plugin_dict), weewx_dict)
+        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger, name, configobj.ConfigObj(plugin_dict), topics, weewx_dict)
 
         expected_result = {
             device_id: {
                 topic: {
-                    'type': 'json'
+                    'type': topic_type
                 },
             },
         }
@@ -107,12 +115,15 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
         component_key = helpers.random_string()
         component_value = helpers.random_string()
         device_id = helpers.random_string()
+        topics = {
+            helpers.random_string(): {
+                'type': helpers.random_string(),
+            },
+        }
         plugin_dict = {
             'devices': {
                 device_id: {
-                    'topics': {
-                        helpers.random_string(): {},
-                    },
+                    'topics': topics,
                 },
             },
             'component_data': {
@@ -123,7 +134,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
             'defaults': {}
         }
 
-        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger, name, configobj.ConfigObj(plugin_dict), weewx_dict)
+        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger, name, configobj.ConfigObj(plugin_dict), topics, weewx_dict)
 
         expected_result = {}
         expected_result['units'] = configobj.ConfigObj(StringIO(user.mqtthaconfig.DEFAULT_UNITS))
@@ -143,12 +154,15 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
         device_value = helpers.random_string()
         origin_key = helpers.random_string()
         origin_value = helpers.random_string()
+        topics = {
+            helpers.random_string(): {
+                'type': helpers.random_string(),
+            },
+        }
         plugin_dict = {
             'devices': {
                 device_id: {
-                    'topics': {
-                        helpers.random_string(): {},
-                    },
+                    'topics': topics,
                     'device': {
                         'name': device_name,
                         device_key: device_value,
@@ -164,7 +178,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
             'defaults': {}
         }
 
-        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger, name, configobj.ConfigObj(plugin_dict), weewx_dict)
+        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger, name, configobj.ConfigObj(plugin_dict), topics, weewx_dict)
 
         expected_result = {
             'devices': {
@@ -189,12 +203,15 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
     def test_get_callbacks(self):
         mock_logger = mock.Mock()
         name = helpers.random_string()
+        topics = {
+            helpers.random_string(): {
+                'type': helpers.random_string(),
+            }
+        }
         plugin_dict = {
             'devices': {
                 helpers.random_string(): {
-                    'topics': {
-                        helpers.random_string(): {},
-                    },
+                    'topics': topics,
                 }
             },
         }
@@ -202,7 +219,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
             'defaults': {}
         }
 
-        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger, name, configobj.ConfigObj(plugin_dict), weewx_dict)
+        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger, name, configobj.ConfigObj(plugin_dict), topics, weewx_dict)
 
         callbacks = SUT.get_callbacks()
 
@@ -231,12 +248,15 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
         mock_logger = mock.Mock()
         name = helpers.random_string()
         device_id = helpers.random_string()
+        topics = {
+            helpers.random_string(): {
+                'type': helpers.random_string(),
+            },
+        }
         plugin_dict = {
             'devices': {
                 device_id: {
-                    'topics': {
-                        helpers.random_string(): {},
-                    },
+                    'topics': topics,
                 },
             },
         }
@@ -244,7 +264,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
             'defaults': {}
         }
 
-        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger, name, configobj.ConfigObj(plugin_dict), weewx_dict)
+        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger, name, configobj.ConfigObj(plugin_dict), topics, weewx_dict)
 
         qos = 0
         retain = False
@@ -260,12 +280,15 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
     def test_received_lwt_message(self):
         mock_logger = mock.Mock()
         name = helpers.random_string()
+        topics = {
+            helpers.random_string(): {
+                'type': helpers.random_string(),
+            },
+        }
         plugin_dict = {
             'devices': {
                 helpers.random_string(): {
-                    'topics': {
-                        helpers.random_string(): {},
-                    },
+                    'topics': topics,
                 },
             },
         }
@@ -273,7 +296,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
             'defaults': {}
         }
 
-        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger, name, configobj.ConfigObj(plugin_dict), weewx_dict)
+        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger, name, configobj.ConfigObj(plugin_dict), topics, weewx_dict)
 
         msg = mqttstubs.Msg('homeassistant/status', b'offline', 0, False)
         SUT.on_mqtt_message(mock.Mock(), None, msg)
@@ -283,12 +306,15 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
     def test_unknown_message(self):
         mock_logger = mock.Mock()
         name = helpers.random_string()
+        topics = {
+            helpers.random_string(): {
+                'type': helpers.random_string(),
+            },
+        }
         plugin_dict = {
             'devices': {
                 helpers.random_string(): {
-                    'topics': {
-                        helpers.random_string(): {},
-                    },
+                    'topics': topics,
                 },
             },
         }
@@ -296,7 +322,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
             'defaults': {}
         }
 
-        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger, name, configobj.ConfigObj(plugin_dict), weewx_dict)
+        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger, name, configobj.ConfigObj(plugin_dict), topics, weewx_dict)
 
         msg = mqttstubs.Msg('homeassistant/status', b'unknown', 0, False)
         SUT.on_mqtt_message(mock.Mock(), None, msg)
@@ -307,12 +333,15 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
         mock_client = mock.Mock()
         mock_logger = mock.Mock()
         name = helpers.random_string()
+        topics = {
+            helpers.random_string(): {
+                'type': helpers.random_string(),
+            },
+        }
         plugin_dict = {
             'devices': {
                 helpers.random_string(): {
-                    'topics': {
-                        helpers.random_string(): {},
-                    },
+                    'topics': topics,
                 },
             },
         }
@@ -320,7 +349,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
             'defaults': {}
         }
 
-        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger, name, configobj.ConfigObj(plugin_dict), weewx_dict)
+        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger, name, configobj.ConfigObj(plugin_dict), topics, weewx_dict)
 
         mock_client.subscribe.return_value = (random.randint(0, 99), random.randint(0, 99))
         SUT.on_mqtt_connect(mock_client, None, None, None, None)
@@ -332,12 +361,15 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
         name = helpers.random_string()
         device_id = helpers.random_string()
         state_topic = helpers.random_string()
+        topics = {
+            state_topic: {
+                'type': helpers.random_string(),
+            }
+        }
         plugin_dict = {
             'devices': {
                 device_id: {
-                    'topics': {
-                        state_topic: {},
-                    },
+                    'topics': topics,
                 },
             },
         }
@@ -349,7 +381,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
             },
         }
 
-        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger, name, configobj.ConfigObj(plugin_dict), weewx_dict)
+        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger, name, configobj.ConfigObj(plugin_dict), topics, weewx_dict)
 
         with mock.patch.object(user.mqtthaconfig.weewx.units,
                                'getStandardUnitType',

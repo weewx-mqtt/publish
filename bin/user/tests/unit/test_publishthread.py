@@ -21,8 +21,8 @@ class TestPublishWeeWXThread(unittest.TestCase):
     def test_update_record(self):
         mock_logger = mock.Mock()
         config = {}
-        topics_loop = None
-        topics_archive = None
+        topics_loop = {}
+        topics_archive = {}
         data_queue = None
 
         SUT = user.mqttpublish.PublishWeeWXThread(mock_logger,
@@ -72,9 +72,7 @@ class TestPublishWeeWXThread(unittest.TestCase):
         config = configobj.ConfigObj(config_dict)
         config = {}
         topics_loop = {}
-        topics_loop = None
         topics_archive = {}
-        topics_archive = None
         data_queue_mock = mock.Mock()
 
         SUT = user.mqttpublish.PublishWeeWXThread(mock_logger,

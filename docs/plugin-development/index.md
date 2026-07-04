@@ -64,6 +64,7 @@ It is called with the following parameters.
 - logger: The logger.
 - name: The plugin class name:
 - plugin_dict: The plugin configuration section of weewx.conf.
+- topic_dict: The dictionary of topics to be published.
 - weewx_dict
   - stn_info: The WeeWX station information.
   - manager_dict: The WeeWX DB manager dictionary.
