@@ -75,7 +75,6 @@ DEFAULT_COMPONENT_DATA = """
         [ET]
             device_class =  precipitation
             state_class = measurement
-            # force_update = True # ToDo: research
         [extraHumid1]
             device_class =  humidity
             state_class = measurement
@@ -228,7 +227,6 @@ DEFAULT_COMPONENT_DATA = """
         [rain]
             device_class =  precipitation
             state_class = total
-            # force_update = True # ToDo: research
         [rainBatteryStatus]
             device_class =  battery
         [rainRate]
@@ -479,7 +477,7 @@ class MQTTHomeAssistantConfig:
                            f"returned mid {int(mid)} "
                            f"and result {int(result)}.")
 
-    def update_record(self, mqtt_client, topic, data, _qos, _retain):
+    def update_record(self, mqtt_client, topic, data, units, _qos, _retain):
         """ Run code when MQTT message is published. """
         for device_id in self.configuration['devices']:
             new_component = False
@@ -503,10 +501,10 @@ class MQTTHomeAssistantConfig:
                             'value_template': value_template,
                             'unique_id': f'{device_id}_{field}',
                             'name': self.weewx_defaults['Labels']['Generic'].get(field, field),
-                            # 'availability': '"{{ True if has_value(this.state) else False }}"',
                         }
-                        # ToDo: rethink handling of usUnits
-                        (unit, _) = weewx.units.getStandardUnitType(to_int(data['usUnits']), field)
+                        # ToDo: This assumes that every field in the record has the same units as the record's unit system.
+                        # Need to 'lookup' the record and see if it has been converted to a different unit
+                        (unit, _) = weewx.units.getStandardUnitType(units, field)
                         unit_of_measurement = None
                         if unit:
                             unit_of_measurement = self.defaults['units'].get(unit)

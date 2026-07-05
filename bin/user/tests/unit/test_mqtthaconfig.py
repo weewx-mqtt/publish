@@ -394,7 +394,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
 
             mock_client = mock.Mock()
 
-            SUT.update_record(mock_client, state_topic, record, None, None)
+            SUT.update_record(mock_client, state_topic, record, None, None, None)
 
             topic = f'homeassistant/device/{device_id}/config'
             payload = (

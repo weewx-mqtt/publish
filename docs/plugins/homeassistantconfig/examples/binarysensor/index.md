@@ -19,8 +19,7 @@ nav_order: 1
                 # The device-id. Can be any valid Home Assistant value.
                 [[[[[device001]]]]]
                     # A comma separated list of published fields that should NOT be configured as Home Assistant components.
-                    # Unfortunately due to the way MQTTPublish works, usUnits must be published.
-                    ignore_fields = usUnits
+                    ignore_fields = interval
                     [[[[[[device]]]]]]
                         # The name of this device
                         name = Water Detectors

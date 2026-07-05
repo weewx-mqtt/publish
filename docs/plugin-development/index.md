@@ -57,6 +57,7 @@ It is called with the following parameters.
 - topic: The topic that the message should be published on.
 - data: the message to be sent.
 - qos: The quality of service level to use.
+- units: The WeeWX 'unit system' the data is in.
 - retain: If set to true, the message will be set as the “last known good”/retained message for the topic.
 
 ## `__init__` signature

@@ -117,7 +117,7 @@ class MQTTAggregateValues:
             },
         ]
 
-    def update_record(self, _mqtt_client, topic, data, _qos, _retain):
+    def update_record(self, _mqtt_client, topic, data, _units, _qos, _retain):
         """ Run code when MQTT record is updated. """
         aggregates = {}
 

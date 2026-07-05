@@ -55,7 +55,7 @@ class Test_MQTTAggregateValues(unittest.TestCase):
                     record = {
                         'dateTime': date_time
                     }
-                    SUT.update_record(None, topic, record, None, None)
+                    SUT.update_record(None, topic, record, None, None, None)
 
                     expected_record = copy.deepcopy(record)
                     expected_record.update({
@@ -97,7 +97,7 @@ class Test_MQTTAggregateValues(unittest.TestCase):
                     record = {
                         'dateTime': date_time
                     }
-                    SUT.update_record(None, topic, record, None, None)
+                    SUT.update_record(None, topic, record, None, None, None)
 
                     expected_record = copy.deepcopy(record)
 
