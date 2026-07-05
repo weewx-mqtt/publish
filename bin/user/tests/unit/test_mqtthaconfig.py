@@ -364,6 +364,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
         topics = {
             state_topic: {
                 'type': helpers.random_string(),
+                'fields': {},
             }
         }
         plugin_dict = {

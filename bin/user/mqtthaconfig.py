@@ -369,6 +369,7 @@ class MQTTHomeAssistantConfig:
         if 'devices' not in plugin_dict or len(plugin_dict['devices'].sections) == 0:
             raise ValueError("At least one device-id must be configured.")
 
+        self.topics = topics
         self.defaults = {}
         self.defaults['component_data'] = {}
         self.defaults['units'] = configobj.ConfigObj(StringIO(DEFAULT_UNITS))
@@ -419,10 +420,10 @@ class MQTTHomeAssistantConfig:
 
             self.state_topics[device_id] = {}
             for state_topic in device_config['topics']:
-                if state_topic not in topics:
+                if state_topic not in self.topics:
                     raise ValueError(f"{state_topic} not found in topics being published.")
                 self.state_topics[device_id][state_topic] = {}
-                self.state_topics[device_id][state_topic]['type'] = topics[state_topic]['type']
+                self.state_topics[device_id][state_topic]['type'] = self.topics[state_topic]['type']
 
             self.mqtt_config[device_id] = {}
             self.mqtt_config[device_id]['ignore_fields'] = to_list(device_config.get('ignore_fields', []))
@@ -477,7 +478,7 @@ class MQTTHomeAssistantConfig:
                            f"returned mid {int(mid)} "
                            f"and result {int(result)}.")
 
-    def update_record(self, mqtt_client, topic, data, units, _qos, _retain):
+    def update_record(self, mqtt_client, topic, data, unit_system, _qos, _retain):
         """ Run code when MQTT message is published. """
         for device_id in self.configuration['devices']:
             new_component = False
@@ -502,9 +503,11 @@ class MQTTHomeAssistantConfig:
                             'unique_id': f'{device_id}_{field}',
                             'name': self.weewx_defaults['Labels']['Generic'].get(field, field),
                         }
-                        # ToDo: This assumes that every field in the record has the same units as the record's unit system.
-                        # Need to 'lookup' the record and see if it has been converted to a different unit
-                        (unit, _) = weewx.units.getStandardUnitType(units, field)
+                        # Need to 'lookup' the field and see if it has been converted to a different unit
+                        fieldinfo = self.topics[topic]['fields'].get(field, {})
+                        unit = fieldinfo.get('unit', None)
+                        if unit is None:
+                            (unit, _) = weewx.units.getStandardUnitType(unit_system, field)
                         unit_of_measurement = None
                         if unit:
                             unit_of_measurement = self.defaults['units'].get(unit)
