@@ -713,8 +713,6 @@ class MQTTPublish(StdService):
         """Start the publishing thread."""
         self.logger.loginf("Starting thread.")
         self._thread.start()
-        # ToDo: configure how long to wait for thread to start
-        self.thread_start_wait = 5.0
         self.logger.loginf("Joining thread.")
         # self._thread.join(self.thread_start_wait)
         self.logger.loginf("Joined thread.")
