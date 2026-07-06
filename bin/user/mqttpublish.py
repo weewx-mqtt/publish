@@ -534,7 +534,6 @@ class MQTTPublish(StdService):
 
         self.mqtt_config = {}
         self.mqtt_config['keepalive'] = to_int(service_dict.get('keepalive', 60))
-        # ToDo: make configurable
         self.mqtt_config['wait_for_queue_element'] = to_int(service_dict.get('wait_for_queue_element', 5))
         self.mqtt_config['max_retries'] = to_int(service_dict.get('max_retries', 5))
         self.mqtt_config['wait_for_connection'] = to_int(service_dict.get('wait_for_connection', 1))
