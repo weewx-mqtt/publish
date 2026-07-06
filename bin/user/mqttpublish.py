@@ -762,7 +762,7 @@ class MQTTPublish(StdService):
         self.logger.loginf("Shutdown initiatead")
         if self._thread:
             self.logger.loginf("Shutdown of thread initiated")
-            self._thread.running = False
+            self._thread.run = False
             self._thread.threading_event.set()
             self._thread.join(20.0)
             if self._thread.is_alive():
@@ -822,8 +822,9 @@ class PublishWeeWXThread(threading.Thread):
         self.data_queue = data_queue
         self.threading_event = threading.Event()
 
-        # ToDo: Rename? It doesn't truly signfy running - more that the thread exists
-        self.running = True
+        # Flag to control thread running.
+        # Setting to False will stop the thread.
+        self.run = True
 
     def update_record(self, topic_dict, record):
         """ Update the record. """
@@ -949,7 +950,7 @@ class PublishWeeWXThread(threading.Thread):
 
         with weewx.manager.open_manager(self.manager_dict) as db_manager:
             self.db_manager = db_manager
-            while self.running:
+            while self.run:
                 try:
                     data2 = self.data_queue.get_nowait()
                     # self.logger.logdbg(f"pulled from the data_queue: {data2}")
@@ -976,7 +977,7 @@ class PublishWeeWXThread(threading.Thread):
                     self.threading_event.wait(self.mqtt_config['keepalive'] / 4)
                     self.threading_event.clear()
                 except CannotConnectError:
-                    self.running = False
+                    self.run = False
 
         # MQTT's LWT is sent from the broker on an unexpected disconnect.
         # So we need to send an offline message on an 'expected' disconnect.
