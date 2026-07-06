@@ -996,11 +996,15 @@ if __name__ == "__main__":
         parser.add_argument("--messages", required=True, type=str, dest="message_file",
                             help="The file with the test messages")
 
+        parser.add_argument("--max-loops", type=int, default=5,
+                            help="The maximum number of 'wait loops' for the thread procssing to terminate.")
+
         parser.add_argument("config_file")
 
         options = parser.parse_args()
 
         message_file = options.message_file
+        max_loops = options.max_loops
 
         config_path = os.path.abspath(options.config_file)
         config = configobj.ConfigObj(config_path, file_error=True)
@@ -1035,11 +1039,11 @@ if __name__ == "__main__":
             new_loop_packet_event = weewx.Event(weewx.NEW_LOOP_PACKET, packet=packet)
             engine.dispatchEvent(new_loop_packet_event)
 
-        # Attempt to wait for all packets to be processed
-        # ToDo: Add a max number of time the sleep/loop runs
-        while mqtt_publish._thread.threading_event.is_set():  # pylint: disable=protected-access
+        loop_count = 0
+        while mqtt_publish._thread.threading_event.is_set() and loop_count < max_loops:  # pylint: disable=protected-access
             print("sleepting")
             time.sleep(1)
+            loop_count += 1
 
         mqtt_publish.shutDown()
 
