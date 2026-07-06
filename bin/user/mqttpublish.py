@@ -151,7 +151,7 @@ class AbstractPublisher(abc.ABC):
         time.sleep(self.mqtt_config['wait_for_connection'])
         # Allow the MQTT processing to happen, after allowing the connection processing to complete.
         self.client.loop(timeout=0.1)
-        while not self.connected and self.publisher.running:
+        while not self.connected and self.publisher.process:
             self.logger.loginf(f"Waiting {self.mqtt_config['wait_between_retries']} seconds to connect.")
             # loop seems to break before connect, perhaps due to logging
             self.client.loop(timeout=0.1)
@@ -160,7 +160,7 @@ class AbstractPublisher(abc.ABC):
             retries += 1
             if retries > self.mqtt_config['max_retries']:
                 # Shut thread down, a bit of a hack
-                self.publisher.running = False
+                self.publisher.process = False
                 return
 
             try:
@@ -181,7 +181,7 @@ class AbstractPublisher(abc.ABC):
         retries = 0
         time.sleep(self.mqtt_config['wait_for_connection'])
         self.client.loop(timeout=0.1)
-        while not self.connected and self.publisher.running:
+        while not self.connected and self.publisher.process:
             self.logger.loginf(f"Waiting {self.mqtt_config['wait_between_retries']} seconds to (re)connect.")
             self.client.loop(timeout=0.1)
             time.sleep(self.mqtt_config['wait_between_retries'])
