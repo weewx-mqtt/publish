@@ -503,17 +503,18 @@ class MQTTHomeAssistantConfig:
                             'unique_id': f'{device_id}_{field}',
                             'name': self.weewx_defaults['Labels']['Generic'].get(field, field),
                         }
-                        # Need to 'lookup' the field and see if it has been converted to a different unit
-                        fieldinfo = self.topics[topic]['fields'].get(field, {})
-                        unit = fieldinfo.get('unit', None)
-                        if unit is None:
-                            (unit, _) = weewx.units.getStandardUnitType(unit_system, field)
-                        unit_of_measurement = None
-                        if unit:
-                            unit_of_measurement = self.defaults['units'].get(unit)
-                            if unit_of_measurement:
-                                self.configuration['devices'][device_id]['components'][field]['unit_of_measurement'] = \
-                                    unit_of_measurement
+                        unit_of_measurement = self.defaults['component_data'][device_id].get('unit_of_measurement', None)
+                        if unit_of_measurement is None:
+                            # Need to 'lookup' the field and see if it has been converted to a different unit
+                            fieldinfo = self.topics[topic]['fields'].get(field, {})
+                            unit = fieldinfo.get('unit', None)
+                            if unit is None:
+                                (unit, _) = weewx.units.getStandardUnitType(unit_system, field)
+                            if unit:
+                                unit_of_measurement = self.defaults['units'].get(unit)
+                        if unit_of_measurement:
+                            self.configuration['devices'][device_id]['components'][field]['unit_of_measurement'] = \
+                                unit_of_measurement
                         device_class = self.defaults['component_data'][device_id].get(field, {}).get('device_class')
                         if device_class and unit_of_measurement is not None:
                             self.configuration['devices'][device_id]['components'][field]['device_class'] = device_class
