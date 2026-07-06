@@ -272,7 +272,6 @@ class AbstractPublisher(abc.ABC):
         """ Publish the message. """
         if not self.connected:
             self._reconnect()
-        # self.logger.logdbg(f"publishing: {topic} {data}")
 
         mqtt_message_info = self.client.publish(topic, data, qos=qos, retain=retain)
         self.logger.logdbg(f"At {int(time.time())} publishing: {int(time_stamp)} {mqtt_message_info.mid} {qos} {topic}")
@@ -529,8 +528,8 @@ class MQTTPublish(StdService):
             weeutil.config.merge_config(self.weewx_dict['defaults'], config_dict['StdReport']['Defaults'])
 
         self.topics_loop, self.topics_archive, binding = self.configure_topics(service_dict)
-        # self.logger.logdbg(f"archive topic configuration is: {self.topics_archive}")
-        # self.logger.logdbg(f"loop topic configuration is: {self.topics_loop}")
+        self.logger.logdbg(f"archive topic configuration is: {self.topics_archive}")
+        self.logger.logdbg(f"loop topic configuration is: {self.topics_loop}")
 
         self.mqtt_config = {}
         self.mqtt_config['keepalive'] = to_int(service_dict.get('keepalive', 60))
@@ -601,7 +600,6 @@ class MQTTPublish(StdService):
                 fields[field]['conversion_type'] = field_dict.get('conversion_type', conversion_type)
                 fields[field]['format_string'] = field_dict.get('format_string', format_string)
 
-        # self.logger.logdbg(f"Configured fields: {fields}.")
         return fields
 
     def configure_topics(self, service_dict):
@@ -827,7 +825,6 @@ class PublishWeeWXThread(threading.Thread):
         """ Update the record. """
         final_record = {}
         updated_record = weewx.units.to_std_system(record, topic_dict['unit_system'])
-        # self.logger.logdbg(f"record after unit conversion is: {updated_record}")
 
         for field in updated_record:
             fieldinfo = topic_dict['fields'].get(field, {})
@@ -845,9 +842,7 @@ class PublishWeeWXThread(threading.Thread):
                                               updated_record[field],
                                               updated_record['usUnits'])
             final_record[name] = value
-        # self.logger.logdbg(f"record after field updates is: {final_record}")
 
-        # self.logger.logdbg(f"record after aggregation calculation is:  {final_record}")
         return final_record
 
     @staticmethod
@@ -950,7 +945,6 @@ class PublishWeeWXThread(threading.Thread):
             while self.process:
                 try:
                     data2 = self.data_queue.get_nowait()
-                    # self.logger.logdbg(f"pulled from the data_queue: {data2}")
                     for plugin_name in self.plugin_manager.callbacks['on_weewx_data']['immediate']:
                         self.plugin_manager.callbacks['on_weewx_data']['immediate'][plugin_name](data2)
 
