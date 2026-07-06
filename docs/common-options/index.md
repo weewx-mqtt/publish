@@ -26,6 +26,11 @@ Controls the MQTT logging.
 Valid values are `true` or `false`.
 The default value is `true`.
 
+### wait_for_connection
+
+Teh number of seconds to wait for connection processing.
+The default value is `1`.
+
 ### max_retries
 
 The maximum number of times to try to reconnect.

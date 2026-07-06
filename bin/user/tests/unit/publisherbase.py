@@ -187,6 +187,7 @@ class PublisherBase(unittest.TestCase):
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
             'max_retries': random.choice([0, 2]),
+            'wait_for_connection': random.randint(0, 10),
         }
         config = configobj.ConfigObj(config_dict)
 
@@ -216,6 +217,7 @@ class PublisherBase(unittest.TestCase):
             'keepalive': random.randint(1, 30),
             'max_retries': random.choice([0, 2]),
             'wait_between_retries': random.randint(0, 10),
+            'wait_for_connection': random.randint(0, 10),
         }
         config = configobj.ConfigObj(config_dict)
 
@@ -245,6 +247,7 @@ class PublisherBase(unittest.TestCase):
             'keepalive': random.randint(1, 30),
             'max_retries': random.choice([0, 2]),
             'wait_between_retries': random.randint(0, 10),
+            'wait_for_connection': random.randint(0, 10),
         }
         config = configobj.ConfigObj(config_dict)
 
@@ -275,6 +278,7 @@ class PublisherBase(unittest.TestCase):
             'keepalive': random.randint(1, 30),
             'max_retries': random.choice([1, 2]),
             'wait_between_retries': random.randint(0, 10),
+            'wait_for_connection': random.randint(0, 10),
         }
         config = configobj.ConfigObj(config_dict)
 
@@ -449,6 +453,7 @@ class PublisherBase(unittest.TestCase):
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
             'max_retries': random.randint(0, 10),
+            'wait_for_connection': random.randint(0, 10),
         }
         config = configobj.ConfigObj(config_dict)
 
@@ -488,6 +493,7 @@ class PublisherBase(unittest.TestCase):
             'keepalive': random.randint(1, 30),
             'max_retries': random.randint(0, 10),
             'wait_between_retries': random.randint(0, 10),
+            'wait_for_connection': random.randint(0, 10),
         }
         config = configobj.ConfigObj(config_dict)
 
