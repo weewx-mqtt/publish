@@ -16,6 +16,7 @@ Enhancements
 - Improvements when running in 'standalone mode'.
 - Ability to configure how long to wait between connection attemps (#14)
 - Ability to configure the maximum attempts to start the publishing thread (#14)
+- Ability to configure how long to wait for data to be in data processing queue.
 - Added `ignore_fields` option.
 - Beta support for plugins to provide additional functions.
   Beta version of aggregate values has been moved to a plugin.

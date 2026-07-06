@@ -26,9 +26,14 @@ Controls the MQTT logging.
 Valid values are `true` or `false`.
 The default value is `true`.
 
+### wait_for_queue_element
+
+The number of seconds to wait for the queue to have data to be processed.
+The default value is `5`.
+
 ### wait_for_connection
 
-Teh number of seconds to wait for connection processing.
+The number of seconds to wait for connection processing.
 The default value is `1`.
 
 ### max_retries

@@ -534,7 +534,8 @@ class MQTTPublish(StdService):
 
         self.mqtt_config = {}
         self.mqtt_config['keepalive'] = to_int(service_dict.get('keepalive', 60))
-
+        # ToDo: make configurable
+        self.mqtt_config['wait_for_queue_element'] = to_int(service_dict.get('wait_for_queue_element', 5))
         self.mqtt_config['max_retries'] = to_int(service_dict.get('max_retries', 5))
         self.mqtt_config['wait_for_connection'] = to_int(service_dict.get('wait_for_connection', 1))
 
@@ -968,8 +969,7 @@ class PublishWeeWXThread(threading.Thread):
                         self.plugin_manager.callbacks['on_weewx_data']['delay'][plugin_name](data2)
                 except Queue.Empty:
                     self.publisher.client.loop(timeout=0.1)
-                    # ToDo: - investigate my 'sleep' implementation
-                    self.threading_event.wait(self.mqtt_config['keepalive'] / 4)
+                    self.threading_event.wait(self.mqtt_config['wait_for_queue_element'])
                     self.threading_event.clear()
                 except CannotConnectError:
                     self.process = False
