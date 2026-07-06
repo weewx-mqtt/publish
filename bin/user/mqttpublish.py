@@ -609,10 +609,8 @@ class MQTTPublish(StdService):
 
     def configure_topics(self, service_dict):
         """ Configure the topics. """
-        # ToDo: cleanup 'topic_dic1' once tests are in place
-        topic_dict1 = service_dict.get('topics', None)
 
-        if topic_dict1 is None:
+        if 'topics' not in service_dict:
             raise ValueError("[[topics]] is required.")
 
         default_qos = to_int(service_dict.get('qos', 0))
@@ -627,8 +625,8 @@ class MQTTPublish(StdService):
         topics_loop = {}
         topics_archive = {}
         event_binding = {}
-        for topic in topic_dict1.sections:
-            topic_dict = topic_dict1.get(topic, {})
+        for topic in service_dict['topics'].sections:
+            topic_dict = service_dict['topics'].get(topic, {})
             publish = to_bool(topic_dict.get('publish', True))
             qos = to_int(topic_dict.get('qos', default_qos))
             retain = to_bool(topic_dict.get('retain', default_retain))
@@ -762,7 +760,7 @@ class MQTTPublish(StdService):
         self.logger.loginf("Shutdown initiatead")
         if self._thread:
             self.logger.loginf("Shutdown of thread initiated")
-            self._thread.run = False
+            self._thread.process = False
             self._thread.threading_event.set()
             self._thread.join(20.0)
             if self._thread.is_alive():
@@ -824,7 +822,7 @@ class PublishWeeWXThread(threading.Thread):
 
         # Flag to control thread running.
         # Setting to False will stop the thread.
-        self.run = True
+        self.process = True
 
     def update_record(self, topic_dict, record):
         """ Update the record. """
@@ -950,7 +948,7 @@ class PublishWeeWXThread(threading.Thread):
 
         with weewx.manager.open_manager(self.manager_dict) as db_manager:
             self.db_manager = db_manager
-            while self.run:
+            while self.process:
                 try:
                     data2 = self.data_queue.get_nowait()
                     # self.logger.logdbg(f"pulled from the data_queue: {data2}")
@@ -977,7 +975,7 @@ class PublishWeeWXThread(threading.Thread):
                     self.threading_event.wait(self.mqtt_config['keepalive'] / 4)
                     self.threading_event.clear()
                 except CannotConnectError:
-                    self.run = False
+                    self.process = False
 
         # MQTT's LWT is sent from the broker on an unexpected disconnect.
         # So we need to send an offline message on an 'expected' disconnect.
