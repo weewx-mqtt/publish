@@ -967,8 +967,6 @@ class PublishWeeWXThread(threading.Thread):
                     for plugin_name in self.plugin_manager.callbacks['on_weewx_data']['delay']:
                         self.plugin_manager.callbacks['on_weewx_data']['delay'][plugin_name](data2)
                 except Queue.Empty:
-                    # ToDo: this causes another connection, seems to cause no harm
-                    # does cause a socket error/disconnect message on the server
                     self.publisher.client.loop(timeout=0.1)
                     # ToDo: - investigate my 'sleep' implementation
                     self.threading_event.wait(self.mqtt_config['keepalive'] / 4)
