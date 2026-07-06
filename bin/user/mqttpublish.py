@@ -557,7 +557,6 @@ class MQTTPublish(StdService):
         self.logger.logdbg(f"sanitized_mqtt_config is {sanitized_mqtt_config}")
 
         self.max_thread_restarts = to_int(service_dict.get('max_thread_restarts', 2))
-        # ToDo: change this so it gets reset to zero when the thread is fully up and running (connected) - not as easy as it sounds
         self.thread_restarts = 0
 
         if 'binding' in service_dict:
@@ -750,6 +749,10 @@ class MQTTPublish(StdService):
         else:
             self.data_queue.put({'time_stamp': data['dateTime'], 'type': data_type, 'data': data})
             self._thread.threading_event.set()
+            # A bit of a hack. The thread is running and the MQTT client is connexted.
+            # So, we will reset the restart count.
+            if self._thread.publisher and self._thread.publisher.connected:
+                self.thread_restarts = 0
 
     def shutDown(self):
         """Run when an engine shutdown is requested."""
