@@ -532,7 +532,7 @@ class MQTTPublish(StdService):
         if 'Defaults' in config_dict['StdReport']:
             weeutil.config.merge_config(self.weewx_dict['defaults'], config_dict['StdReport']['Defaults'])
 
-        self.topics_loop, self.topics_archive = self.configure_topics(service_dict)
+        self.topics_loop, self.topics_archive, binding = self.configure_topics(service_dict)
         # self.logger.logdbg(f"archive topic configuration is: {self.topics_archive}")
         # self.logger.logdbg(f"loop topic configuration is: {self.topics_loop}")
 
@@ -562,9 +562,8 @@ class MQTTPublish(StdService):
         # ToDo: change this so it gets reset to zero when the thread is fully up and running (connected) - not as easy as it sounds
         self.thread_restarts = 0
 
-        # ToDo: tie this into the topic bindings somehow...
-        # But note, this is also the default setting for topics
-        binding = weeutil.weeutil.option_as_list(service_dict.get('binding', ['archive', 'loop']))
+        if 'binding' in service_dict:
+            self.logger.loginf("'binding' is deprecated and no longer used.")
 
         self.data_queue = Queue.Queue()
 
@@ -619,7 +618,7 @@ class MQTTPublish(StdService):
         default_qos = to_int(service_dict.get('qos', 0))
         default_retain = to_bool(service_dict.get('retain', False))
         default_type = service_dict.get('type', 'json')
-        default_binding = weeutil.weeutil.option_as_list(service_dict.get('binding', ['archive', 'loop']))
+        default_binding = ['archive', 'loop']
 
         default_append_label = service_dict.get('append_unit_label', True)
         default_conversion_type = service_dict.get('conversion_type', 'string')
@@ -627,6 +626,7 @@ class MQTTPublish(StdService):
 
         topics_loop = {}
         topics_archive = {}
+        event_binding = {}
         for topic in topic_dict1.sections:
             topic_dict = topic_dict1.get(topic, {})
             publish = to_bool(topic_dict.get('publish', True))
@@ -687,6 +687,7 @@ class MQTTPublish(StdService):
                 topics_loop[topic]['conversion_type'] = conversion_type
                 topics_loop[topic]['format_string'] = format_string
                 topics_loop[topic]['fields'] = dict(fields)
+                event_binding['loop'] = True
 
             if 'archive' in binding:
                 if not publish:
@@ -704,10 +705,11 @@ class MQTTPublish(StdService):
                 topics_archive[topic]['conversion_type'] = conversion_type
                 topics_archive[topic]['format_string'] = format_string
                 topics_archive[topic]['fields'] = dict(fields)
+                event_binding['archive'] = True
 
         self.logger.logdbg(f"Loop topics: {topics_loop}")
         self.logger.logdbg(f"Archive topics: {topics_archive}")
-        return topics_loop, topics_archive
+        return topics_loop, topics_archive, event_binding.keys()
 
     def thread_start(self):
         """Start the publishing thread."""

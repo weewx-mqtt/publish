@@ -58,7 +58,7 @@ class TestConfigureTopics(unittest.TestCase):
             with mock.patch('user.mqttpublish.Logger'):
                 SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
 
-                topics_loop, topics_archive = SUT.configure_topics(service_config)
+                topics_loop, topics_archive, _ = SUT.configure_topics(service_config)
 
                 expected_topics = {
                     topic1: {
@@ -104,7 +104,7 @@ class TestConfigureTopics(unittest.TestCase):
             with mock.patch('user.mqttpublish.Logger'):
                 SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
 
-                topics_loop, topics_archive = SUT.configure_topics(service_config)
+                topics_loop, topics_archive, _ = SUT.configure_topics(service_config)
 
                 expected_topics = {
                     topic1: {
