@@ -7,7 +7,7 @@ There are three major pieces to the MQTTPublish configuration.
 
 ## The `[MQTTPublish]` section
 
-This configures the MQTT connection and any necessary WeeWX options.
+These are options that control MQTTPublish processing
 
 ### enable
 
@@ -19,6 +19,12 @@ The default value is `true`.
 
 The WeeWX data_binding to use when calculating aggregates.
 The default value is `wx_binding`.
+
+
+
+These are options that used by paho.mqtt client.
+
+
 
 ### log_mqtt
 
