@@ -659,6 +659,9 @@ class MQTTPublish(StdService):
                     self.plugins['MQTTAggregateValues']['topics'][topic] = {}
                     self.plugins['MQTTAggregateValues']['topics'][topic][aggregate] = topic_dict['aggregates'][aggregate]
 
+            # ToDo: add a check that ignore_field and publish_field are mutually exclusive
+            # ToDo: Could go as far making sure there are no fully configured fields...
+
             for ignore_field in to_list(topic_dict.get('ignore_fields', [])):
                 fields[ignore_field] = {
                     'ignore': True
