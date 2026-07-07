@@ -7,7 +7,7 @@ There are three major pieces to the MQTTPublish configuration.
 
 ## The `[MQTTPublish]` section
 
-These are options that control MQTTPublish processing
+**These are options that control MQTTPublish processing.**
 
 ### enable
 
@@ -19,18 +19,6 @@ The default value is `true`.
 
 The WeeWX data_binding to use when calculating aggregates.
 The default value is `wx_binding`.
-
-
-
-These are options that used by paho.mqtt client.
-
-
-
-### log_mqtt
-
-Controls the MQTT logging.
-Valid values are `true` or `false`.
-The default value is `true`.
 
 ### wait_for_queue_element
 
@@ -58,6 +46,14 @@ The default is `5`.
 The number of times to attempt to start the publishing thread.
 When a thread is running a successful connection is established, it is reset to `0`.
 The default is `2`.
+
+**These are options that used by paho.mqtt client.**
+
+### log_mqtt
+
+Controls the MQTT logging.
+Valid values are `true` or `false`.
+The default value is `true`.
 
 ### clientid
 
