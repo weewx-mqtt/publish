@@ -21,3 +21,7 @@ Enhancements
 - Beta support for plugins to provide additional functions.
   Beta version of aggregate values has been moved to a plugin.
   Beta version of publishing Home Assistant MQTT Device Discovery messages.
+
+  1.2.0
+  Enhancements
+  - Added `publish_fields` option.

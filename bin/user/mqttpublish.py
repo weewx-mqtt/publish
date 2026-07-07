@@ -664,6 +664,11 @@ class MQTTPublish(StdService):
                     'ignore': True
                 }
 
+            for publish_field in to_list(topic_dict.get('publish_fields', [])):
+                fields[publish_field] = {
+                    'ignore': False
+                }
+
             if 'loop' in binding:
                 if not publish:
                     continue

@@ -45,3 +45,8 @@ The default value is `US`.
 
 A comma seperated list of fields that are not published.
 This is a short hand notation for having to configure each field and setting `ignore = True` in its section.
+
+### publish_fields
+
+A comma seperated list of fields that are to be published.
+This is a short hand notation for having to configure each field and setting `ignore = False` in its section.
