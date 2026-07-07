@@ -594,6 +594,7 @@ class MQTTPublish(StdService):
                 field_dict = fields_dict.get(field, {})
                 fields[field]['name'] = field_dict.get('name', field)
                 fields[field]['unit'] = field_dict.get('unit', None)
+
                 fields[field]['ignore'] = to_bool(field_dict.get('ignore', ignore))
                 fields[field]['publish_none_value'] = to_bool(field_dict.get('publish_none_value', publish_none_value))
                 fields[field]['append_unit_label'] = to_bool(field_dict.get('append_unit_label', append_unit_label))
@@ -608,33 +609,41 @@ class MQTTPublish(StdService):
         if 'topics' not in service_dict:
             raise ValueError("[[topics]] is required.")
 
-        default_qos = to_int(service_dict.get('qos', 0))
-        default_retain = to_bool(service_dict.get('retain', False))
-        default_type = service_dict.get('type', 'json')
-        default_binding = ['archive', 'loop']
-
+        # These are field level options that have default options above the topic level
         default_append_label = service_dict.get('append_unit_label', True)
         default_conversion_type = service_dict.get('conversion_type', 'string')
         default_format_string = service_dict.get('format_string', None)
+
+        # These are topic level options that can have default options
+        default_qos = to_int(service_dict.get('qos', 0))
+        default_retain = to_bool(service_dict.get('retain', False))
+        default_type = service_dict.get('type', 'json')
 
         topics_loop = {}
         topics_archive = {}
         event_binding = {}
         for topic in service_dict['topics'].sections:
             topic_dict = service_dict['topics'].get(topic, {})
-            publish = to_bool(topic_dict.get('publish', True))
-            qos = to_int(topic_dict.get('qos', default_qos))
-            retain = to_bool(topic_dict.get('retain', default_retain))
-            data_type = topic_dict.get('type', default_type)
-            binding = weeutil.weeutil.option_as_list(topic_dict.get('binding', default_binding))
-            unit_system_name = topic_dict.get('unit_system', service_dict.get('unit_system', 'US'))
-            unit_system = weewx.units.unit_constants[unit_system_name]
-
+            # These are field level options that can have default options at the topic level
             ignore = to_bool(topic_dict.get('ignore', False))
             publish_none_value = to_bool(topic_dict.get('publish_none_value', False))
+
+            # These are field level options that have default options above the topic level
             append_unit_label = to_bool(topic_dict.get('append_unit_label', default_append_label))
             conversion_type = topic_dict.get('conversion_type', default_conversion_type)
             format_string = topic_dict.get('format_string', default_format_string)
+
+            # These are topic level options that can have default options
+            qos = to_int(topic_dict.get('qos', default_qos))
+            retain = to_bool(topic_dict.get('retain', default_retain))
+            data_type = topic_dict.get('type', default_type)
+
+            # And finally the topic options
+            publish = to_bool(topic_dict.get('publish', True))
+            binding = weeutil.weeutil.option_as_list(topic_dict.get('binding', ['archive', 'loop']))
+            unit_system_name = topic_dict.get('unit_system', service_dict.get('unit_system', 'US'))
+            unit_system = weewx.units.unit_constants[unit_system_name]
+
             fields_dict = topic_dict.get('fields', None)
             fields = {}
             if fields_dict is not None:
