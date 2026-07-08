@@ -689,9 +689,6 @@ class MQTTPublish(StdService):
                 topics_loop[topic]['retain'] = retain
                 topics_loop[topic]['type'] = data_type
                 topics_loop[topic]['unit_system'] = unit_system
-                topics_loop[topic]['guarantee_delivery'] = to_bool(topic_dict.get('guarantee_delivery', False))
-                if topics_loop[topic]['guarantee_delivery'] and topics_loop[topic]['qos'] == 0:
-                    raise ValueError("QOS must be greater than 0 to guarantee delivery.")
                 topics_loop[topic]['ignore'] = ignore
                 topics_loop[topic]['append_unit_label'] = append_unit_label
                 topics_loop[topic]['conversion_type'] = conversion_type
@@ -707,9 +704,6 @@ class MQTTPublish(StdService):
                 topics_archive[topic]['retain'] = retain
                 topics_archive[topic]['type'] = data_type
                 topics_archive[topic]['unit_system'] = unit_system
-                topics_archive[topic]['guarantee_delivery'] = to_bool(topic_dict.get('guarantee_delivery', False))
-                if topics_archive[topic]['guarantee_delivery'] and topics_archive[topic]['qos'] == 0:
-                    raise ValueError("QOS must be greater than 0 to guarantee delivery.")
                 topics_archive[topic]['ignore'] = ignore
                 topics_archive[topic]['append_unit_label'] = append_unit_label
                 topics_archive[topic]['conversion_type'] = conversion_type
