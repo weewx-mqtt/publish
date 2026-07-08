@@ -48,7 +48,7 @@ weectl extension install https://github.com/weewx-mqtt/publish/archive/master.zi
 Where `master` is the branch name.
 
 *Note:* WeeWX 'package' installs add the user that performed the install to the `weewx` group.
-This means that this user should not need to use `sudo` to install the `weewx-mqtt/publish` extension.
+This means that this user should not need to use `sudo` to install the `MQTTPublish` extension.
 **But** in order to for this update to the `weewx` group to take affect, the user has to have logged out/in at least once or use one of the other methods that can be found on the web
 
 *Note:* WeeWX pip installs that install WeeWX into a `Python virtual environment`, must 'activate' the environment performing the install. A typical invocation would look like this.
@@ -59,7 +59,7 @@ source ~/weewx-venv/bin/activate
 
 ## Configuring
 
-weewx-mqtt/publish is installed with it disabled. Setting flag, [enable = true](https://weewx-mqtt.github.io/publish/common-options/#enable) and restarting WeeWX will start publishing MQTT data to the configured broker and topics.
+MQTTPublish is installed with it disabled. Setting flag, [enable = true](https://weewx-mqtt.github.io/publish/common-options/#enable) and restarting WeeWX will start publishing MQTT data to the configured broker and topics.
 
 The installation process will create a [MQTTPublish] section in the weewx configuration file.
 It should be straightforward to modify this 'template'.
