@@ -18,6 +18,11 @@ from weecfg.extension import ExtensionInstaller
 VERSION = "1.1.1-rc01a"
 
 MQTTPUBLISH_CONFIG = """
+#
+# --------------------------------------------------------------------------------
+# Publish to MQTT on loop or archive creation.
+# For additional help on configuring see, https://weewx-mqtt.github.io/publish/common-options/
+# --------------------------------------------------------------------------------
 [MQTTPublish]
     # Whether the service is enabled or not.
     # Valid values: true or false
@@ -124,14 +129,18 @@ MQTTPUBLISH_CONFIG = """
             # Default is true.
             publish = false
 
-            # The format of the MQTT payload.
-            # Currently support: individual, json, keyword
-            # The default is 'json'
-            type = json
-
             # The binding, loop or archive.
             # Default is 'archive, loop'.
             binding = archive, loop
+
+            # The unit system for data published to this topic.
+            # The default is US.
+            unit_system = US
+
+            # --------------------------------------------------------------------------------
+            # The following options can be set at the [MQTTPublish] level and overridden here.
+            # This has the potential to greatly reduce the verbosity of the configuration.
+            # --------------------------------------------------------------------------------
 
             # The QOS level to publish to.
             # Default is 0
@@ -141,12 +150,26 @@ MQTTPUBLISH_CONFIG = """
             # The default is False.
             retain = False
 
-            # The unit system for data published to this topic.
-            # The default is US.
-            unit_system = US
+            # The format of the MQTT payload.
+            # Currently support: individual, json, keyword
+            # The default is 'json'
+            type = json
 
             [[[[fields]]]]
                 [[[[[REPLACE_ME]]]]]
+                    # The WeeWX name of the data to be published.
+                    # Default is the config section name.
+                    # name =
+
+                    # The WeeWX unit to convert the data being published to.
+                    # Default is None.
+                    # unit =
+
+                    # --------------------------------------------------------------------------------
+                    # The following options can be set at the [[topic-name]] level and overridden here.
+                    # This has the potential to greatly reduce the verbosity of the configuration.
+                    # --------------------------------------------------------------------------------
+
                     # True if the field should not be published.
                     # Valid values: True, False.
                     # Default is  False
