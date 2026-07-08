@@ -67,7 +67,7 @@ The [host](https://weewx-mqtt.github.io/publish/common-options/#host) and [topic
 
 Additional information on configuration MQTTPublish can be found in [help documentation](https://weewx-mqtt.github.io/publish/common-options).
 
-**Note**, if you a [StdRESTful][[MQTT]] section, you have probably installed [this MQTT publishing extension](https://github.com/matthewwall/weewx-mqtt).
+**Note**, if you have a [StdRESTful][[MQTT]] section, you have probably installed [this MQTT publishing extension](https://github.com/matthewwall/weewx-mqtt).
 
 ## Updating
 
