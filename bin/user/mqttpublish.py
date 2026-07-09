@@ -617,7 +617,7 @@ class MQTTPublish(StdService):
 
         # These are topic level options that can have default options
         default_qos = to_int(service_dict.get('qos', 0))
-        default_redundancy_interval = to_int(service_dict.get('redundancy_interval', 60))
+        default_redundancy_interval = to_int(service_dict.get('redundancy_interval', 0))
         default_retain = to_bool(service_dict.get('retain', False))
         default_type = service_dict.get('type', 'json')
 
@@ -637,7 +637,7 @@ class MQTTPublish(StdService):
 
             # These are topic level options that can have default options
             qos = to_int(topic_dict.get('qos', default_qos))
-            redundancy_interval = to_int(topic_dict.get('qos', default_redundancy_interval))
+            redundancy_interval = to_int(topic_dict.get('redundancy_interval', default_redundancy_interval)) * 60
             retain = to_bool(topic_dict.get('retain', default_retain))
             data_type = topic_dict.get('type', default_type)
 
@@ -842,7 +842,9 @@ class PublishWeeWXThread(threading.Thread):
     def update_record(self, topic_dict, time_stamp, record):
         """ Update the record. """
         final_record = {}
-        interval_end = startOfInterval(time_stamp, topic_dict['redundancy_interval']) + topic_dict['redundancy_interval']
+        interval_end = None
+        if topic_dict['redundancy_interval']:
+            interval_end = startOfInterval(time_stamp, topic_dict['redundancy_interval']) + topic_dict['redundancy_interval']
         updated_record = weewx.units.to_std_system(record, topic_dict['unit_system'])
 
         for field in updated_record:
@@ -860,11 +862,16 @@ class PublishWeeWXThread(threading.Thread):
                                               field,
                                               updated_record[field],
                                               updated_record['usUnits'])
-            final_record[name] = value
-            topic_dict['data_last_published'][name] = {
-                'value': value,
-                'interval_end': interval_end,
-            }
+
+            last_published = topic_dict['data_last_published'].get(name, {})
+            last_published_timestamp = last_published.get('interval_end')
+            last_published_value = last_published.get('value')
+            if interval_end is None or interval_end != last_published_timestamp or value != last_published_value:
+                final_record[name] = value
+                topic_dict['data_last_published'][name] = {
+                    'value': value,
+                    'interval_end': interval_end,
+                }
 
         return final_record
 
@@ -930,26 +937,27 @@ class PublishWeeWXThread(threading.Thread):
                                                                                                topics[topic]['qos'],
                                                                                                topics[topic]['retain'])
 
-            if topics[topic]['type'] == 'json':
-                self.publisher.publish_message(time_stamp,
-                                               topics[topic]['qos'],
-                                               topics[topic]['retain'],
-                                               topic,
-                                               json.dumps(updated_record))
-            if topics[topic]['type'] == 'keyword':
-                data_keyword = ', '.join(f"{key}={val}" for (key, val) in updated_record.items())
-                self.publisher.publish_message(time_stamp,
-                                               topics[topic]['qos'],
-                                               topics[topic]['retain'],
-                                               topic,
-                                               data_keyword)
-            if topics[topic]['type'] == 'individual':
-                for key, value in updated_record.items():
+            if updated_record:
+                if topics[topic]['type'] == 'json':
                     self.publisher.publish_message(time_stamp,
                                                    topics[topic]['qos'],
                                                    topics[topic]['retain'],
-                                                   topic + '/' + key,
-                                                   value)
+                                                   topic,
+                                                   json.dumps(updated_record))
+                if topics[topic]['type'] == 'keyword':
+                    data_keyword = ', '.join(f"{key}={val}" for (key, val) in updated_record.items())
+                    self.publisher.publish_message(time_stamp,
+                                                   topics[topic]['qos'],
+                                                   topics[topic]['retain'],
+                                                   topic,
+                                                   data_keyword)
+                if topics[topic]['type'] == 'individual':
+                    for key, value in updated_record.items():
+                        self.publisher.publish_message(time_stamp,
+                                                       topics[topic]['qos'],
+                                                       topics[topic]['retain'],
+                                                       topic + '/' + key,
+                                                       value)
 
     def run(self):
         self.logger.loginf(f"Starting publishing loop {self.name}.")
