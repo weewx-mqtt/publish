@@ -108,7 +108,6 @@ class MQTTAggregateValues:
                     self.logger.logerr(f"Invalid 'period', {aggregate['period']}")
                     raise ValueError(f"Invalid 'period', {aggregate['period']}")
 
-
     def get_callbacks(self):
         """ The callbacks. """
         if not self.enabled:
