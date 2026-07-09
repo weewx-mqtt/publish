@@ -618,6 +618,7 @@ class MQTTPublish(StdService):
         # These are topic level options that can have default options
         default_qos = to_int(service_dict.get('qos', 0))
         default_redundancy_interval = to_int(service_dict.get('redundancy_interval', 0))
+        default_redundancy_threshold = to_float(service_dict.get('redundancy_threshold', 0))
         default_retain = to_bool(service_dict.get('retain', False))
         default_type = service_dict.get('type', 'json')
 
@@ -638,6 +639,7 @@ class MQTTPublish(StdService):
             # These are topic level options that can have default options
             qos = to_int(topic_dict.get('qos', default_qos))
             redundancy_interval = to_int(topic_dict.get('redundancy_interval', default_redundancy_interval)) * 60
+            redundancy_threshold = to_float(topic_dict.get('redundancy_threshold', default_redundancy_threshold))
             retain = to_bool(topic_dict.get('retain', default_retain))
             data_type = topic_dict.get('type', default_type)
 
@@ -690,6 +692,7 @@ class MQTTPublish(StdService):
                 topics_loop[topic] = {}
                 topics_loop[topic]['qos'] = qos
                 topics_loop[topic]['redundancy_interval'] = redundancy_interval
+                topics_loop[topic]['redundancy_threshold'] = redundancy_threshold
                 topics_loop[topic]['retain'] = retain
                 topics_loop[topic]['type'] = data_type
                 topics_loop[topic]['unit_system'] = unit_system
@@ -707,6 +710,7 @@ class MQTTPublish(StdService):
                 topics_archive[topic] = {}
                 topics_archive[topic]['qos'] = qos
                 topics_archive[topic]['redundancy_interval'] = redundancy_interval
+                topics_archive[topic]['redundancy_threshold'] = redundancy_threshold
                 topics_archive[topic]['retain'] = retain
                 topics_archive[topic]['type'] = data_type
                 topics_archive[topic]['unit_system'] = unit_system
@@ -851,6 +855,7 @@ class PublishWeeWXThread(threading.Thread):
             fieldinfo = topic_dict['fields'].get(field, {})
             ignore = fieldinfo.get('ignore', topic_dict.get('ignore'))
             publish_none_value = fieldinfo.get('publish_none_value', topic_dict.get('publish_none_value'))
+            threshold = fieldinfo.get('redundancy_threshold', topic_dict.get('redundancy_threshold'))
 
             if ignore:
                 continue
@@ -866,7 +871,9 @@ class PublishWeeWXThread(threading.Thread):
             last_published = topic_dict['data_last_published'].get(name, {})
             last_published_timestamp = last_published.get('interval_end')
             last_published_value = last_published.get('value')
-            if interval_end is None or interval_end != last_published_timestamp or value != last_published_value:
+
+            if (interval_end is None or interval_end != last_published_timestamp) or \
+                (value < last_published_value - threshold or value > last_published_value + threshold):
                 final_record[name] = value
                 topic_dict['data_last_published'][name] = {
                     'value': value,
