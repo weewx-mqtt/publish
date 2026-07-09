@@ -617,8 +617,8 @@ class MQTTPublish(StdService):
 
         # These are topic level options that can have default options
         default_qos = to_int(service_dict.get('qos', 0))
-        default_redundancy_interval = to_int(service_dict.get('redundancy_interval', 0))
-        default_redundancy_threshold = to_float(service_dict.get('redundancy_threshold', 0))
+        default_minimum_interval = to_int(service_dict.get('minimum_interval', 0))
+        default_suppression_threshold = to_float(service_dict.get('suppression_threshold', 0))
         default_retain = to_bool(service_dict.get('retain', False))
         default_type = service_dict.get('type', 'json')
 
@@ -638,8 +638,8 @@ class MQTTPublish(StdService):
 
             # These are topic level options that can have default options
             qos = to_int(topic_dict.get('qos', default_qos))
-            redundancy_interval = to_int(topic_dict.get('redundancy_interval', default_redundancy_interval)) * 60
-            redundancy_threshold = to_float(topic_dict.get('redundancy_threshold', default_redundancy_threshold))
+            minimum_interval = to_int(topic_dict.get('minimum_interval', default_minimum_interval)) * 60
+            suppression_threshold = to_float(topic_dict.get('suppression_threshold', default_suppression_threshold))
             retain = to_bool(topic_dict.get('retain', default_retain))
             data_type = topic_dict.get('type', default_type)
 
@@ -691,8 +691,8 @@ class MQTTPublish(StdService):
                     continue
                 topics_loop[topic] = {}
                 topics_loop[topic]['qos'] = qos
-                topics_loop[topic]['redundancy_interval'] = redundancy_interval
-                topics_loop[topic]['redundancy_threshold'] = redundancy_threshold
+                topics_loop[topic]['minimum_interval'] = minimum_interval
+                topics_loop[topic]['suppression_threshold'] = suppression_threshold
                 topics_loop[topic]['retain'] = retain
                 topics_loop[topic]['type'] = data_type
                 topics_loop[topic]['unit_system'] = unit_system
@@ -709,8 +709,8 @@ class MQTTPublish(StdService):
                     continue
                 topics_archive[topic] = {}
                 topics_archive[topic]['qos'] = qos
-                topics_archive[topic]['redundancy_interval'] = redundancy_interval
-                topics_archive[topic]['redundancy_threshold'] = redundancy_threshold
+                topics_archive[topic]['minimum_interval'] = minimum_interval
+                topics_archive[topic]['suppression_threshold'] = suppression_threshold
                 topics_archive[topic]['retain'] = retain
                 topics_archive[topic]['type'] = data_type
                 topics_archive[topic]['unit_system'] = unit_system
@@ -847,15 +847,15 @@ class PublishWeeWXThread(threading.Thread):
         """ Update the record. """
         final_record = {}
         interval_end = None
-        if topic_dict['redundancy_interval']:
-            interval_end = startOfInterval(time_stamp, topic_dict['redundancy_interval']) + topic_dict['redundancy_interval']
+        if topic_dict['minimum_interval']:
+            interval_end = startOfInterval(time_stamp, topic_dict['minimum_interval']) + topic_dict['minimum_interval']
         updated_record = weewx.units.to_std_system(record, topic_dict['unit_system'])
 
         for field in updated_record:
             fieldinfo = topic_dict['fields'].get(field, {})
             ignore = fieldinfo.get('ignore', topic_dict.get('ignore'))
             publish_none_value = fieldinfo.get('publish_none_value', topic_dict.get('publish_none_value'))
-            threshold = fieldinfo.get('redundancy_threshold', topic_dict.get('redundancy_threshold'))
+            threshold = fieldinfo.get('suppression_threshold', topic_dict.get('suppression_threshold'))
 
             if ignore:
                 continue

@@ -40,7 +40,7 @@ class TestPublishWeeWXThread(unittest.TestCase):
             'unit_system': 1,
             'format_string': '%s',
             'fields': {},
-            'redundancy_interval': random.randint(1, 100),
+            'minimum_interval': random.randint(1, 100),
             'data_last_published': {},
         }
 

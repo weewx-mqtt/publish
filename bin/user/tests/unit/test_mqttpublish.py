@@ -63,8 +63,8 @@ class TestConfigureTopics(unittest.TestCase):
                 expected_topics = {
                     topic1: {
                         'qos': 0,
-                        'redundancy_interval': 0,
-                        'redundancy_threshold': 0.0,
+                        'minimum_interval': 0,
+                        'suppression_threshold': 0.0,
                         'retain': False,
                         'type': 'json',
                         'unit_system': 1,
@@ -111,8 +111,8 @@ class TestConfigureTopics(unittest.TestCase):
                 expected_topics = {
                     topic1: {
                         'qos': 0,
-                        'redundancy_interval': 0,
-                        'redundancy_threshold': 0.0,
+                        'minimum_interval': 0,
+                        'suppression_threshold': 0.0,
                         'retain': False,
                         'type': 'json',
                         'unit_system': 1,
