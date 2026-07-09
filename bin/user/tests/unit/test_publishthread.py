@@ -40,6 +40,8 @@ class TestPublishWeeWXThread(unittest.TestCase):
             'unit_system': 1,
             'format_string': '%s',
             'fields': {},
+            'redundancy_interval': random.randint(1, 100),
+            'data_last_published': {},
         }
 
         record = {
@@ -57,7 +59,7 @@ class TestPublishWeeWXThread(unittest.TestCase):
             with mock.patch.object(user.mqttpublish.weewx.xtypes, 'get_aggregate'):
                 with mock.patch.object(user.mqttpublish.weewx.units, 'convertStd', return_value=[field_value]):
 
-                    final_record = SUT.update_record(topic_dict, record)
+                    final_record = SUT.update_record(topic_dict, time.time(), record)
 
                     expected_record = {
                         field1: str(field_value),

@@ -22,7 +22,7 @@ import configobj
 import paho.mqtt.client as mqtt
 
 import weeutil
-from weeutil.weeutil import to_bool, to_float, to_int, to_list
+from weeutil.weeutil import to_bool, to_float, to_int, to_list, startOfInterval
 
 import weewx
 import weewx.defaults
@@ -617,6 +617,7 @@ class MQTTPublish(StdService):
 
         # These are topic level options that can have default options
         default_qos = to_int(service_dict.get('qos', 0))
+        default_redundancy_interval = to_int(service_dict.get('redundancy_interval', 60))
         default_retain = to_bool(service_dict.get('retain', False))
         default_type = service_dict.get('type', 'json')
 
@@ -636,6 +637,7 @@ class MQTTPublish(StdService):
 
             # These are topic level options that can have default options
             qos = to_int(topic_dict.get('qos', default_qos))
+            redundancy_interval = to_int(topic_dict.get('qos', default_redundancy_interval))
             retain = to_bool(topic_dict.get('retain', default_retain))
             data_type = topic_dict.get('type', default_type)
 
@@ -687,6 +689,7 @@ class MQTTPublish(StdService):
                     continue
                 topics_loop[topic] = {}
                 topics_loop[topic]['qos'] = qos
+                topics_loop[topic]['redundancy_interval'] = redundancy_interval
                 topics_loop[topic]['retain'] = retain
                 topics_loop[topic]['type'] = data_type
                 topics_loop[topic]['unit_system'] = unit_system
@@ -695,6 +698,7 @@ class MQTTPublish(StdService):
                 topics_loop[topic]['conversion_type'] = conversion_type
                 topics_loop[topic]['format_string'] = format_string
                 topics_loop[topic]['fields'] = dict(fields)
+                topics_loop[topic]['data_last_published'] = {}
                 event_binding['loop'] = True
 
             if 'archive' in binding:
@@ -702,6 +706,7 @@ class MQTTPublish(StdService):
                     continue
                 topics_archive[topic] = {}
                 topics_archive[topic]['qos'] = qos
+                topics_archive[topic]['redundancy_interval'] = redundancy_interval
                 topics_archive[topic]['retain'] = retain
                 topics_archive[topic]['type'] = data_type
                 topics_archive[topic]['unit_system'] = unit_system
@@ -710,6 +715,7 @@ class MQTTPublish(StdService):
                 topics_archive[topic]['conversion_type'] = conversion_type
                 topics_archive[topic]['format_string'] = format_string
                 topics_archive[topic]['fields'] = dict(fields)
+                topics_archive[topic]['data_last_published'] = {}
                 event_binding['archive'] = True
 
         self.logger.logdbg(f"Loop topics: {topics_loop}")
@@ -833,9 +839,10 @@ class PublishWeeWXThread(threading.Thread):
         # Setting to False will stop the thread.
         self.process = True
 
-    def update_record(self, topic_dict, record):
+    def update_record(self, topic_dict, time_stamp, record):
         """ Update the record. """
         final_record = {}
+        interval_end = startOfInterval(time_stamp, topic_dict['redundancy_interval']) + topic_dict['redundancy_interval']
         updated_record = weewx.units.to_std_system(record, topic_dict['unit_system'])
 
         for field in updated_record:
@@ -854,6 +861,10 @@ class PublishWeeWXThread(threading.Thread):
                                               updated_record[field],
                                               updated_record['usUnits'])
             final_record[name] = value
+            topic_dict['data_last_published'][name] = {
+                'value': value,
+                'interval_end': interval_end,
+            }
 
         return final_record
 
@@ -907,7 +918,7 @@ class PublishWeeWXThread(threading.Thread):
                                                                                                    data['usUnits'],
                                                                                                    topics[topic]['qos'],
                                                                                                    topics[topic]['retain'])
-            updated_record = self.update_record(topics[topic], record)
+            updated_record = self.update_record(topics[topic], time_stamp, record)
             for plugin_name in self.publisher.plugin_manager.callbacks['update_record']['delay']:
                 # Note, this is called wit the unit_system from the configuration because:
                 # 1. The record has been converted to this unit_system

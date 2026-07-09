@@ -18,7 +18,8 @@ from weeutil.weeutil import to_bool, TimeSpan
 
 class TimeSpanProvider:
     ''' Manage the timespans. '''
-    def __init__(self, week_start):
+    def __init__(self, db_manager, week_start):
+        self.db_manager = db_manager
         self.week_start = week_start
         self.period_timespans = {
             'hour': self.hour,
@@ -77,6 +78,10 @@ class TimeSpanProvider:
         ''' Get a timespan for the last 366 days. '''
         return self._last_n_days(366, timestamp)
 
+    def alltime(self, timestamp):
+        ''' Get a timespan for alltime. '''
+        return weeutil.weeutil.TimeSpan(self.db_manager.firstGoodStamp(), timestamp)
+
     def _last_n_days(self, days, timestamp):
         return TimeSpan(time.mktime((datetime.date.fromtimestamp(timestamp) - datetime.timedelta(days=days)).timetuple()), timestamp)
 
@@ -92,7 +97,9 @@ class MQTTAggregateValues:
             self.logger.loginf(f"Plugin {self.name} is not enabled.")
             return
 
-        self.timespan_provider = TimeSpanProvider(weewx_dict['stn_info'].week_start)
+        self.db_manager = weewx.manager.open_manager(weewx_dict['manager_dict'])
+
+        self.timespan_provider = TimeSpanProvider(self.db_manager, weewx_dict['stn_info'].week_start)
 
         for topic in self.plugin_dict['topics']:
             for (_, aggregate) in self.plugin_dict['topics'][topic].items():
@@ -101,7 +108,6 @@ class MQTTAggregateValues:
                     self.logger.logerr(f"Invalid 'period', {aggregate['period']}")
                     raise ValueError(f"Invalid 'period', {aggregate['period']}")
 
-        self.db_manager = weewx.manager.open_manager(weewx_dict['manager_dict'])
 
     def get_callbacks(self):
         """ The callbacks. """
