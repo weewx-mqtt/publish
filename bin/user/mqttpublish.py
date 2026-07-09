@@ -10,6 +10,7 @@ Publish to MQTT on loop or archive creation.
 import queue as Queue
 
 import abc
+import copy
 import json
 import logging
 import random
@@ -730,11 +731,11 @@ class MQTTPublish(StdService):
 
     def new_loop_packet(self, event):
         """ Handle loop packets. """
-        self._handle_record('loop', event.packet)
+        self._handle_record('loop', copy.deepcopy(event.packet))
 
     def new_archive_record(self, event):
         """ Handle archive records. """
-        self._handle_record('archive', event.record)
+        self._handle_record('archive', copy.deepcopy(event.record))
 
     def _handle_record(self, data_type, data):
         if not self._thread.is_alive():
