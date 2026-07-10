@@ -40,7 +40,7 @@ class TestPublishWeeWXThread(unittest.TestCase):
             'unit_system': 1,
             'format_string': '%s',
             'fields': {},
-            'minimum_interval': random.randint(1, 100),
+            'minimum_interval': None,
             'data_last_published': {},
         }
 
@@ -64,6 +64,7 @@ class TestPublishWeeWXThread(unittest.TestCase):
                     expected_record = {
                         field1: str(field_value),
                         'usUnits': '1',
+                        'interval_end_ts': None,
                     }
 
                     self.assertDictEqual(final_record, expected_record)

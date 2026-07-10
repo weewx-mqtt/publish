@@ -586,6 +586,7 @@ class MQTTPublish(StdService):
                          publish_none_value,
                          append_unit_label,
                          conversion_type,
+                         round_amount,
                          format_string):
         """ Configure the fields. """
         fields = {}
@@ -600,6 +601,7 @@ class MQTTPublish(StdService):
                 fields[field]['publish_none_value'] = to_bool(field_dict.get('publish_none_value', publish_none_value))
                 fields[field]['append_unit_label'] = to_bool(field_dict.get('append_unit_label', append_unit_label))
                 fields[field]['conversion_type'] = field_dict.get('conversion_type', conversion_type)
+                fields[field]['round'] = to_int(field_dict.get('round', round_amount))
                 fields[field]['format_string'] = field_dict.get('format_string', format_string)
 
         return fields
@@ -613,6 +615,7 @@ class MQTTPublish(StdService):
         # These are field level options that have default options above the topic level
         default_append_label = service_dict.get('append_unit_label', True)
         default_conversion_type = service_dict.get('conversion_type', 'string')
+        default_round = service_dict.get('round', None)
         default_format_string = service_dict.get('format_string', None)
 
         # These are topic level options that can have default options
@@ -634,6 +637,7 @@ class MQTTPublish(StdService):
             # These are field level options that have default options above the topic level
             append_unit_label = to_bool(topic_dict.get('append_unit_label', default_append_label))
             conversion_type = topic_dict.get('conversion_type', default_conversion_type)
+            round_amount = to_int(topic_dict.get('round', default_round))
             format_string = topic_dict.get('format_string', default_format_string)
 
             # These are topic level options that can have default options
@@ -657,6 +661,7 @@ class MQTTPublish(StdService):
                                                publish_none_value,
                                                append_unit_label,
                                                conversion_type,
+                                               round_amount,
                                                format_string)
 
             aggregates = topic_dict.get('aggregates', {})
@@ -699,6 +704,7 @@ class MQTTPublish(StdService):
                 topics_loop[topic]['ignore'] = ignore
                 topics_loop[topic]['append_unit_label'] = append_unit_label
                 topics_loop[topic]['conversion_type'] = conversion_type
+                topics_loop[topic]['round'] = round_amount
                 topics_loop[topic]['format_string'] = format_string
                 topics_loop[topic]['fields'] = dict(fields)
                 topics_loop[topic]['data_last_published'] = {}
@@ -717,6 +723,7 @@ class MQTTPublish(StdService):
                 topics_archive[topic]['ignore'] = ignore
                 topics_archive[topic]['append_unit_label'] = append_unit_label
                 topics_archive[topic]['conversion_type'] = conversion_type
+                topics_archive[topic]['round'] = round_amount
                 topics_archive[topic]['format_string'] = format_string
                 topics_archive[topic]['fields'] = dict(fields)
                 topics_archive[topic]['data_last_published'] = {}
@@ -843,7 +850,7 @@ class PublishWeeWXThread(threading.Thread):
         # Setting to False will stop the thread.
         self.process = True
 
-    def update_record(self, topic_dict, time_stamp, record):
+    def update_record(self, topic_dict, _time_stamp, record):
         """ Update the record. """
         final_record = {}
         interval_end = None
@@ -880,6 +887,13 @@ class PublishWeeWXThread(threading.Thread):
                     'interval_end': interval_end,
                 }
 
+        if (interval_end is None or last_published_timestamp is None or interval_end > last_published_timestamp) and \
+            (name not in final_record):
+            final_record[name] = topic_dict['data_last_published'][name]['value']
+
+        if (interval_end is None or last_published_timestamp is None or interval_end > last_published_timestamp):
+            final_record['interval_end_ts'] = interval_end
+
         return final_record
 
     @staticmethod
@@ -907,11 +921,15 @@ class PublishWeeWXThread(threading.Thread):
             converted_value = value
 
         conversion_type = fieldinfo.get('conversion_type', topic_dict.get('conversion_type'))
+        round_amount = fieldinfo.get('round', topic_dict.get('round'))
         format_string = fieldinfo.get('format_string', topic_dict.get('format_string'))
         if conversion_type == 'integer':
             converted_value = to_int(converted_value)
         elif conversion_type == 'float':
             converted_value = to_float(converted_value)
+
+        if round_amount and isinstance(converted_value, float):
+            converted_value = round(converted_value, round_amount)
 
         if format_string is not None:
             formatted_value = format_string % converted_value

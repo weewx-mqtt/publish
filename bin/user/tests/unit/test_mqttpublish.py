@@ -71,6 +71,7 @@ class TestConfigureTopics(unittest.TestCase):
                         'ignore': False,
                         'append_unit_label': True,
                         'conversion_type': 'string',
+                        'round': None,
                         'format_string': None,
                         'fields': {},
                         'data_last_published': {},
@@ -119,6 +120,7 @@ class TestConfigureTopics(unittest.TestCase):
                         'ignore': False,
                         'append_unit_label': True,
                         'conversion_type': 'string',
+                        'round': None,
                         'format_string': None,
                         'data_last_published': {},
                         'fields': {
@@ -129,6 +131,7 @@ class TestConfigureTopics(unittest.TestCase):
                                 'publish_none_value': False,
                                 'append_unit_label': True,
                                 'conversion_type': 'string',
+                                'round': None,
                                 'format_string': None
                             }
                         }
