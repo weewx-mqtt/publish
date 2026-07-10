@@ -848,7 +848,7 @@ class PublishWeeWXThread(threading.Thread):
         final_record = {}
         interval_end = None
         if topic_dict['minimum_interval']:
-            interval_end = startOfInterval(time_stamp, topic_dict['minimum_interval']) + topic_dict['minimum_interval']
+            interval_end = startOfInterval(time.time(), topic_dict['minimum_interval']) + topic_dict['minimum_interval']
         updated_record = weewx.units.to_std_system(record, topic_dict['unit_system'])
 
         for field in updated_record:
@@ -872,7 +872,7 @@ class PublishWeeWXThread(threading.Thread):
             last_published_timestamp = last_published.get('interval_end')
             last_published_value = last_published.get('value')
 
-            if (interval_end is None or interval_end != last_published_timestamp) or \
+            if (interval_end is None or last_published_timestamp is None or interval_end > last_published_timestamp) or \
                 (value < last_published_value - threshold or value > last_published_value + threshold):
                 final_record[name] = value
                 topic_dict['data_last_published'][name] = {
