@@ -15,7 +15,7 @@ import configobj
 
 from weecfg.extension import ExtensionInstaller
 
-VERSION = "1.1.1-rc01a"
+VERSION = "1.2.0"
 
 MQTTPUBLISH_CONFIG = """
 #
@@ -132,6 +132,14 @@ MQTTPUBLISH_CONFIG = """
             # The binding, loop or archive.
             # Default is 'archive, loop'.
             binding = archive, loop
+
+            # A comma seperated list of fields that are not published.
+            # This is a short hand notation for having to configure each field and setting ignore = True in its section.
+            # ignore_fields =
+
+            # A comma seperated list of fields that are to be published.
+            # This is a short hand notation for having to configure each field and setting ignore = False in its section.
+            # publish_fields =
 
             # The unit system for data published to this topic.
             # The default is US.
