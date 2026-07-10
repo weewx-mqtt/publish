@@ -8,6 +8,11 @@ nav_order: 1
 
 ``` text
 [MQTTPublish]
+    .
+    .
+    .
+    [[topics]]
+        [[weather/loop3]]
         .
         .
         .
