@@ -135,7 +135,7 @@ class MQTTAggregateValues:
                 continue
 
             time_span = self.timespan_provider.get_timespan(aggregate_dict[aggregate_observation]['period'],
-                                                            data['dateTime'])
+                                                            data.get('dateTime', time.time()))
 
             try:
                 aggregate_value_tuple = \
