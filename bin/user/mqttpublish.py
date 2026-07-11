@@ -13,13 +13,25 @@ import abc
 import copy
 import json
 import logging
+import os
 import random
 import ssl
+import sys
 import threading
 import time
 
 import configobj
 import paho.mqtt.client as mqtt
+
+# When running 'standalone' in a package install or git 'install', need to know where thw WeeWX modules are
+bin_root = os.getenv('BIN_ROOT')
+if bin_root is not None:
+    sys.path.append(bin_root)
+
+# And the MQTTSubscribe module
+user_root = os.getenv('USER_ROOT')
+if user_root is not None:
+    sys.path.append(user_root + '/..')
 
 import weeutil
 from weeutil.weeutil import to_bool, to_float, to_int, to_list, startOfInterval
