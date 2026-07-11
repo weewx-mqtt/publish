@@ -33,12 +33,14 @@ user_root = os.getenv('USER_ROOT')
 if user_root is not None:
     sys.path.append(user_root + '/..')
 
+# pylint: disable=wrong-import-position
 import weeutil
 from weeutil.weeutil import to_bool, to_float, to_int, to_list, startOfInterval
 
 import weewx
 import weewx.defaults
 from weewx.engine import StdService
+# pylint: enable=wrong-import-position
 
 VERSION = "1.1.0-rc01a"
 
