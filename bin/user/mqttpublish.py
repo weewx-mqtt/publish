@@ -1049,7 +1049,6 @@ class PublishWeeWXThread(threading.Thread):
 
 if __name__ == "__main__":
     import argparse
-    import os
 
     def main():  # pragma: no cover
         """ Run it. """
