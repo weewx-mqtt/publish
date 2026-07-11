@@ -537,7 +537,7 @@ class MQTTPublish(StdService):
         self.weewx_dict['manager_dict'] = self.manager_dict
         self.weewx_dict['defaults'] = weeutil.config.deep_copy(weewx.defaults.defaults)
         self.weewx_dict['defaults'].interpolation = False
-        if 'Defaults' in config_dict['StdReport']:
+        if 'Defaults' in config_dict.get('StdReport', {}):
             weeutil.config.merge_config(self.weewx_dict['defaults'], config_dict['StdReport']['Defaults'])
 
         self.topics_loop, self.topics_archive, binding = self.configure_topics(service_dict)
@@ -786,7 +786,7 @@ class MQTTPublish(StdService):
             else:
                 raise weewx.StopNow("MQTT publishing thread has stopped.")
         else:
-            self.data_queue.put({'time_stamp': data['dateTime'], 'type': data_type, 'data': data})
+            self.data_queue.put({'time_stamp': data.get('dateTime', time.time()), 'type': data_type, 'data': data})
             self._thread.threading_event.set()
             # A bit of a hack. The thread is running and the MQTT client is connexted.
             # So, we will reset the restart count.
