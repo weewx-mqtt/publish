@@ -14,29 +14,74 @@ import weewx
 import weewx.manager
 import weeutil
 
-from weeutil.weeutil import to_bool, TimeSpan
+from weeutil.weeutil import to_bool, to_int, startOfInterval, TimeSpan
 
 class TimeSpanProvider:
     ''' Manage the timespans. '''
     def __init__(self, db_manager, week_start):
         self.db_manager = db_manager
         self.week_start = week_start
+        # ToDo: Should calculation interval be something like 'on the archive', 'on the hour', 'on the day'
+        # ToDo: Need to think hard about what the interval values should be
         self.period_timespans = {
-            'hour': self.hour,
-            'day': self.day,
-            'yesterday': self.yesterday,
-            'week': self.week,
-            'month': self.month,
-            'year': self.year,
-            'last24hours': self.last24hours,
-            'last7days': self.last7days,
-            'last31days': self.last31days,
-            'last366days': self.last366days,
+            # ToDo: This is a special case to try to sum rain increments from loop packets
+            'archive_interval': {
+                'function': self.archive_interval,
+                'calculation_interval': 0,
+            },
+            'hour': {
+                'function': self.hour,
+                'calculation_interval': 5,  # Once an archive period # ToDo, need to look this up from the engine
+            },
+            'day': {
+                'function': self.day,
+                'calculation_interval': 5,  # Once an archive period # ToDo, need to look this up from the engine
+            },
+            'yesterday': {
+                'function': self.yesterday,
+                'calculation_interval': 60 * 24,  # Once a day
+            },
+            'week': {
+                'function': self.week,
+                'calculation_interval': 60
+            },
+            'month': {
+                'function': self.month,
+                'calculation_interval': 60,
+            },
+            'year': {
+                'function': self.year,
+                'calculation_interval': 60,
+            },
+            'last24hours': {
+                'function': self.last24hours,
+                'calculation_interval': 60,
+            },
+            'last7days': {
+                'function': self.last7days,
+                'calculation_interval': 60,
+            },
+            'last31days': {
+                'function': self.last31days,
+                'calculation_interval': 60
+            },
+            'last366days': {
+                'function': self.last366days,
+                'calculation_interval': 60,
+            },
         }
 
     def get_timespan(self, interval, timestamp):
         ''' Get a timespan for the interval and timstamp. '''
-        return self.period_timespans[interval](timestamp)
+        return self.period_timespans[interval]['function'](timestamp)
+
+    def get_calculation_interval(self, interval):
+        ''' Get a the calculation_interval for an interval. '''
+        return self.period_timespans[interval]['calculation_interval']
+
+    def archive_interval(self, _timestamp):
+        ''' Handle 'aggregating' over an archive interval. '''
+        return None
 
     def hour(self, timestamp):
         ''' Get a timespan for the hour. '''
@@ -90,7 +135,7 @@ class MQTTAggregateValues:
     def __init__(self, logger, name, plugin_dict, _topics, weewx_dict):
         self.logger = logger
         self.name = name
-        self.plugin_dict = plugin_dict
+        self.plugin_dict = weeutil.config.deep_copy(plugin_dict)
         self.enabled = to_bool(self.plugin_dict.get('enable', True))
 
         if not self.enabled:
@@ -98,15 +143,24 @@ class MQTTAggregateValues:
             return
 
         self.db_manager = weewx.manager.open_manager(weewx_dict['manager_dict'])
-
         self.timespan_provider = TimeSpanProvider(self.db_manager, weewx_dict['stn_info'].week_start)
+        self.last_calculated = {}
 
         for topic in self.plugin_dict['topics']:
-            for (_, aggregate) in self.plugin_dict['topics'][topic].items():
+            self.last_calculated[topic] = {}
+            for (aggregate_observation, aggregate) in self.plugin_dict['topics'][topic].items():
                 if to_bool(aggregate.get('enable', True)) \
                     and aggregate['period'] not in self.timespan_provider.period_timespans:
                     self.logger.logerr(f"Invalid 'period', {aggregate['period']}")
                     raise ValueError(f"Invalid 'period', {aggregate['period']}")
+                if 'calculation_interval' not in aggregate:
+                    aggregate['calculation_interval'] = self.timespan_provider.get_calculation_interval(aggregate['period'])
+
+                aggregate['calculation_interval'] = to_int(aggregate['calculation_interval'])
+                self.last_calculated[topic][aggregate_observation] = {
+                    'value': None,
+                    'interval_end': None,
+                }
 
     def get_callbacks(self):
         """ The callbacks. """
@@ -137,19 +191,31 @@ class MQTTAggregateValues:
             time_span = self.timespan_provider.get_timespan(aggregate_dict[aggregate_observation]['period'],
                                                             data.get('dateTime', time.time()))
 
-            try:
-                aggregate_value_tuple = \
-                    weewx.xtypes.get_aggregate(aggregate_dict[aggregate_observation]['observation'],
-                                               time_span, aggregate_dict[aggregate_observation]['aggregation'],
-                                               self.db_manager)
-                # ToDo: only do once?
-                #  unit_type, group = weewx.units.getStandardUnitType(db_manager.std_unit_system, obs_type, aggregate_type)
-                weewx.units.obs_group_dict[aggregate_observation] = aggregate_value_tuple[2]
+            interval_end = startOfInterval(time.time(), aggregate_dict[aggregate_observation]['calculation_interval']) + \
+                aggregate_dict[aggregate_observation]['calculation_interval']
 
-                aggregates[aggregate_observation] = aggregate_value_tuple[0]
+            if self.last_calculated[topic][aggregate_observation]['interval_end'] is None or \
+                interval_end > self.last_calculated[topic][aggregate_observation]['interval_end']:
+                try:
+                    aggregate_value_tuple = \
+                        weewx.xtypes.get_aggregate(aggregate_dict[aggregate_observation]['observation'],
+                                                   time_span, aggregate_dict[aggregate_observation]['aggregation'],
+                                                   self.db_manager)
+                    # ToDo: only do once?
+                    #  unit_type, group = weewx.units.getStandardUnitType(db_manager.std_unit_system, obs_type, aggregate_type)
+                    weewx.units.obs_group_dict[aggregate_observation] = aggregate_value_tuple[2]
 
-            except (weewx.CannotCalculate, weewx.UnknownAggregation, weewx.UnknownType) as exception:
-                self.logger.logerr(f"Aggregation failed: {exception}")
-                self.logger.logerr(traceback.format_exc())
+                    aggregates[aggregate_observation] = aggregate_value_tuple[0]
+
+                    self.last_calculated[topic][aggregate_observation] = {
+                        'value': aggregates[aggregate_observation],
+                        'interval_end': interval_end,
+                    }
+
+                except (weewx.CannotCalculate, weewx.UnknownAggregation, weewx.UnknownType) as exception:
+                    self.logger.logerr(f"Aggregation failed: {exception}")
+                    self.logger.logerr(traceback.format_exc())
+            else:
+                aggregates[aggregate_observation] = self.last_calculated[topic][aggregate_observation]['value']
 
         data.update(aggregates)
