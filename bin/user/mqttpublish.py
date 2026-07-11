@@ -686,8 +686,9 @@ class MQTTPublish(StdService):
                     self.plugins['MQTTAggregateValues']['module'] = 'user.mqttaggregatevalues'
                 if 'topics' not in self.plugins['MQTTAggregateValues']:
                     self.plugins['MQTTAggregateValues']['topics'] = {}
-                for aggregate in topic_dict['aggregates']:
+                if topic not in self.plugins['MQTTAggregateValues']['topics']:
                     self.plugins['MQTTAggregateValues']['topics'][topic] = {}
+                for aggregate in topic_dict['aggregates']:
                     self.plugins['MQTTAggregateValues']['topics'][topic][aggregate] = topic_dict['aggregates'][aggregate]
 
             # ToDo: add a check that ignore_field and publish_field are mutually exclusive
