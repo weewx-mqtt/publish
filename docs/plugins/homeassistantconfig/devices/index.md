@@ -2,7 +2,7 @@
 title: devices
 parent: MQTTHomeAssistantConfig
 ancestor: MQTTHomeAssistantConfig
-nav_order: 1
+nav_order: 2
 ---
 {% include plugins_warning.html %}
 

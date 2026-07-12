@@ -6,6 +6,9 @@ nav_order: 1
 ---
 {% include plugins_warning.html %}
 
+Out of the box, MQTTHomeAssistantConfig supports device discovery for Home Assistant `sensor` data.
+This is an example of using MQTTHomeAssistantConfig for a Home Assistant `binary sensor` data.
+
 ``` text
 [MQTTPublish]
         .
