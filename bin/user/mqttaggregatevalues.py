@@ -156,7 +156,7 @@ class MQTTAggregateValues:
                 if 'calculation_interval' not in aggregate:
                     aggregate['calculation_interval'] = self.timespan_provider.get_calculation_interval(aggregate['period'])
 
-                aggregate['calculation_interval'] = to_int(aggregate['calculation_interval'])
+                aggregate['calculation_interval'] = to_int(aggregate['calculation_interval']) * 60
                 self.last_calculated[topic][aggregate_observation] = {
                     'value': None,
                     'interval_end': None,
@@ -191,11 +191,17 @@ class MQTTAggregateValues:
             time_span = self.timespan_provider.get_timespan(aggregate_dict[aggregate_observation]['period'],
                                                             data.get('dateTime', time.time()))
 
-            interval_end = startOfInterval(time.time(), aggregate_dict[aggregate_observation]['calculation_interval']) + \
-                aggregate_dict[aggregate_observation]['calculation_interval']
+            # use datetime because I want it local time to get the correct start and end of a day
+            utc_offset =  datetime.datetime.now().astimezone().utcoffset().seconds - (60 * 60 * 24)
+            now = time.time() # - utc_offset
+
+            interval_end = startOfInterval(now, aggregate_dict[aggregate_observation]['calculation_interval']) + \
+                aggregate_dict[aggregate_observation]['calculation_interval'] - utc_offset
+            print(f"{aggregate_observation} {interval_end} {interval_end + utc_offset} {now} {utc_offset} {aggregate_dict[aggregate_observation]['calculation_interval']}")
 
             if self.last_calculated[topic][aggregate_observation]['interval_end'] is None or \
                 interval_end > self.last_calculated[topic][aggregate_observation]['interval_end']:
+                self.logger.loginf(f"AGG calc:  {topic} {aggregate_observation} intend {interval_end} last_intend {self.last_calculated[topic][aggregate_observation]['interval_end']} {time.time()} {aggregate_dict[aggregate_observation]['calculation_interval']} *************")
                 try:
                     aggregate_value_tuple = \
                         weewx.xtypes.get_aggregate(aggregate_dict[aggregate_observation]['observation'],
@@ -216,6 +222,7 @@ class MQTTAggregateValues:
                     self.logger.logerr(f"Aggregation failed: {exception}")
                     self.logger.logerr(traceback.format_exc())
             else:
+                self.logger.loginf(f"AGG cache: {topic} {aggregate_observation} intend {interval_end} last_intend {self.last_calculated[topic][aggregate_observation]['interval_end']} {time.time()} {aggregate_dict[aggregate_observation]['calculation_interval']}")
                 aggregates[aggregate_observation] = self.last_calculated[topic][aggregate_observation]['value']
 
         data.update(aggregates)
