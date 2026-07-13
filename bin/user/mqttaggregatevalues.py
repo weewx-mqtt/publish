@@ -201,7 +201,7 @@ class MQTTAggregateValues:
                    f"now {time.time()} "
                    f"calc_interval {aggregate_dict[aggregate_observation]['calculation_interval']}"))
             if self.last_calculated[topic][aggregate_observation]['interval_end'] is None or \
-                interval_end > self.last_calculated[topic][aggregate_observation]['interval_end']:
+                interval_end >= self.last_calculated[topic][aggregate_observation]['interval_end']:
                 self.logger.loginf((f"AGG calc:  {topic} {aggregate_observation} "
                                     f"int_end {interval_end} "
                                     f"last_int_end {self.last_calculated[topic][aggregate_observation]['interval_end']} "
