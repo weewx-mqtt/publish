@@ -180,6 +180,7 @@ class MQTTAggregateValues:
 
     def update_record(self, _mqtt_client, topic, data, _units, _qos, _retain):
         """ Run code when MQTT record is updated. """
+        now = time.time()
         aggregates = {}
 
         if topic not in self.plugin_dict['topics']:
@@ -190,22 +191,21 @@ class MQTTAggregateValues:
             if not to_bool(aggregate_dict[aggregate_observation].get('enable', True)):
                 continue
 
+            now_adjusted = now
+            if aggregate_dict[aggregate_observation]['calculation_interval'] == 60 * 60 * 24:
+                now_adjusted += self.utc_offset
+
             time_span = self.timespan_provider.get_timespan(aggregate_dict[aggregate_observation]['period'],
-                                                            data.get('dateTime', time.time()))
-            interval_end = startOfInterval(time.time(), aggregate_dict[aggregate_observation]['calculation_interval']) + \
+                                                            data.get('dateTime', now))
+            interval_end = startOfInterval(now_adjusted, aggregate_dict[aggregate_observation]['calculation_interval']) + \
                 aggregate_dict[aggregate_observation]['calculation_interval']
 
-            print((f"{topic} {aggregate_observation} "
-                   f"int_end {interval_end} "
-                   f"last_int_end {self.last_calculated[topic][aggregate_observation]['interval_end']} "
-                   f"now {time.time()} "
-                   f"calc_interval {aggregate_dict[aggregate_observation]['calculation_interval']}"))
             if self.last_calculated[topic][aggregate_observation]['interval_end'] is None or \
                 interval_end > self.last_calculated[topic][aggregate_observation]['interval_end']:
-                self.logger.loginf((f"AGG calc:  {topic} {aggregate_observation} "
+                self.logger.logdbg((f"AGG calc:  {topic} {aggregate_observation} "
                                     f"int_end {interval_end} "
                                     f"last_int_end {self.last_calculated[topic][aggregate_observation]['interval_end']} "
-                                    f"now {time.time()} "
+                                    f"now {now_adjusted} "
                                     f"calc_interval {aggregate_dict[aggregate_observation]['calculation_interval']} *************"))
                 try:
                     aggregate_value_tuple = \
@@ -218,9 +218,6 @@ class MQTTAggregateValues:
 
                     aggregates[aggregate_observation] = aggregate_value_tuple[0]
 
-                    if aggregate_dict[aggregate_observation]['calculation_interval'] == 60 * 60 * 24:
-                        interval_end -= self.utc_offset
-
                     self.last_calculated[topic][aggregate_observation] = {
                         'value': aggregates[aggregate_observation],
                         'interval_end': interval_end,
@@ -230,10 +227,10 @@ class MQTTAggregateValues:
                     self.logger.logerr(f"Aggregation failed: {exception}")
                     self.logger.logerr(traceback.format_exc())
             else:
-                self.logger.loginf((f"AGG cache: {topic} {aggregate_observation} "
+                self.logger.logdbg((f"AGG cache: {topic} {aggregate_observation} "
                                     f"int_end {interval_end} "
                                     f"last_int_end {self.last_calculated[topic][aggregate_observation]['interval_end']} "
-                                    f"now {time.time()} "
+                                    f"now {now_adjusted} "
                                     f"calc_interval {aggregate_dict[aggregate_observation]['calculation_interval']}"))
             aggregates[aggregate_observation] = self.last_calculated[topic][aggregate_observation]['value']
 
