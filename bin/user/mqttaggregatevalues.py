@@ -146,6 +146,7 @@ class MQTTAggregateValues:
         self.timespan_provider = TimeSpanProvider(self.db_manager, weewx_dict['stn_info'].week_start)
         self.last_calculated = {}
 
+        utc_offset = datetime.datetime.now().astimezone().utcoffset().seconds - (60 * 60 * 24)
         for topic in self.plugin_dict['topics']:
             self.last_calculated[topic] = {}
             for (aggregate_observation, aggregate) in self.plugin_dict['topics'][topic].items():
@@ -155,14 +156,18 @@ class MQTTAggregateValues:
                     raise ValueError(f"Invalid 'period', {aggregate['period']}")
                 if 'calculation_interval' not in aggregate:
                     aggregate['calculation_interval'] = self.timespan_provider.get_calculation_interval(aggregate['period'])
-
                 aggregate['calculation_interval'] = to_int(aggregate['calculation_interval']) * 60
+
+                if aggregate['calculation_interval'] == 60 * 60 * 24:
+                    adjustment = utc_offset
+                else:
+                    adjustment = 0
+
                 self.last_calculated[topic][aggregate_observation] = {
                     'value': None,
                     'interval_end': None,
+                    'adjustment': adjustment,
                 }
-
-        self.utc_offset = datetime.datetime.now().astimezone().utcoffset().seconds - (60 * 60 * 24)
 
     def get_callbacks(self):
         """ The callbacks. """
@@ -191,9 +196,7 @@ class MQTTAggregateValues:
             if not to_bool(aggregate_dict[aggregate_observation].get('enable', True)):
                 continue
 
-            now_adjusted = now
-            if aggregate_dict[aggregate_observation]['calculation_interval'] == 60 * 60 * 24:
-                now_adjusted += self.utc_offset
+            now_adjusted = now + self.last_calculated[topic][aggregate_observation].get('adjustment', 0)
 
             time_span = self.timespan_provider.get_timespan(aggregate_dict[aggregate_observation]['period'],
                                                             data.get('dateTime', now))
@@ -202,7 +205,7 @@ class MQTTAggregateValues:
 
             if self.last_calculated[topic][aggregate_observation]['interval_end'] is None or \
                 interval_end > self.last_calculated[topic][aggregate_observation]['interval_end']:
-                self.logger.logdbg((f"AGG calc:  {topic} {aggregate_observation} "
+                self.logger.loginf((f"AGG calc:  {topic} {aggregate_observation} "
                                     f"int_end {interval_end} "
                                     f"last_int_end {self.last_calculated[topic][aggregate_observation]['interval_end']} "
                                     f"now {now_adjusted} "
@@ -227,7 +230,7 @@ class MQTTAggregateValues:
                     self.logger.logerr(f"Aggregation failed: {exception}")
                     self.logger.logerr(traceback.format_exc())
             else:
-                self.logger.logdbg((f"AGG cache: {topic} {aggregate_observation} "
+                self.logger.loginf((f"AGG cache: {topic} {aggregate_observation} "
                                     f"int_end {interval_end} "
                                     f"last_int_end {self.last_calculated[topic][aggregate_observation]['interval_end']} "
                                     f"now {now_adjusted} "
