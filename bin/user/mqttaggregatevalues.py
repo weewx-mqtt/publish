@@ -196,7 +196,7 @@ class MQTTAggregateValues:
             if not to_bool(aggregate_dict[aggregate_observation].get('enable', True)):
                 continue
 
-            now_adjusted = now + self.last_calculated[topic][aggregate_observation].get('adjustment', 0)
+            now_adjusted = now + self.last_calculated[topic][aggregate_observation]['adjustment']
 
             time_span = self.timespan_provider.get_timespan(aggregate_dict[aggregate_observation]['period'],
                                                             data.get('dateTime', now))
@@ -208,7 +208,7 @@ class MQTTAggregateValues:
                 self.logger.loginf((f"AGG calc:  {topic} {aggregate_observation} "
                                     f"int_end {interval_end} "
                                     f"last_int_end {self.last_calculated[topic][aggregate_observation]['interval_end']} "
-                                    f"now {now_adjusted} "
+                                    f"adjusted_now {now_adjusted} "
                                     f"calc_interval {aggregate_dict[aggregate_observation]['calculation_interval']} *************"))
                 try:
                     aggregate_value_tuple = \
@@ -221,10 +221,8 @@ class MQTTAggregateValues:
 
                     aggregates[aggregate_observation] = aggregate_value_tuple[0]
 
-                    self.last_calculated[topic][aggregate_observation] = {
-                        'value': aggregates[aggregate_observation],
-                        'interval_end': interval_end,
-                    }
+                    self.last_calculated[topic][aggregate_observation]['value'] = aggregates[aggregate_observation]
+                    self.last_calculated[topic][aggregate_observation]['interval_end'] = interval_end
 
                 except (weewx.CannotCalculate, weewx.UnknownAggregation, weewx.UnknownType) as exception:
                     self.logger.logerr(f"Aggregation failed: {exception}")
@@ -233,7 +231,7 @@ class MQTTAggregateValues:
                 self.logger.loginf((f"AGG cache: {topic} {aggregate_observation} "
                                     f"int_end {interval_end} "
                                     f"last_int_end {self.last_calculated[topic][aggregate_observation]['interval_end']} "
-                                    f"now {now_adjusted} "
+                                    f"adjusted_now {now_adjusted} "
                                     f"calc_interval {aggregate_dict[aggregate_observation]['calculation_interval']}"))
             aggregates[aggregate_observation] = self.last_calculated[topic][aggregate_observation]['value']
 
