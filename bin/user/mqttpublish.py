@@ -10,22 +10,37 @@ Publish to MQTT on loop or archive creation.
 import queue as Queue
 
 import abc
+import copy
 import json
 import logging
+import os
 import random
 import ssl
+import sys
 import threading
 import time
 
 import configobj
 import paho.mqtt.client as mqtt
 
+# When running 'standalone' in a package install or git 'install', need to know where thw WeeWX modules are
+bin_root = os.getenv('BIN_ROOT')
+if bin_root is not None:
+    sys.path.append(bin_root)
+
+# And the MQTTSubscribe module
+user_root = os.getenv('USER_ROOT')
+if user_root is not None:
+    sys.path.append(user_root + '/..')
+
+# pylint: disable=wrong-import-position
 import weeutil
-from weeutil.weeutil import to_bool, to_float, to_int, to_list
+from weeutil.weeutil import to_bool, to_float, to_int, to_list, startOfInterval
 
 import weewx
 import weewx.defaults
 from weewx.engine import StdService
+# pylint: enable=wrong-import-position
 
 VERSION = "1.2.0"
 
@@ -524,7 +539,7 @@ class MQTTPublish(StdService):
         self.weewx_dict['manager_dict'] = self.manager_dict
         self.weewx_dict['defaults'] = weeutil.config.deep_copy(weewx.defaults.defaults)
         self.weewx_dict['defaults'].interpolation = False
-        if 'Defaults' in config_dict['StdReport']:
+        if 'Defaults' in config_dict.get('StdReport', {}):
             weeutil.config.merge_config(self.weewx_dict['defaults'], config_dict['StdReport']['Defaults'])
 
         self.topics_loop, self.topics_archive, binding = self.configure_topics(service_dict)
@@ -585,6 +600,7 @@ class MQTTPublish(StdService):
                          publish_none_value,
                          append_unit_label,
                          conversion_type,
+                         round_amount,
                          format_string):
         """ Configure the fields. """
         fields = {}
@@ -599,6 +615,7 @@ class MQTTPublish(StdService):
                 fields[field]['publish_none_value'] = to_bool(field_dict.get('publish_none_value', publish_none_value))
                 fields[field]['append_unit_label'] = to_bool(field_dict.get('append_unit_label', append_unit_label))
                 fields[field]['conversion_type'] = field_dict.get('conversion_type', conversion_type)
+                fields[field]['round'] = to_int(field_dict.get('round', round_amount))
                 fields[field]['format_string'] = field_dict.get('format_string', format_string)
 
         return fields
@@ -612,10 +629,13 @@ class MQTTPublish(StdService):
         # These are field level options that have default options above the topic level
         default_append_label = service_dict.get('append_unit_label', True)
         default_conversion_type = service_dict.get('conversion_type', 'string')
+        default_round = service_dict.get('round', None)
         default_format_string = service_dict.get('format_string', None)
 
         # These are topic level options that can have default options
         default_qos = to_int(service_dict.get('qos', 0))
+        default_minimum_interval = to_int(service_dict.get('minimum_interval', 0))
+        default_suppression_threshold = to_float(service_dict.get('suppression_threshold', 0))
         default_retain = to_bool(service_dict.get('retain', False))
         default_type = service_dict.get('type', 'json')
 
@@ -631,10 +651,13 @@ class MQTTPublish(StdService):
             # These are field level options that have default options above the topic level
             append_unit_label = to_bool(topic_dict.get('append_unit_label', default_append_label))
             conversion_type = topic_dict.get('conversion_type', default_conversion_type)
+            round_amount = to_int(topic_dict.get('round', default_round))
             format_string = topic_dict.get('format_string', default_format_string)
 
             # These are topic level options that can have default options
             qos = to_int(topic_dict.get('qos', default_qos))
+            minimum_interval = to_int(topic_dict.get('minimum_interval', default_minimum_interval)) * 60
+            suppression_threshold = to_float(topic_dict.get('suppression_threshold', default_suppression_threshold))
             retain = to_bool(topic_dict.get('retain', default_retain))
             data_type = topic_dict.get('type', default_type)
 
@@ -652,6 +675,7 @@ class MQTTPublish(StdService):
                                                publish_none_value,
                                                append_unit_label,
                                                conversion_type,
+                                               round_amount,
                                                format_string)
 
             aggregates = topic_dict.get('aggregates', {})
@@ -664,8 +688,9 @@ class MQTTPublish(StdService):
                     self.plugins['MQTTAggregateValues']['module'] = 'user.mqttaggregatevalues'
                 if 'topics' not in self.plugins['MQTTAggregateValues']:
                     self.plugins['MQTTAggregateValues']['topics'] = {}
-                for aggregate in topic_dict['aggregates']:
+                if topic not in self.plugins['MQTTAggregateValues']['topics']:
                     self.plugins['MQTTAggregateValues']['topics'][topic] = {}
+                for aggregate in topic_dict['aggregates']:
                     self.plugins['MQTTAggregateValues']['topics'][topic][aggregate] = topic_dict['aggregates'][aggregate]
 
             # ToDo: add a check that ignore_field and publish_field are mutually exclusive
@@ -686,14 +711,18 @@ class MQTTPublish(StdService):
                     continue
                 topics_loop[topic] = {}
                 topics_loop[topic]['qos'] = qos
+                topics_loop[topic]['minimum_interval'] = minimum_interval
+                topics_loop[topic]['suppression_threshold'] = suppression_threshold
                 topics_loop[topic]['retain'] = retain
                 topics_loop[topic]['type'] = data_type
                 topics_loop[topic]['unit_system'] = unit_system
                 topics_loop[topic]['ignore'] = ignore
                 topics_loop[topic]['append_unit_label'] = append_unit_label
                 topics_loop[topic]['conversion_type'] = conversion_type
+                topics_loop[topic]['round'] = round_amount
                 topics_loop[topic]['format_string'] = format_string
                 topics_loop[topic]['fields'] = dict(fields)
+                topics_loop[topic]['data_last_published'] = {}
                 event_binding['loop'] = True
 
             if 'archive' in binding:
@@ -701,14 +730,18 @@ class MQTTPublish(StdService):
                     continue
                 topics_archive[topic] = {}
                 topics_archive[topic]['qos'] = qos
+                topics_archive[topic]['minimum_interval'] = minimum_interval
+                topics_archive[topic]['suppression_threshold'] = suppression_threshold
                 topics_archive[topic]['retain'] = retain
                 topics_archive[topic]['type'] = data_type
                 topics_archive[topic]['unit_system'] = unit_system
                 topics_archive[topic]['ignore'] = ignore
                 topics_archive[topic]['append_unit_label'] = append_unit_label
                 topics_archive[topic]['conversion_type'] = conversion_type
+                topics_archive[topic]['round'] = round_amount
                 topics_archive[topic]['format_string'] = format_string
                 topics_archive[topic]['fields'] = dict(fields)
+                topics_archive[topic]['data_last_published'] = {}
                 event_binding['archive'] = True
 
         self.logger.logdbg(f"Loop topics: {topics_loop}")
@@ -730,11 +763,11 @@ class MQTTPublish(StdService):
 
     def new_loop_packet(self, event):
         """ Handle loop packets. """
-        self._handle_record('loop', event.packet)
+        self._handle_record('loop', copy.deepcopy(event.packet))
 
     def new_archive_record(self, event):
         """ Handle archive records. """
-        self._handle_record('archive', event.record)
+        self._handle_record('archive', copy.deepcopy(event.record))
 
     def _handle_record(self, data_type, data):
         if not self._thread.is_alive():
@@ -756,7 +789,7 @@ class MQTTPublish(StdService):
             else:
                 raise weewx.StopNow("MQTT publishing thread has stopped.")
         else:
-            self.data_queue.put({'time_stamp': data['dateTime'], 'type': data_type, 'data': data})
+            self.data_queue.put({'time_stamp': data.get('dateTime', time.time()), 'type': data_type, 'data': data})
             self._thread.threading_event.set()
             # A bit of a hack. The thread is running and the MQTT client is connexted.
             # So, we will reset the restart count.
@@ -832,15 +865,19 @@ class PublishWeeWXThread(threading.Thread):
         # Setting to False will stop the thread.
         self.process = True
 
-    def update_record(self, topic_dict, record):
+    def update_record(self, topic_dict, _time_stamp, record):
         """ Update the record. """
         final_record = {}
+        interval_end = None
+        if topic_dict['minimum_interval']:
+            interval_end = startOfInterval(time.time(), topic_dict['minimum_interval']) + topic_dict['minimum_interval']
         updated_record = weewx.units.to_std_system(record, topic_dict['unit_system'])
 
         for field in updated_record:
             fieldinfo = topic_dict['fields'].get(field, {})
             ignore = fieldinfo.get('ignore', topic_dict.get('ignore'))
             publish_none_value = fieldinfo.get('publish_none_value', topic_dict.get('publish_none_value'))
+            threshold = fieldinfo.get('suppression_threshold', topic_dict.get('suppression_threshold'))
 
             if ignore:
                 continue
@@ -852,7 +889,25 @@ class PublishWeeWXThread(threading.Thread):
                                               field,
                                               updated_record[field],
                                               updated_record['usUnits'])
-            final_record[name] = value
+
+            last_published = topic_dict['data_last_published'].get(name, {})
+            last_published_timestamp = last_published.get('interval_end')
+            last_published_value = last_published.get('value')
+
+            if (interval_end is None or last_published_timestamp is None or interval_end > last_published_timestamp) or \
+                (value < last_published_value - threshold or value > last_published_value + threshold):
+                final_record[name] = value
+                topic_dict['data_last_published'][name] = {
+                    'value': value,
+                    'interval_end': interval_end,
+                }
+
+        if (interval_end is None or last_published_timestamp is None or interval_end > last_published_timestamp) and \
+            (name not in final_record):
+            final_record[name] = topic_dict['data_last_published'][name]['value']
+
+        if (interval_end is None or last_published_timestamp is None or interval_end > last_published_timestamp):
+            final_record['interval_end_ts'] = interval_end
 
         return final_record
 
@@ -881,11 +936,15 @@ class PublishWeeWXThread(threading.Thread):
             converted_value = value
 
         conversion_type = fieldinfo.get('conversion_type', topic_dict.get('conversion_type'))
+        round_amount = fieldinfo.get('round', topic_dict.get('round'))
         format_string = fieldinfo.get('format_string', topic_dict.get('format_string'))
         if conversion_type == 'integer':
             converted_value = to_int(converted_value)
         elif conversion_type == 'float':
             converted_value = to_float(converted_value)
+
+        if round_amount and isinstance(converted_value, float):
+            converted_value = round(converted_value, round_amount)
 
         if format_string is not None:
             formatted_value = format_string % converted_value
@@ -906,7 +965,7 @@ class PublishWeeWXThread(threading.Thread):
                                                                                                    data['usUnits'],
                                                                                                    topics[topic]['qos'],
                                                                                                    topics[topic]['retain'])
-            updated_record = self.update_record(topics[topic], record)
+            updated_record = self.update_record(topics[topic], time_stamp, record)
             for plugin_name in self.publisher.plugin_manager.callbacks['update_record']['delay']:
                 # Note, this is called wit the unit_system from the configuration because:
                 # 1. The record has been converted to this unit_system
@@ -918,26 +977,27 @@ class PublishWeeWXThread(threading.Thread):
                                                                                                topics[topic]['qos'],
                                                                                                topics[topic]['retain'])
 
-            if topics[topic]['type'] == 'json':
-                self.publisher.publish_message(time_stamp,
-                                               topics[topic]['qos'],
-                                               topics[topic]['retain'],
-                                               topic,
-                                               json.dumps(updated_record))
-            if topics[topic]['type'] == 'keyword':
-                data_keyword = ', '.join(f"{key}={val}" for (key, val) in updated_record.items())
-                self.publisher.publish_message(time_stamp,
-                                               topics[topic]['qos'],
-                                               topics[topic]['retain'],
-                                               topic,
-                                               data_keyword)
-            if topics[topic]['type'] == 'individual':
-                for key, value in updated_record.items():
+            if updated_record:
+                if topics[topic]['type'] == 'json':
                     self.publisher.publish_message(time_stamp,
                                                    topics[topic]['qos'],
                                                    topics[topic]['retain'],
-                                                   topic + '/' + key,
-                                                   value)
+                                                   topic,
+                                                   json.dumps(updated_record))
+                if topics[topic]['type'] == 'keyword':
+                    data_keyword = ', '.join(f"{key}={val}" for (key, val) in updated_record.items())
+                    self.publisher.publish_message(time_stamp,
+                                                   topics[topic]['qos'],
+                                                   topics[topic]['retain'],
+                                                   topic,
+                                                   data_keyword)
+                if topics[topic]['type'] == 'individual':
+                    for key, value in updated_record.items():
+                        self.publisher.publish_message(time_stamp,
+                                                       topics[topic]['qos'],
+                                                       topics[topic]['retain'],
+                                                       topic + '/' + key,
+                                                       value)
 
     def run(self):
         self.logger.loginf(f"Starting publishing loop {self.name}.")
@@ -991,7 +1051,6 @@ class PublishWeeWXThread(threading.Thread):
 
 if __name__ == "__main__":
     import argparse
-    import os
 
     def main():  # pragma: no cover
         """ Run it. """

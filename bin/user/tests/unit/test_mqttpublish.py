@@ -63,14 +63,18 @@ class TestConfigureTopics(unittest.TestCase):
                 expected_topics = {
                     topic1: {
                         'qos': 0,
+                        'minimum_interval': 0,
+                        'suppression_threshold': 0.0,
                         'retain': False,
                         'type': 'json',
                         'unit_system': 1,
                         'ignore': False,
                         'append_unit_label': True,
                         'conversion_type': 'string',
+                        'round': None,
                         'format_string': None,
-                        'fields': {}
+                        'fields': {},
+                        'data_last_published': {},
                     }
                 }
 
@@ -108,13 +112,17 @@ class TestConfigureTopics(unittest.TestCase):
                 expected_topics = {
                     topic1: {
                         'qos': 0,
+                        'minimum_interval': 0,
+                        'suppression_threshold': 0.0,
                         'retain': False,
                         'type': 'json',
                         'unit_system': 1,
                         'ignore': False,
                         'append_unit_label': True,
                         'conversion_type': 'string',
+                        'round': None,
                         'format_string': None,
+                        'data_last_published': {},
                         'fields': {
                             field1: {
                                 'name': field1,
@@ -123,6 +131,7 @@ class TestConfigureTopics(unittest.TestCase):
                                 'publish_none_value': False,
                                 'append_unit_label': True,
                                 'conversion_type': 'string',
+                                'round': None,
                                 'format_string': None
                             }
                         }

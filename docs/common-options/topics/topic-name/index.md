@@ -9,6 +9,11 @@ nav_order: 1
 
 ### A default value can be set at the top level for these options
 
+#### [minimum_threshold]({{ site.baseurl }}{% link common-options/index.md %}/#minimum_threshold)
+
+Controls if only updated is published.
+This is minimum amount of time between publication of the 'full set' of data.
+
 #### [qos]({{ site.baseurl }}{% link common-options/index.md %}/#qos)
 
 The QOS level to publish to.
@@ -17,6 +22,8 @@ The QOS level to publish to.
 
 The MQTT retain flag.
 Valid values are `true` or `false`.
+
+#### [suppression_threshold]({{ site.baseurl }}{% link common-options/index.md %}/#suppression_threshold)
 
 #### [type]({{ site.baseurl }}{% link common-options/index.md %}/#type)
 
@@ -37,6 +44,10 @@ The data type conversion to apply to the data being published.
 #### [format_string]({{ site.baseurl }}{% link common-options/index.md %}/#format_string)
 
 The formatting to apply to the data being published.
+
+#### [round]({{ site.baseurl }}{% link common-options/index.md %}/#round)
+
+The rounding to apply to the data being published.
 
 ### These options set a default value for the fields of this topic
 

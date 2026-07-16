@@ -25,7 +25,7 @@ class TestGetTimeSpan(unittest.TestCase):
             time.tzset()
 
             week_start = random.randint(0, 6)
-            timespan_provider = user.mqttaggregatevalues.TimeSpanProvider(week_start)
+            timespan_provider = user.mqttaggregatevalues.TimeSpanProvider(None, week_start)
 
             now = 1771939800
             timespan_provider.hour(now)
@@ -38,7 +38,7 @@ class TestGetTimeSpan(unittest.TestCase):
             time.tzset()
 
             week_start = random.randint(0, 6)
-            timespan_provider = user.mqttaggregatevalues.TimeSpanProvider(week_start)
+            timespan_provider = user.mqttaggregatevalues.TimeSpanProvider(None, week_start)
 
             now = 1771939800
             timespan_provider.day(now)
@@ -51,7 +51,7 @@ class TestGetTimeSpan(unittest.TestCase):
             time.tzset()
 
             week_start = random.randint(0, 6)
-            timespan_provider = user.mqttaggregatevalues.TimeSpanProvider(week_start)
+            timespan_provider = user.mqttaggregatevalues.TimeSpanProvider(None, week_start)
 
             now = 1771939800
             timespan_provider.yesterday(now)
@@ -64,7 +64,7 @@ class TestGetTimeSpan(unittest.TestCase):
             time.tzset()
 
             week_start = random.randint(0, 6)
-            timespan_provider = user.mqttaggregatevalues.TimeSpanProvider(week_start)
+            timespan_provider = user.mqttaggregatevalues.TimeSpanProvider(None, week_start)
 
             now = 1771939800
             timespan_provider.week(now)
@@ -77,7 +77,7 @@ class TestGetTimeSpan(unittest.TestCase):
             time.tzset()
 
             week_start = random.randint(0, 6)
-            timespan_provider = user.mqttaggregatevalues.TimeSpanProvider(week_start)
+            timespan_provider = user.mqttaggregatevalues.TimeSpanProvider(None, week_start)
 
             now = 1771939800
             timespan_provider.month(now)
@@ -90,7 +90,7 @@ class TestGetTimeSpan(unittest.TestCase):
             time.tzset()
 
             week_start = random.randint(0, 6)
-            timespan_provider = user.mqttaggregatevalues.TimeSpanProvider(week_start)
+            timespan_provider = user.mqttaggregatevalues.TimeSpanProvider(None, week_start)
 
             now = 1771939800
             timespan_provider.year(now)
@@ -103,7 +103,7 @@ class TestGetTimeSpan(unittest.TestCase):
             time.tzset()
 
             week_start = random.randint(0, 6)
-            timespan_provider = user.mqttaggregatevalues.TimeSpanProvider(week_start)
+            timespan_provider = user.mqttaggregatevalues.TimeSpanProvider(None, week_start)
 
             now = 1771939800
             timespan_provider.last24hours(now)
@@ -117,7 +117,7 @@ class TestGetTimeSpan(unittest.TestCase):
             time.tzset()
 
             week_start = random.randint(0, 6)
-            timespan_provider = user.mqttaggregatevalues.TimeSpanProvider(week_start)
+            timespan_provider = user.mqttaggregatevalues.TimeSpanProvider(None, week_start)
 
             days = 7
             now = 1771939800
