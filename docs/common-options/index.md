@@ -1,6 +1,6 @@
 ---
 title: Configuring MQTTPublish
-nav_order: 2
+nav_order: 1
 ---
 
 There are three major pieces to the MQTTPublish configuration.
