@@ -1,5 +1,5 @@
 ---
-title: MQTTAggregateValues
+title: MQTTAggregateValues (Deprecated)
 parent: Plugins
 nav_order: 2
 ---
