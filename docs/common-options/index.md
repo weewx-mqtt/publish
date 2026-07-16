@@ -49,6 +49,12 @@ The default value is `5`.
 
 ### These are options that are used as default for [topic settings](topics/topic-name/index.md)
 
+#### minimum_interval
+
+When set, only data that has changed since the publication is published.
+This is the minimum amount of time between publication of the 'full set' of data.
+For example, if it is set to 5, then approximately every 5 minutes the 'full set' of data will be published.
+
 #### qos
 
 The QOS level to publish to.
@@ -59,6 +65,12 @@ The default value is `0`.
 The MQTT retain flag.
 Valid values are `true` or `false`.
 The default value is `false`.
+
+##### suppression_threshold
+
+Allows one to 'tune' if a value should be considered equal to the previous published value.
+For example, if suppression_threshold = .5, then as long as the new value is greater than the previous value minus .5 and less than the previous value plus .5, it will not be published.
+So, if it is set to 0, any change will cause the value to be published.
 
 #### type
 
@@ -82,6 +94,12 @@ The default value is `string`.
 #### format_string
 
 The formatting to apply to the data being published.
+The default value is `None`.
+
+#### round
+
+The rounding to apply to the data being published.
+It will only be applied to data type of `float`.
 The default value is `None`.
 
 ### These are options that used by paho.mqtt client

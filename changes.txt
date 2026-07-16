@@ -25,3 +25,4 @@ Enhancements
   1.2.0
   Enhancements
   - Added `publish_fields` option.
+  - Added more 'examples' to the configuration section that is 'installed' into weewx.conf.

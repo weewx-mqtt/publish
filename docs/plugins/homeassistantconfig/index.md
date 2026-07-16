@@ -16,11 +16,20 @@ The following is the smallest required configuration information
 
 ``` text
 [MQTTPublish]
+
+...
+
+    [[topics]]
+        [[[REPLACE_ME_TOPIC]]]
+
+        ...
+
     [[plugins]]
         [[[MQTTHomeAssistantConfig]]]
             [[[[devices]]]]
                 [[[[[REPLACE_ME_DEVICE]]]]]
                     [[[[[[topics]]]]]]
+                        # Note this topic, REPLACE_ME_TOPIC, must under the [MQTTPublish][[topics]] section
                         [[[[[[[REPLACE_ME_TOPIC]]]]]]]
 
 ```

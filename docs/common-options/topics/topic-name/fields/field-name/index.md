@@ -32,6 +32,10 @@ Valid values are `true` or `false`.
 Controls if data with a value of `None` should be published.
 Valud values are `true` or `false`.
 
+#### [round]({{ site.baseurl }}{% link common-options/topics/topic-name/index.md %}/#round)
+
+The rounding to apply to the data being published.
+
 ### Options for controlling field processing
 
 #### name
