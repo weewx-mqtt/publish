@@ -205,11 +205,6 @@ class MQTTAggregateValues:
 
             if self.last_calculated[topic][aggregate_observation]['interval_end'] is None or \
                 interval_end > self.last_calculated[topic][aggregate_observation]['interval_end']:
-                self.logger.loginf((f"AGG calc:  {topic} {aggregate_observation} "
-                                    f"int_end {interval_end} "
-                                    f"last_int_end {self.last_calculated[topic][aggregate_observation]['interval_end']} "
-                                    f"adjusted_now {now_adjusted} "
-                                    f"calc_interval {aggregate_dict[aggregate_observation]['calculation_interval']} *************"))
                 try:
                     aggregate_value_tuple = \
                         weewx.xtypes.get_aggregate(aggregate_dict[aggregate_observation]['observation'],
@@ -227,12 +222,7 @@ class MQTTAggregateValues:
                 except (weewx.CannotCalculate, weewx.UnknownAggregation, weewx.UnknownType) as exception:
                     self.logger.logerr(f"Aggregation failed: {exception}")
                     self.logger.logerr(traceback.format_exc())
-            else:
-                self.logger.loginf((f"AGG cache: {topic} {aggregate_observation} "
-                                    f"int_end {interval_end} "
-                                    f"last_int_end {self.last_calculated[topic][aggregate_observation]['interval_end']} "
-                                    f"adjusted_now {now_adjusted} "
-                                    f"calc_interval {aggregate_dict[aggregate_observation]['calculation_interval']}"))
+
             aggregates[aggregate_observation] = self.last_calculated[topic][aggregate_observation]['value']
 
         data.update(aggregates)
