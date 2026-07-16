@@ -1,6 +1,6 @@
 ---
 title: Plugins
-nav_order: 4
+nav_order: 1
 ---
 {% include plugins_warning.html %}
 
