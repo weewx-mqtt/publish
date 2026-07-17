@@ -42,7 +42,7 @@ import weewx.defaults
 from weewx.engine import StdService
 # pylint: enable=wrong-import-position
 
-VERSION = "1.2.0"
+VERSION = "1.2.0-rc01a"
 
 class CannotConnectError(ConnectionError):
     """" Cannot connect to broker. """
