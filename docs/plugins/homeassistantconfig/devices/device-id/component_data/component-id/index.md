@@ -6,7 +6,7 @@ nav_order: 1
 ---
 {% include plugins_warning.html %}
 
-## The `[[[[[[[component-id]]]]]]]` section
+## The `[[[[[component-id]]]]]` section
 
 The following options are set by MQTTHomeAssistantConfig.
 These can easily be overriden in `weewx.conf`.

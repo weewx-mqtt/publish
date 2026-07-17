@@ -10,7 +10,7 @@ The device option of the MQTT discovery payload.
 Settings in this subsection map directly to the Home Assistant options.
 For additional information see, https://www.home-assistant.io/integrations/sensor.mqtt/#device.
 
-## The `[[[[[[device]]]]]]` section
+## The `[[[[device]]]]` section
 
 ### name
 
