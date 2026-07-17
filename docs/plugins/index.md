@@ -4,13 +4,16 @@ nav_order: 2
 ---
 {% include plugins_warning.html %}
 
-## The `[plugins]` section
+## The `plugins` option
 
-MQTTPublish supports adding functionality via 'plugins'.
-Each subsection under the `[plugins]` section is the name of a plugin.
-MQTTPublish ships with one plugin, `MQTTHomeAssistantConfig`.
-This plugin adds support for Home Assistant MQTT auto-discovery.
+A list of plugins for MQTTPublish.
+Each entry must have a corresponding section, `[plugin-name]` in the weewx configuration file.
+The `plugin` option in the `[plugin-name]` section must have a value.
 
-### `[[[plugin-name]]]` section
+## `[plugin-name]` section
 
-#### module
+The configuration data for plugin, `plugin-name`.
+
+### plugin
+
+The plugin to be used.
