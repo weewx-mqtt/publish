@@ -521,6 +521,8 @@ class MQTTPublish(StdService):
             self.plugins = plugins
         else:
             self.plugins = configobj.ConfigObj({})
+            for plugin in plugins:
+                self.plugins[plugin] = config_dict[plugin]
 
         exclude_keys = ['password']
         sanitized_service_dict = {k: service_dict[k] for k in set(list(service_dict.keys())) - set(exclude_keys)}
@@ -1011,7 +1013,10 @@ class PublishWeeWXThread(threading.Thread):
 
         self.plugin_manager = PluginManager(self.logger)
         for plugin in self.plugins:
-            plugin_name = self.plugins[plugin]['module'] + '.' + plugin
+            if 'module' in self.plugins[plugin]:
+                plugin_name = self.plugins[plugin]['module'] + '.' + plugin
+            else:
+                plugin_name = self.plugins[plugin]['plugin']
             self.plugin_manager.create_plugin(plugin_name, self.plugins[plugin], self.all_topics, self.weewx_dict)
 
         # need to instantiate inside thread
