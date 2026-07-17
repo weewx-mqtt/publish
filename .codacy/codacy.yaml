@@ -1,0 +1,9 @@
+runtimes:
+    - python@3.11.11
+tools:
+    - lizard@1.23.0
+    - opengrep@1.23.0
+    - pylint@4.0.5
+    - trivy@0.70.0
+  ignored_tools:
+    - "opengrep"
