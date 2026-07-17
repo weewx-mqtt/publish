@@ -514,7 +514,13 @@ class MQTTPublish(StdService):
         self.logger.loginf(f"MQTTPublish version: {VERSION}.")
 
         service_dict = config_dict.get('MQTTPublish', {})
-        self.plugins = service_dict.get('plugins', {})
+        plugins = service_dict.get('plugins', [])
+        if not isinstance(plugins, list):
+            self.logger.logerr(("'[[plugins]]' is deprecated. "
+                                "To configure see, https://weewx-mqtt.github.io/publish/plugins/"))
+            self.plugins = plugins
+        else:
+            self.plugins = {}
 
         exclude_keys = ['password']
         sanitized_service_dict = {k: service_dict[k] for k in set(list(service_dict.keys())) - set(exclude_keys)}
