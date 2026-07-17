@@ -1,6 +1,7 @@
 ---
 title: Plugins (Deprecated)
 nav_order: 2
+parent: Deprecated Options
 ---
 {% include plugins_warning.html %}
 
