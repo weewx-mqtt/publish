@@ -18,12 +18,13 @@ from weecfg.extension import ExtensionInstaller
 VERSION = "1.2.0-rc01a"
 
 MQTTPUBLISH_CONFIG = """
-#
-# --------------------------------------------------------------------------------
-# Publish to MQTT on loop or archive creation.
-# For additional help on configuring see, https://weewx-mqtt.github.io/publish/common-options/
-# --------------------------------------------------------------------------------
+
 [MQTTPublish]
+    # --------------------------------------------------------------------------------
+    # Publish to MQTT on loop or archive creation.
+    # For additional help on configuring see, https://weewx-mqtt.github.io/publish/common-options/
+    # --------------------------------------------------------------------------------
+
     # Whether the service is enabled or not.
     # Valid values: true or false
     # Default is true.
@@ -213,6 +214,11 @@ MQTTPUBLISH_CONFIG = """
                     format_string = %s
 
 [MQTTConfigHA]
+    # --------------------------------------------------------------------------------
+    # ToDo:
+    # For additional help on configuring see, https://weewx-mqtt.github.io/publish/plugins/homeassistantconfig/
+    # --------------------------------------------------------------------------------
+
     # The plugin to be used.
     plugin = user.mqtthaconfig.MQTTHomeAssistantConfig
 
@@ -293,6 +299,11 @@ MQTTPUBLISH_CONFIG = """
                     type = json
 
 [MQTTAggregateValues]
+    # --------------------------------------------------------------------------------
+    # ToDo:
+    # For additional help on configuring see, https://weewx-mqtt.github.io/publish/plugins/aggregatevalues/
+    # --------------------------------------------------------------------------------
+
     # The plugin to be used.
     plugin = user.mqttaggregatevalues.MQTTAggregateValues
 
