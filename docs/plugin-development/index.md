@@ -119,7 +119,7 @@ The plugin must have a section `[plugin-name]` configuration section.
 The section name must be an item in the `plugins` setting of `[MQTTPublish].
 
 In the `[plugin-name`] section, there must be a `plugin` option.
-This is the name of the plugin.
+This is the plugin to be used.
 
 ### Plugin specific configuration data
 
