@@ -58,8 +58,7 @@ But, the `retain = True` setting can easily be overridden.
 
 ### plugin
 
-ToDo:
-The module must be set to: `user.mqtthaconfig.MQTTHomeAssistantConfig`.
+The plugin to be used.
 
 ### enable
 

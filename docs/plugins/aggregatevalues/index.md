@@ -7,9 +7,9 @@ nav_order: 2
 
 ## The `[MQTTAggregateValues]` section
 
-### module
+### plugin
 
-The module must be set to: `user.mqttaggregatevalues`.
+The plugin to be used.
 
 ### enable
 
