@@ -520,7 +520,7 @@ class MQTTPublish(StdService):
                                 "To configure see, https://weewx-mqtt.github.io/publish/plugins/"))
             self.plugins = plugins
         else:
-            self.plugins = {}
+            self.plugins = configobj.ConfigObj({})
 
         exclude_keys = ['password']
         sanitized_service_dict = {k: service_dict[k] for k in set(list(service_dict.keys())) - set(exclude_keys)}
