@@ -1,7 +1,7 @@
 ---
 title: MQTTHomeAssistantConfig (Deprecated)
-parent: Plugins
-nav_order: 3
+parent: Plugins (Deprecated)
+nav_order: 1
 ---
 {% include plugins_warning.html %}
 
