@@ -115,26 +115,25 @@ Here is an example `get_callbacks` method.
 
 ## Required configuration information
 
-The plugin must a section below the `[[plugins]]` configuration section.
-The section name is the name of the plugin.
+The plugin must have a section `[plugin-name]` configuration section.
+The section name must be an item in the `plugins` setting of `[MQTTPublish].
 
-### module
-
-This is set to the module name of the plugin.
+In the `[plugin-name`] section, there must be a `plugin` option.
+This is the name of the plugin.
 
 ### Plugin specific configuration data
 
-Following the `module` setting, any settings for the plugin can be specified;
+Following the `plugin` setting, any settings for the plugin can be specified;
 followed by any plugin specific sub-sections.
 
 ``` text
 [MQTTPublish]
+    plugins = MQTTConfigHA
  .
  .
  .
-    [[plugins]]
-        [[[MQTTHomeAssistantConfig]]]
-            module = user.mqtthaconfig
+[MQTTConfigHA]]
+module = user.mqtthaconfig.MQTTHomeAssistantConfig
 
             << any configuration data that is specific for the plugin>>
 ```
