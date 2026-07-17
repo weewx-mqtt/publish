@@ -5,7 +5,7 @@ nav_order: 2
 ---
 {% include plugins_warning.html %}
 
-## The `[[[MQTTAggregateValues]]]` section
+## The `[MQTTAggregateValues]` section
 
 ### module
 
