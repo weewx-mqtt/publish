@@ -68,6 +68,11 @@ MQTTPUBLISH_CONFIG = """
     # Default is None.
     password = None
 
+    # A list of plugins for MQTTPublish.
+    # Each entry must have a corresponding section, [plugin-name] in the weewx configuration file.
+    # The plugin option in the [plugin-name] section must have a value.
+    # plugins = MQTTAggregateValues, MQTTConfigHA
+
     # The TLS options that are passed to tls_set method of the MQTT client.
     # For additional information see, https://eclipse.org/paho/clients/python/docs/strptime-format-codes
     [[tls]]
@@ -123,11 +128,6 @@ MQTTPUBLISH_CONFIG = """
         # If set to true, the will message will be set as the "last known good"/retained message for the topic.
         # The default is true.
         retain = true
-
-        # A list of plugins for MQTTPublish. 
-        # Each entry must have a corresponding section, [plugin-name] in the weewx configuration file. 
-        # The plugin option in the [plugin-name] section must have a value.
-        # plugins = MQTTAggregateValues, MQTTConfigHA
 
     [[topics]]
         [[[REPLACE_ME]]]
