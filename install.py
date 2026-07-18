@@ -215,7 +215,7 @@ MQTTPUBLISH_CONFIG = """
 
 [MQTTConfigHA]
     # --------------------------------------------------------------------------------
-    # ToDo:
+    # A MQTTPublish 'plugin' for Home Assistant MQTT Device Discovery.
     # For additional help on configuring see, https://weewx-mqtt.github.io/publish/plugins/homeassistantconfig/
     # --------------------------------------------------------------------------------
 
@@ -300,7 +300,7 @@ MQTTPUBLISH_CONFIG = """
 
 [MQTTAggregateValues]
     # --------------------------------------------------------------------------------
-    # ToDo:
+    # A MQTTPublish 'plugin' to augment the WeeWX data being published with WeeWX aggregate values.
     # For additional help on configuring see, https://weewx-mqtt.github.io/publish/plugins/aggregatevalues/
     # --------------------------------------------------------------------------------
 
