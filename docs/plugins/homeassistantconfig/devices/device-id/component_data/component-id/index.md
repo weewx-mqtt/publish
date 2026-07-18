@@ -1,14 +1,14 @@
 ---
 title: component-id
 parent: component_data
-ancestor: MQTTHomeAssistantConfig
+ancestor: MQTTConfigHA
 nav_order: 1
 ---
 {% include plugins_warning.html %}
 
 ## The `[[[[[component-id]]]]]` section
 
-The following options are set by MQTTHomeAssistantConfig.
+The following options are set by MQTTConfigHA.
 These can easily be overriden in `weewx.conf`.
 Additional options can be set in `weewx.conf`.
 

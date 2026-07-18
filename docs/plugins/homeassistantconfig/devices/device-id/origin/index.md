@@ -1,7 +1,7 @@
 ---
 title: origin
 parent: device-id
-ancestor: MQTTHomeAssistantConfig
+ancestor: MQTTConfigHA
 nav_order: 2
 ---
 {% include plugins_warning.html %}
@@ -13,5 +13,5 @@ Settings in this subsection map directly to the Home Assistant options.
 
 ### name
 
-The only `origin` option required by MQTTHomeAssistantConfig.
+The only `origin` option required by MQTTConfigHA.
 The default value is `WeeWX`.

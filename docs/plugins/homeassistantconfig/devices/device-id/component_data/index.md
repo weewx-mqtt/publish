@@ -1,7 +1,7 @@
 ---
 title: component_data
 parent: device-id
-ancestor: MQTTHomeAssistantConfig
+ancestor: MQTTConfigHA
 nav_order: 4
 ---
 {% include plugins_warning.html %}

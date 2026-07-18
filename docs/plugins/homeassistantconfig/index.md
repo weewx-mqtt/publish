@@ -1,11 +1,11 @@
 ---
-title: MQTTHomeAssistantConfig
+title: MQTTConfigHA
 parent: Plugins
 nav_order: 1
 ---
 {% include plugins_warning.html %}
 
-MQTTHomeAssistantConfig uses the [device discovery](https://www.home-assistant.io/integrations/mqtt/#device-discovery-payload) functionality of the MQTT integration.
+MQTTConfigHA uses the [device discovery](https://www.home-assistant.io/integrations/mqtt/#device-discovery-payload) functionality of the MQTT integration.
 This is a single json message with all of the components for a given device.
 Multiple Home Assistant devices can be configured.
 Each device has its own MQTT discovery message.
@@ -49,7 +49,7 @@ THe following Home Assistant data is automatically derived from the data in WeeW
 All of these 'default' settings are easily overridden.
 In addition, it is easy to configure additional WeeWX fieldname to Home Assistant component mapping.
 
-MQTTHomeAssistantConfig subscribes to HA's "birth message".
+MQTTConfigHA subscribes to HA's "birth message".
 If a "birth message" is received, the discovery message is resent.
 This eliminates the need to publish the discovery message with `retain = True`.
 But, the `retain = True` setting can easily be overridden.

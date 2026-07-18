@@ -1,7 +1,7 @@
 ---
 title: device
 parent: device-id
-ancestor: MQTTHomeAssistantConfig
+ancestor: MQTTConfigHA
 nav_order: 1
 ---
 {% include plugins_warning.html %}
@@ -14,10 +14,10 @@ For additional information see, https://www.home-assistant.io/integrations/senso
 
 ### name
 
-The one of two `device` option required by MQTTHomeAssistantConfig.
+The one of two `device` option required by MQTTConfigHA.
 The default value is the `device_id` section value.
 
 ### identifiers
 
-The second `device` option required by MQTTHomeAssistantConfig.
+The second `device` option required by MQTTConfigHA.
 Default is the `device_id` of the device.

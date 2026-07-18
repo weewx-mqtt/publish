@@ -1,7 +1,7 @@
 ---
 title: topic-name
 parent: topics
-ancestor: MQTTHomeAssistantConfig
+ancestor: MQTTConfigHA
 nav_order: 1
 ---
 {% include plugins_warning.html %}

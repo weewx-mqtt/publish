@@ -1,7 +1,7 @@
 ---
 title: Examples
-parent: MQTTHomeAssistantConfig
-ancestor: MQTTHomeAssistantConfig
+parent: MQTTConfigHA
+ancestor: MQTTConfigHA
 nav_order: 3
 ---
 {% include plugins_warning.html %}
