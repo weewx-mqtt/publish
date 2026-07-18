@@ -96,11 +96,11 @@ class PluginManager():
             },
         }
 
-    def create_plugin(self, plugin_name, plugin_dict, topics, weewx_dict):
+    def create_plugin(self, plugin_name, plugin_dict, mqtt_dict, topics, weewx_dict):
         """ Create the plugin. """
         self.plugins[plugin_name] = {}
         plugin_class = weeutil.weeutil.get_object(plugin_name)
-        plugin = plugin_class(self.logger, plugin_name, plugin_dict, topics, weewx_dict)
+        plugin = plugin_class(self.logger, plugin_name, plugin_dict, mqtt_dict, topics, weewx_dict)
         self.plugins[plugin_name]['plugin'] = plugin
         callbacks = plugin.get_callbacks()
         for callback in callbacks:
@@ -1020,7 +1020,7 @@ class PublishWeeWXThread(threading.Thread):
                 plugin_name = self.plugins[plugin]['module'] + '.' + plugin
             else:
                 plugin_name = self.plugins[plugin]['plugin']
-            self.plugin_manager.create_plugin(plugin_name, self.plugins[plugin], self.all_topics, self.weewx_dict)
+            self.plugin_manager.create_plugin(plugin_name, self.plugins[plugin], self.mqtt_config, self.all_topics, self.weewx_dict)
 
         # need to instantiate inside thread
         self.publisher = AbstractPublisher.get_publisher(self.logger, self.plugin_manager, self, self.mqtt_config)

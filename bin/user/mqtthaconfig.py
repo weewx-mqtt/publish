@@ -356,7 +356,7 @@ DEFAULT_UNITS = """
 
 class MQTTHomeAssistantConfig:
     """ Publish Home Assistant MQTT devicde configuration data. """
-    def __init__(self, logger, name, plugin_dict, topics, weewx_dict):
+    def __init__(self, logger, name, plugin_dict, _mqtt_dict, topics, weewx_dict):
         self.logger = logger
         self.name = name
         self.weewx_defaults = weewx_dict.get('defaults', {})
