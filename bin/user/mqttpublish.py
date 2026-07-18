@@ -42,7 +42,7 @@ import weewx.defaults
 from weewx.engine import StdService
 # pylint: enable=wrong-import-position
 
-VERSION = "1.2.0-rc01a"
+VERSION = "1.3.0-rc01a"
 
 class CannotConnectError(ConnectionError):
     """" Cannot connect to broker. """
@@ -137,10 +137,12 @@ class AbstractPublisher(abc.ABC):
 
         self.lwt_dict = mqtt_config.get('lwt')
         if self.lwt_dict is not None and to_bool(self.lwt_dict.get('enable', True)):
-            self.client.will_set(topic=self.lwt_dict.get('topic', 'status'),
-                                 payload=self.lwt_dict.get('offline_payload', 'offline'),
-                                 qos=to_int(self.lwt_dict.get('qos', 0)),
-                                 retain=to_bool(self.lwt_dict.get('retain', True)))
+            topic = self.lwt_dict.get('topic', 'status')
+            payload = self.lwt_dict.get('offline_payload', 'offline')
+            qos = to_int(self.lwt_dict.get('qos', 0))
+            retain = to_bool(self.lwt_dict.get('retain', True))
+            self.logger.loginf(f"Enabling LWT: topic: {topic}, payload: {payload}, qos: {qos}, retain: {retain}")
+            self.client.will_set(topic=topic, payload=payload, qos=qos, retain=retain)
 
         self._connect()
 
@@ -157,6 +159,7 @@ class AbstractPublisher(abc.ABC):
         return PublisherV1(logger, plugin_manager, publisher, mqtt_config)
 
     def _connect(self):
+        self.logger.loginf(f"Connecting to host: {self.mqtt_config['host']} port: {self.mqtt_config['port']}.")
         try:
             self.connect(self.mqtt_config['host'], self.mqtt_config['port'], self.mqtt_config['keepalive'])
         except Exception as exception:  # want to catch all pylint: disable=broad-exception-caught
@@ -187,7 +190,7 @@ class AbstractPublisher(abc.ABC):
                 self.logger.logerr(f"MQTT connect retry {retries} failed with {type(exception)} and reason {exception}.")
 
     def _reconnect(self):
-        self.logger.logdbg("Attempting to reconnect.")
+        self.logger.loginf(f"Attempting to reconnect to host: {self.mqtt_config['host']} port: {self.mqtt_config['port']}.")
         try:
             self.client.reconnect()
         except Exception as exception:  # want to catch all pylint: disable=broad-exception-caught
