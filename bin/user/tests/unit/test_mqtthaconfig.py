@@ -38,7 +38,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
             'defaults': {}
         }
 
-        user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger, name, configobj.ConfigObj(plugin_dict), None, topics, weewx_dict)
+        user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger, name, configobj.ConfigObj(plugin_dict), {}, topics, weewx_dict)
 
     def test_init_mqtt_config(self):
         mock_logger = mock.Mock()
@@ -67,7 +67,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
         SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger,
                                                         name,
                                                         configobj.ConfigObj(plugin_dict),
-                                                        None,
+                                                        {},
                                                         topics,
                                                         weewx_dict)
         expected_results = {
@@ -105,7 +105,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
         SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger,
                                                         name,
                                                         configobj.ConfigObj(plugin_dict),
-                                                        None,
+                                                        {},
                                                         topics,
                                                         weewx_dict)
 
@@ -147,7 +147,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
         SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger,
                                                         name,
                                                         configobj.ConfigObj(plugin_dict),
-                                                        None,
+                                                        {},
                                                         topics,
                                                         weewx_dict)
 
@@ -196,7 +196,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
         SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger,
                                                         name,
                                                         configobj.ConfigObj(plugin_dict),
-                                                        None,
+                                                        {},
                                                         topics,
                                                         weewx_dict)
 
@@ -242,7 +242,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
         SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger,
                                                         name,
                                                         configobj.ConfigObj(plugin_dict),
-                                                        None,
+                                                        {},
                                                         topics,
                                                         weewx_dict)
 
@@ -292,7 +292,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
         SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger,
                                                         name,
                                                         configobj.ConfigObj(plugin_dict),
-                                                        None,
+                                                        {},
                                                         topics,
                                                         weewx_dict)
 
@@ -329,7 +329,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
         SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger,
                                                         name,
                                                         configobj.ConfigObj(plugin_dict),
-                                                        None,
+                                                        {},
                                                         topics,
                                                         weewx_dict)
 
@@ -360,7 +360,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
         SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger,
                                                         name,
                                                         configobj.ConfigObj(plugin_dict),
-                                                        None,
+                                                        {},
                                                         topics,
                                                         weewx_dict)
 
@@ -392,7 +392,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
         SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger,
                                                         name,
                                                         configobj.ConfigObj(plugin_dict),
-                                                        None,
+                                                        {},
                                                         topics,
                                                         weewx_dict)
 
@@ -430,7 +430,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
         SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger,
                                                         name,
                                                         configobj.ConfigObj(plugin_dict),
-                                                        None,
+                                                        {},
                                                         topics,
                                                         weewx_dict)
 
