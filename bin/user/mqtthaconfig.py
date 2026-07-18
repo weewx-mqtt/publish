@@ -356,7 +356,7 @@ DEFAULT_UNITS = """
 
 class MQTTHomeAssistantConfig:
     """ Publish Home Assistant MQTT devicde configuration data. """
-    def __init__(self, logger, name, plugin_dict, topics, weewx_dict):
+    def __init__(self, logger, name, plugin_dict, mqtt_dict, topics, weewx_dict):
         self.logger = logger
         self.name = name
         self.weewx_defaults = weewx_dict.get('defaults', {})
@@ -369,6 +369,7 @@ class MQTTHomeAssistantConfig:
         if 'devices' not in plugin_dict or len(plugin_dict['devices'].sections) == 0:
             raise ValueError("At least one device-id must be configured.")
 
+        self.lwt_dict = mqtt_dict.get('lwt', {})
         self.topics = topics
         self.defaults = {}
         self.defaults['component_data'] = {}
@@ -397,7 +398,8 @@ class MQTTHomeAssistantConfig:
             device_config = plugin_dict['devices'][device_id]
 
             device_data = {}
-            device_data['availability_topic'] = 'status'
+            if self.lwt_dict is not None and to_bool(self.lwt_dict.get('enable', True)):
+                device_data['availability_topic'] = self.lwt_dict.get('topic', 'status')
             device_data['components'] = {}
 
             device_data['origin'] = weeutil.config.deep_copy(device_config.get('origin', configobj.ConfigObj({})))

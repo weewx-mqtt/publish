@@ -5,7 +5,7 @@ ancestor: MQTTAggregateValues
 nav_order: 1
 ---
 
-## [[[[[observation-name]]]]] sections
+## [[[[observation-name]]]] sections
 
 The name of the aggregated observation in the MQTT payload.
 This can be any name.

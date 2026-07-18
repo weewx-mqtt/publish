@@ -1,7 +1,7 @@
 ---
 title: MQTTAggregateValues (Deprecated)
-parent: Plugins
-nav_order: 4
+parent: Plugins (Deprecated)
+nav_order: 2
 ---
 {% include plugins_warning.html %}
 

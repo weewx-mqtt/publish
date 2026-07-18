@@ -42,7 +42,7 @@ import weewx.defaults
 from weewx.engine import StdService
 # pylint: enable=wrong-import-position
 
-VERSION = "1.2.0"
+VERSION = "1.3.0-rc01a"
 
 class CannotConnectError(ConnectionError):
     """" Cannot connect to broker. """
@@ -96,11 +96,11 @@ class PluginManager():
             },
         }
 
-    def create_plugin(self, plugin_name, plugin_dict, topics, weewx_dict):
+    def create_plugin(self, plugin_name, plugin_dict, mqtt_dict, topics, weewx_dict):
         """ Create the plugin. """
         self.plugins[plugin_name] = {}
         plugin_class = weeutil.weeutil.get_object(plugin_name)
-        plugin = plugin_class(self.logger, plugin_name, plugin_dict, topics, weewx_dict)
+        plugin = plugin_class(self.logger, plugin_name, plugin_dict, mqtt_dict, topics, weewx_dict)
         self.plugins[plugin_name]['plugin'] = plugin
         callbacks = plugin.get_callbacks()
         for callback in callbacks:
@@ -137,10 +137,12 @@ class AbstractPublisher(abc.ABC):
 
         self.lwt_dict = mqtt_config.get('lwt')
         if self.lwt_dict is not None and to_bool(self.lwt_dict.get('enable', True)):
-            self.client.will_set(topic=self.lwt_dict.get('topic', 'status'),
-                                 payload=self.lwt_dict.get('offline_payload', 'offline'),
-                                 qos=to_int(self.lwt_dict.get('qos', 0)),
-                                 retain=to_bool(self.lwt_dict.get('retain', True)))
+            topic = self.lwt_dict.get('topic', 'status')
+            payload = self.lwt_dict.get('offline_payload', 'offline')
+            qos = to_int(self.lwt_dict.get('qos', 0))
+            retain = to_bool(self.lwt_dict.get('retain', True))
+            self.logger.loginf(f"Enabling LWT: topic: {topic}, payload: {payload}, qos: {qos}, retain: {retain}")
+            self.client.will_set(topic=topic, payload=payload, qos=qos, retain=retain)
 
         self._connect()
 
@@ -157,6 +159,7 @@ class AbstractPublisher(abc.ABC):
         return PublisherV1(logger, plugin_manager, publisher, mqtt_config)
 
     def _connect(self):
+        self.logger.loginf(f"Connecting to host: {self.mqtt_config['host']} port: {self.mqtt_config['port']}.")
         try:
             self.connect(self.mqtt_config['host'], self.mqtt_config['port'], self.mqtt_config['keepalive'])
         except Exception as exception:  # want to catch all pylint: disable=broad-exception-caught
@@ -187,7 +190,7 @@ class AbstractPublisher(abc.ABC):
                 self.logger.logerr(f"MQTT connect retry {retries} failed with {type(exception)} and reason {exception}.")
 
     def _reconnect(self):
-        self.logger.logdbg("Attempting to reconnect.")
+        self.logger.loginf(f"Attempting to reconnect to host: {self.mqtt_config['host']} port: {self.mqtt_config['port']}.")
         try:
             self.client.reconnect()
         except Exception as exception:  # want to catch all pylint: disable=broad-exception-caught
@@ -514,7 +517,15 @@ class MQTTPublish(StdService):
         self.logger.loginf(f"MQTTPublish version: {VERSION}.")
 
         service_dict = config_dict.get('MQTTPublish', {})
-        self.plugins = service_dict.get('plugins', {})
+        plugins = service_dict.get('plugins', [])
+        if not isinstance(plugins, list):
+            self.logger.logerr(("'[[plugins]]' is deprecated. "
+                                "To configure see, https://weewx-mqtt.github.io/publish/plugins/"))
+            self.plugins = plugins
+        else:
+            self.plugins = configobj.ConfigObj({})
+            for plugin in plugins:
+                self.plugins[plugin] = config_dict[plugin]
 
         exclude_keys = ['password']
         sanitized_service_dict = {k: service_dict[k] for k in set(list(service_dict.keys())) - set(exclude_keys)}
@@ -1005,8 +1016,11 @@ class PublishWeeWXThread(threading.Thread):
 
         self.plugin_manager = PluginManager(self.logger)
         for plugin in self.plugins:
-            plugin_name = self.plugins[plugin]['module'] + '.' + plugin
-            self.plugin_manager.create_plugin(plugin_name, self.plugins[plugin], self.all_topics, self.weewx_dict)
+            if 'module' in self.plugins[plugin]:
+                plugin_name = self.plugins[plugin]['module'] + '.' + plugin
+            else:
+                plugin_name = self.plugins[plugin]['plugin']
+            self.plugin_manager.create_plugin(plugin_name, self.plugins[plugin], self.mqtt_config, self.all_topics, self.weewx_dict)
 
         # need to instantiate inside thread
         self.publisher = AbstractPublisher.get_publisher(self.logger, self.plugin_manager, self, self.mqtt_config)

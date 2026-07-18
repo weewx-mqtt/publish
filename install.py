@@ -15,15 +15,16 @@ import configobj
 
 from weecfg.extension import ExtensionInstaller
 
-VERSION = "1.2.0"
+VERSION = "1.3.0-rc01a"
 
 MQTTPUBLISH_CONFIG = """
-#
-# --------------------------------------------------------------------------------
-# Publish to MQTT on loop or archive creation.
-# For additional help on configuring see, https://weewx-mqtt.github.io/publish/common-options/
-# --------------------------------------------------------------------------------
+
 [MQTTPublish]
+    # --------------------------------------------------------------------------------
+    # Publish to MQTT on loop or archive creation.
+    # For additional help on configuring see, https://weewx-mqtt.github.io/publish/common-options/
+    # --------------------------------------------------------------------------------
+
     # Whether the service is enabled or not.
     # Valid values: true or false
     # Default is true.
@@ -66,6 +67,11 @@ MQTTPUBLISH_CONFIG = """
     # password for broker authentication.
     # Default is None.
     password = None
+
+    # A list of plugins for MQTTPublish.
+    # Each entry must have a corresponding section, [plugin-name] in the weewx configuration file.
+    # The plugin option in the [plugin-name] section must have a value.
+    # plugins = MQTTAggregateValues, MQTTConfigHA
 
     # The TLS options that are passed to tls_set method of the MQTT client.
     # For additional information see, https://eclipse.org/paho/clients/python/docs/strptime-format-codes
@@ -207,119 +213,126 @@ MQTTPUBLISH_CONFIG = """
                     # The default is '%s'.
                     format_string = %s
 
-    [[plugins]]
-        # The name of the plugin. Do not change
-        [[[MQTTHomeAssistantConfig]]]
-            # The module to be loaded. Do not change.
-            module = user.mqtthaconfig
+[MQTTConfigHA]
+    # --------------------------------------------------------------------------------
+    # A MQTTPublish 'plugin' for Home Assistant MQTT Device Discovery.
+    # For additional help on configuring see, https://weewx-mqtt.github.io/publish/plugins/homeassistantconfig/
+    # --------------------------------------------------------------------------------
 
-            # Whether the service is enabled or not.
-            # Valid values: true or false
-            # Default is true.
-            enable = False
+    # The plugin to be used.
+    plugin = user.mqtthaconfig.MQTTHomeAssistantConfig
 
-            # The MQTT qos when subscribing to the birth and lwt topics.
+    # Whether the service is enabled or not.
+    # Valid values: true or false
+    # Default is true.
+    enable = False
+
+    # The MQTT qos when subscribing to the birth and lwt topics.
+    # Valid values: 0, 1, 2
+    # Default is 0
+    qos = 0
+
+    # The Home Assistant birth topic.
+    # Default is homeassistant/status
+    birth_topic = homeassistant/status
+
+    # The Home Assistant lwt topic.
+    # Default is homeassistant/status.
+    lwt_topic = homeassistant/status
+
+    [[devices]]
+        # The object_id of the device.
+        [[[REPLACE_ME]]]
+
+            # The MQTT qos when publishing the device discovery message.
             # Valid values: 0, 1, 2
-            # Default is 0
+            # Default is 0.
             qos = 0
 
-            # The Home Assistant birth topic.
-            # Default is homeassistant/status
-            birth_topic = homeassistant/status
-
-            # The Home Assistant lwt topic.
-            # Default is homeassistant/status.
-            lwt_topic = homeassistant/status
-
-            [[[[devices]]]]
-                # The object_id of the device.
-                [[[[[REPLACE_ME]]]]]
-
-                    # The MQTT qos when publishing the device discovery message.
-                    # Valid values: 0, 1, 2
-                    # Default is 0.
-                    qos = 0
-
-                    # The retain value when publishing the device discovery message.
-                    # Valid values: true or false
-                    # Default is false.
-                    retain = False
-
-                    # https://www.home-assistant.io/integrations/sensor.mqtt/#device
-                    [[[[[[device]]]]]]
-                        # The hardware version of the device.
-                        # hw_version =
-
-                        # A list of IDs that uniquely identify the device. For example a serial number.
-                        # Default is the object_id of the device.
-                        # identifiers =
-
-                        # The manufacturer of the device.
-                        # manufacturer =
-
-                        # The model of the device.
-                        # model =
-
-                        # The firmware version of the device.
-                        # sw_version =
-
-                        # The serial number of the device.
-                        # serial_number =
-
-                        # The name of the device.
-                        name = REPLACE_ME
-
-                    # https://www.home-assistant.io/integrations/mqtt/#name
-                    [[[[[[origin]]]]]]
-                        # Software version of the application that supplies the discovered MQTT item.
-                        # sw_version =
-
-                        # Support URL of the application that supplies the discovered MQTT item.
-                        # support_url =
-
-                        # The name of the application that is the origin of the discovered MQTT item.
-                        name = REPLACE_ME
-
-                    # The topics for this Device.
-                    [[[[[[topics]]]]]]
-                        # The topic name that has the data to be published to Home Assistant.
-                        [[[[[[[REPLACE_ME]]]]]]]
-                            # The format of the MQTT payload.
-                            # Currently support: individual, json
-                            # The default is 'json'
-                            type = json
-
-        # The name of the plugin. Do not change
-        [[[MQTTAggregateValues]]]
-            # The module to be loaded. Do not change.
-            module = user.mqttaggregatevalues
-
-            # Whether the service is enabled or not.
+            # The retain value when publishing the device discovery message.
             # Valid values: true or false
-            # Default is true.
-            enable = False
+            # Default is false.
+            retain = False
 
+            # https://www.home-assistant.io/integrations/sensor.mqtt/#device
+            [[[[device]]]]
+                # The hardware version of the device.
+                # hw_version =
+
+                # A list of IDs that uniquely identify the device. For example a serial number.
+                # Default is the object_id of the device.
+                # identifiers =
+
+                # The manufacturer of the device.
+                # manufacturer =
+
+                # The model of the device.
+                # model =
+
+                # The firmware version of the device.
+                # sw_version =
+
+                # The serial number of the device.
+                # serial_number =
+
+                # The name of the device.
+                name = REPLACE_ME
+
+            # https://www.home-assistant.io/integrations/mqtt/#name
+            [[[[origin]]]]
+                # Software version of the application that supplies the discovered MQTT item.
+                # sw_version =
+
+                # Support URL of the application that supplies the discovered MQTT item.
+                # support_url =
+
+                # The name of the application that is the origin of the discovered MQTT item.
+                name = REPLACE_ME
+
+            # The topics for this Device.
             [[[[topics]]]]
-                # The name of the topic to add the aggregate values to.
+                # The topic name that has the data to be published to Home Assistant.
                 [[[[[REPLACE_ME]]]]]
+                    # The format of the MQTT payload.
+                    # Currently support: individual, json
+                    # The default is 'json'
+                    type = json
 
-                    # The name of the observation in the MQTT payload.
-                    # This can be any name. For example: rainSumDay, outTempMinHour, etc
-                    [[[[[[REPLACE_ME]]]]]]
-                        # Turn aggregates on and off.
-                        # Default is true.
-                        enable = false
+[MQTTAggregateValues]
+    # --------------------------------------------------------------------------------
+    # A MQTTPublish 'plugin' to augment the WeeWX data being published with WeeWX aggregate values.
+    # For additional help on configuring see, https://weewx-mqtt.github.io/publish/plugins/aggregatevalues/
+    # --------------------------------------------------------------------------------
 
-                        # The WeeWX observation to aggregate, rain, outTemp, etc,
-                        observation =
+    # The plugin to be used.
+    plugin = user.mqttaggregatevalues.MQTTAggregateValues
 
-                        # The type of aggregation to perform.
-                        # See, https://www.weewx.com/docs/customizing.htm#aggregation_types
-                        aggregation =
+    # Whether the service is enabled or not.
+    # Valid values: true or false
+    # Default is true.
+    enable = False
 
-                        # The time period over which the aggregation shoulf occurr.
-                        # Valid values: hour, day, week, month, year, yesterday, last24hours, last7days, last31days, last366days
-                        period =
+    [[topics]]
+        # The name of the topic to add the aggregate values to.
+        [[[REPLACE_ME]]]
+
+            # The name of the observation in the MQTT payload.
+            # This can be any name. For example: rainSumDay, outTempMinHour, etc
+            [[[[REPLACE_ME]]]]
+                # Turn aggregates on and off.
+                # Default is true.
+                enable = false
+
+                # The WeeWX observation to aggregate, rain, outTemp, etc,
+                observation =
+
+                # The type of aggregation to perform.
+                # See, https://www.weewx.com/docs/customizing.htm#aggregation_types
+                aggregation =
+
+                # The time period over which the aggregation shoulf occurr.
+                # Valid values: hour, day, week, month, year, yesterday, last24hours, last7days, last31days, last366days
+                period =
 
 """
 

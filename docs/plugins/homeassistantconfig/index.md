@@ -24,13 +24,13 @@ The following is the smallest required configuration information
 
         ...
 
-    [[plugins]]
-        [[[MQTTHomeAssistantConfig]]]
-            [[[[devices]]]]
-                [[[[[REPLACE_ME_DEVICE]]]]]
-                    [[[[[[topics]]]]]]
-                        # Note this topic, REPLACE_ME_TOPIC, must under the [MQTTPublish][[topics]] section
-                        [[[[[[[REPLACE_ME_TOPIC]]]]]]]
+
+[MQTTConfigHA]]
+    [[device]]]
+        [[[REPLACE_ME_DEVICE]]]
+            [[[[topics]]]]
+                # Note this topic, REPLACE_ME_TOPIC, must under the [MQTTPublish][[topics]] section
+                [[[[[REPLACE_ME_TOPIC]]]]]
 
 ```
 
@@ -54,11 +54,11 @@ If a "birth message" is received, the discovery message is resent.
 This eliminates the need to publish the discovery message with `retain = True`.
 But, the `retain = True` setting can easily be overridden.
 
-## The `[[[MQTTHomeAssistantConfig]]]` section
+## The [MQTTConfigHA]` section
 
-### module
+### plugin
 
-The module must be set to: `user.mqtthaconfig`.
+The plugin to be used.
 
 ### enable
 

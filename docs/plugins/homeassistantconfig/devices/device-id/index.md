@@ -6,7 +6,7 @@ nav_order: 1
 ---
 {% include plugins_warning.html %}
 
-## The [[[[[device-id]]]]] section
+## The [[[device-id]]] section
 
 Each `device-id` subsection is a separate Home Assistant device.
 At least one `device-id` subsection must be configured.
