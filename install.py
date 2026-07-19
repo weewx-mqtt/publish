@@ -220,7 +220,7 @@ MQTTPUBLISH_CONFIG = """
     # --------------------------------------------------------------------------------
 
     # The plugin to be used.
-    plugin = user.mqtthaconfig.MQTTHomeAssistantConfig
+    plugin = user.mqtthaconfig.MQTTConfigHA
 
     # Whether the service is enabled or not.
     # Valid values: true or false
@@ -354,6 +354,7 @@ class MQTTPublishInstaller(ExtensionInstaller):
             'author_email': "bellrichm@gmail.com",
             'files': [('bin/user', ['bin/user/mqttpublish.py',
                                     'bin/user/mqtthaconfig.py',
+                                    'bin/user/mqttconfigha.py',
                                     'bin/user/mqttaggregatevalues.py',
                                     ])]
         }

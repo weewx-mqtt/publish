@@ -134,7 +134,7 @@ followed by any plugin specific sub-sections.
  .
  .
 [MQTTConfigHA]]
-    plugin = user.mqtthaconfig.MQTTHomeAssistantConfig
+    plugin = user.mqtthaconfig.MQTTConfigHA
 
     << any configuration data that is specific for the plugin>>
 ```
