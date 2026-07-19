@@ -14,7 +14,7 @@ This is a breaking change for users of this beta functionality.
 3. Install the desired version of MQTTPublish.
 4. Restart WeeWX
 
-## Updating for users of MQTTConfigHA
+## Updating for users of MQTTConfigHA (formerly called MQTTHomeAssistantConfig)
 
 1. Make a backup of the WeeWX configuration.
 2. Remove the [[plugins]] section and all of its subsections.
