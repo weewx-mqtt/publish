@@ -65,6 +65,7 @@ It is called with the following parameters.
 - logger: The logger.
 - name: The plugin class name:
 - plugin_dict: The plugin configuration section of weewx.conf.
+- mqtt_dict: The mqtt configuration data.
 - topic_dict: The dictionary of topics to be published.
 - weewx_dict
   - stn_info: The WeeWX station information.
@@ -116,7 +117,7 @@ Here is an example `get_callbacks` method.
 ## Required configuration information
 
 The plugin must have a section `[plugin-name]` configuration section.
-The section name must be an item in the `plugins` setting of `[MQTTPublish].
+The section name must be an item in the `plugins` setting of `[MQTTPublish]`.
 
 In the `[plugin-name`] section, there must be a `plugin` option.
 This is the plugin to be used.

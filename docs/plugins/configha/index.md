@@ -54,7 +54,7 @@ If a "birth message" is received, the discovery message is resent.
 This eliminates the need to publish the discovery message with `retain = True`.
 But, the `retain = True` setting can easily be overridden.
 
-## The [MQTTConfigHA]` section
+## The `[MQTTConfigHA]` section
 
 ### plugin
 

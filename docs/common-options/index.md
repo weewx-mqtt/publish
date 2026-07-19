@@ -66,7 +66,7 @@ The MQTT retain flag.
 Valid values are `true` or `false`.
 The default value is `false`.
 
-##### suppression_threshold
+#### suppression_threshold
 
 Allows one to 'tune' if a value should be considered equal to the previous published value.
 For example, if suppression_threshold = .5, then as long as the new value is greater than the previous value minus .5 and less than the previous value plus .5, it will not be published.
@@ -78,7 +78,7 @@ The format of the MQTT payload.
 Valid values are `individual`, `json`, or `keyword`.
 The default value is `json`.
 
-#### These are options that are used as default for [field settings](topics/topic-name/fields/field-name/index.md)
+### These are options that are used as default for [field settings](topics/topic-name/fields/field-name/index.md)
 
 #### append_unit_label
 

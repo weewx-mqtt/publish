@@ -26,3 +26,10 @@ Enhancements
   Enhancements
   - Added `publish_fields` option.
   - Added more 'examples' to the configuration section that is 'installed' into weewx.conf.
+
+1.3.0
+Fixes
+  - MQTTConfigHA no longer 'advertises' an availability when MQTTPublish is not publishing to it.
+Enhancements:
+  - Limit the publishing of redundant/duplicate data (#27).
+  - Move plugin config to top level (#32).
