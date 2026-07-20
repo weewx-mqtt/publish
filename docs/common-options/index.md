@@ -32,6 +32,13 @@ The number of times to attempt to start the publishing thread.
 When a thread is running a successful connection is established, it is reset to `0`.
 The default is `2`.
 
+#### plugins
+
+A list of plugins for MQTTPublish.
+Each entry must have a corresponding section, [plugin-name] in the weewx configuration file.
+The plugin option in the [plugin-name] section must have a value.
+The default is an empty (not set) list.
+
 #### wait_between_retries
 
 The number of secconds to wait before trying to reconnect when there is a connection error.
