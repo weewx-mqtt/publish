@@ -19,19 +19,21 @@ This is a breaking change for users of this beta functionality.
 1. Make a backup of the WeeWX configuration.
 2. Remove the [[plugins]] section and all of its subsections.
 3. Install the desired version of MQTTPublish (greater than 1.2.0).
-4. Look for the [MQTTConfigHA] section and migrate the [[plugins]] [[[MQTTHomeAssistantConfig]]] section to it.
+4. Add `MQTTConfigHA` to the [plugins option]({{ site.baseurl }}{% link common-options/index.md %}/#plugins).
+5. Look for the [MQTTConfigHA] section and migrate the [[plugins]] [[[MQTTHomeAssistantConfig]]] section to it.
     - This should only require removing two '[' from every section.
     So instead of [[[[devices]]]] it would be [[devices]].
     And so on...
-5. Restart WeeWX
+6. Restart WeeWX
 
 ## Updating for users of MQTTAggregateValues
 
 1. Make a backup of the WeeWX configuration.
 2. Remove the [[plugins]] section and all of its subsections.
 3. Install the desired version of MQTTPublish (greater than 1.2.0).
-4. Look for the [MQTTAggregateValues] section and migrate the [[plugins]] [[[MQTTAggregateValues]]] section to it.
+4. Add `MQTTAggregateValues` to the [plugins option]({{ site.baseurl }}{% link common-options/index.md %}/#plugins).
+5. Look for the [MQTTAggregateValues] section and migrate the [[plugins]] [[[MQTTAggregateValues]]] section to it.
     - This should only require removing two '[' from every section.
     So instead of [[[[topics]]]] it would be [[topics]].
     And so on....
-5. Restart WeeWX
+6. Restart WeeWX
