@@ -49,7 +49,10 @@ THe following Home Assistant data is automatically derived from the data in WeeW
 - The `state_class` is based on the the name (barometer, outTemp, etc.) of the WeeWX data.
 - The `unique_id` is set to the device_id concatentated with the name of the WeeWX observation.
 - The `unit_of_measurement` is set based on the units of the WeeWX data.
-- The `value_template` depends on whether json or 'individual' data is being published.
+- The `value_template` depends on whether json or 'individual' data is being published. {% raw %}
+For json payloads it is set to, `{{ value_json."compoent-id" | default(this.state) }}`.
+For individual payloads it is set to `{{ value }}`.
+{% endraw %}
 
 All of these 'default' settings are easily overridden.
 In addition, it is easy to configure additional WeeWX fieldname to Home Assistant component mapping.
