@@ -4,7 +4,7 @@ parent: device-id
 ancestor: MQTTConfigHA
 nav_order: 4
 ---
-{% include plugins_warning.html %}
+{% include configha_warning.html %}
 
 ## The `[[[[component_data]]]]` section
 

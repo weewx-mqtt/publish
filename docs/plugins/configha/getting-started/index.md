@@ -4,7 +4,7 @@ parent: MQTTConfigHA
 ancestor: MQTTConfigHA
 nav_order: 1
 ---
-{% include plugins_warning.html %}
+{% include configha_warning.html %}
 
 MQTTConfigHA uses the [device discovery](https://www.home-assistant.io/integrations/mqtt/#device-discovery-payload) functionality of the MQTT integration.
 This is a single json message with all of the components for a given device.

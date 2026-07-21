@@ -4,7 +4,7 @@ parent: Examples
 ancestor: MQTTConfigHA
 nav_order: 1
 ---
-{% include plugins_warning.html %}
+{% include configha_warning.html %}
 
 Out of the box, MQTTConfigHA supports device discovery for Home Assistant `sensor` data.
 This is an example of using MQTTConfigHA for a Home Assistant `binary sensor` data.

@@ -4,7 +4,7 @@ parent: MQTTConfigHA
 ancestor: MQTTConfigHA
 nav_order: 2
 ---
-{% include plugins_warning.html %}
+{% include configha_warning.html %}
 
 ## The `[[devices]]` section
 

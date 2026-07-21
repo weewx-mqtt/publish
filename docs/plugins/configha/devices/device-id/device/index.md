@@ -4,7 +4,7 @@ parent: device-id
 ancestor: MQTTConfigHA
 nav_order: 1
 ---
-{% include plugins_warning.html %}
+{% include configha_warning.html %}
 
 The device option of the MQTT discovery payload.
 Settings in this subsection map directly to the Home Assistant options.
