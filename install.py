@@ -105,19 +105,20 @@ MQTTPUBLISH_CONFIG = """
         # Default is tlsv12.
         tls_version = tlsv12
 
-    [[lwt]]
-        # Turn lwt on and off.
+    [[availability_topic]]
+        # Turn the availability topic function on and off.
         # Default is true.
         enable = false
 
-        # The topic that the will message should be published on.
+        # The topic that the availability status will be published on.
         # Default is 'status'.
         topic = 'status'
 
+        # The message sent when MQTTPublish comes online.
         # Default is 'online'.
         online_payload ='online'
 
-        # The message to send as a will.
+        # The message sent when MQTTPublish goes offline.
         # Default is 'offline'.
         offline_payload = offline
 
