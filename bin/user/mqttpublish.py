@@ -141,7 +141,7 @@ class AbstractPublisher(abc.ABC):
         else:
             self.lwt_dict = mqtt_config.get('availablility_topic')
 
-        if to_bool(self.lwt_dict.get('enable', True)):
+        if self.lwt_dict is not None and to_bool(self.lwt_dict.get('enable', True)):
             topic = self.lwt_dict.get('topic', 'status')
             payload = self.lwt_dict.get('offline_payload', 'offline')
             qos = to_int(self.lwt_dict.get('qos', 0))
