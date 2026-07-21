@@ -34,3 +34,4 @@ Enhancements:
   - Limit the publishing of redundant/duplicate data (#27).
   - Move plugin config to top level (#32).
   - Ability to configure a default value for all components beloning to a device (#33).
+  - Renamed the [[lwt]] section of MQTTPublish to [[availability_topic]]
