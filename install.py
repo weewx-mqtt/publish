@@ -293,10 +293,6 @@ MQTTPUBLISH_CONFIG = """
             [[[[topics]]]]
                 # The topic name that has the data to be published to Home Assistant.
                 [[[[[REPLACE_ME]]]]]
-                    # The format of the MQTT payload.
-                    # Currently support: individual, json
-                    # The default is 'json'
-                    type = json
 
 [MQTTAggregateValues]
     # --------------------------------------------------------------------------------
