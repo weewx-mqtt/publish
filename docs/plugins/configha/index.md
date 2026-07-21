@@ -5,6 +5,10 @@ nav_order: 1
 ---
 {% include plugins_warning.html %}
 
+Not sure where to start, read [getting started](getting-started/index.md).
+
+Below is the detail for configuring MQTTConfigHA
+
 ## The `[MQTTConfigHA]` section
 
 ### plugin
