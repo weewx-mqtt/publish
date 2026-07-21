@@ -121,14 +121,6 @@ MQTTPUBLISH_CONFIG = """
         # Default is 'offline'.
         offline_payload = offline
 
-        # he quality of service level to use for the will.
-        # Default is 0
-        qos = 0
-
-        # If set to true, the will message will be set as the "last known good"/retained message for the topic.
-        # The default is true.
-        retain = true
-
     [[topics]]
         [[[REPLACE_ME]]]
             # Controls if the topic is published.
@@ -243,16 +235,6 @@ MQTTPUBLISH_CONFIG = """
     [[devices]]
         # The object_id of the device.
         [[[REPLACE_ME]]]
-
-            # The MQTT qos when publishing the device discovery message.
-            # Valid values: 0, 1, 2
-            # Default is 0.
-            qos = 0
-
-            # The retain value when publishing the device discovery message.
-            # Valid values: true or false
-            # Default is false.
-            retain = False
 
             # https://www.home-assistant.io/integrations/sensor.mqtt/#device
             [[[[device]]]]
