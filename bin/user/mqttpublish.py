@@ -583,7 +583,7 @@ class MQTTPublish(StdService):
         if self.mqtt_config['lwt'] is not None:
             self.logger.logerr("'[[lwt]]' is deprecated.  use [[availablity_topic]].")
         else:
-            self.mqtt_config['lwt'] = service_dict.get('availability_topic')
+            self.mqtt_config['lwt'] = service_dict.get('availability_topic', {})
 
         sanitized_mqtt_config = {k: self.mqtt_config[k] for k in set(list(self.mqtt_config.keys())) - set(exclude_keys)}
         self.logger.logdbg(f"sanitized mqtt_config removed {exclude_keys}")
