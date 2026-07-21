@@ -525,6 +525,8 @@ class MQTTConfigHA:
                             self.configuration['devices'][device_id]['components'][field]['state_class'] = state_class
 
                         weeutil.config.merge_config(self.configuration['devices'][device_id]['components'][field],
+                                                    self.defaults['component_data'][device_id].get('defaults', {}))
+                        weeutil.config.merge_config(self.configuration['devices'][device_id]['components'][field],
                                                     self.defaults['component_data'][device_id].get(field, {}))
                         self.logger.loginf((f"New device configuration {field}: "
                                             f"{self.configuration['devices'][device_id]['components'][field]}"))
