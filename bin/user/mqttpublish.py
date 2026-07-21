@@ -136,11 +136,6 @@ class AbstractPublisher(abc.ABC):
             self._config_tls(tls_dict)
 
         self.lwt_dict = mqtt_config.get('lwt')
-        if self.lwt_dict is not None:
-            self.logger.logerr("'[[lwt]]' is deprecated.  use [[availablity_topic]].")
-        else:
-            self.lwt_dict = mqtt_config.get('availablility_topic')
-
         if self.lwt_dict is not None and to_bool(self.lwt_dict.get('enable', True)):
             topic = self.lwt_dict.get('topic', 'status')
             payload = self.lwt_dict.get('offline_payload', 'offline')
@@ -585,6 +580,10 @@ class MQTTPublish(StdService):
 
         self.mqtt_config['tls'] = service_dict.get('tls')
         self.mqtt_config['lwt'] = service_dict.get('lwt')
+        if self.mqtt_config['lwt'] is not None:
+            self.logger.logerr("'[[lwt]]' is deprecated.  use [[availablity_topic]].")
+        else:
+            self.mqtt_config['lwt'] = service_dict.get('availability_topic')
 
         sanitized_mqtt_config = {k: self.mqtt_config[k] for k in set(list(self.mqtt_config.keys())) - set(exclude_keys)}
         self.logger.logdbg(f"sanitized mqtt_config removed {exclude_keys}")
