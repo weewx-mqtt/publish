@@ -1,22 +1,23 @@
 ---
-title: LWT
+title: availability_topic
 parent: Configuring MQTTPublish
 nav_order: 2
 ---
 
-## The `[[lwt]]` section
+## The `[[availability_topic]]` section
 
-Along with configuring MQTT's LWT, this configures an 'online' messgae sent on connection and an 'offline' message sent prior to disconnect.
+This configures a topic that MQTTPublish uses to publish its availability 'online' or 'offline'. 
+Under the covers MQTT LWT function is leveraged for 'offline' messages.
 
 ### enable
 
-Whether LWT (Last Will and Testament) is enabled or not.
+Turn the availability topic function on and off.
 Valid values are `true` or `false`.
 The default value is `true`.
 
 ### topic
 
-The topic that the messages are published on.
+The topic that the availability messages are published on.
 The default value is `status`.
 
 ### online_payload
