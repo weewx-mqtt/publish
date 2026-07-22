@@ -209,7 +209,7 @@ MQTTPUBLISH_CONFIG = """
     # --------------------------------------------------------------------------------
 
     # The plugin to be used.
-    plugin = user.mqtthaconfig.MQTTConfigHA
+    plugin = user.mqttconfigha.MQTTConfigHA
 
     # Whether the service is enabled or not.
     # Valid values: true or false
