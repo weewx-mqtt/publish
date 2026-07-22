@@ -390,6 +390,8 @@ class MQTTConfigHA:
             if plugin_dict['devices'][device_id].get('enable', False):
                 self.logger.loginf(f"Device, {device_id}, is not enabled - skipping.")
                 continue
+            self.logger.loginf(f"Device, {device_id}, will be configured in Home Assistant")
+
             self.defaults['component_data'][device_id] = configobj.ConfigObj(StringIO(DEFAULT_COMPONENT_DATA))
             # ToDo: Remove? Backwards compatibility of old location
             weeutil.config.merge_config(self.defaults['component_data'][device_id], plugin_dict.get('component_data', {}))
