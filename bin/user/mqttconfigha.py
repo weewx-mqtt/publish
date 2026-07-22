@@ -387,6 +387,9 @@ class MQTTConfigHA:
         self.configuration['devices'] = {}
 
         for device_id in plugin_dict['devices']:
+            if plugin_dict['devices'][device_id].get('enable', False):
+                self.logger.loginf(f"Device, {device_id}, is not enabled - skipping.")
+                continue
             self.defaults['component_data'][device_id] = configobj.ConfigObj(StringIO(DEFAULT_COMPONENT_DATA))
             # ToDo: Remove? Backwards compatibility of old location
             weeutil.config.merge_config(self.defaults['component_data'][device_id], plugin_dict.get('component_data', {}))

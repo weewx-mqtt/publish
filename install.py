@@ -237,6 +237,10 @@ MQTTPUBLISH_CONFIG = """
         # The object_id of the device.
         [[[REPLACE_ME]]]
 
+            # Whether the device is enabled or not.
+            # Default is true.
+            enable = false
+
             # https://www.home-assistant.io/integrations/sensor.mqtt/#device
             [[[[device]]]]
                 # The hardware version of the device.

@@ -11,6 +11,12 @@ nav_order: 1
 Each `device-id` subsection is a separate Home Assistant device.
 At least one `device-id` subsection must be configured.
 
+### enable
+
+Whether the device is enabled or not.
+Valid values: `true` or `false`
+Default is `true`.
+
 ### qos
 
 The MQTT qos when publishing the device discovery message.
