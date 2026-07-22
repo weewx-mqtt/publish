@@ -728,7 +728,7 @@ class MQTTPublish(StdService):
             if 'loop' in binding:
                 if not publish:
                     continue
-                self.logger.loginf(f"Publishing to {topic} for loop data.")                
+                self.logger.loginf(f"Publishing to {topic} for loop data.")
                 topics_loop[topic] = {}
                 topics_loop[topic]['qos'] = qos
                 topics_loop[topic]['minimum_interval'] = minimum_interval
