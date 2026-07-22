@@ -29,9 +29,20 @@ Enhancements
 
 1.3.0
 Fixes
-  - MQTTConfigHA no longer 'advertises' an availability when MQTTPublish is not publishing to it.
+  - MQTTConfigHA no longer 'advertises' an availability topic when MQTTPublish is not publishing to it.
+
 Enhancements:
   - Limit the publishing of redundant/duplicate data (#27).
   - Move plugin config to top level (#32).
   - Ability to configure a default value for all components beloning to a device (#33).
   - Renamed the [[lwt]] section of MQTTPublish to [[availability_topic]]
+
+Notes:
+The following have been deprecated and are scheduled to be removed in V2.
+- [PublishWeeWX] was replaced by [MQTTPublish] (prior to V1).
+- [MQTTPublish] / [[lwt]] has changed to [MQTTPublish] / [[availability_topic]].
+  See, https://weewx-mqtt.github.io/publish/common-options/availability-topic.html
+- [MQTTPublish] [[topics]] / [[[topic-name]]] / [[[[aggregates]]]] has been replaced witht plugin MQTTAggregateValues
+  See, https://weewx-mqtt.github.io/publish/plugins/aggregatevalues/
+- Beta release of MQTTConfigHA has the breaking change of moving its configuration to the top level section, [MQTTConfigHA].
+  For help migrating from 1.2.0 and prior see, https://weewx-mqtt.github.io/publish/upgradeguides/from120/
