@@ -106,10 +106,6 @@ MQTTPUBLISH_CONFIG = """
         tls_version = tlsv12
 
     [[availability_topic]]
-        # Turn the availability topic function on and off.
-        # Default is true.
-        enable = false
-
         # The topic that the availability status will be published on.
         # Default is 'status'.
         topic = 'status'
