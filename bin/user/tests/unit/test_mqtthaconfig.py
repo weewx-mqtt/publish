@@ -334,6 +334,8 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
                                                         weewx_dict)
 
         msg = mqttstubs.Msg('homeassistant/status', b'offline', 0, False)
+
+        mock_logger.reset_mock()
         SUT.on_mqtt_message(mock.Mock(), None, msg)
 
         mock_logger.loginf.assert_called_once_with("Received LWT b'offline' on topic: homeassistant/status.")
