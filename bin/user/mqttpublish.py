@@ -1021,8 +1021,8 @@ class PublishWeeWXThread(threading.Thread):
                                                        value)
 
     def run(self):
-        self.logger.loginf(f"Starting publishing loop {self.name}.")
         threading.current_thread().name = f"MQTTPublish-{threading.get_native_id()}"
+        self.logger.loginf(f"Starting publishing loop {self.name}.")
 
         self.plugin_manager = PluginManager(self.logger)
         for plugin in self.plugins:
