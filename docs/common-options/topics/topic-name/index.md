@@ -73,7 +73,7 @@ The default value is `archive, loop`.
 
 #### ignore_fields
 
-A comma seperated list of fields that are not published.
+A comma separated list of fields that are not published.
 This is a short hand notation for having to configure each field and setting `ignore = True` in its section.
 
 #### publish
@@ -84,7 +84,7 @@ The default value is `true`.
 
 #### publish_fields
 
-A comma seperated list of fields that are to be published.
+A comma separated list of fields that are to be published.
 This is a short hand notation for having to configure each field and setting `ignore = False` in its section.
 
 #### unit_system
