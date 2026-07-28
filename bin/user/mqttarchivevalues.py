@@ -6,10 +6,17 @@
 
 """ Plugin to copy archive values into data being published. """
 
-# ToDo: Do I need to configure fields?
+# ###################################################################################################################################
+#
+# WeeWX does not 'publish' archive records in real time. There is a built-in (configurable) delay.
+# But it does keep 'publishing' loop packets in real time.
+# This means that the loop packets 'published' during this delay will have the archive record data from the previous archive period.
+# There is nothing MQTTArchiveValues can do about that
+#
+# ###################################################################################################################################
 
 import weeutil
-from weeutil.weeutil import to_bool
+from weeutil.weeutil import to_bool, to_list
 import weewx
 
 class MQTTArchiveValues:
@@ -23,6 +30,10 @@ class MQTTArchiveValues:
         if not self.enabled:
             self.logger.loginf(f"Plugin {self.name} is not enabled.")
             return
+
+        # ToDo: check that these are mutually exclusive
+        self.ignore_fields = to_list(self.plugin_dict.get('ignore_fields', []))
+        self.add_fields = to_list(self.plugin_dict.get('add_fields', []))
 
         self.archive_data = {}
 
@@ -54,6 +65,11 @@ class MQTTArchiveValues:
         """ Run code when MQTT record is updated. """
         if topic in self.plugin_dict['topics']:
             for fieldname in self.archive_data:
+                if self.add_fields and fieldname not in self.add_fields:
+                    continue
+                if fieldname in self.ignore_fields:
+                    continue
+
                 if fieldname not in data and self.archive_data[fieldname] is not None:
                     (to_unit, _) = weewx.units.getStandardUnitType(units, fieldname)
                     (from_unit, from_group) = weewx.units.getStandardUnitType(self.archive_data['usUnits'], fieldname)
