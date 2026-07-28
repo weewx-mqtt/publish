@@ -3,7 +3,7 @@ title: MQTTArchiveValues
 parent: Plugins
 nav_order: 3
 ---
-{% include plugins_warning.html %}
+{% include archivevalues_warning.html %}
 
 ## The `[MQTTArchiveValues]` section
 

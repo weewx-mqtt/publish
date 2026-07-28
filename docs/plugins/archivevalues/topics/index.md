@@ -4,7 +4,7 @@ parent: MQTTArchiveValues
 ancestor: MQTTArchiveValues
 nav_order: 1
 ---
-{% include plugins_warning.html %}
+{% include archivevalues_warning.html %}
 
 ## The `[[topics]]` section
 
