@@ -71,7 +71,7 @@ MQTTPUBLISH_CONFIG = """
     # A list of plugins for MQTTPublish.
     # Each entry must have a corresponding section, [plugin-name] in the weewx configuration file.
     # The plugin option in the [plugin-name] section must have a value.
-    # plugins = MQTTAggregateValues, MQTTConfigHA
+    plugins = MQTTAggregateValues, MQTTConfigHA, MQTTArchiveValues
 
     # The TLS options that are passed to tls_set method of the MQTT client.
     # For additional information see, https://eclipse.org/paho/clients/python/docs/strptime-format-codes
@@ -128,11 +128,11 @@ MQTTPUBLISH_CONFIG = """
             # Default is 'archive, loop'.
             binding = archive, loop
 
-            # A comma seperated list of fields that are not published.
+            # A comma separated list of fields that are not published.
             # This is a short hand notation for having to configure each field and setting ignore = True in its section.
             # ignore_fields =
 
-            # A comma seperated list of fields that are to be published.
+            # A comma separated list of fields that are to be published.
             # This is a short hand notation for having to configure each field and setting ignore = False in its section.
             # publish_fields =
 
@@ -313,6 +313,30 @@ MQTTPUBLISH_CONFIG = """
                 # Valid values: hour, day, week, month, year, yesterday, last24hours, last7days, last31days, last366days
                 period =
 
+[MQTTArchiveValues]
+    # --------------------------------------------------------------------------------
+    # A MQTTPublish 'plugin' to augment the WeeWX loop data being published with WeeWX archive values.
+    # For additional help on configuring see, https://weewx-mqtt.github.io/publish/plugins/archivevalues/
+    # --------------------------------------------------------------------------------
+
+    # The plugin to be used.
+    plugin = user.mqttarchivevalues.MQTTArchiveValues
+
+    # Whether the service is enabled or not.
+    # Valid values: true or false
+    # Default is true.
+    enable = False
+
+    [[topics]]
+        # The name of the topic to add the archive values to.
+        [[[REPLACE_ME]]]
+
+            # A comma separated list of fields that are not to be added to the data being published.
+            # ignore_fields =
+
+            # A comma separated list of fields that are to be added to the data being published.
+            # add_fields =
+
 """
 
 def loader():
@@ -335,6 +359,7 @@ class MQTTPublishInstaller(ExtensionInstaller):
                                     'bin/user/mqtthaconfig.py',
                                     'bin/user/mqttconfigha.py',
                                     'bin/user/mqttaggregatevalues.py',
+                                    'bin/user/mqttarchivevalues.py',
                                     ])]
         }
 
