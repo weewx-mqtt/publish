@@ -988,7 +988,7 @@ class PublishWeeWXThread(threading.Thread):
                                                                                                    topics[topic]['retain'])
             updated_record = self.update_record(topics[topic], time_stamp, record)
             for plugin_name in self.publisher.plugin_manager.callbacks['update_record']['delay']:
-                # Note, this is called wit the unit_system from the configuration because:
+                # Note, this is called with the unit_system from the configuration because:
                 # 1. The record has been converted to this unit_system
                 # 2. The record may not be publishing the field usUnits.
                 self.publisher.plugin_manager.callbacks['update_record']['delay'][plugin_name](self.publisher.client,
