@@ -200,7 +200,9 @@ class MQTTAggregateValues:
             return
 
         self.db_manager = weewx.manager.open_manager(weewx_dict['manager_dict'])
-        self.timespan_provider = TimeSpanProvider(self.db_manager, weewx_dict['stn_info'].week_start, plugin_dict.get('offset'))
+        self.timespan_provider = TimeSpanProvider(self.db_manager,
+                                                  weewx_dict['stn_info'].week_start,
+                                                  to_int(plugin_dict.get('offset')))
         self.last_calculated = {}
 
         utc_offset = datetime.datetime.now().astimezone().utcoffset().seconds - (60 * 60 * 24)
