@@ -18,10 +18,9 @@ from weeutil.weeutil import to_bool, to_int, startOfInterval, TimeSpan
 
 class TimeSpanProvider:
     ''' Manage the timespans. '''
-    def __init__(self, db_manager, week_start, offset):
+    def __init__(self, db_manager, week_start):
         self.db_manager = db_manager
         self.week_start = week_start
-        self.offset = offset
         # ToDo: Should calculation interval be something like 'on the archive', 'on the hour', 'on the day'
         # ToDo: Need to think hard about what the interval values should be
         self.period_timespans = {
@@ -72,9 +71,9 @@ class TimeSpanProvider:
             },
         }
 
-    def get_timespan(self, interval, timestamp):
+    def get_timespan(self, interval, timestamp, offset):
         ''' Get a timespan for the interval and timstamp. '''
-        return self.period_timespans[interval]['function'](timestamp)
+        return self.period_timespans[interval]['function'](timestamp, offset)
 
     def get_calculation_interval(self, interval):
         ''' Get a the calculation_interval for an interval. '''
@@ -88,85 +87,85 @@ class TimeSpanProvider:
         ''' Get a timespan for the hour. '''
         return weeutil.weeutil.archiveHoursAgoSpan(timestamp)
 
-    def day(self, timestamp):
+    def day(self, timestamp, offset):
         ''' Get a timespan for the day. '''
         timespan = weeutil.weeutil.archiveDaySpan(timestamp)
 
-        if self.offset is None:
+        if offset is None:
             return timespan
-        return self._adjust_timespan(self, timestamp, timespan, self.offset)
+        return self._adjust_timespan(self.day, timestamp, timespan, offset)
 
-    def yesterday(self, timestamp):
+    def yesterday(self, timestamp, offset):
         ''' Get a timespan for yesterday. '''
         timespan = weeutil.weeutil.archiveDaySpan(timestamp, 1)
 
-        if self.offset is None:
+        if offset is None:
             return timespan
-        return self._adjust_timespan(self, timestamp, timespan, self.offset)
+        return self._adjust_timespan(self.yesterday, timestamp, timespan, offset)
 
-    def week(self, timestamp):
+    def week(self, timestamp, offset):
         ''' Get a timespan for the running week. '''
         timespan = weeutil.weeutil.archiveWeekSpan(timestamp, startOfWeek=self.week_start)
 
-        if self.offset is None:
+        if offset is None:
             return timespan
-        return self._adjust_timespan(self, timestamp, timespan, self.offset)
+        return self._adjust_timespan(self.week, timestamp, timespan, offset)
 
-    def month(self, timestamp):
+    def month(self, timestamp, offset):
         ''' Get a timespan for the running month. '''
         timespan = weeutil.weeutil.archiveMonthSpan(timestamp)
 
-        if self.offset is None:
+        if offset is None:
             return timespan
-        return self._adjust_timespan(self, timestamp, timespan, self.offset)
+        return self._adjust_timespan(self.month, timestamp, timespan, offset)
 
-    def year(self, timestamp):
+    def year(self, timestamp, offset):
         ''' Get a timespan for the running year. '''
         timespan = weeutil.weeutil.archiveYearSpan(timestamp)
 
-        if self.offset is None:
+        if offset is None:
             return timespan
-        return self._adjust_timespan(self, timestamp, timespan, self.offset)
+        return self._adjust_timespan(self.year, timestamp, timespan, offset)
 
-    def last24hours(self, timestamp):
+    def last24hours(self, timestamp, offset):
         ''' Get a timespan for the last 24 hours. '''
         timespan = TimeSpan(timestamp - 86400, timestamp)
 
-        if self.offset is None:
+        if offset is None:
             return timespan
-        return self._adjust_timespan(self, timestamp, timespan, self.offset)
+        return self._adjust_timespan(self.last24hours, timestamp, timespan, offset)
 
-    def last7days(self, timestamp):
+    def last7days(self, timestamp, offset):
         ''' Get a timespan for the last 7 days. '''
         timespan = self._last_n_days(7, timestamp)
 
-        if self.offset is None:
+        if offset is None:
             return timespan
-        return self._adjust_timespan(self, timestamp, timespan, self.offset)
+        return self._adjust_timespan(self.last7days, timestamp, timespan, offset)
 
-    def last31days(self, timestamp):
+    def last31days(self, timestamp, offset):
         ''' Get a timespan for the last 31 days. '''
         timespan = self._last_n_days(31, timestamp)
 
-        if self.offset is None:
+        if offset is None:
             return timespan
-        return self._adjust_timespan(self, timestamp, timespan, self.offset)
+        return self._adjust_timespan(self.last31days, timestamp, timespan, offset)
 
-    def last366days(self, timestamp):
+    def last366days(self, timestamp, offset):
         ''' Get a timespan for the last 366 days. '''
         timespan = self._last_n_days(366, timestamp)
 
-        if self.offset is None:
+        if offset is None:
             return timespan
-        return self._adjust_timespan(self, timestamp, timespan, self.offset)
+        return self._adjust_timespan(self.last366days, timestamp, timespan, offset)
 
-    def alltime(self, timestamp):
+    def alltime(self, timestamp, offset):
         ''' Get a timespan for alltime. '''
         timespan = weeutil.weeutil.TimeSpan(self.db_manager.firstGoodStamp(), timestamp)
 
-        if self.offset is None:
+        if offset is None:
             return timespan
-        return self._adjust_timespan(self, timestamp, timespan, self.offset)
+        return self._adjust_timespan(self.alltime, timestamp, timespan, offset)
 
     def _last_n_days(self, days, timestamp):
         return TimeSpan(time.mktime((datetime.date.fromtimestamp(timestamp) - datetime.timedelta(days=days)).timetuple()), timestamp)
@@ -182,7 +181,7 @@ class TimeSpanProvider:
 
         # Create another timespan with the adjusted timetamp
         # This will create it with the correct day (start and stop for the given day)
-        adjusted_timespan = create_timespan(timestamp - seconds_in_day)
+        adjusted_timespan = create_timespan(timestamp - seconds_in_day, None)
 
         # And now adjust it with the offset
         return weeutil.weeutil.TimeSpan(adjusted_timespan.start + offset_seconds, adjusted_timespan.stop + offset_seconds)
@@ -199,10 +198,11 @@ class MQTTAggregateValues:
             self.logger.loginf(f"Plugin {self.name} is not enabled.")
             return
 
+        self.offset = to_int(plugin_dict.get('offset'))
         self.db_manager = weewx.manager.open_manager(weewx_dict['manager_dict'])
         self.timespan_provider = TimeSpanProvider(self.db_manager,
-                                                  weewx_dict['stn_info'].week_start,
-                                                  to_int(plugin_dict.get('offset')))
+                                                  weewx_dict['stn_info'].week_start)
+
         self.last_calculated = {}
 
         utc_offset = datetime.datetime.now().astimezone().utcoffset().seconds - (60 * 60 * 24)
@@ -258,7 +258,8 @@ class MQTTAggregateValues:
             now_adjusted = now + self.last_calculated[topic][aggregate_observation]['adjustment']
 
             time_span = self.timespan_provider.get_timespan(aggregate_dict[aggregate_observation]['period'],
-                                                            data.get('dateTime', now))
+                                                            data.get('dateTime', now),
+                                                            self.offset)
             interval_end = startOfInterval(now_adjusted, aggregate_dict[aggregate_observation]['calculation_interval']) + \
                 aggregate_dict[aggregate_observation]['calculation_interval']
 
