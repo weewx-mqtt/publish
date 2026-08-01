@@ -83,7 +83,7 @@ class TimeSpanProvider:
         ''' Handle 'aggregating' over an archive interval. '''
         return None
 
-    def hour(self, timestamp):
+    def hour(self, timestamp, _):
         ''' Get a timespan for the hour. '''
         return weeutil.weeutil.archiveHoursAgoSpan(timestamp)
 
