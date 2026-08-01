@@ -36,7 +36,7 @@ class TestGetTimeSpan(unittest.TestCase):
             timespan_provider = user.mqttaggregatevalues.TimeSpanProvider(None, week_start)
 
             now = 1771939800
-            timespan_provider.hour(now)
+            timespan_provider.hour(now, None)
 
             mock_archive_hours_ago_span.assert_called_once_with(now)
 
