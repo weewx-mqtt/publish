@@ -550,6 +550,9 @@ class MQTTPublish(StdService):
         self.manager_dict = weewx.manager.get_manager_dict_from_config(config_dict, data_binding)
 
         self.weewx_dict = {}
+        # ToDo: Fix this hack to get more information to certain plugins
+        self.weewx_dict['engine'] = engine
+        self.weewx_dict['config_dict'] = config_dict
         self.weewx_dict['stn_info'] = engine.stn_info
         self.weewx_dict['manager_dict'] = self.manager_dict
         self.weewx_dict['defaults'] = weeutil.config.deep_copy(weewx.defaults.defaults)
