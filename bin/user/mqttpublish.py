@@ -979,9 +979,8 @@ class PublishWeeWXThread(threading.Thread):
 
     def publish_row(self, time_stamp, data, topics):
         """ Publish the data. """
-        record = data
-
         for topic in topics:
+            record = copy.deepcopy(data)
             for plugin_name in self.publisher.plugin_manager.callbacks['update_record']['immediate']:
                 self.publisher.plugin_manager.callbacks['update_record']['immediate'][plugin_name](self.publisher.client,
                                                                                                    topic,
