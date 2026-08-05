@@ -926,9 +926,9 @@ class PublishWeeWXThread(threading.Thread):
                     'interval_end': interval_end,
                 }
 
-        if (interval_end is None or last_published_timestamp is None or interval_end > last_published_timestamp) and \
-            (name not in final_record):
-            final_record[name] = topic_dict['data_last_published'][name]['value']
+            if (interval_end is None or last_published_timestamp is None or interval_end > last_published_timestamp) and \
+                (name not in final_record):
+                final_record[name] = topic_dict['data_last_published'][name]['value']
 
         if (interval_end is None or last_published_timestamp is None or interval_end > last_published_timestamp):
             final_record['interval_end_ts'] = interval_end
