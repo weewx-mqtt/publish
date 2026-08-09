@@ -32,6 +32,7 @@ Fixes
   - MQTTConfigHA no longer 'advertises' an availability topic when MQTTPublish is not publishing to it.
 
 Enhancements:
+  - Support additional data types when publishing ‘individual' topics.
   - Limit the publishing of redundant/duplicate data (#27).
   - Move plugin config to top level (#32).
   - Ability to configure a default value for all components beloning to a device (#33).

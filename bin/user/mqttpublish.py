@@ -291,7 +291,12 @@ class AbstractPublisher(abc.ABC):
         if not self.connected:
             self._reconnect()
 
-        mqtt_message_info = self.client.publish(topic, data, qos=qos, retain=retain)
+        payload = data
+        data_type = type(data)
+        if data is not None and data_type not in (str, bytearray, int, float):
+            payload = json.dumps(data)
+
+        mqtt_message_info = self.client.publish(topic, payload, qos=qos, retain=retain)
         self.logger.logdbg(f"At {int(time.time())} publishing: {int(time_stamp)} {mqtt_message_info.mid} {qos} {topic}")
 
         self.client.loop(timeout=0.1)
