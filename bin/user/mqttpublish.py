@@ -1061,6 +1061,7 @@ class PublishWeeWXThread(threading.Thread):
                     self.data_queue.get_nowait()
                 except queue.Empty:
                     break
+            self.logger.loginf(f"After emptying, queue size is {self.data_queue.qsize()}")
 
             while self.process:
                 try:
