@@ -886,6 +886,8 @@ class PublishWeeWXThread(threading.Thread):
 
         self.logger.loginf("Initializing publishing thread.")
 
+        self.start_time = 0
+
         self.plugins = plugins
         self.weewx_dict = weewx_dict
         self.manager_dict = manager_dict
@@ -908,6 +910,7 @@ class PublishWeeWXThread(threading.Thread):
         self.process = True
 
     def profile(self, msg):
+        """ Log the profiling data. """
         self.logger.loginf(msg)
 
     def update_record(self, topic_dict, _time_stamp, record):
@@ -1003,7 +1006,7 @@ class PublishWeeWXThread(threading.Thread):
         for topic in topics:
             record = copy.deepcopy(data)
             for plugin_name in self.publisher.plugin_manager.callbacks['update_record']['immediate']:
-                self.profile(f"  profile: before immed update_record {time.time() - self.start_time} {topic} {plugin_name}")
+                # self.profile(f"  profile: before immed update_record {time.time() - self.start_time} {topic} {plugin_name}")
 
                 self.publisher.plugin_manager.callbacks['update_record']['immediate'][plugin_name](self.publisher.client,
                                                                                                    topic,
@@ -1011,21 +1014,21 @@ class PublishWeeWXThread(threading.Thread):
                                                                                                    data['usUnits'],
                                                                                                    topics[topic]['qos'],
                                                                                                    topics[topic]['retain'])
-                self.profile(f"  profile: after immed update_record {time.time() - self.start_time} {topic} {plugin_name}")
+                # self.profile(f"  profile: after immed update_record {time.time() - self.start_time} {topic} {plugin_name}")
 
             updated_record = self.update_record(topics[topic], time_stamp, record)
             for plugin_name in self.publisher.plugin_manager.callbacks['update_record']['delay']:
                 # Note, this is called with the unit_system from the configuration because:
                 # 1. The record has been converted to this unit_system
                 # 2. The record may not be publishing the field usUnits.
-                self.profile(f"  profile: before delay update_record {time.time() - self.start_time} {topic} {plugin_name}")
+                # self.profile(f"  profile: before delay update_record {time.time() - self.start_time} {topic} {plugin_name}")
                 self.publisher.plugin_manager.callbacks['update_record']['delay'][plugin_name](self.publisher.client,
                                                                                                topic,
                                                                                                updated_record,
                                                                                                topics[topic]['unit_system'],
                                                                                                topics[topic]['qos'],
                                                                                                topics[topic]['retain'])
-                self.profile(f"  profile: after delay update_record {time.time() - self.start_time} {topic} {plugin_name}")
+                # self.profile(f"  profile: after delay update_record {time.time() - self.start_time} {topic} {plugin_name}")
 
             if updated_record:
                 if topics[topic]['type'] == 'json':
@@ -1128,7 +1131,7 @@ class PublishWeeWXProcess(multiprocessing.Process):
     }
 
     def __init__(self,
-                 logger,
+                 _logger,
                  plugins,
                  weewx_dict,
                  manager_dict,
@@ -1144,6 +1147,7 @@ class PublishWeeWXProcess(multiprocessing.Process):
         self.logger = Logger()
 
         self.logger.loginf("Initializing publishing thread.")
+        self.start_time = 0
 
         self.plugins = plugins
         self.weewx_dict = weewx_dict
@@ -1167,6 +1171,7 @@ class PublishWeeWXProcess(multiprocessing.Process):
         self.process = True
 
     def profile(self, msg):
+        """ Log the profiling data. """
         self.logger.loginf(msg)
 
     def update_record(self, topic_dict, _time_stamp, record):
@@ -1262,7 +1267,7 @@ class PublishWeeWXProcess(multiprocessing.Process):
         for topic in topics:
             record = copy.deepcopy(data)
             for plugin_name in self.publisher.plugin_manager.callbacks['update_record']['immediate']:
-                self.profile(f"  profile: before immed update_record {time.time() - self.start_time} {topic} {plugin_name}")
+                # self.profile(f"  profile: before immed update_record {time.time() - self.start_time} {topic} {plugin_name}")
 
                 self.publisher.plugin_manager.callbacks['update_record']['immediate'][plugin_name](self.publisher.client,
                                                                                                    topic,
@@ -1270,21 +1275,21 @@ class PublishWeeWXProcess(multiprocessing.Process):
                                                                                                    data['usUnits'],
                                                                                                    topics[topic]['qos'],
                                                                                                    topics[topic]['retain'])
-                self.profile(f"  profile: after immed update_record {time.time() - self.start_time} {topic} {plugin_name}")
+                # self.profile(f"  profile: after immed update_record {time.time() - self.start_time} {topic} {plugin_name}")
 
             updated_record = self.update_record(topics[topic], time_stamp, record)
             for plugin_name in self.publisher.plugin_manager.callbacks['update_record']['delay']:
                 # Note, this is called with the unit_system from the configuration because:
                 # 1. The record has been converted to this unit_system
                 # 2. The record may not be publishing the field usUnits.
-                self.profile(f"  profile: before delay update_record {time.time() - self.start_time} {topic} {plugin_name}")
+                # self.profile(f"  profile: before delay update_record {time.time() - self.start_time} {topic} {plugin_name}")
                 self.publisher.plugin_manager.callbacks['update_record']['delay'][plugin_name](self.publisher.client,
                                                                                                topic,
                                                                                                updated_record,
                                                                                                topics[topic]['unit_system'],
                                                                                                topics[topic]['qos'],
                                                                                                topics[topic]['retain'])
-                self.profile(f"  profile: after delay update_record {time.time() - self.start_time} {topic} {plugin_name}")
+                # self.profile(f"  profile: after delay update_record {time.time() - self.start_time} {topic} {plugin_name}")
 
             if updated_record:
                 if topics[topic]['type'] == 'json':
