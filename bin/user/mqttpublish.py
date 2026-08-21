@@ -13,6 +13,7 @@ import abc
 import copy
 import json
 import logging
+import multiprocessing
 import os
 import random
 import ssl
@@ -605,7 +606,7 @@ class MQTTPublish(StdService):
 
         # ToDo: make default False
         if service_dict.get('multiprocess', True):
-            self.data_queue = Queue.Queue()
+            self.data_queue = multiprocessing.Queue()
             self._thread = PublishWeeWXProcess(self.logger,
                                                self.plugins,
                                                self.weewx_dict,
@@ -1105,7 +1106,7 @@ class PublishWeeWXThread(threading.Thread):
         self.publisher.client.disconnect()
         self.logger.loginf(f"Exited publishing loop {self.name}.")
 
-class PublishWeeWXProcess(threading.Thread):
+class PublishWeeWXProcess(multiprocessing.Process):
     """Publish WeeWX data to MQTT. """
     UNIT_REDUCTIONS = {
         'degree_F': 'F',
@@ -1135,7 +1136,7 @@ class PublishWeeWXProcess(threading.Thread):
                  topics_loop,
                  topics_archive,
                  data_queue):
-        threading.Thread.__init__(self)
+        multiprocessing.Process.__init__(self)
 
         # Because we are running in separate process, we need to setup a new logger
         # ToDo: document possible ideas of a queue back to original process, etc.
