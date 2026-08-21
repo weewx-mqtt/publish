@@ -603,23 +603,35 @@ class MQTTPublish(StdService):
         if 'binding' in service_dict:
             self.logger.loginf("'binding' is deprecated and no longer used.")
 
-        self.data_queue = Queue.Queue()
+        # ToDo: make default False
+        if service_dict.get('multiprocess', True):
+            self.data_queue = Queue.Queue()
+            self._thread = PublishWeeWXProcess(self.logger,
+                                               self.plugins,
+                                               self.weewx_dict,
+                                               self.manager_dict,
+                                               self.mqtt_config,
+                                               self.topics_loop,
+                                               self.topics_archive,
+                                               self.data_queue)
+        else:
+            self.data_queue = Queue.Queue()
+            self._thread = PublishWeeWXThread(self.logger,
+                                              self.plugins,
+                                              self.weewx_dict,
+                                              self.manager_dict,
+                                              self.mqtt_config,
+                                              self.topics_loop,
+                                              self.topics_archive,
+                                              self.data_queue)
 
-        if 'loop' in binding:
-            self.bind(weewx.NEW_LOOP_PACKET, self.new_loop_packet)
+        self.thread_start()
 
         if 'archive' in binding:
             self.bind(weewx.NEW_ARCHIVE_RECORD, self.new_archive_record)
 
-        self._thread = PublishWeeWXThread(self.logger,
-                                          self.plugins,
-                                          self.weewx_dict,
-                                          self.manager_dict,
-                                          self.mqtt_config,
-                                          self.topics_loop,
-                                          self.topics_archive,
-                                          self.data_queue)
-        self.thread_start()
+        if 'loop' in binding:
+            self.bind(weewx.NEW_LOOP_PACKET, self.new_loop_packet)
 
     def configure_fields(self,
                          fields_dict,
@@ -870,6 +882,265 @@ class PublishWeeWXThread(threading.Thread):
                  data_queue):
         threading.Thread.__init__(self)
         self.logger = logger
+
+        self.logger.loginf("Initializing publishing thread.")
+
+        self.plugins = plugins
+        self.weewx_dict = weewx_dict
+        self.manager_dict = manager_dict
+        self.publisher = None
+
+        self.db_manager = None
+        self.plugin_manager = None
+
+        self.mqtt_config = mqtt_config
+        self.topics_loop = topics_loop
+        self.topics_archive = topics_archive
+        self.all_topics = {**self.topics_loop, **self.topics_archive}
+        self.lwt_dict = mqtt_config.get('lwt')
+
+        self.data_queue = data_queue
+        self.threading_event = threading.Event()
+
+        # Flag to control thread running.
+        # Setting to False will stop the thread.
+        self.process = True
+
+    def profile(self, msg):
+        self.logger.loginf(msg)
+
+    def update_record(self, topic_dict, _time_stamp, record):
+        """ Update the record. """
+        final_record = {}
+        interval_end = None
+        if topic_dict['minimum_interval']:
+            interval_end = startOfInterval(time.time(), topic_dict['minimum_interval']) + topic_dict['minimum_interval']
+        updated_record = weewx.units.to_std_system(record, topic_dict['unit_system'])
+
+        for field in updated_record:
+            fieldinfo = topic_dict['fields'].get(field, {})
+            ignore = fieldinfo.get('ignore', topic_dict.get('ignore'))
+            publish_none_value = fieldinfo.get('publish_none_value', topic_dict.get('publish_none_value'))
+            threshold = fieldinfo.get('suppression_threshold', topic_dict.get('suppression_threshold'))
+
+            if ignore:
+                continue
+            if updated_record[field] is None and not publish_none_value:
+                continue
+
+            (name, value) = self.update_field(topic_dict,
+                                              fieldinfo,
+                                              field,
+                                              updated_record[field],
+                                              updated_record['usUnits'])
+
+            last_published = topic_dict['data_last_published'].get(name, {})
+            last_published_timestamp = last_published.get('interval_end')
+            last_published_value = last_published.get('value')
+
+            if (interval_end is None or last_published_timestamp is None or interval_end > last_published_timestamp) or \
+                (value < last_published_value - threshold or value > last_published_value + threshold):
+                final_record[name] = value
+                topic_dict['data_last_published'][name] = {
+                    'value': value,
+                    'interval_end': interval_end,
+                }
+
+            if (interval_end is None or last_published_timestamp is None or interval_end > last_published_timestamp) and \
+                (name not in final_record):
+                final_record[name] = topic_dict['data_last_published'][name]['value']
+
+        if (interval_end is None or last_published_timestamp is None or interval_end > last_published_timestamp):
+            final_record['interval_end_ts'] = interval_end
+
+        return final_record
+
+    @staticmethod
+    def update_field(topic_dict, fieldinfo, field, value, unit_system):
+        """ Update field. """
+        name = fieldinfo.get('name', field)
+        unit = fieldinfo.get('unit', None)
+        append_unit_label = fieldinfo.get('append_unit_label', topic_dict.get('append_unit_label'))
+
+        if append_unit_label:
+            if unit is None:
+                (unit_type, _) = weewx.units.getStandardUnitType(unit_system, name)
+            else:
+                unit_type = unit
+            unit_type = PublishWeeWXThread.UNIT_REDUCTIONS.get(unit_type, unit_type)
+            if unit_type is not None:
+                name = f"{name}_{unit_type}"
+
+        unit = fieldinfo.get('unit', None)
+        if unit is not None:
+            (from_unit, from_group) = weewx.units.getStandardUnitType(unit_system, field)
+            from_tuple = (value, from_unit, from_group)
+            converted_value = weewx.units.convert(from_tuple, unit)[0]
+        else:
+            converted_value = value
+
+        conversion_type = fieldinfo.get('conversion_type', topic_dict.get('conversion_type'))
+        round_amount = fieldinfo.get('round', topic_dict.get('round'))
+        format_string = fieldinfo.get('format_string', topic_dict.get('format_string'))
+        if conversion_type == 'integer':
+            converted_value = to_int(converted_value)
+        elif conversion_type == 'float':
+            converted_value = to_float(converted_value)
+
+        if round_amount and isinstance(converted_value, float):
+            converted_value = round(converted_value, round_amount)
+
+        if format_string is not None:
+            formatted_value = format_string % converted_value
+        else:
+            formatted_value = converted_value
+
+        return name, formatted_value
+
+    def publish_row(self, time_stamp, data, topics):
+        """ Publish the data. """
+        for topic in topics:
+            record = copy.deepcopy(data)
+            for plugin_name in self.publisher.plugin_manager.callbacks['update_record']['immediate']:
+                self.profile(f"  profile: before immed update_record {time.time() - self.start_time} {topic} {plugin_name}")
+
+                self.publisher.plugin_manager.callbacks['update_record']['immediate'][plugin_name](self.publisher.client,
+                                                                                                   topic,
+                                                                                                   record,
+                                                                                                   data['usUnits'],
+                                                                                                   topics[topic]['qos'],
+                                                                                                   topics[topic]['retain'])
+                self.profile(f"  profile: after immed update_record {time.time() - self.start_time} {topic} {plugin_name}")
+
+            updated_record = self.update_record(topics[topic], time_stamp, record)
+            for plugin_name in self.publisher.plugin_manager.callbacks['update_record']['delay']:
+                # Note, this is called with the unit_system from the configuration because:
+                # 1. The record has been converted to this unit_system
+                # 2. The record may not be publishing the field usUnits.
+                self.profile(f"  profile: before delay update_record {time.time() - self.start_time} {topic} {plugin_name}")
+                self.publisher.plugin_manager.callbacks['update_record']['delay'][plugin_name](self.publisher.client,
+                                                                                               topic,
+                                                                                               updated_record,
+                                                                                               topics[topic]['unit_system'],
+                                                                                               topics[topic]['qos'],
+                                                                                               topics[topic]['retain'])
+                self.profile(f"  profile: after delay update_record {time.time() - self.start_time} {topic} {plugin_name}")
+
+            if updated_record:
+                if topics[topic]['type'] == 'json':
+                    self.publisher.publish_message(time_stamp,
+                                                   topics[topic]['qos'],
+                                                   topics[topic]['retain'],
+                                                   topic,
+                                                   json.dumps(updated_record))
+                if topics[topic]['type'] == 'keyword':
+                    data_keyword = ', '.join(f"{key}={val}" for (key, val) in updated_record.items())
+                    self.publisher.publish_message(time_stamp,
+                                                   topics[topic]['qos'],
+                                                   topics[topic]['retain'],
+                                                   topic,
+                                                   data_keyword)
+                if topics[topic]['type'] == 'individual':
+                    for key, value in updated_record.items():
+                        self.publisher.publish_message(time_stamp,
+                                                       topics[topic]['qos'],
+                                                       topics[topic]['retain'],
+                                                       topic + '/' + key,
+                                                       value)
+
+    def run(self):
+        threading.current_thread().name = f"MQTTPublish-{threading.get_native_id()}"
+        self.logger.loginf(f"Starting publishing loop {self.name}.")
+
+        self.plugin_manager = PluginManager(self.logger)
+        for plugin in self.plugins:
+            if 'module' in self.plugins[plugin]:
+                plugin_name = self.plugins[plugin]['module'] + '.' + plugin
+            else:
+                plugin_name = self.plugins[plugin]['plugin']
+            self.plugin_manager.create_plugin(plugin_name, self.plugins[plugin], self.mqtt_config, self.all_topics, self.weewx_dict)
+
+        # need to instantiate inside thread
+        self.publisher = AbstractPublisher.get_publisher(self.logger, self.plugin_manager, self, self.mqtt_config)
+
+        with weewx.manager.open_manager(self.manager_dict) as db_manager:
+            self.db_manager = db_manager
+            while self.process:
+                try:
+                    data2 = self.data_queue.get_nowait()
+
+                    self.start_time = time.time()
+                    self.profile(f"profile: queue size {self.data_queue.qsize()} at {self.start_time}")
+
+                    for plugin_name in self.plugin_manager.callbacks['on_weewx_data']['immediate']:
+                        self.plugin_manager.callbacks['on_weewx_data']['immediate'][plugin_name](data2)
+
+                    time_stamp = data2['time_stamp']
+                    data_type = data2['type']
+                    data = data2['data']
+                    if data_type == 'loop':
+                        self.publish_row(time_stamp, data, self.topics_loop)
+                    elif data_type == 'archive':
+                        self.publish_row(time_stamp, data, self.topics_archive)
+                    else:
+                        self.logger.logerr(f"Unknown data type, {data_type}")
+
+                    for plugin_name in self.plugin_manager.callbacks['on_weewx_data']['delay']:
+                        self.plugin_manager.callbacks['on_weewx_data']['delay'][plugin_name](data2)
+                except Queue.Empty:
+                    self.publisher.client.loop(timeout=0.1)
+                    self.threading_event.wait(self.mqtt_config['wait_for_queue_element'])
+                    self.threading_event.clear()
+                except CannotConnectError:
+                    self.process = False
+
+        # MQTT's LWT is sent from the broker on an unexpected disconnect.
+        # So we need to send an offline message on an 'expected' disconnect.
+        if self.lwt_dict is not None and to_bool(self.lwt_dict.get('enable', True)):
+            self.publisher.client.publish(topic=self.lwt_dict.get('topic', 'status'),
+                                          payload=self.lwt_dict.get('offline_payload', 'offline'),
+                                          qos=to_int(self.lwt_dict.get('qos', 0)),
+                                          retain=to_bool(self.lwt_dict.get('retain', True)))
+
+        self.publisher.client.disconnect()
+        self.logger.loginf(f"Exited publishing loop {self.name}.")
+
+class PublishWeeWXProcess(threading.Thread):
+    """Publish WeeWX data to MQTT. """
+    UNIT_REDUCTIONS = {
+        'degree_F': 'F',
+        'degree_C': 'C',
+        'inch': 'in',
+        'mile_per_hour': 'mph',
+        'mile_per_hour2': 'mph',
+        'km_per_hour': 'kph',
+        'km_per_hour2': 'kph',
+        'knot': 'knot',
+        'knot2': 'knot2',
+        'meter_per_second': 'mps',
+        'meter_per_second2': 'mps',
+        'degree_compass': None,
+        'watt_per_meter_squared': 'Wpm2',
+        'uv_index': None,
+        'percent': None,
+        'unix_epoch': None,
+    }
+
+    def __init__(self,
+                 logger,
+                 plugins,
+                 weewx_dict,
+                 manager_dict,
+                 mqtt_config,
+                 topics_loop,
+                 topics_archive,
+                 data_queue):
+        threading.Thread.__init__(self)
+
+        # Because we are running in separate process, we need to setup a new logger
+        # ToDo: document possible ideas of a queue back to original process, etc.
+        setup_logging(True, weewx_dict['config_dict'])
+        self.logger = Logger()
 
         self.logger.loginf("Initializing publishing thread.")
 
