@@ -846,7 +846,7 @@ class MQTTPublish(StdService):
         # .close() .interrupt()
         if self.multiprocess:
             self._thread.terminate()
-            self._thread.wait()
+            # self._thread.wait()
             return
         self.logger.loginf("Shutdown initiatead")
         if self._thread:
@@ -1338,11 +1338,18 @@ class PublishWeeWXProcess(multiprocessing.Process):
 
         with weewx.manager.open_manager(self.manager_dict) as db_manager:
             self.db_manager = db_manager
+            # ToDO: Make configurable
+            self.start_time = time.time()
+            self.profile(f"profile: queue size {self.data_queue.qsize()} at {self.start_time}")
+            for _ in range(self.data_queue.qsize()):
+                try:
+                    self.data_queue.get_nowait()
+                except Queue.Empty:
+                    break
             while self.process:
                 try:
                     data2 = self.data_queue.get_nowait()
 
-                    self.start_time = time.time()
                     self.profile(f"profile: queue size {self.data_queue.qsize()} at {self.start_time}")
 
                     for plugin_name in self.plugin_manager.callbacks['on_weewx_data']['immediate']:
