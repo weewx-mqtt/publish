@@ -605,7 +605,8 @@ class MQTTPublish(StdService):
             self.logger.loginf("'binding' is deprecated and no longer used.")
 
         # ToDo: make default False
-        if service_dict.get('multiprocess', True):
+        self.multiprocess = service_dict.get('multiprocess', True)
+        if self.multiprocess:
             self.data_queue = multiprocessing.Queue()
             self._thread = PublishWeeWXProcess(self.logger,
                                                self.plugins,
@@ -840,6 +841,13 @@ class MQTTPublish(StdService):
 
     def shutDown(self):
         """Run when an engine shutdown is requested."""
+        # ToDo: more cleanup here
+        # ToDo: Need catch the terminate in the subprocess
+        # .close() .interrupt()
+        if self.multiprocess:
+            self._thread.terminate()
+            self._thread.wait()
+            return
         self.logger.loginf("Shutdown initiatead")
         if self._thread:
             self.logger.loginf("Shutdown of thread initiated")
