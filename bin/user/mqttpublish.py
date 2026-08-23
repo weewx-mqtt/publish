@@ -544,9 +544,6 @@ class MQTTPublish(StdService):
     def __init__(self, engine, config_dict):
         super().__init__(engine, config_dict)
         self.logger = Logger()
-        self.logger_queue = Queue.Queue()
-        self.logger_thread = LoggerThread(self.logger, self.logger_queue)
-        self.logger_thread.start()
 
         self.logger.loginf(f"MQTTPublish version: {VERSION}.")
 
@@ -633,9 +630,10 @@ class MQTTPublish(StdService):
             self.logger.loginf("'binding' is deprecated and no longer used.")
 
         # ToDo: make default False
-        self.multiprocess = to_bool(service_dict.get('multiprocess', False))
+        self.multiprocess = to_bool(service_dict.get('multiprocess', True))
         if self.multiprocess:
             self.data_queue = multiprocessing.Queue()
+            self.logger_queue = multiprocessing.Queue()
             self._thread = PublishWeeWXProcess(self.logger_queue,
                                                self.plugins,
                                                self.weewx_dict,
@@ -646,6 +644,7 @@ class MQTTPublish(StdService):
                                                self.data_queue)
         else:
             self.data_queue = Queue.Queue()
+            self.logger_queue = Queue.Queue()
             self._thread = PublishWeeWXThread(self.logger_queue,
                                               self.plugins,
                                               self.weewx_dict,
@@ -654,6 +653,9 @@ class MQTTPublish(StdService):
                                               self.topics_loop,
                                               self.topics_archive,
                                               self.data_queue)
+
+        self.logger_thread = LoggerThread(self.logger, self.logger_queue)
+        self.logger_thread.start()
 
         self.thread_start()
 
