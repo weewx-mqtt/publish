@@ -195,11 +195,13 @@ class AbstractPublisher(abc.ABC):
                                        'log_message': "After retrying connect call."})
             except Exception as exception:  # want to catch all pylint: disable=broad-exception-caught
                 self.logger_queue.put({'log_type': 'ERROR',
-                                       'log_message': f"MQTT connect retry {retries} failed with {type(exception)} and reason {exception}."})
+                                       'log_message': (f"MQTT connect retry {retries} failed with {type(exception)} "
+                                                       f"and reason {exception}.")})
 
     def _reconnect(self):
         self.logger_queue.put({'log_type': 'INFO',
-                               'log_message': f"Attempting to reconnect to host: {self.mqtt_config['host']} port: {self.mqtt_config['port']}."})
+                               'log_message': (f"Attempting to reconnect to host: {self.mqtt_config['host']} "
+                                               f"port: {self.mqtt_config['port']}.")})
         try:
             self.client.reconnect()
         except Exception as exception:  # want to catch all pylint: disable=broad-exception-caught
@@ -228,7 +230,8 @@ class AbstractPublisher(abc.ABC):
                                        'log_message': "After retrying reconnect call."})
             except Exception as exception:  # want to catch all pylint: disable=broad-exception-caught
                 self.logger_queue.put({'log_type': 'ERROR',
-                                       'log_message': f"MQTT reconnect {retries} failed with {type(exception)} and reason {exception}."})
+                                       'log_message': (f"MQTT reconnect {retries} failed with {type(exception)} "
+                                                       f"and reason {exception}.")})
 
     def _config_tls(self, tls_dict):
         """ Configure TLS."""
@@ -312,7 +315,8 @@ class AbstractPublisher(abc.ABC):
 
         mqtt_message_info = self.client.publish(topic, payload, qos=qos, retain=retain)
         self.logger_queue.put({'log_type': 'DEBUG',
-                               'log_message': f"At {int(time.time())} publishing: {int(time_stamp)} {mqtt_message_info.mid} {qos} {topic}"})
+                               'log_message': (f"At {int(time.time())} "
+                                               f"publishing: {int(time_stamp)} {mqtt_message_info.mid} {qos} {topic}")})
 
         self.client.loop(timeout=0.1)
 
