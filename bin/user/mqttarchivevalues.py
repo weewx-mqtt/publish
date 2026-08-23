@@ -21,14 +21,15 @@ import weewx
 
 class MQTTArchiveValues:
     """ Calculate aggregate values. """
-    def __init__(self, logger, name, plugin_dict, _mqtt_dict, _topics, _weewx_dict):
-        self.logger = logger
+    def __init__(self, logger_queue, name, plugin_dict, _mqtt_dict, _topics, _weewx_dict):
+        self.logger_queue = logger_queue
         self.name = name
         self.plugin_dict = weeutil.config.deep_copy(plugin_dict)
         self.enabled = to_bool(self.plugin_dict.get('enable', True))
 
         if not self.enabled:
-            self.logger.loginf(f"Plugin {self.name} is not enabled.")
+            self.logger_queue.put({'log_type': 'INFO',
+                                   'log_message': f"Plugin {self.name} is not enabled."})
             return
 
         # ToDo: check that these are mutually exclusive
