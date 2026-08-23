@@ -606,7 +606,7 @@ class MQTTPublish(StdService):
             self.logger.loginf("'binding' is deprecated and no longer used.")
 
         # ToDo: make default False
-        self.multiprocess = service_dict.get('multiprocess', False)
+        self.multiprocess = to_bool(service_dict.get('multiprocess', False))
         if self.multiprocess:
             self.data_queue = multiprocessing.Queue()
             self._thread = PublishWeeWXProcess(self.logger,
@@ -974,7 +974,7 @@ class QueueProcessor():
                 (unit_type, _) = weewx.units.getStandardUnitType(unit_system, name)
             else:
                 unit_type = unit
-            unit_type = PublishWeeWXThread.UNIT_REDUCTIONS.get(unit_type, unit_type)
+            unit_type = QueueProcessor.UNIT_REDUCTIONS.get(unit_type, unit_type)
             if unit_type is not None:
                 name = f"{name}_{unit_type}"
 
@@ -1233,7 +1233,7 @@ if __name__ == "__main__":
             engine.dispatchEvent(new_loop_packet_event)
 
         loop_count = 0
-        while mqtt_publish._thread.threading_event.is_set() and loop_count < max_loops:  # pylint: disable=protected-access
+        while mqtt_publish._thread.processor.threading_event.is_set() and loop_count < max_loops:  # pylint: disable=protected-access
             print("sleepting")
             time.sleep(1)
             loop_count += 1
