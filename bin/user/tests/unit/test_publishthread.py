@@ -17,22 +17,27 @@ import time
 
 import user.mqttpublish
 
-class TestPublishWeeWXThread(unittest.TestCase):
+class TestQueueProcessor(unittest.TestCase):
     def test_update_record(self):
-        mock_logger = mock.Mock()
+        mock_logger_queue = mock.Mock()
         config = {}
         topics_loop = {}
         topics_archive = {}
         data_queue = None
+        weewx_dict = {
+            'config_dict': {
+                'MQTTPublish': {}
+            }
+        }
 
-        SUT = user.mqttpublish.PublishWeeWXThread(mock_logger,
-                                                  {},
-                                                  None,
-                                                  None,
-                                                  config,
-                                                  topics_loop,
-                                                  topics_archive,
-                                                  data_queue)
+        SUT = user.mqttpublish.QueueProcessor(mock_logger_queue,
+                                              {},
+                                              weewx_dict,
+                                              None,
+                                              config,
+                                              topics_loop,
+                                              topics_archive,
+                                              data_queue)
 
         field1 = helpers.random_string()
 
@@ -70,22 +75,27 @@ class TestPublishWeeWXThread(unittest.TestCase):
                     self.assertDictEqual(final_record, expected_record)
 
     def test_update_field(self):
-        mock_logger = mock.Mock()
+        mock_logger_queue = mock.Mock()
         config_dict = {}
         config = configobj.ConfigObj(config_dict)
         config = {}
         topics_loop = {}
         topics_archive = {}
         data_queue_mock = mock.Mock()
+        weewx_dict = {
+            'config_dict': {
+                'MQTTPublish': {}
+            }
+        }
 
-        SUT = user.mqttpublish.PublishWeeWXThread(mock_logger,
-                                                  {},
-                                                  None,
-                                                  None,
-                                                  config,
-                                                  topics_loop,
-                                                  topics_archive,
-                                                  data_queue_mock)
+        SUT = user.mqttpublish.QueueProcessor(mock_logger_queue,
+                                              {},
+                                              weewx_dict,
+                                              None,
+                                              config,
+                                              topics_loop,
+                                              topics_archive,
+                                              data_queue_mock)
 
         field1 = helpers.random_string()
 
