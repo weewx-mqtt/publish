@@ -634,7 +634,7 @@ class MQTTPublish(StdService):
             self.logger.loginf("'binding' is deprecated and no longer used.")
 
         # ToDo: make default False
-        self.multiprocess = to_bool(service_dict.get('multiprocess', True))
+        self.multiprocess = to_bool(service_dict.get('multiprocess', False))
         if self.multiprocess:
             self.data_queue = multiprocessing.Queue()
             self.logger_queue = multiprocessing.Queue()
