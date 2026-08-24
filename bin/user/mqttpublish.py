@@ -917,7 +917,8 @@ class LoggerThread(threading.Thread):
             if message is None:
                 break
             try:
-                self.log_types[message['log_type']](message['log_message'])
+                if message['log_type'] is not None:
+                    self.log_types[message['log_type']](message['log_message'])
             except (TypeError, KeyError):
                 self.logger.logerr(message)
 
@@ -959,6 +960,8 @@ class QueueProcessor():
                                'log_message': "Initializing queue processor."})
 
         self.start_time = 0
+
+        self.monitor_queue = weewx_dict['config_dict']['MQTTPublish'].get('monitor_queue')
 
         self.plugins = plugins
         self.weewx_dict = weewx_dict
@@ -1143,12 +1146,17 @@ class QueueProcessor():
 
         with weewx.manager.open_manager(self.manager_dict) as db_manager:
             self.db_manager = db_manager
+            prev_time = time.time()
             while self.process:
                 try:
                     data2 = self.data_queue.get_nowait()
 
-                    self.start_time = time.time()
-                    self.profile(f"profile: queue size {self.data_queue.qsize()} at {self.start_time}")
+                    curr_time = time.time()
+                    self.logger_queue.put({'log_type': self.monitor_queue,
+                                           'log_message': (f"Queue size: {self.data_queue.qsize()} "
+                                                           f"Process time: {curr_time - prev_time}")
+                                           })
+                    prev_time = curr_time
 
                     for plugin_name in self.plugin_manager.callbacks['on_weewx_data']['immediate']:
                         self.plugin_manager.callbacks['on_weewx_data']['immediate'][plugin_name](data2)
