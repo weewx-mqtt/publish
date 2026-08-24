@@ -24,7 +24,7 @@ class TestPublisherV1(PublisherBase):
     protocol_string = random.choice(['MQTTv31', 'MQTTv311'])
 
     def test_get_client(self):
-        mock_logger = mock.Mock()
+         = mock.Mock()
         mock_publisher = mock.Mock()
 
         config_dict = {
@@ -44,7 +44,7 @@ class TestPublisherV1(PublisherBase):
             with mock.patch('user.mqttpublish.mqtt.Client') as mock_client:
                 with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
 
-                    self.class_under_test(mock_logger, None, mock_publisher, config)
+                    self.class_under_test(, None, mock_publisher, config)
 
                     mock_client.assert_called_once_with(client_id=config_dict['clientid'], protocol=config_dict['protocol'])
 
