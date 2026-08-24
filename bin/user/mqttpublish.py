@@ -127,6 +127,10 @@ class AbstractPublisher(abc.ABC):
         self.publisher = publisher
         self.mqtt_config = mqtt_config
 
+        # ToDO: Figure out how to make configurable
+        self.monitor_on_message = None
+        self.monitor_on_connect = None
+
         self.client = self.get_client(mqtt_config['clientid'], mqtt_config['protocol'])
         self.set_callbacks(mqtt_config['log_mqtt'])
 
@@ -359,14 +363,23 @@ class AbstractPublisher(abc.ABC):
         self.logger_queue.put({'log_type': 'DEBUG',
                                'log_message': f"Received: {userdata} {msg}"})
         for plugin_name in self.plugin_manager.callbacks['on_mqtt_message']['immediate']:
+            start_time = time.time()
             self.plugin_manager.callbacks['on_mqtt_message']['immediate'][plugin_name](client, userdata, msg)
+            self.logger_queue.put({'log_type': self.monitor_on_message,
+                                   'log_message': (f"monitor: on_message (immediate) {plugin_name}  {msg}"
+                                                   f"took {time.time() - start_time} ")})
 
         for plugin_name in self.plugin_manager.callbacks['on_mqtt_message']['delay']:
+            start_time = time.time()
             self.plugin_manager.callbacks['on_mqtt_message']['delay'][plugin_name](client, userdata, msg)
-
+            self.logger_queue.put({'log_type': self.monitor_on_message,
+                                   'log_message': (f"monitor: on_message (delay) {plugin_name} {msg} "
+                                                   f"took {time.time() - start_time} ")})
 class PublisherV1(AbstractPublisher):
     ''' MQTTPublish that communicates with paho mqtt v1.'''
     def __init__(self, logger_queue, plugin_manager, publisher, mqtt_config):
+        # ToDO: Figure out how to make configurable
+        self.monitor_on_connect = 'INFO'
         protocol = mqtt_config['protocol']
         if protocol not in [mqtt.MQTTv31, mqtt.MQTTv311]:
             raise ValueError(f"Invalid protocol, {protocol}.")
@@ -409,11 +422,15 @@ class PublisherV1(AbstractPublisher):
                                'log_message': f"Connected flags {str(flags)}"})
 
         for plugin_name in self.plugin_manager.callbacks['on_mqtt_connect']['immediate']:
+            start_time = time.time()
             self.plugin_manager.callbacks['on_mqtt_connect']['immediate'][plugin_name](client,
                                                                                        userdata,
                                                                                        flags,
                                                                                        reason_code,
                                                                                        properties)
+            self.logger_queue.put({'log_type': self.monitor_on_connect,
+                                   'log_message': (f"mmonitor: on_connect (immediate) {plugin_name} "
+                                                   f"took {time.time() - start_time} ")})
 
         if self.lwt_dict is not None and to_bool(self.lwt_dict.get('enable', True)):
             self.client.publish(topic=self.lwt_dict.get('topic', 'status'),
@@ -422,8 +439,11 @@ class PublisherV1(AbstractPublisher):
                                 retain=to_bool(self.lwt_dict.get('retain', True)))
 
         for plugin_name in self.plugin_manager.callbacks['on_mqtt_connect']['delay']:
+            start_time = time.time()
             self.plugin_manager.callbacks['on_mqtt_connect']['delay'][plugin_name](client, userdata, flags, reason_code, properties)
-
+            self.logger_queue.put({'log_type': self.monitor_on_connect,
+                                   'log_message': (f"monitor: on_connect (delay) {plugin_name} "
+                                                   f"took {time.time() - start_time} ")})
         self.connected = True
 
     def on_disconnect(self, _client, _userdata, flags_rc, reason_code=None, properties=None):
@@ -480,11 +500,15 @@ class PublisherV2(AbstractPublisher):
                                'log_message': f"Connected flags {str(flags)}"})
 
         for plugin_name in self.plugin_manager.callbacks['on_mqtt_connect']['immediate']:
+            start_time = time.time()
             self.plugin_manager.callbacks['on_mqtt_connect']['immediate'][plugin_name](client,
                                                                                        userdata,
                                                                                        flags,
                                                                                        reason_code,
                                                                                        properties)
+            self.logger_queue.put({'log_type': self.monitor_on_connect,
+                                   'log_message': (f"monitor: on_connect (immediate) {plugin_name} "
+                                                   f"took {time.time() - start_time} ")})
 
         if self.lwt_dict is not None and to_bool(self.lwt_dict.get('enable', True)):
             self.client.publish(topic=self.lwt_dict.get('topic', 'status'),
@@ -493,8 +517,11 @@ class PublisherV2(AbstractPublisher):
                                 retain=to_bool(self.lwt_dict.get('retain', True)))
 
         for plugin_name in self.plugin_manager.callbacks['on_mqtt_connect']['delay']:
+            start_time = time.time()
             self.plugin_manager.callbacks['on_mqtt_connect']['delay'][plugin_name](client, userdata, flags, reason_code, properties)
-
+            self.logger_queue.put({'log_type': self.monitor_on_connect,
+                                   'log_message': (f"monitor: on_connect (delay) {plugin_name} "
+                                                   f"took {time.time() - start_time} ")})
         self.connected = True
 
     def on_disconnect(self, _client, _userdata, _flags, reason_code, _properties):
@@ -963,6 +990,8 @@ class QueueProcessor():
         self.start_time = 0
 
         self.monitor_queue = weewx_dict['config_dict']['MQTTPublish'].get('monitor_queue')
+        self.monitor_record_update = weewx_dict['config_dict']['MQTTPublish'].get('monitor_record_update')
+        self.monitor_on_weewx_data = weewx_dict['config_dict']['MQTTPublish'].get('monitor_on_weewx_data')
 
         self.plugins = plugins
         self.weewx_dict = weewx_dict
@@ -1084,29 +1113,32 @@ class QueueProcessor():
         for topic in topics:
             record = copy.deepcopy(data)
             for plugin_name in self.publisher.plugin_manager.callbacks['update_record']['immediate']:
-                # self.profile(f"  profile: before immed update_record {time.time() - self.start_time} {topic} {plugin_name}")
-
+                start_time = time.time()
                 self.publisher.plugin_manager.callbacks['update_record']['immediate'][plugin_name](self.publisher.client,
                                                                                                    topic,
                                                                                                    record,
                                                                                                    data['usUnits'],
                                                                                                    topics[topic]['qos'],
                                                                                                    topics[topic]['retain'])
-                # self.profile(f"  profile: after immed update_record {time.time() - self.start_time} {topic} {plugin_name}")
-
+                self.logger_queue.put({'log_type': self.monitor_record_update,
+                                       'log_message': (f"monitor: update_record (immmediate) {plugin_name} for {topic} "
+                                                       f"took {time.time() - start_time} ")})
             updated_record = self.update_record(topics[topic], time_stamp, record)
             for plugin_name in self.publisher.plugin_manager.callbacks['update_record']['delay']:
                 # Note, this is called with the unit_system from the configuration because:
                 # 1. The record has been converted to this unit_system
                 # 2. The record may not be publishing the field usUnits.
                 # self.profile(f"  profile: before delay update_record {time.time() - self.start_time} {topic} {plugin_name}")
+                start_time = time.time()
                 self.publisher.plugin_manager.callbacks['update_record']['delay'][plugin_name](self.publisher.client,
                                                                                                topic,
                                                                                                updated_record,
                                                                                                topics[topic]['unit_system'],
                                                                                                topics[topic]['qos'],
                                                                                                topics[topic]['retain'])
-                # self.profile(f"  profile: after delay update_record {time.time() - self.start_time} {topic} {plugin_name}")
+                self.logger_queue.put({'log_type': self.monitor_record_update,
+                                       'log_message': (f"monitor: update_record (delay) {plugin_name} for {topic} "
+                                                       f"took {time.time() - start_time} ")})
 
             if updated_record:
                 if topics[topic]['type'] == 'json':
@@ -1160,7 +1192,11 @@ class QueueProcessor():
                     prev_time = curr_time
 
                     for plugin_name in self.plugin_manager.callbacks['on_weewx_data']['immediate']:
+                        start_time = time.time()
                         self.plugin_manager.callbacks['on_weewx_data']['immediate'][plugin_name](data2)
+                        self.logger_queue.put({'log_type': self.monitor_on_weewx_data,
+                                               'log_message': (f"monitor: on_weewx_data (immmediate) {plugin_name}  "
+                                                               f"took {time.time() - start_time} ")})
 
                     time_stamp = data2['time_stamp']
                     data_type = data2['type']
@@ -1178,7 +1214,11 @@ class QueueProcessor():
                                                'log_message': f"Unknown data type, {data_type}"})
 
                     for plugin_name in self.plugin_manager.callbacks['on_weewx_data']['delay']:
+                        start_time = time.time()
                         self.plugin_manager.callbacks['on_weewx_data']['delay'][plugin_name](data2)
+                        self.logger_queue.put({'log_type': self.monitor_on_weewx_data,
+                                               'log_message': (f"monitor: on_weewx_data (delay) {plugin_name}  "
+                                                               f"took {time.time() - start_time} ")})
                 except Queue.Empty:
                     self.publisher.client.loop(timeout=0.1)
                     self.threading_event.wait(self.mqtt_config['wait_for_queue_element'])
