@@ -902,6 +902,7 @@ class LoggerThread(threading.Thread):
         threading.Thread.__init__(self)
         self.logger = logger
         self.log_types = {
+            'TRACE': self.logger.logdbg,
             'DEBUG': self.logger.logdbg,
             'INFO': self.logger.loginf,
             'ERROR': self.logger.logerr
