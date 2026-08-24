@@ -22,7 +22,7 @@ import weewx
 
 class Test_MQTTAggregateValues(unittest.TestCase):
     def test_update_record(self):
-        mock_logger = mock.Mock()
+        mock_logger_queue = mock.Mock()
         name = helpers.random_string()
         topic = helpers.random_string()
         period = helpers.random_string()
@@ -52,7 +52,7 @@ class Test_MQTTAggregateValues(unittest.TestCase):
                     mock_xtype.get_aggregate.return_value = (aggregate_value, 'bar', 'foobar')
                     date_time = time.time()
 
-                    SUT = user.mqttaggregatevalues.MQTTAggregateValues(mock_logger, name, plugin_config, None, {}, weewx_dict)
+                    SUT = user.mqttaggregatevalues.MQTTAggregateValues(mock_logger_queue, name, plugin_config, None, {}, weewx_dict)
 
                     record = {
                         'dateTime': date_time
@@ -66,7 +66,7 @@ class Test_MQTTAggregateValues(unittest.TestCase):
                     self.assertDictEqual(record, expected_record)
 
     def test_update_record_aggregate_exception(self):
-        mock_logger = mock.Mock()
+        mock_logger_queue = mock.Mock()
         name = helpers.random_string()
         topic = helpers.random_string()
         period = helpers.random_string()
@@ -95,7 +95,7 @@ class Test_MQTTAggregateValues(unittest.TestCase):
                     mock_xtype.get_aggregate.side_effect = weewx.CannotCalculate
                     date_time = time.time()
 
-                    SUT = user.mqttaggregatevalues.MQTTAggregateValues(mock_logger, name, plugin_config, None, {}, weewx_dict)
+                    SUT = user.mqttaggregatevalues.MQTTAggregateValues(mock_logger_queue, name, plugin_config, None, {}, weewx_dict)
 
                     record = {
                         'dateTime': date_time
@@ -105,10 +105,10 @@ class Test_MQTTAggregateValues(unittest.TestCase):
                     expected_record = copy.deepcopy(record)
 
                     self.assertDictEqual(record, expected_record)
-                    self.assertEqual(mock_logger.logerr.call_count, 2)
+                    self.assertEqual(mock_logger_queue.put.call_count, 2)
 
     def test_get_callbacks(self):
-        mock_logger = mock.Mock()
+        mock_logger_queue = mock.Mock()
         name = helpers.random_string()
         topic = helpers.random_string()
         period = helpers.random_string()
@@ -136,7 +136,7 @@ class Test_MQTTAggregateValues(unittest.TestCase):
                     mock_timespan_provider.return_value.period_timespans = [period]
                     mock_xtype.get_aggregate.side_effect = weewx.CannotCalculate
 
-                    SUT = user.mqttaggregatevalues.MQTTAggregateValues(mock_logger, name, plugin_config, None, {}, weewx_dict)
+                    SUT = user.mqttaggregatevalues.MQTTAggregateValues(mock_logger_queue, name, plugin_config, None, {}, weewx_dict)
 
                     callbacks = SUT.get_callbacks()
 
