@@ -128,8 +128,7 @@ class AbstractPublisher(abc.ABC):
         self.mqtt_config = mqtt_config
 
         # ToDO: Figure out how to make configurable
-        # ToDo: Testing
-        self.monitor_on_message = 'INFO'
+        self.monitor_on_message = None
         self.monitor_on_connect = None
 
         self.client = self.get_client(mqtt_config['clientid'], mqtt_config['protocol'])
@@ -363,19 +362,34 @@ class AbstractPublisher(abc.ABC):
         """ The on_message callback. """
         self.logger_queue.put({'log_type': 'DEBUG',
                                'log_message': f"Received: {userdata} {msg}"})
+
+        run_time = 0
         for plugin_name in self.plugin_manager.callbacks['on_mqtt_message']['immediate']:
-            # start_time = time.time()
+            start_time = time.time()
             self.plugin_manager.callbacks['on_mqtt_message']['immediate'][plugin_name](client, userdata, msg)
+            delta_time = time.time() - start_time
+            run_time += delta_time
             self.logger_queue.put({'log_type': self.monitor_on_message,
                                    'log_message': (f"monitor: on_message (immediate) {plugin_name}  {msg}"
-                                                   f"took {time.time() - start_time} ")})
+                                                   f"took {delta_time} ")})
+        self.logger_queue.put({'log_type': self.monitor_on_message,
+                               'log_message': (f"monitor: on_message (immediate) "
+                                               f"took {run_time} ")})
 
+        run_time = 0
         for plugin_name in self.plugin_manager.callbacks['on_mqtt_message']['delay']:
             start_time = time.time()
             self.plugin_manager.callbacks['on_mqtt_message']['delay'][plugin_name](client, userdata, msg)
+            delta_time = time.time() - start_time
+            run_time += delta_time
             self.logger_queue.put({'log_type': self.monitor_on_message,
                                    'log_message': (f"monitor: on_message (delay) {plugin_name} {msg} "
-                                                   f"took {time.time() - start_time} ")})
+                                                   f"took {delta_time} ")})
+
+        self.logger_queue.put({'log_type': self.monitor_on_message,
+                               'log_message': (f"monitor: on_message (delay) "
+                                               f"took {run_time} ")})
+
 class PublisherV1(AbstractPublisher):
     ''' MQTTPublish that communicates with paho mqtt v1.'''
     def __init__(self, logger_queue, plugin_manager, publisher, mqtt_config):
@@ -500,8 +514,11 @@ class PublisherV2(AbstractPublisher):
         self.logger_queue.put({'log_type': 'INFO',
                                'log_message': f"Connected flags {str(flags)}"})
 
+        run_time = 0
         for plugin_name in self.plugin_manager.callbacks['on_mqtt_connect']['immediate']:
             start_time = time.time()
+            delta_time = time.time() - start_time
+            run_time += delta_time
             self.plugin_manager.callbacks['on_mqtt_connect']['immediate'][plugin_name](client,
                                                                                        userdata,
                                                                                        flags,
@@ -509,7 +526,10 @@ class PublisherV2(AbstractPublisher):
                                                                                        properties)
             self.logger_queue.put({'log_type': self.monitor_on_connect,
                                    'log_message': (f"monitor: on_connect (immediate) {plugin_name} "
-                                                   f"took {time.time() - start_time} ")})
+                                                   f"took {delta_time} ")})
+        self.logger_queue.put({'log_type': self.monitor_on_connect,
+                               'log_message': (f"monitor: on_connect (immediate) "
+                                               f"took {run_time} ")})
 
         if self.lwt_dict is not None and to_bool(self.lwt_dict.get('enable', True)):
             self.client.publish(topic=self.lwt_dict.get('topic', 'status'),
@@ -517,12 +537,18 @@ class PublisherV2(AbstractPublisher):
                                 qos=to_int(self.lwt_dict.get('qos', 0)),
                                 retain=to_bool(self.lwt_dict.get('retain', True)))
 
+        run_time = 0
         for plugin_name in self.plugin_manager.callbacks['on_mqtt_connect']['delay']:
             start_time = time.time()
             self.plugin_manager.callbacks['on_mqtt_connect']['delay'][plugin_name](client, userdata, flags, reason_code, properties)
+            delta_time = time.time() - start_time
+            run_time += delta_time
             self.logger_queue.put({'log_type': self.monitor_on_connect,
                                    'log_message': (f"monitor: on_connect (delay) {plugin_name} "
-                                                   f"took {time.time() - start_time} ")})
+                                                   f"took {delta_time} ")})
+        self.logger_queue.put({'log_type': self.monitor_on_connect,
+                               'log_message': (f"monitor: on_connect (delay) "
+                                               f"took {run_time} ")})
         self.connected = True
 
     def on_disconnect(self, _client, _userdata, _flags, reason_code, _properties):
