@@ -128,7 +128,8 @@ class AbstractPublisher(abc.ABC):
         self.mqtt_config = mqtt_config
 
         # ToDO: Figure out how to make configurable
-        self.monitor_on_message = None
+        # ToDo: Testing
+        self.monitor_on_message = 'INFO'
         self.monitor_on_connect = None
 
         self.client = self.get_client(mqtt_config['clientid'], mqtt_config['protocol'])
@@ -365,16 +366,16 @@ class AbstractPublisher(abc.ABC):
         for plugin_name in self.plugin_manager.callbacks['on_mqtt_message']['immediate']:
             # start_time = time.time()
             self.plugin_manager.callbacks['on_mqtt_message']['immediate'][plugin_name](client, userdata, msg)
-            # self.logger_queue.put({'log_type': self.monitor_on_message,
-            #                       'log_message': (f"monitor: on_message (immediate) {plugin_name}  {msg}"
-            #                                       f"took {time.time() - start_time} ")})
+            self.logger_queue.put({'log_type': self.monitor_on_message,
+                                   'log_message': (f"monitor: on_message (immediate) {plugin_name}  {msg}"
+                                                   f"took {time.time() - start_time} ")})
 
         for plugin_name in self.plugin_manager.callbacks['on_mqtt_message']['delay']:
-            # start_time = time.time()
+            start_time = time.time()
             self.plugin_manager.callbacks['on_mqtt_message']['delay'][plugin_name](client, userdata, msg)
-            # self.logger_queue.put({'log_type': self.monitor_on_message,
-            #                       'log_message': (f"monitor: on_message (delay) {plugin_name} {msg} "
-            #                                       f"took {time.time() - start_time} ")})
+            self.logger_queue.put({'log_type': self.monitor_on_message,
+                                   'log_message': (f"monitor: on_message (delay) {plugin_name} {msg} "
+                                                   f"took {time.time() - start_time} ")})
 class PublisherV1(AbstractPublisher):
     ''' MQTTPublish that communicates with paho mqtt v1.'''
     def __init__(self, logger_queue, plugin_manager, publisher, mqtt_config):
