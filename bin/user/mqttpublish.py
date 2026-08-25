@@ -363,14 +363,14 @@ class AbstractPublisher(abc.ABC):
         self.logger_queue.put({'log_type': 'DEBUG',
                                'log_message': f"Received: {userdata} {msg}"})
         for plugin_name in self.plugin_manager.callbacks['on_mqtt_message']['immediate']:
-            start_time = time.time()
+            # start_time = time.time()
             self.plugin_manager.callbacks['on_mqtt_message']['immediate'][plugin_name](client, userdata, msg)
             # self.logger_queue.put({'log_type': self.monitor_on_message,
             #                       'log_message': (f"monitor: on_message (immediate) {plugin_name}  {msg}"
             #                                       f"took {time.time() - start_time} ")})
 
         for plugin_name in self.plugin_manager.callbacks['on_mqtt_message']['delay']:
-            start_time = time.time()
+            # start_time = time.time()
             self.plugin_manager.callbacks['on_mqtt_message']['delay'][plugin_name](client, userdata, msg)
             # self.logger_queue.put({'log_type': self.monitor_on_message,
             #                       'log_message': (f"monitor: on_message (delay) {plugin_name} {msg} "
@@ -1181,14 +1181,17 @@ class QueueProcessor():
             self.db_manager = db_manager
 
             queue_size = self.data_queue.qsize()
-            self.logger.loginf(f"Before emptying, queue size is {queue_size}")
+            self.logger_queue.put({'log_type': 'INFO',
+                                   'log_message': f"Before emptying, queue size is {queue_size}"})
             for _ in range(queue_size):
                 try:
                     self.data_queue.get_nowait()
-                except queue.Empty:
+                except Queue.Empty:
                     break
-            self.logger.loginf(f"After emptying, queue size is {self.data_queue.qsize()}")
+            self.logger_queue.put({'log_type': 'INFO',
+                                   'log_message': f"After emptying, queue size is {self.data_queue.qsize()}"})
 
+            prev_time = time.time()
             while self.process:
                 try:
                     data2 = self.data_queue.get_nowait()
@@ -1201,7 +1204,7 @@ class QueueProcessor():
                     prev_time = curr_time
 
                     for plugin_name in self.plugin_manager.callbacks['on_weewx_data']['immediate']:
-                        start_time = time.time()
+                        # start_time = time.time()
                         self.plugin_manager.callbacks['on_weewx_data']['immediate'][plugin_name](data2)
                         # self.logger_queue.put({'log_type': self.monitor_on_weewx_data,
                         #                       'log_message': (f"monitor: on_weewx_data (immmediate) {plugin_name}  "
@@ -1223,7 +1226,7 @@ class QueueProcessor():
                                                'log_message': f"Unknown data type, {data_type}"})
 
                     for plugin_name in self.plugin_manager.callbacks['on_weewx_data']['delay']:
-                        start_time = time.time()
+                        # start_time = time.time()
                         self.plugin_manager.callbacks['on_weewx_data']['delay'][plugin_name](data2)
                         # self.logger_queue.put({'log_type': self.monitor_on_weewx_data,
                         #                       'log_message': (f"monitor: on_weewx_data (delay) {plugin_name}  "
