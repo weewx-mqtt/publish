@@ -989,9 +989,8 @@ class QueueProcessor():
         self.start_time = 0
 
         self.monitor_queue = weewx_dict['config_dict']['MQTTPublish'].get('monitor_queue')
-        # ToDo: for testing only
-        self.monitor_record_update = weewx_dict['config_dict']['MQTTPublish'].get('monitor_record_update', 'INFO')
-        self.monitor_on_weewx_data = weewx_dict['config_dict']['MQTTPublish'].get('monitor_on_weewx_data', 'INFO')
+        self.monitor_record_update = weewx_dict['config_dict']['MQTTPublish'].get('monitor_record_update')
+        self.monitor_on_weewx_data = weewx_dict['config_dict']['MQTTPublish'].get('monitor_on_weewx_data')
 
         self.plugins = plugins
         self.weewx_dict = weewx_dict
