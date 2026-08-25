@@ -20,7 +20,7 @@ import user.mqtthaconfig
 
 class test_MQTTHomeAssistantConfig(unittest.TestCase):
     def test_init(self):
-        mock_logger = mock.Mock()
+        mock_logger_queue = mock.Mock()
         name = helpers.random_string()
         topics = {
             helpers.random_string(): {
@@ -38,10 +38,10 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
             'defaults': {}
         }
 
-        user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger, name, configobj.ConfigObj(plugin_dict), {}, topics, weewx_dict)
+        user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger_queue, name, configobj.ConfigObj(plugin_dict), {}, topics, weewx_dict)
 
     def test_init_mqtt_config(self):
-        mock_logger = mock.Mock()
+        mock_logger_queue = mock.Mock()
         name = helpers.random_string()
         device_id = helpers.random_string()
         qos = random.randint(0, 2)
@@ -64,7 +64,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
             'defaults': {}
         }
 
-        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger,
+        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger_queue,
                                                         name,
                                                         configobj.ConfigObj(plugin_dict),
                                                         {},
@@ -81,7 +81,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
         self.assertDictEqual(SUT.mqtt_config, expected_results)
 
     def test_init_state_topics(self):
-        mock_logger = mock.Mock()
+        mock_logger_queue = mock.Mock()
         name = helpers.random_string()
         device_id = helpers.random_string()
         topic = helpers.random_string()
@@ -102,7 +102,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
             'defaults': {}
         }
 
-        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger,
+        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger_queue,
                                                         name,
                                                         configobj.ConfigObj(plugin_dict),
                                                         {},
@@ -120,7 +120,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
         self.assertDictEqual(SUT.state_topics, expected_result)
 
     def test_init_component_data(self):
-        mock_logger = mock.Mock()
+        mock_logger_queue = mock.Mock()
         name = helpers.random_string()
         component_key = helpers.random_string()
         component_value = helpers.random_string()
@@ -144,7 +144,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
             'defaults': {}
         }
 
-        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger,
+        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger_queue,
                                                         name,
                                                         configobj.ConfigObj(plugin_dict),
                                                         {},
@@ -160,7 +160,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
         self.assertDictEqual(SUT.defaults, expected_result)
 
     def test_init_configuration(self):
-        mock_logger = mock.Mock()
+        mock_logger_queue = mock.Mock()
         name = helpers.random_string()
         device_id = helpers.random_string()
         origin_name = helpers.random_string()
@@ -193,7 +193,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
             'defaults': {}
         }
 
-        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger,
+        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger_queue,
                                                         name,
                                                         configobj.ConfigObj(plugin_dict),
                                                         {},
@@ -221,7 +221,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
         self.assertDictEqual(SUT.configuration.dict(), expected_result)
 
     def test_get_callbacks(self):
-        mock_logger = mock.Mock()
+        mock_logger_queue = mock.Mock()
         name = helpers.random_string()
         topics = {
             helpers.random_string(): {
@@ -239,7 +239,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
             'defaults': {}
         }
 
-        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger,
+        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger_queue,
                                                         name,
                                                         configobj.ConfigObj(plugin_dict),
                                                         {},
@@ -270,7 +270,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
 
     def test_received_birth_message(self):
         mock_client = mock.Mock()
-        mock_logger = mock.Mock()
+        mock_logger_queue = mock.Mock()
         name = helpers.random_string()
         device_id = helpers.random_string()
         topics = {
@@ -289,7 +289,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
             'defaults': {}
         }
 
-        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger,
+        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger_queue,
                                                         name,
                                                         configobj.ConfigObj(plugin_dict),
                                                         {},
@@ -308,7 +308,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
         mock_client.publish.assert_called_once_with(topic, payload, qos=qos, retain=retain)
 
     def test_received_lwt_message(self):
-        mock_logger = mock.Mock()
+        mock_logger_queue = mock.Mock()
         name = helpers.random_string()
         topics = {
             helpers.random_string(): {
@@ -326,7 +326,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
             'defaults': {}
         }
 
-        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger,
+        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger_queue,
                                                         name,
                                                         configobj.ConfigObj(plugin_dict),
                                                         {},
@@ -335,13 +335,13 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
 
         msg = mqttstubs.Msg('homeassistant/status', b'offline', 0, False)
 
-        mock_logger.reset_mock()
+        mock_logger_queue.reset_mock()
         SUT.on_mqtt_message(mock.Mock(), None, msg)
 
-        mock_logger.loginf.assert_called_once_with("Received LWT b'offline' on topic: homeassistant/status.")
+        mock_logger_queue.put.assert_called_with({'log_type': 'INFO', 'log_message': "Received LWT b'offline' on topic: homeassistant/status."})
 
     def test_unknown_message(self):
-        mock_logger = mock.Mock()
+        mock_logger_queue = mock.Mock()
         name = helpers.random_string()
         topics = {
             helpers.random_string(): {
@@ -359,7 +359,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
             'defaults': {}
         }
 
-        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger,
+        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger_queue,
                                                         name,
                                                         configobj.ConfigObj(plugin_dict),
                                                         {},
@@ -369,11 +369,11 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
         msg = mqttstubs.Msg('homeassistant/status', b'unknown', 0, False)
         SUT.on_mqtt_message(mock.Mock(), None, msg)
 
-        mock_logger.logerr.assert_called_once_with("Received invalid b'unknown' on topic: homeassistant/status.")
+        mock_logger_queue.put.assert_called_with({'log_type': 'ERROR', 'log_message': "Received invalid b'unknown' on topic: homeassistant/status."})
 
     def test_on_connection(self):
         mock_client = mock.Mock()
-        mock_logger = mock.Mock()
+        mock_logger_queue = mock.Mock()
         name = helpers.random_string()
         topics = {
             helpers.random_string(): {
@@ -391,7 +391,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
             'defaults': {}
         }
 
-        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger,
+        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger_queue,
                                                         name,
                                                         configobj.ConfigObj(plugin_dict),
                                                         {},
@@ -404,7 +404,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
         self.assertEqual(mock_client.subscribe.call_count, 2)
 
     def test_update_record(self):
-        mock_logger = mock.Mock()
+        mock_logger_queue = mock.Mock()
         name = helpers.random_string()
         device_id = helpers.random_string()
         state_topic = helpers.random_string()
@@ -429,7 +429,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
             },
         }
 
-        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger,
+        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger_queue,
                                                         name,
                                                         configobj.ConfigObj(plugin_dict),
                                                         {},

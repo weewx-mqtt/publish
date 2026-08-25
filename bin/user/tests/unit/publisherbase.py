@@ -30,7 +30,7 @@ class PublisherBase(unittest.TestCase):
     def test_set_callbacks(self):
         # pylint: disable=no-member
 
-        mock_logger = mock.Mock()
+        mock_logger_queue = mock.Mock()
         mock_publisher = mock.Mock()
 
         config_dict = {
@@ -50,7 +50,7 @@ class PublisherBase(unittest.TestCase):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
                 with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
 
-                    SUT = self.class_under_test(mock_logger, None, mock_publisher, config)
+                    SUT = self.class_under_test(mock_logger_queue, None, mock_publisher, config)
 
                     self.assertNotEqual(SUT.client.on_log, SUT.on_log)
                     self.assertEqual(SUT.client.on_connect, SUT.on_connect)
@@ -60,7 +60,7 @@ class PublisherBase(unittest.TestCase):
     def test_set_on_log_callback(self):
         # pylint: disable=no-member
 
-        mock_logger = mock.Mock()
+        mock_logger_queue = mock.Mock()
         mock_publisher = mock.Mock()
 
         config_dict = {
@@ -80,7 +80,7 @@ class PublisherBase(unittest.TestCase):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
                 with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
 
-                    SUT = self.class_under_test(mock_logger, None, mock_publisher, config)
+                    SUT = self.class_under_test(mock_logger_queue, None, mock_publisher, config)
 
                     self.assertEqual(SUT.client.on_log, SUT.on_log)
                     self.assertEqual(SUT.client.on_connect, SUT.on_connect)
@@ -88,7 +88,7 @@ class PublisherBase(unittest.TestCase):
                     self.assertEqual(SUT.client.on_publish, SUT.on_publish)
 
     def test_username_set(self):
-        mock_logger = mock.Mock()
+        mock_logger_queue = mock.Mock()
         mock_publisher = mock.Mock()
 
         config_dict = {
@@ -109,12 +109,12 @@ class PublisherBase(unittest.TestCase):
                 with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
                     with mock.patch.object(user.mqttpublish.mqtt.Client, 'username_pw_set') as mock_username_pw_set:
 
-                        self.class_under_test(mock_logger, None, mock_publisher, config)
+                        self.class_under_test(mock_logger_queue, None, mock_publisher, config)
 
                         mock_username_pw_set.assert_not_called()
 
     def test_password_set(self):
-        mock_logger = mock.Mock()
+        mock_logger_queue = mock.Mock()
         mock_publisher = mock.Mock()
 
         config_dict = {
@@ -135,12 +135,12 @@ class PublisherBase(unittest.TestCase):
                 with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
                     with mock.patch.object(user.mqttpublish.mqtt.Client, 'username_pw_set') as mock_username_pw_set:
 
-                        self.class_under_test(mock_logger, None, mock_publisher, config)
+                        self.class_under_test(mock_logger_queue, None, mock_publisher, config)
 
                         mock_username_pw_set.assert_not_called()
 
     def test_username_password_set(self):
-        mock_logger = mock.Mock()
+        mock_logger_queue = mock.Mock()
         mock_publisher = mock.Mock()
 
         config_dict = {
@@ -161,12 +161,12 @@ class PublisherBase(unittest.TestCase):
                 with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
                     with mock.patch.object(user.mqttpublish.mqtt.Client, 'username_pw_set') as mock_username_pw_set:
 
-                        self.class_under_test(mock_logger, None, mock_publisher, config)
+                        self.class_under_test(mock_logger_queue, None, mock_publisher, config)
 
                         mock_username_pw_set.assert_called_once_with(config_dict['username'], config_dict['password'])
 
     def test_connect_connection(self):
-        mock_logger = mock.Mock()
+        mock_logger_queue = mock.Mock()
         mock_plugin_manager = mock.Mock()
         mock_publisher = mock.Mock()
 
@@ -198,12 +198,12 @@ class PublisherBase(unittest.TestCase):
                                        side_effect=mqttstubs.ClientStub.connect_with_connection,
                                        autospec=True) as mock_connect:
 
-                    self.class_under_test(mock_logger, mock_plugin_manager, mock_publisher, config)
+                    self.class_under_test(mock_logger_queue, mock_plugin_manager, mock_publisher, config)
 
                     self.assertEqual(mock_connect.call_count, 1)
 
     def test_connect_no_connection(self):
-        mock_logger = mock.Mock()
+        mock_logger_queue = mock.Mock()
         mock_publisher = mock.Mock()
 
         config_dict = {
@@ -228,12 +228,12 @@ class PublisherBase(unittest.TestCase):
                                        side_effect=mqttstubs.ClientStub.connect_without_connection,
                                        autospec=True) as mock_connect:
 
-                    self.class_under_test(mock_logger, None, mock_publisher, config)
+                    self.class_under_test(mock_logger_queue, None, mock_publisher, config)
 
                     self.assertEqual(mock_connect.call_count, config_dict['max_retries'] + 1)
 
     def test_connect_first_call_exception(self):
-        mock_logger = mock.Mock()
+        mock_logger_queue = mock.Mock()
         mock_publisher = mock.Mock()
 
         config_dict = {
@@ -258,13 +258,13 @@ class PublisherBase(unittest.TestCase):
                                        side_effect=mqttstubs.ClientStub.connect_exception_first_call,
                                        autospec=True) as mock_connect:
 
-                    self.class_under_test(mock_logger, None, mock_publisher, config)
+                    self.class_under_test(mock_logger_queue, None, mock_publisher, config)
 
                     self.assertEqual(mock_connect.call_count, config_dict['max_retries'] + 1)
-                    self.assertEqual(mock_logger.logerr.call_count, 1)
+                    self.assertEqual(mock_logger_queue.put.call_count, 3 + 2 * config_dict['max_retries'])
 
     def test_connect_subsequent_call_exception(self):
-        mock_logger = mock.Mock()
+        mock_logger_queue = mock.Mock()
         mock_publisher = mock.Mock()
 
         config_dict = {
@@ -289,13 +289,13 @@ class PublisherBase(unittest.TestCase):
                                        side_effect=mqttstubs.ClientStub.connect_exception_subsequent_calls,
                                        autospec=True) as mock_connect:
 
-                    self.class_under_test(mock_logger, None, mock_publisher, config)
+                    self.class_under_test(mock_logger_queue, None, mock_publisher, config)
 
                     self.assertEqual(mock_connect.call_count, config_dict['max_retries'] + 1)
-                    self.assertEqual(mock_logger.logerr.call_count, config_dict['max_retries'])
+                    self.assertEqual(mock_logger_queue.put.call_count, 2 + 2 * config_dict['max_retries'])
 
     def test_will_set_with_defaults(self):
-        mock_logger = mock.Mock()
+        mock_logger_queue = mock.Mock()
         mock_publisher = mock.Mock()
 
         config_dict = {
@@ -319,12 +319,12 @@ class PublisherBase(unittest.TestCase):
                 with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
                     with mock.patch.object(user.mqttpublish.mqtt.Client, 'will_set') as mock_will_set:
 
-                        self.class_under_test(mock_logger, None, mock_publisher, config)
+                        self.class_under_test(mock_logger_queue, None, mock_publisher, config)
 
                         mock_will_set.assert_called_once_with(topic='status', payload='offline', qos=0, retain=True)
 
     def test_will_set_with_configured_values(self):
-        mock_logger = mock.Mock()
+        mock_logger_queue = mock.Mock()
         mock_publisher = mock.Mock()
 
         config_dict = {
@@ -352,7 +352,7 @@ class PublisherBase(unittest.TestCase):
                 with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
                     with mock.patch.object(user.mqttpublish.mqtt.Client, 'will_set') as mock_will_set:
 
-                        self.class_under_test(mock_logger, None, mock_publisher, config)
+                        self.class_under_test(mock_logger_queue, None, mock_publisher, config)
 
                         mock_will_set.assert_called_once_with(topic=config_dict['lwt']['topic'],
                                                               payload=config_dict['lwt']['offline_payload'],
@@ -360,7 +360,7 @@ class PublisherBase(unittest.TestCase):
                                                               retain=config_dict['lwt']['retain'])
 
     def test_publish_when_connected(self):
-        mock_logger = mock.Mock()
+        mock_logger_queue = mock.Mock()
         mock_publisher = mock.Mock()
 
         config_dict = {
@@ -382,7 +382,7 @@ class PublisherBase(unittest.TestCase):
                     with mock.patch.object(user.mqttpublish.AbstractPublisher, '_reconnect') as mock_reconnect:
                         with mock.patch.object(user.mqttpublish.mqtt.Client, 'publish') as mock_publish:
 
-                            SUT = self.class_under_test(mock_logger, None, mock_publisher, config)
+                            SUT = self.class_under_test(mock_logger_queue, None, mock_publisher, config)
 
                             SUT.connected = True
                             time_stamp = random.randint(10, 10000)
@@ -396,7 +396,7 @@ class PublisherBase(unittest.TestCase):
                             mock_publish.assert_called_once_with(topic, data, qos=qos, retain=retain)
 
     def test_publish_when_not_connected(self):
-        mock_logger = mock.Mock()
+        mock_logger_queue = mock.Mock()
         mock_publisher = mock.Mock()
 
         config_dict = {
@@ -418,7 +418,7 @@ class PublisherBase(unittest.TestCase):
                     with mock.patch.object(user.mqttpublish.AbstractPublisher, '_reconnect') as mock_reconnect:
                         with mock.patch.object(user.mqttpublish.mqtt.Client, 'publish') as mock_publish:
 
-                            SUT = self.class_under_test(mock_logger, None, mock_publisher, config)
+                            SUT = self.class_under_test(mock_logger_queue, None, mock_publisher, config)
 
                             SUT.connected = False
                             time_stamp = random.randint(10, 10000)
@@ -432,7 +432,7 @@ class PublisherBase(unittest.TestCase):
                             mock_publish.assert_called_once_with(topic, data, qos=qos, retain=retain)
 
     def test_reconnect_connection(self):
-        mock_logger = mock.Mock()
+        mock_logger_queue = mock.Mock()
         mock_plugin_manager = mock.Mock()
         mock_publisher = mock.Mock()
 
@@ -465,13 +465,13 @@ class PublisherBase(unittest.TestCase):
                                            side_effect=mqttstubs.ClientStub.reconnect_with_connection,
                                            autospec=True) as mock_reconnect:
 
-                        SUT = self.class_under_test(mock_logger, mock_plugin_manager, mock_publisher, config)
+                        SUT = self.class_under_test(mock_logger_queue, mock_plugin_manager, mock_publisher, config)
                         SUT._reconnect()
 
                         mock_reconnect.assert_called_once()
 
     def test_reconnect_no_connection(self):
-        mock_logger = mock.Mock()
+        mock_logger_queue = mock.Mock()
         mock_plugin_manager = mock.Mock()
         mock_publisher = mock.Mock()
 
@@ -506,7 +506,7 @@ class PublisherBase(unittest.TestCase):
                                            autospec=True) as mock_reconnect:
 
                         with self.assertRaises(user.mqttpublish.CannotConnectError):
-                            SUT = self.class_under_test(mock_logger, mock_plugin_manager, mock_publisher, config)
+                            SUT = self.class_under_test(mock_logger_queue, mock_plugin_manager, mock_publisher, config)
                             SUT._reconnect()
 
                             self.assertEqual(mock_reconnect.call_count, config_dict['max_retries'] + 1)
@@ -517,7 +517,7 @@ class TLSBase(unittest.TestCase):
     protocol_string = None
 
     def test_tls_configuration_good(self):
-        mock_logger = mock.Mock()
+        mock_logger_queue = mock.Mock()
         mock_publisher = mock.Mock()
 
         config_dict = {
@@ -543,7 +543,7 @@ class TLSBase(unittest.TestCase):
                 with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
                     with mock.patch.object(user.mqttpublish.mqtt.Client, 'tls_set') as mock_tls_set:
 
-                        self.class_under_test(mock_logger, None, mock_publisher, config)
+                        self.class_under_test(mock_logger_queue, None, mock_publisher, config)
                         mock_tls_set.assert_called_once_with(ca_certs=config_dict['tls']['ca_certs'],
                                                              certfile=None,
                                                              keyfile=None,
@@ -552,7 +552,7 @@ class TLSBase(unittest.TestCase):
                                                              ciphers=None)
 
     def test_missing_PROTOCOL_TLS(self):
-        mock_logger = mock.Mock()
+        mock_logger_queue = mock.Mock()
         mock_publisher = mock.Mock()
 
         tls_version = 'tls'
@@ -584,13 +584,13 @@ class TLSBase(unittest.TestCase):
                         except AttributeError:
                             saved_version = None
                         with self.assertRaises(ValueError) as error:
-                            self.class_under_test(mock_logger, None, mock_publisher, config)
+                            self.class_under_test(mock_logger_queue, None, mock_publisher, config)
                         if saved_version:
                             ssl.PROTOCOL_TLS = saved_version
                         self.assertEqual(error.exception.args[0], f"Invalid 'tls_version'., {tls_version}")
 
     def test_missing_PROTOCOL_TLSv1(self):
-        mock_logger = mock.Mock()
+        mock_logger_queue = mock.Mock()
         mock_publisher = mock.Mock()
 
         tls_version = 'tlsv1'
@@ -622,13 +622,13 @@ class TLSBase(unittest.TestCase):
                         except AttributeError:
                             saved_version = None
                         with self.assertRaises(ValueError) as error:
-                            self.class_under_test(mock_logger, None, mock_publisher, config)
+                            self.class_under_test(mock_logger_queue, None, mock_publisher, config)
                         if saved_version:
                             ssl.PROTOCOL_TLSv1 = saved_version
                         self.assertEqual(error.exception.args[0], f"Invalid 'tls_version'., {tls_version}")
 
     def test_missing_PROTOCOL_TLSv1_1(self):
-        mock_logger = mock.Mock()
+        mock_logger_queue = mock.Mock()
         mock_publisher = mock.Mock()
 
         tls_version = 'tlsv1_1'
@@ -660,13 +660,13 @@ class TLSBase(unittest.TestCase):
                         except AttributeError:
                             saved_version = None
                         with self.assertRaises(ValueError) as error:
-                            self.class_under_test(mock_logger, None, mock_publisher, config)
+                            self.class_under_test(mock_logger_queue, None, mock_publisher, config)
                         if saved_version:
                             ssl.PROTOCOL_TLSv1_1 = saved_version
                         self.assertEqual(error.exception.args[0], f"Invalid 'tls_version'., {tls_version}")
 
     def test_missing_PROTOCOL_TLSv1_2(self):
-        mock_logger = mock.Mock()
+        mock_logger_queue = mock.Mock()
         mock_publisher = mock.Mock()
 
         tls_version = 'tlsv1_2'
@@ -698,13 +698,13 @@ class TLSBase(unittest.TestCase):
                         except AttributeError:
                             saved_version = None
                         with self.assertRaises(ValueError) as error:
-                            self.class_under_test(mock_logger, None, mock_publisher, config)
+                            self.class_under_test(mock_logger_queue, None, mock_publisher, config)
                         if saved_version:
                             ssl.PROTOCOL_TLSv1_2 = saved_version
                         self.assertEqual(error.exception.args[0], f"Invalid 'tls_version'., {tls_version}")
 
     def test_missing_PROTOCOL_SSLv2(self):
-        mock_logger = mock.Mock()
+        mock_logger_queue = mock.Mock()
         mock_publisher = mock.Mock()
 
         tls_version = 'sslv2'
@@ -736,13 +736,13 @@ class TLSBase(unittest.TestCase):
                         except AttributeError:
                             saved_version = None
                         with self.assertRaises(ValueError) as error:
-                            self.class_under_test(mock_logger, None, mock_publisher, config)
+                            self.class_under_test(mock_logger_queue, None, mock_publisher, config)
                         if saved_version:
                             ssl.PROTOCOL_SSLv2 = saved_version
                         self.assertEqual(error.exception.args[0], f"Invalid 'tls_version'., {tls_version}")
 
     def test_missing_PROTOCOL_SSLv23(self):
-        mock_logger = mock.Mock()
+        mock_logger_queue = mock.Mock()
         mock_publisher = mock.Mock()
 
         tls_version = 'sslv23'
@@ -774,13 +774,13 @@ class TLSBase(unittest.TestCase):
                         except AttributeError:
                             saved_version = None
                         with self.assertRaises(ValueError) as error:
-                            self.class_under_test(mock_logger, None, mock_publisher, config)
+                            self.class_under_test(mock_logger_queue, None, mock_publisher, config)
                         if saved_version:
                             ssl.PROTOCOL_SSLv23 = saved_version
                         self.assertEqual(error.exception.args[0], f"Invalid 'tls_version'., {tls_version}")
 
     def test_missing_PROTOCOL_SSLv3(self):
-        mock_logger = mock.Mock()
+        mock_logger_queue = mock.Mock()
         mock_publisher = mock.Mock()
 
         tls_version = 'sslv3'
@@ -812,13 +812,13 @@ class TLSBase(unittest.TestCase):
                         except AttributeError:
                             saved_version = None
                         with self.assertRaises(ValueError) as error:
-                            self.class_under_test(mock_logger, None, mock_publisher, config)
+                            self.class_under_test(mock_logger_queue, None, mock_publisher, config)
                         if saved_version:
                             ssl.PROTOCOL_SSLv3 = saved_version
                         self.assertEqual(error.exception.args[0], f"Invalid 'tls_version'., {tls_version}")
 
     def test_invalid_certs_required(self):
-        mock_logger = mock.Mock()
+        mock_logger_queue = mock.Mock()
         mock_publisher = mock.Mock()
 
         certs_required = helpers.random_string()
@@ -850,7 +850,7 @@ class TLSBase(unittest.TestCase):
                         except AttributeError:
                             saved_version = None
                         with self.assertRaises(ValueError) as error:
-                            self.class_under_test(mock_logger, None, mock_publisher, config)
+                            self.class_under_test(mock_logger_queue, None, mock_publisher, config)
                         if saved_version:
                             ssl.PROTOCOL_SSLv3 = saved_version
                         self.assertEqual(error.exception.args[0], f"Invalid 'certs_required'., {certs_required}")

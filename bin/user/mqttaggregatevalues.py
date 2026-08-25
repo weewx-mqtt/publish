@@ -188,14 +188,15 @@ class TimeSpanProvider:
 
 class MQTTAggregateValues:
     """ Calculate aggregate values. """
-    def __init__(self, logger, name, plugin_dict, _mqtt_dict, _topics, weewx_dict):
-        self.logger = logger
+    def __init__(self, logger_queue, name, plugin_dict, _mqtt_dict, _topics, weewx_dict):
+        self.logger_queue = logger_queue
         self.name = name
         self.plugin_dict = weeutil.config.deep_copy(plugin_dict)
         self.enabled = to_bool(self.plugin_dict.get('enable', True))
 
         if not self.enabled:
-            self.logger.loginf(f"Plugin {self.name} is not enabled.")
+            self.logger_queue.put({'log_type': 'INFO',
+                                   'log_message': f"Plugin {self.name} is not enabled."})
             return
 
         self.offset = to_int(plugin_dict.get('offset'))
@@ -211,7 +212,8 @@ class MQTTAggregateValues:
             for (aggregate_observation, aggregate) in self.plugin_dict['topics'][topic].items():
                 if to_bool(aggregate.get('enable', True)) \
                     and aggregate['period'] not in self.timespan_provider.period_timespans:
-                    self.logger.logerr(f"Invalid 'period', {aggregate['period']}")
+                    self.logger_queue.put({'log_type': 'ERROR',
+                                           'log_message': f"Invalid 'period', {aggregate['period']}"})
                     raise ValueError(f"Invalid 'period', {aggregate['period']}")
                 if 'calculation_interval' not in aggregate:
                     aggregate['calculation_interval'] = self.timespan_provider.get_calculation_interval(aggregate['period'])
@@ -280,8 +282,10 @@ class MQTTAggregateValues:
                     self.last_calculated[topic][aggregate_observation]['interval_end'] = interval_end
 
                 except (weewx.CannotCalculate, weewx.UnknownAggregation, weewx.UnknownType) as exception:
-                    self.logger.logerr(f"Aggregation failed: {exception}")
-                    self.logger.logerr(traceback.format_exc())
+                    self.logger_queue.put({'log_type': 'ERROR',
+                                           'log_message': f"Aggregation failed: {exception}"})
+                    self.logger_queue.put({'log_type': 'ERROR',
+                                           'log_message': traceback.format_exc()})
 
             aggregates[aggregate_observation] = self.last_calculated[topic][aggregate_observation]['value']
 

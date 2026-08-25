@@ -13,8 +13,10 @@ import abc
 import copy
 import json
 import logging
+import multiprocessing
 import os
 import random
+import signal
 import ssl
 import sys
 import threading
@@ -42,7 +44,7 @@ import weewx.defaults
 from weewx.engine import StdService
 # pylint: enable=wrong-import-position
 
-VERSION = "1.3.0-rc01a"
+VERSION = "2.0.0-rc01a"
 
 class CannotConnectError(ConnectionError):
     """" Cannot connect to broker. """
@@ -110,20 +112,24 @@ class PluginManager():
 
 class AbstractPublisher(abc.ABC):
     """ Managing publishing to MQTT. """
-    def __init__(self, logger, plugin_manager, publisher, mqtt_config):
-        self.logger = logger
+    def __init__(self, logger_queue, plugin_manager, publisher, mqtt_config):
+        self.logger_queue = logger_queue
         self.plugin_manager = plugin_manager
         self.connected = False
         self.mqtt_logger = {
-            mqtt.MQTT_LOG_INFO: self.logger.loginf,
-            mqtt.MQTT_LOG_NOTICE: self.logger.loginf,
-            mqtt.MQTT_LOG_WARNING: self.logger.loginf,
-            mqtt.MQTT_LOG_ERR: self.logger.logerr,
-            mqtt.MQTT_LOG_DEBUG: self.logger.logdbg
+            mqtt.MQTT_LOG_INFO: 'INFO',
+            mqtt.MQTT_LOG_NOTICE: 'INFO',
+            mqtt.MQTT_LOG_WARNING: 'INFO',
+            mqtt.MQTT_LOG_ERR: 'ERROR',
+            mqtt.MQTT_LOG_DEBUG: 'DEBUG'
         }
 
         self.publisher = publisher
         self.mqtt_config = mqtt_config
+
+        # ToDO: Figure out how to make configurable
+        self.monitor_on_message = None
+        self.monitor_on_connect = None
 
         self.client = self.get_client(mqtt_config['clientid'], mqtt_config['protocol'])
         self.set_callbacks(mqtt_config['log_mqtt'])
@@ -141,7 +147,8 @@ class AbstractPublisher(abc.ABC):
             payload = self.lwt_dict.get('offline_payload', 'offline')
             qos = to_int(self.lwt_dict.get('qos', 0))
             retain = to_bool(self.lwt_dict.get('retain', True))
-            self.logger.loginf(f"Enabling LWT: topic: {topic}, payload: {payload}, qos: {qos}, retain: {retain}")
+            self.logger_queue.put({'log_type': 'INFO',
+                                   'log_message': f"Enabling LWT: topic: {topic}, payload: {payload}, qos: {qos}, retain: {retain}"})
             self.client.will_set(topic=topic, payload=payload, qos=qos, retain=retain)
 
         self._connect()
@@ -159,18 +166,21 @@ class AbstractPublisher(abc.ABC):
         return PublisherV1(logger, plugin_manager, publisher, mqtt_config)
 
     def _connect(self):
-        self.logger.loginf(f"Connecting to host: {self.mqtt_config['host']} port: {self.mqtt_config['port']}.")
+        self.logger_queue.put({'log_type': 'INFO',
+                               'log_message': f"Connecting to host: {self.mqtt_config['host']} port: {self.mqtt_config['port']}."})
         try:
             self.connect(self.mqtt_config['host'], self.mqtt_config['port'], self.mqtt_config['keepalive'])
         except Exception as exception:  # want to catch all pylint: disable=broad-exception-caught
-            self.logger.logerr(f"MQTT connect failed with {type(exception)} and reason {exception}.")
+            self.logger_queue.put({'log_type': 'ERROR',
+                                   'log_message': f"MQTT connect failed with {type(exception)} and reason {exception}."})
         retries = 0
         # Give the connection logic some time to execute
         time.sleep(self.mqtt_config['wait_for_connection'])
         # Allow the MQTT processing to happen, after allowing the connection processing to complete.
         self.client.loop(timeout=0.1)
         while not self.connected and self.publisher.process:
-            self.logger.loginf(f"Waiting {self.mqtt_config['wait_between_retries']} seconds to connect.")
+            self.logger_queue.put({'log_type': 'INFO',
+                                   'log_message': f"Waiting {self.mqtt_config['wait_between_retries']} seconds to connect."})
             # loop seems to break before connect, perhaps due to logging
             self.client.loop(timeout=0.1)
             time.sleep(self.mqtt_config['wait_between_retries'])
@@ -185,22 +195,30 @@ class AbstractPublisher(abc.ABC):
                 self.connect(self.mqtt_config['host'], self.mqtt_config['port'], self.mqtt_config['keepalive'])
                 time.sleep(self.mqtt_config['wait_for_connection'])
                 self.client.loop(timeout=.1)
-                self.logger.logdbg("After retrying connect call.")
+                self.logger_queue.put({'log_type': 'DEBUG',
+                                       'log_message': "After retrying connect call."})
             except Exception as exception:  # want to catch all pylint: disable=broad-exception-caught
-                self.logger.logerr(f"MQTT connect retry {retries} failed with {type(exception)} and reason {exception}.")
+                self.logger_queue.put({'log_type': 'ERROR',
+                                       'log_message': (f"MQTT connect retry {retries} failed with {type(exception)} "
+                                                       f"and reason {exception}.")})
 
     def _reconnect(self):
-        self.logger.loginf(f"Attempting to reconnect to host: {self.mqtt_config['host']} port: {self.mqtt_config['port']}.")
+        self.logger_queue.put({'log_type': 'INFO',
+                               'log_message': (f"Attempting to reconnect to host: {self.mqtt_config['host']} "
+                                               f"port: {self.mqtt_config['port']}.")})
         try:
             self.client.reconnect()
         except Exception as exception:  # want to catch all pylint: disable=broad-exception-caught
-            self.logger.logerr(f"MQTT reconnect failed with {type(exception)} and reason {exception}.")
-        self.logger.logdbg("After reconnect call.")
+            self.logger_queue.put({'log_type': 'ERROR',
+                                   'log_message': f"MQTT reconnect failed with {type(exception)} and reason {exception}."})
+        self.logger_queue.put({'log_type': 'DEBUG',
+                               'log_message': "After reconnect call."})
         retries = 0
         time.sleep(self.mqtt_config['wait_for_connection'])
         self.client.loop(timeout=0.1)
         while not self.connected and self.publisher.process:
-            self.logger.loginf(f"Waiting {self.mqtt_config['wait_between_retries']} seconds to (re)connect.")
+            self.logger_queue.put({'log_type': 'INFO',
+                                   'log_message': f"Waiting {self.mqtt_config['wait_between_retries']} seconds to (re)connect."})
             self.client.loop(timeout=0.1)
             time.sleep(self.mqtt_config['wait_between_retries'])
 
@@ -212,9 +230,12 @@ class AbstractPublisher(abc.ABC):
                 self.client.reconnect()
                 time.sleep(self.mqtt_config['wait_for_connection'])
                 self.client.loop(timeout=.1)
-                self.logger.logdbg("After retrying reconnect call.")
+                self.logger_queue.put({'log_type': 'DEBUG',
+                                       'log_message': "After retrying reconnect call."})
             except Exception as exception:  # want to catch all pylint: disable=broad-exception-caught
-                self.logger.logerr(f"MQTT reconnect {retries} failed with {type(exception)} and reason {exception}.")
+                self.logger_queue.put({'log_type': 'ERROR',
+                                       'log_message': (f"MQTT reconnect {retries} failed with {type(exception)} "
+                                                       f"and reason {exception}.")})
 
     def _config_tls(self, tls_dict):
         """ Configure TLS."""
@@ -297,7 +318,9 @@ class AbstractPublisher(abc.ABC):
             payload = json.dumps(data)
 
         mqtt_message_info = self.client.publish(topic, payload, qos=qos, retain=retain)
-        self.logger.logdbg(f"At {int(time.time())} publishing: {int(time_stamp)} {mqtt_message_info.mid} {qos} {topic}")
+        self.logger_queue.put({'log_type': 'DEBUG',
+                               'log_message': (f"At {int(time.time())} "
+                                               f"publishing: {int(time_stamp)} {mqtt_message_info.mid} {qos} {topic}")})
 
         self.client.loop(timeout=0.1)
 
@@ -337,21 +360,31 @@ class AbstractPublisher(abc.ABC):
 
     def on_message(self, client, userdata, msg):
         """ The on_message callback. """
-        self.logger.logdbg(f"Received: {userdata} {msg}")
+        self.logger_queue.put({'log_type': 'DEBUG',
+                               'log_message': f"Received: {userdata} {msg}"})
         for plugin_name in self.plugin_manager.callbacks['on_mqtt_message']['immediate']:
+            start_time = time.time()
             self.plugin_manager.callbacks['on_mqtt_message']['immediate'][plugin_name](client, userdata, msg)
+            # self.logger_queue.put({'log_type': self.monitor_on_message,
+            #                       'log_message': (f"monitor: on_message (immediate) {plugin_name}  {msg}"
+            #                                       f"took {time.time() - start_time} ")})
 
         for plugin_name in self.plugin_manager.callbacks['on_mqtt_message']['delay']:
+            start_time = time.time()
             self.plugin_manager.callbacks['on_mqtt_message']['delay'][plugin_name](client, userdata, msg)
-
+            # self.logger_queue.put({'log_type': self.monitor_on_message,
+            #                       'log_message': (f"monitor: on_message (delay) {plugin_name} {msg} "
+            #                                       f"took {time.time() - start_time} ")})
 class PublisherV1(AbstractPublisher):
     ''' MQTTPublish that communicates with paho mqtt v1.'''
-    def __init__(self, logger, plugin_manager, publisher, mqtt_config):
+    def __init__(self, logger_queue, plugin_manager, publisher, mqtt_config):
+        # ToDO: Figure out how to make configurable
+        self.monitor_on_connect = 'INFO'
         protocol = mqtt_config['protocol']
         if protocol not in [mqtt.MQTTv31, mqtt.MQTTv311]:
             raise ValueError(f"Invalid protocol, {protocol}.")
 
-        super().__init__(logger, plugin_manager, publisher, mqtt_config)
+        super().__init__(logger_queue, plugin_manager, publisher, mqtt_config)
 
     def get_client(self, client_id, protocol):
         return mqtt.Client(  # depends on version of paho.mqtt pylint: disable=no-value-for-parameter
@@ -383,15 +416,21 @@ class PublisherV1(AbstractPublisher):
         # 4: Connection refused - bad username or password
         # 5: Connection refused - not authorised
         # 6-255: Currently unused.
-        self.logger.loginf(f"Connected with result code {int(reason_code)}, {mqtt.error_string(reason_code)}")
-        self.logger.loginf(f"Connected flags {str(flags)}")
+        self.logger_queue.put({'log_type': 'INFO',
+                               'log_message': f"Connected with result code {int(reason_code)}, {mqtt.error_string(reason_code)}"})
+        self.logger_queue.put({'log_type': 'INFO',
+                               'log_message': f"Connected flags {str(flags)}"})
 
         for plugin_name in self.plugin_manager.callbacks['on_mqtt_connect']['immediate']:
+            start_time = time.time()
             self.plugin_manager.callbacks['on_mqtt_connect']['immediate'][plugin_name](client,
                                                                                        userdata,
                                                                                        flags,
                                                                                        reason_code,
                                                                                        properties)
+            self.logger_queue.put({'log_type': self.monitor_on_connect,
+                                   'log_message': (f"mmonitor: on_connect (immediate) {plugin_name} "
+                                                   f"took {time.time() - start_time} ")})
 
         if self.lwt_dict is not None and to_bool(self.lwt_dict.get('enable', True)):
             self.client.publish(topic=self.lwt_dict.get('topic', 'status'),
@@ -400,8 +439,11 @@ class PublisherV1(AbstractPublisher):
                                 retain=to_bool(self.lwt_dict.get('retain', True)))
 
         for plugin_name in self.plugin_manager.callbacks['on_mqtt_connect']['delay']:
+            start_time = time.time()
             self.plugin_manager.callbacks['on_mqtt_connect']['delay'][plugin_name](client, userdata, flags, reason_code, properties)
-
+            self.logger_queue.put({'log_type': self.monitor_on_connect,
+                                   'log_message': (f"monitor: on_connect (delay) {plugin_name} "
+                                                   f"took {time.time() - start_time} ")})
         self.connected = True
 
     def on_disconnect(self, _client, _userdata, flags_rc, reason_code=None, properties=None):
@@ -412,9 +454,11 @@ class PublisherV1(AbstractPublisher):
         # such as might be caused by a network error.
         rc = flags_rc
         if rc == 0:
-            self.logger.loginf(f"Disconnected with result code {int(rc)}, {mqtt.error_string(rc)}")
+            self.logger_queue.put({'log_type': 'INFO',
+                                   'log_message': f"Disconnected with result code {int(rc)}, {mqtt.error_string(rc)}"})
         else:
-            self.logger.logerr(f"Disconnected with result code {int(rc)}, {mqtt.error_string(rc)}")
+            self.logger_queue.put({'log_type': 'ERROR',
+                                   'log_message': f"Disconnected with result code {int(rc)}, {mqtt.error_string(rc)}"})
 
         # As of 1.6.1, Paho MQTT cannot have a callback invoke a second callback. So we won't attempt to reconnect here.
         # Because that would cause the on_connect callback to be called. Instead we will just mark as not connected.
@@ -424,7 +468,8 @@ class PublisherV1(AbstractPublisher):
     def on_publish(self, _client, _userdata, mid, reason_codes=None, properties=None):
         time_stamp = "          "
         qos = ""
-        self.logger.logdbg(f"At {int(time.time())} published: {time_stamp} {mid} {qos}")
+        self.logger_queue.put({'log_type': 'DEBUG',
+                               'log_message': f"At {int(time.time())} published: {time_stamp} {mid} {qos}"})
 
 class PublisherV2(AbstractPublisher):
     ''' MQTTPublish that communicates with paho mqtt v2. '''
@@ -449,15 +494,21 @@ class PublisherV2(AbstractPublisher):
         self.mqtt_logger[level](f"MQTT log: {msg}")
 
     def on_connect(self, client, userdata, flags, reason_code, properties):
-        self.logger.loginf(f"Connected with result code {int(int(reason_code.value))}")
-        self.logger.loginf(f"Connected flags {str(flags)}")
+        self.logger_queue.put({'log_type': 'INFO',
+                               'log_message': f"Connected with result code {int(int(reason_code.value))}"})
+        self.logger_queue.put({'log_type': 'INFO',
+                               'log_message': f"Connected flags {str(flags)}"})
 
         for plugin_name in self.plugin_manager.callbacks['on_mqtt_connect']['immediate']:
+            start_time = time.time()
             self.plugin_manager.callbacks['on_mqtt_connect']['immediate'][plugin_name](client,
                                                                                        userdata,
                                                                                        flags,
                                                                                        reason_code,
                                                                                        properties)
+            self.logger_queue.put({'log_type': self.monitor_on_connect,
+                                   'log_message': (f"monitor: on_connect (immediate) {plugin_name} "
+                                                   f"took {time.time() - start_time} ")})
 
         if self.lwt_dict is not None and to_bool(self.lwt_dict.get('enable', True)):
             self.client.publish(topic=self.lwt_dict.get('topic', 'status'),
@@ -466,8 +517,11 @@ class PublisherV2(AbstractPublisher):
                                 retain=to_bool(self.lwt_dict.get('retain', True)))
 
         for plugin_name in self.plugin_manager.callbacks['on_mqtt_connect']['delay']:
+            start_time = time.time()
             self.plugin_manager.callbacks['on_mqtt_connect']['delay'][plugin_name](client, userdata, flags, reason_code, properties)
-
+            self.logger_queue.put({'log_type': self.monitor_on_connect,
+                                   'log_message': (f"monitor: on_connect (delay) {plugin_name} "
+                                                   f"took {time.time() - start_time} ")})
         self.connected = True
 
     def on_disconnect(self, _client, _userdata, _flags, reason_code, _properties):
@@ -477,9 +531,11 @@ class PublisherV2(AbstractPublisher):
         # If any other value the disconnection was unexpected,
         # such as might be caused by a network error.
         if int(reason_code.value) == 0:
-            self.logger.loginf(f"Disconnected with result code {int(int(reason_code.value))}")
+            self.logger_queue.put({'log_type': 'INFO',
+                                   'log_message': f"Disconnected with result code {int(int(reason_code.value))}"})
         else:
-            self.logger.logerr(f"Disconnected with result code {int(int(reason_code.value))}")
+            self.logger_queue.put({'log_type': 'ERROR',
+                                   'log_message': f"Disconnected with result code {int(int(reason_code.value))}"})
 
         # ToDo: research how it works with v2
         # As of 1.6.1, Paho MQTT cannot have a callback invoke a second callback. So we won't attempt to reconnect here.
@@ -490,7 +546,8 @@ class PublisherV2(AbstractPublisher):
     def on_publish(self, _client, _userdata, mid, _reason_codes, _properties):
         time_stamp = "          "
         qos = ""
-        self.logger.logdbg(f"At {int(time.time())} published: {time_stamp} {mid} {qos}")
+        self.logger_queue.put({'log_type': 'DEBUG',
+                               'log_message': f"At {int(time.time())} published: {time_stamp} {mid} {qos}"})
 
 class PublisherV2MQTT3(PublisherV2):
     ''' MQTTPublish that communicates with paho mqtt v2. '''
@@ -603,23 +660,41 @@ class MQTTPublish(StdService):
         if 'binding' in service_dict:
             self.logger.loginf("'binding' is deprecated and no longer used.")
 
-        self.data_queue = Queue.Queue()
+        # ToDo: make default False
+        self.multiprocess = to_bool(service_dict.get('multiprocess', False))
+        if self.multiprocess:
+            self.data_queue = multiprocessing.Queue()
+            self.logger_queue = multiprocessing.Queue()
+            self._thread = PublishWeeWXProcess(self.logger_queue,
+                                               self.plugins,
+                                               self.weewx_dict,
+                                               self.manager_dict,
+                                               self.mqtt_config,
+                                               self.topics_loop,
+                                               self.topics_archive,
+                                               self.data_queue)
+        else:
+            self.data_queue = Queue.Queue()
+            self.logger_queue = Queue.Queue()
+            self._thread = PublishWeeWXThread(self.logger_queue,
+                                              self.plugins,
+                                              self.weewx_dict,
+                                              self.manager_dict,
+                                              self.mqtt_config,
+                                              self.topics_loop,
+                                              self.topics_archive,
+                                              self.data_queue)
 
-        if 'loop' in binding:
-            self.bind(weewx.NEW_LOOP_PACKET, self.new_loop_packet)
+        self.logger_thread = LoggerThread(self.logger, self.logger_queue)
+        self.logger_thread.start()
+
+        self.thread_start()
 
         if 'archive' in binding:
             self.bind(weewx.NEW_ARCHIVE_RECORD, self.new_archive_record)
 
-        self._thread = PublishWeeWXThread(self.logger,
-                                          self.plugins,
-                                          self.weewx_dict,
-                                          self.manager_dict,
-                                          self.mqtt_config,
-                                          self.topics_loop,
-                                          self.topics_archive,
-                                          self.data_queue)
-        self.thread_start()
+        if 'loop' in binding:
+            self.bind(weewx.NEW_LOOP_PACKET, self.new_loop_packet)
 
     def configure_fields(self,
                          fields_dict,
@@ -803,7 +878,7 @@ class MQTTPublish(StdService):
             if self.thread_restarts < self.max_thread_restarts:
                 self.thread_restarts += 1
                 self._thread = \
-                    PublishWeeWXThread(self.logger,
+                    PublishWeeWXThread(self.logger_queue,
                                        self.plugins,
                                        self.weewx_dict,
                                        self.manager_dict,
@@ -814,31 +889,70 @@ class MQTTPublish(StdService):
                 self.thread_start()
 
                 self.data_queue.put({'time_stamp': data['dateTime'], 'type': data_type, 'data': data})
-                self._thread.threading_event.set()
+                self._thread.processor.threading_event.set()
             else:
                 raise weewx.StopNow("MQTT publishing thread has stopped.")
         else:
             self.data_queue.put({'time_stamp': data.get('dateTime', time.time()), 'type': data_type, 'data': data})
-            self._thread.threading_event.set()
+            self._thread.processor.threading_event.set()
             # A bit of a hack. The thread is running and the MQTT client is connexted.
             # So, we will reset the restart count.
-            if self._thread.publisher and self._thread.publisher.connected:
+            if self._thread.processor.publisher and self._thread.processor.publisher.connected:
                 self.thread_restarts = 0
 
     def shutDown(self):
         """Run when an engine shutdown is requested."""
-        self.logger.loginf("Shutdown initiatead")
+        self.logger.loginf("Shutdown initiated")
         if self._thread:
             self.logger.loginf("Shutdown of thread initiated")
-            self._thread.process = False
-            self._thread.threading_event.set()
-            self._thread.join(20.0)
+            self.data_queue.put({'time_stamp': time.time(), 'type': 'shutdown', 'data': {}})
+            # self._thread.process = False
+            self._thread.processor.threading_event.set()
+            self._thread.join()
             if self._thread.is_alive():
                 self.logger.logerr(f"Unable to shut down {self._thread.name} thread")
 
             self._thread = None
 
-class PublishWeeWXThread(threading.Thread):
+        self.logger.loginf("Shutdown of logger thread initiated")
+        self.logger_queue.put(None)
+        self.logger_thread.join()
+        if self.logger_thread.is_alive():
+            self.logger.logerr(f"Unable to shut down {self.logger_thread.name} thread")
+
+class LoggerThread(threading.Thread):
+    """ Thread to manage logging.
+        This has to be a thread becausee WeeWX 'owns' the logger.
+        So logging has to happen in that process and not a subprocess. """
+
+    def __init__(self, logger, log_queue):
+        threading.Thread.__init__(self)
+        self.logger = logger
+        self.log_types = {
+            'TRACE': self.logger.logdbg,
+            'DEBUG': self.logger.logdbg,
+            'INFO': self.logger.loginf,
+            'ERROR': self.logger.logerr
+        }
+        self.log_queue = log_queue
+
+    def run(self):
+        threading.current_thread().name = f"MQTTPublish-{threading.get_native_id()}"
+        self.logger.loginf(f"Starting logger queue  {self.name}.")
+
+        while True:
+            message = self.log_queue.get()
+            if message is None:
+                break
+            try:
+                if message['log_type'] is not None:
+                    self.log_types[message['log_type']](message['log_message'])
+            except (TypeError, KeyError):
+                self.logger.logerr(message)
+
+        self.logger.loginf(f"Exited logger queue {self.name}.")
+
+class QueueProcessor():
     """Publish WeeWX data to MQTT. """
     UNIT_REDUCTIONS = {
         'degree_F': 'F',
@@ -860,7 +974,7 @@ class PublishWeeWXThread(threading.Thread):
     }
 
     def __init__(self,
-                 logger,
+                 logger_queue,
                  plugins,
                  weewx_dict,
                  manager_dict,
@@ -868,10 +982,16 @@ class PublishWeeWXThread(threading.Thread):
                  topics_loop,
                  topics_archive,
                  data_queue):
-        threading.Thread.__init__(self)
-        self.logger = logger
+        self.logger_queue = logger_queue
 
-        self.logger.loginf("Initializing publishing thread.")
+        self.logger_queue.put({'log_type': 'INFO',
+                               'log_message': "Initializing queue processor."})
+
+        self.start_time = 0
+
+        self.monitor_queue = weewx_dict['config_dict']['MQTTPublish'].get('monitor_queue')
+        self.monitor_record_update = weewx_dict['config_dict']['MQTTPublish'].get('monitor_record_update')
+        self.monitor_on_weewx_data = weewx_dict['config_dict']['MQTTPublish'].get('monitor_on_weewx_data')
 
         self.plugins = plugins
         self.weewx_dict = weewx_dict
@@ -892,10 +1012,13 @@ class PublishWeeWXThread(threading.Thread):
 
         # Flag to control thread running.
         # Setting to False will stop the thread.
+        # ToDo: eliminate?
         self.process = True
 
     def profile(self, msg):
-        self.logger.loginf(msg)
+        """ Log the profiling data. """
+        self.logger_queue.put({'log_type': 'INFO',
+                               'log_message': msg})
 
     def update_record(self, topic_dict, _time_stamp, record):
         """ Update the record. """
@@ -955,7 +1078,7 @@ class PublishWeeWXThread(threading.Thread):
                 (unit_type, _) = weewx.units.getStandardUnitType(unit_system, name)
             else:
                 unit_type = unit
-            unit_type = PublishWeeWXThread.UNIT_REDUCTIONS.get(unit_type, unit_type)
+            unit_type = QueueProcessor.UNIT_REDUCTIONS.get(unit_type, unit_type)
             if unit_type is not None:
                 name = f"{name}_{unit_type}"
 
@@ -990,29 +1113,32 @@ class PublishWeeWXThread(threading.Thread):
         for topic in topics:
             record = copy.deepcopy(data)
             for plugin_name in self.publisher.plugin_manager.callbacks['update_record']['immediate']:
-                self.profile(f"  profile: before immed update_record {time.time() - self.start_time} {topic} {plugin_name}")
-
+                start_time = time.time()
                 self.publisher.plugin_manager.callbacks['update_record']['immediate'][plugin_name](self.publisher.client,
                                                                                                    topic,
                                                                                                    record,
                                                                                                    data['usUnits'],
                                                                                                    topics[topic]['qos'],
                                                                                                    topics[topic]['retain'])
-                self.profile(f"  profile: after immed update_record {time.time() - self.start_time} {topic} {plugin_name}")
-
+                self.logger_queue.put({'log_type': self.monitor_record_update,
+                                       'log_message': (f"monitor: update_record (immmediate) {plugin_name} for {topic} "
+                                                       f"took {time.time() - start_time} ")})
             updated_record = self.update_record(topics[topic], time_stamp, record)
             for plugin_name in self.publisher.plugin_manager.callbacks['update_record']['delay']:
                 # Note, this is called with the unit_system from the configuration because:
                 # 1. The record has been converted to this unit_system
                 # 2. The record may not be publishing the field usUnits.
-                self.profile(f"  profile: before delay update_record {time.time() - self.start_time} {topic} {plugin_name}")
+                # self.profile(f"  profile: before delay update_record {time.time() - self.start_time} {topic} {plugin_name}")
+                start_time = time.time()
                 self.publisher.plugin_manager.callbacks['update_record']['delay'][plugin_name](self.publisher.client,
                                                                                                topic,
                                                                                                updated_record,
                                                                                                topics[topic]['unit_system'],
                                                                                                topics[topic]['qos'],
                                                                                                topics[topic]['retain'])
-                self.profile(f"  profile: after delay update_record {time.time() - self.start_time} {topic} {plugin_name}")
+                self.logger_queue.put({'log_type': self.monitor_record_update,
+                                       'log_message': (f"monitor: update_record (delay) {plugin_name} for {topic} "
+                                                       f"took {time.time() - start_time} ")})
 
             if updated_record:
                 if topics[topic]['type'] == 'json':
@@ -1037,10 +1163,10 @@ class PublishWeeWXThread(threading.Thread):
                                                        value)
 
     def run(self):
+        """ Process the queue. """
         threading.current_thread().name = f"MQTTPublish-{threading.get_native_id()}"
-        self.logger.loginf(f"Starting publishing loop {self.name}.")
 
-        self.plugin_manager = PluginManager(self.logger)
+        self.plugin_manager = PluginManager(self.logger_queue)
         for plugin in self.plugins:
             if 'module' in self.plugins[plugin]:
                 plugin_name = self.plugins[plugin]['module'] + '.' + plugin
@@ -1049,7 +1175,7 @@ class PublishWeeWXThread(threading.Thread):
             self.plugin_manager.create_plugin(plugin_name, self.plugins[plugin], self.mqtt_config, self.all_topics, self.weewx_dict)
 
         # need to instantiate inside thread
-        self.publisher = AbstractPublisher.get_publisher(self.logger, self.plugin_manager, self, self.mqtt_config)
+        self.publisher = AbstractPublisher.get_publisher(self.logger_queue, self.plugin_manager, self, self.mqtt_config)
 
         with weewx.manager.open_manager(self.manager_dict) as db_manager:
             self.db_manager = db_manager
@@ -1067,11 +1193,19 @@ class PublishWeeWXThread(threading.Thread):
                 try:
                     data2 = self.data_queue.get_nowait()
 
-                    self.start_time = time.time()
-                    self.profile(f"profile: queue size {self.data_queue.qsize()} at {self.start_time}")
+                    curr_time = time.time()
+                    self.logger_queue.put({'log_type': self.monitor_queue,
+                                           'log_message': (f"Queue size: {self.data_queue.qsize()} "
+                                                           f"Process time: {curr_time - prev_time}")
+                                           })
+                    prev_time = curr_time
 
                     for plugin_name in self.plugin_manager.callbacks['on_weewx_data']['immediate']:
+                        start_time = time.time()
                         self.plugin_manager.callbacks['on_weewx_data']['immediate'][plugin_name](data2)
+                        # self.logger_queue.put({'log_type': self.monitor_on_weewx_data,
+                        #                       'log_message': (f"monitor: on_weewx_data (immmediate) {plugin_name}  "
+                        #                                       f"took {time.time() - start_time} ")})
 
                     time_stamp = data2['time_stamp']
                     data_type = data2['type']
@@ -1080,11 +1214,20 @@ class PublishWeeWXThread(threading.Thread):
                         self.publish_row(time_stamp, data, self.topics_loop)
                     elif data_type == 'archive':
                         self.publish_row(time_stamp, data, self.topics_archive)
+                    elif data_type == 'shutdown':
+                        self.logger_queue.put({'log_type': 'INFO',
+                                               'log_message': "Shutting down queue processor."})
+                        break
                     else:
-                        self.logger.logerr(f"Unknown data type, {data_type}")
+                        self.logger_queue.put({'log_type': 'ERROR',
+                                               'log_message': f"Unknown data type, {data_type}"})
 
                     for plugin_name in self.plugin_manager.callbacks['on_weewx_data']['delay']:
+                        start_time = time.time()
                         self.plugin_manager.callbacks['on_weewx_data']['delay'][plugin_name](data2)
+                        # self.logger_queue.put({'log_type': self.monitor_on_weewx_data,
+                        #                       'log_message': (f"monitor: on_weewx_data (delay) {plugin_name}  "
+                        #                                       f"took {time.time() - start_time} ")})
                 except Queue.Empty:
                     self.publisher.client.loop(timeout=0.1)
                     self.threading_event.wait(self.mqtt_config['wait_for_queue_element'])
@@ -1101,7 +1244,72 @@ class PublishWeeWXThread(threading.Thread):
                                           retain=to_bool(self.lwt_dict.get('retain', True)))
 
         self.publisher.client.disconnect()
-        self.logger.loginf(f"Exited publishing loop {self.name}.")
+
+class PublishWeeWXThread(threading.Thread):
+    """Publish WeeWX data to MQTT. """
+    def __init__(self,
+                 logger_queue,
+                 plugins,
+                 weewx_dict,
+                 manager_dict,
+                 mqtt_config,
+                 topics_loop,
+                 topics_archive,
+                 data_queue):
+        threading.Thread.__init__(self)
+
+        self.logger_queue = logger_queue
+        self.processor = QueueProcessor(self.logger_queue,
+                                        plugins,
+                                        weewx_dict,
+                                        manager_dict,
+                                        mqtt_config,
+                                        topics_loop,
+                                        topics_archive,
+                                        data_queue)
+
+    def run(self):
+        threading.current_thread().name = f"MQTTPublish-{threading.get_native_id()}"
+        self.logger_queue.put({'log_type': 'INFO',
+                               'log_message': f"Starting queue processor  {self.name}."})
+
+        self.processor.run()
+        self.logger_queue.put({'log_type': 'INFO',
+                               'log_message': f"Exited queue processor {self.name}."})
+
+class PublishWeeWXProcess(multiprocessing.Process):
+    """Publish WeeWX data to MQTT. """
+    def __init__(self,
+                 logger_queue,
+                 plugins,
+                 weewx_dict,
+                 manager_dict,
+                 mqtt_config,
+                 topics_loop,
+                 topics_archive,
+                 data_queue):
+        multiprocessing.Process.__init__(self)
+
+        self.logger_queue = logger_queue
+        self.processor = QueueProcessor(self.logger_queue,
+                                        plugins,
+                                        weewx_dict,
+                                        manager_dict,
+                                        mqtt_config,
+                                        topics_loop,
+                                        topics_archive,
+                                        data_queue)
+
+    def run(self):
+        # We will ignore these and let the main process start an orderly shut down.
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+        threading.current_thread().name = f"MQTTPublish-{threading.get_native_id()}"
+        self.logger_queue.put({'log_type': 'INFO',
+                               'log_message': f"Starting queue processor  {self.name}."})
+
+        self.processor.run()
+        self.logger_queue.put({'log_type': 'INFO',
+                               'log_message': f"Exited queue processor {self.name}."})
 
 if __name__ == "__main__":
     import argparse
@@ -1158,7 +1366,7 @@ if __name__ == "__main__":
             engine.dispatchEvent(new_loop_packet_event)
 
         loop_count = 0
-        while mqtt_publish._thread.threading_event.is_set() and loop_count < max_loops:  # pylint: disable=protected-access
+        while mqtt_publish._thread.processor.threading_event.is_set() and loop_count < max_loops:  # pylint: disable=protected-access
             print("sleepting")
             time.sleep(1)
             loop_count += 1
