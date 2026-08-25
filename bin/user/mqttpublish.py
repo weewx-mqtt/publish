@@ -1203,11 +1203,11 @@ class QueueProcessor():
                     prev_time = curr_time
 
                     for plugin_name in self.plugin_manager.callbacks['on_weewx_data']['immediate']:
-                        # start_time = time.time()
+                        start_time = time.time()
                         self.plugin_manager.callbacks['on_weewx_data']['immediate'][plugin_name](data2)
-                        # self.logger_queue.put({'log_type': self.monitor_on_weewx_data,
-                        #                       'log_message': (f"monitor: on_weewx_data (immmediate) {plugin_name}  "
-                        #                                       f"took {time.time() - start_time} ")})
+                        self.logger_queue.put({'log_type': self.monitor_on_weewx_data,
+                                               'log_message': (f"monitor: on_weewx_data (immmediate) {plugin_name}  "
+                                                               f"took {time.time() - start_time} ")})
 
                     time_stamp = data2['time_stamp']
                     data_type = data2['type']
@@ -1225,11 +1225,11 @@ class QueueProcessor():
                                                'log_message': f"Unknown data type, {data_type}"})
 
                     for plugin_name in self.plugin_manager.callbacks['on_weewx_data']['delay']:
-                        # start_time = time.time()
+                        start_time = time.time()
                         self.plugin_manager.callbacks['on_weewx_data']['delay'][plugin_name](data2)
-                        # self.logger_queue.put({'log_type': self.monitor_on_weewx_data,
-                        #                       'log_message': (f"monitor: on_weewx_data (delay) {plugin_name}  "
-                        #                                       f"took {time.time() - start_time} ")})
+                        self.logger_queue.put({'log_type': self.monitor_on_weewx_data,
+                                               'log_message': (f"monitor: on_weewx_data (delay) {plugin_name}  "
+                                                               f"took {time.time() - start_time} ")})
                 except Queue.Empty:
                     self.publisher.client.loop(timeout=0.1)
                     self.threading_event.wait(self.mqtt_config['wait_for_queue_element'])
