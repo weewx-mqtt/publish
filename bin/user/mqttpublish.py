@@ -989,8 +989,9 @@ class QueueProcessor():
         self.start_time = 0
 
         self.monitor_queue = weewx_dict['config_dict']['MQTTPublish'].get('monitor_queue')
-        self.monitor_record_update = weewx_dict['config_dict']['MQTTPublish'].get('monitor_record_update')
-        self.monitor_on_weewx_data = weewx_dict['config_dict']['MQTTPublish'].get('monitor_on_weewx_data')
+        # ToDo: for testing only
+        self.monitor_record_update = weewx_dict['config_dict']['MQTTPublish'].get('monitor_record_update', 'INFO')
+        self.monitor_on_weewx_data = weewx_dict['config_dict']['MQTTPublish'].get('monitor_on_weewx_data', 'INFO')
 
         self.plugins = plugins
         self.weewx_dict = weewx_dict
@@ -1109,10 +1110,15 @@ class QueueProcessor():
 
     def publish_row(self, time_stamp, data, topics):
         """ Publish the data. """
+        immediate_time = 0
+        delay_time = 0
         for topic in topics:
             record = copy.deepcopy(data)
+            run_time = 0
             for plugin_name in self.publisher.plugin_manager.callbacks['update_record']['immediate']:
                 start_time = time.time()
+                delta_time = time.time() - start_time
+                run_time += delta_time
                 self.publisher.plugin_manager.callbacks['update_record']['immediate'][plugin_name](self.publisher.client,
                                                                                                    topic,
                                                                                                    record,
@@ -1121,14 +1127,23 @@ class QueueProcessor():
                                                                                                    topics[topic]['retain'])
                 self.logger_queue.put({'log_type': self.monitor_record_update,
                                        'log_message': (f"monitor: update_record (immmediate) {plugin_name} for {topic} "
-                                                       f"took {time.time() - start_time} ")})
+                                                       f"took {delta_time} ")})
+            self.logger_queue.put({'log_type': self.monitor_record_update,
+                                   'log_message': (f"monitor: update_record (immediate) for {topic} "
+                                                   f"took {run_time} ")})
+            immediate_time += run_time
+
             updated_record = self.update_record(topics[topic], time_stamp, record)
+
+            run_time = 0
             for plugin_name in self.publisher.plugin_manager.callbacks['update_record']['delay']:
                 # Note, this is called with the unit_system from the configuration because:
                 # 1. The record has been converted to this unit_system
                 # 2. The record may not be publishing the field usUnits.
                 # self.profile(f"  profile: before delay update_record {time.time() - self.start_time} {topic} {plugin_name}")
                 start_time = time.time()
+                delta_time = time.time() - start_time
+                run_time += delta_time
                 self.publisher.plugin_manager.callbacks['update_record']['delay'][plugin_name](self.publisher.client,
                                                                                                topic,
                                                                                                updated_record,
@@ -1137,7 +1152,11 @@ class QueueProcessor():
                                                                                                topics[topic]['retain'])
                 self.logger_queue.put({'log_type': self.monitor_record_update,
                                        'log_message': (f"monitor: update_record (delay) {plugin_name} for {topic} "
-                                                       f"took {time.time() - start_time} ")})
+                                                       f"took {delta_time} ")})
+            self.logger_queue.put({'log_type': self.monitor_record_update,
+                                   'log_message': (f"monitor: update_record (delay) for {topic} "
+                                                   f"took {run_time} ")})
+            delay_time += run_time
 
             if updated_record:
                 if topics[topic]['type'] == 'json':
@@ -1160,6 +1179,13 @@ class QueueProcessor():
                                                        topics[topic]['retain'],
                                                        topic + '/' + key,
                                                        value)
+
+        self.logger_queue.put({'log_type': self.monitor_record_update,
+                               'log_message': (f"monitor: update_record (immediate) "
+                                               f"took {immediate_time} ")})
+        self.logger_queue.put({'log_type': self.monitor_record_update,
+                               'log_message': (f"monitor: update_record (delay) "
+                                               f"took {delay_time} ")})
 
     def run(self):
         """ Process the queue. """
@@ -1202,13 +1228,18 @@ class QueueProcessor():
                                            })
                     prev_time = curr_time
 
+                    run_time = 0
                     for plugin_name in self.plugin_manager.callbacks['on_weewx_data']['immediate']:
                         start_time = time.time()
                         self.plugin_manager.callbacks['on_weewx_data']['immediate'][plugin_name](data2)
+                        delta_time = time.time() - start_time
+                        run_time += delta_time
                         self.logger_queue.put({'log_type': self.monitor_on_weewx_data,
                                                'log_message': (f"monitor: on_weewx_data (immmediate) {plugin_name}  "
-                                                               f"took {time.time() - start_time} ")})
-
+                                                               f"took {delta_time} ")})
+                    self.logger_queue.put({'log_type': self.monitor_on_weewx_data,
+                                           'log_message': (f"monitor: on_weewx_data (immediate) "
+                                                           f"took {run_time} ")})
                     time_stamp = data2['time_stamp']
                     data_type = data2['type']
                     data = data2['data']
@@ -1224,12 +1255,18 @@ class QueueProcessor():
                         self.logger_queue.put({'log_type': 'ERROR',
                                                'log_message': f"Unknown data type, {data_type}"})
 
+                    run_time = 0
                     for plugin_name in self.plugin_manager.callbacks['on_weewx_data']['delay']:
                         start_time = time.time()
                         self.plugin_manager.callbacks['on_weewx_data']['delay'][plugin_name](data2)
+                        delta_time = time.time() - start_time
+                        run_time += delta_time
                         self.logger_queue.put({'log_type': self.monitor_on_weewx_data,
                                                'log_message': (f"monitor: on_weewx_data (delay) {plugin_name}  "
-                                                               f"took {time.time() - start_time} ")})
+                                                               f"took {delta_time} ")})
+                    self.logger_queue.put({'log_type': self.monitor_on_weewx_data,
+                                           'log_message': (f"monitor: on_weewx_data (delay) "
+                                                           f"took {run_time} ")})
                 except Queue.Empty:
                     self.publisher.client.loop(timeout=0.1)
                     self.threading_event.wait(self.mqtt_config['wait_for_queue_element'])
