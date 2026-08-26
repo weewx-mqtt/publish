@@ -43,11 +43,19 @@ class TestPublisherV2MQTT3(TestPublisherV2):
         }
         config = configobj.ConfigObj(config_dict)
 
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+        }
+
         with mock.patch('user.mqttpublish.time'):
             with mock.patch('user.mqttpublish.mqtt.Client') as mock_client:
                 with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
 
-                    self.class_under_test(mock_logger_queue, None, mock_publisher, config, {})
+                    self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
 
                     mock_client.assert_called_once_with(callback_api_version=paho.mqtt.client.CallbackAPIVersion.VERSION2,
                                                         client_id=config_dict['clientid'],

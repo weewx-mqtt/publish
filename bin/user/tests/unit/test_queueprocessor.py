@@ -30,12 +30,20 @@ class TestQueueProcessor(unittest.TestCase):
             }
         }
 
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+        }
+
         SUT = user.mqttpublish.QueueProcessor(mock_logger_queue,
                                               {},
                                               weewx_dict,
                                               None,
                                               config,
-                                              {},
+                                              monitor_dict,
                                               topics_loop,
                                               topics_archive,
                                               data_queue)
@@ -89,12 +97,20 @@ class TestQueueProcessor(unittest.TestCase):
             }
         }
 
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+        }
+
         SUT = user.mqttpublish.QueueProcessor(mock_logger_queue,
                                               {},
                                               weewx_dict,
                                               None,
                                               config,
-                                              {},
+                                              monitor_dict,
                                               topics_loop,
                                               topics_archive,
                                               data_queue_mock)

@@ -46,11 +46,19 @@ class PublisherBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+        }
+
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
                 with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
 
-                    SUT = self.class_under_test(mock_logger_queue, None, mock_publisher, config, {})
+                    SUT = self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
 
                     self.assertNotEqual(SUT.client.on_log, SUT.on_log)
                     self.assertEqual(SUT.client.on_connect, SUT.on_connect)
@@ -76,11 +84,19 @@ class PublisherBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+        }
+
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
                 with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
 
-                    SUT = self.class_under_test(mock_logger_queue, None, mock_publisher, config, {})
+                    SUT = self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
 
                     self.assertEqual(SUT.client.on_log, SUT.on_log)
                     self.assertEqual(SUT.client.on_connect, SUT.on_connect)
@@ -104,12 +120,20 @@ class PublisherBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+    }
+
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
                 with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
                     with mock.patch.object(user.mqttpublish.mqtt.Client, 'username_pw_set') as mock_username_pw_set:
 
-                        self.class_under_test(mock_logger_queue, None, mock_publisher, config, {})
+                        self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
 
                         mock_username_pw_set.assert_not_called()
 
@@ -130,12 +154,21 @@ class PublisherBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+    }
+
+
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
                 with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
                     with mock.patch.object(user.mqttpublish.mqtt.Client, 'username_pw_set') as mock_username_pw_set:
 
-                        self.class_under_test(mock_logger_queue, None, mock_publisher, config, {})
+                        self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
 
                         mock_username_pw_set.assert_not_called()
 
@@ -156,12 +189,21 @@ class PublisherBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+    }
+
+
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
                 with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
                     with mock.patch.object(user.mqttpublish.mqtt.Client, 'username_pw_set') as mock_username_pw_set:
 
-                        self.class_under_test(mock_logger_queue, None, mock_publisher, config, {})
+                        self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
 
                         mock_username_pw_set.assert_called_once_with(config_dict['username'], config_dict['password'])
 
@@ -191,6 +233,14 @@ class PublisherBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
+        monitor_dict = {
+            'monitor_queue': None,
+             'monitor_on_message': None,
+             'monitor_on_connect': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+    }
+
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
                 with mock.patch.object(user.mqttpublish.mqtt.Client,
@@ -198,7 +248,7 @@ class PublisherBase(unittest.TestCase):
                                        side_effect=mqttstubs.ClientStub.connect_with_connection,
                                        autospec=True) as mock_connect:
 
-                    self.class_under_test(mock_logger_queue, mock_plugin_manager, mock_publisher, config, {})
+                    self.class_under_test(mock_logger_queue, mock_plugin_manager, mock_publisher, config, monitor_dict)
 
                     self.assertEqual(mock_connect.call_count, 1)
 
@@ -221,6 +271,14 @@ class PublisherBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+    }
+
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
                 with mock.patch.object(user.mqttpublish.mqtt.Client,
@@ -228,7 +286,7 @@ class PublisherBase(unittest.TestCase):
                                        side_effect=mqttstubs.ClientStub.connect_without_connection,
                                        autospec=True) as mock_connect:
 
-                    self.class_under_test(mock_logger_queue, None, mock_publisher, config, {})
+                    self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
 
                     self.assertEqual(mock_connect.call_count, config_dict['max_retries'] + 1)
 
@@ -251,6 +309,14 @@ class PublisherBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+    }
+
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
                 with mock.patch.object(user.mqttpublish.mqtt.Client,
@@ -258,7 +324,7 @@ class PublisherBase(unittest.TestCase):
                                        side_effect=mqttstubs.ClientStub.connect_exception_first_call,
                                        autospec=True) as mock_connect:
 
-                    self.class_under_test(mock_logger_queue, None, mock_publisher, config, {})
+                    self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
 
                     self.assertEqual(mock_connect.call_count, config_dict['max_retries'] + 1)
                     self.assertEqual(mock_logger_queue.put.call_count, 3 + 2 * config_dict['max_retries'])
@@ -282,6 +348,14 @@ class PublisherBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+    }
+
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
                 with mock.patch.object(user.mqttpublish.mqtt.Client,
@@ -289,7 +363,7 @@ class PublisherBase(unittest.TestCase):
                                        side_effect=mqttstubs.ClientStub.connect_exception_subsequent_calls,
                                        autospec=True) as mock_connect:
 
-                    self.class_under_test(mock_logger_queue, None, mock_publisher, config, {})
+                    self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
 
                     self.assertEqual(mock_connect.call_count, config_dict['max_retries'] + 1)
                     self.assertEqual(mock_logger_queue.put.call_count, 2 + 2 * config_dict['max_retries'])
@@ -314,12 +388,20 @@ class PublisherBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+    }
+
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
                 with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
                     with mock.patch.object(user.mqttpublish.mqtt.Client, 'will_set') as mock_will_set:
 
-                        self.class_under_test(mock_logger_queue, None, mock_publisher, config, {})
+                        self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
 
                         mock_will_set.assert_called_once_with(topic='status', payload='offline', qos=0, retain=True)
 
@@ -347,12 +429,20 @@ class PublisherBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+    }
+
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
                 with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
                     with mock.patch.object(user.mqttpublish.mqtt.Client, 'will_set') as mock_will_set:
 
-                        self.class_under_test(mock_logger_queue, None, mock_publisher, config, {})
+                        self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
 
                         mock_will_set.assert_called_once_with(topic=config_dict['lwt']['topic'],
                                                               payload=config_dict['lwt']['offline_payload'],
@@ -376,13 +466,21 @@ class PublisherBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+    }
+
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
                 with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
                     with mock.patch.object(user.mqttpublish.AbstractPublisher, '_reconnect') as mock_reconnect:
                         with mock.patch.object(user.mqttpublish.mqtt.Client, 'publish') as mock_publish:
 
-                            SUT = self.class_under_test(mock_logger_queue, None, mock_publisher, config, {})
+                            SUT = self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
 
                             SUT.connected = True
                             time_stamp = random.randint(10, 10000)
@@ -412,13 +510,21 @@ class PublisherBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+    }
+
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
                 with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
                     with mock.patch.object(user.mqttpublish.AbstractPublisher, '_reconnect') as mock_reconnect:
                         with mock.patch.object(user.mqttpublish.mqtt.Client, 'publish') as mock_publish:
 
-                            SUT = self.class_under_test(mock_logger_queue, None, mock_publisher, config, {})
+                            SUT = self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
 
                             SUT.connected = False
                             time_stamp = random.randint(10, 10000)
@@ -457,6 +563,14 @@ class PublisherBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+    }
+
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
                 with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
@@ -465,7 +579,7 @@ class PublisherBase(unittest.TestCase):
                                            side_effect=mqttstubs.ClientStub.reconnect_with_connection,
                                            autospec=True) as mock_reconnect:
 
-                        SUT = self.class_under_test(mock_logger_queue, mock_plugin_manager, mock_publisher, config, {})
+                        SUT = self.class_under_test(mock_logger_queue, mock_plugin_manager, mock_publisher, config, monitor_dict)
                         SUT._reconnect()
 
                         mock_reconnect.assert_called_once()
@@ -497,6 +611,14 @@ class PublisherBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+    }
+
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
                 with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
@@ -506,7 +628,7 @@ class PublisherBase(unittest.TestCase):
                                            autospec=True) as mock_reconnect:
 
                         with self.assertRaises(user.mqttpublish.CannotConnectError):
-                            SUT = self.class_under_test(mock_logger_queue, mock_plugin_manager, mock_publisher, config, {})
+                            SUT = self.class_under_test(mock_logger_queue, mock_plugin_manager, mock_publisher, config, monitor_dict)
                             SUT._reconnect()
 
                             self.assertEqual(mock_reconnect.call_count, config_dict['max_retries'] + 1)
@@ -538,12 +660,20 @@ class TLSBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+    }
+
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
                 with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
                     with mock.patch.object(user.mqttpublish.mqtt.Client, 'tls_set') as mock_tls_set:
 
-                        self.class_under_test(mock_logger_queue, None, mock_publisher, config, {})
+                        self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
                         mock_tls_set.assert_called_once_with(ca_certs=config_dict['tls']['ca_certs'],
                                                              certfile=None,
                                                              keyfile=None,
@@ -574,6 +704,14 @@ class TLSBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+    }
+
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
                 with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
@@ -584,7 +722,7 @@ class TLSBase(unittest.TestCase):
                         except AttributeError:
                             saved_version = None
                         with self.assertRaises(ValueError) as error:
-                            self.class_under_test(mock_logger_queue, None, mock_publisher, config, {})
+                            self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
                         if saved_version:
                             ssl.PROTOCOL_TLS = saved_version
                         self.assertEqual(error.exception.args[0], f"Invalid 'tls_version'., {tls_version}")
@@ -612,6 +750,14 @@ class TLSBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+    }
+
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
                 with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
@@ -622,7 +768,7 @@ class TLSBase(unittest.TestCase):
                         except AttributeError:
                             saved_version = None
                         with self.assertRaises(ValueError) as error:
-                            self.class_under_test(mock_logger_queue, None, mock_publisher, config, {})
+                            self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
                         if saved_version:
                             ssl.PROTOCOL_TLSv1 = saved_version
                         self.assertEqual(error.exception.args[0], f"Invalid 'tls_version'., {tls_version}")
@@ -650,6 +796,14 @@ class TLSBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+    }
+
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
                 with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
@@ -660,7 +814,7 @@ class TLSBase(unittest.TestCase):
                         except AttributeError:
                             saved_version = None
                         with self.assertRaises(ValueError) as error:
-                            self.class_under_test(mock_logger_queue, None, mock_publisher, config, {})
+                            self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
                         if saved_version:
                             ssl.PROTOCOL_TLSv1_1 = saved_version
                         self.assertEqual(error.exception.args[0], f"Invalid 'tls_version'., {tls_version}")
@@ -688,6 +842,14 @@ class TLSBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+    }
+
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
                 with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
@@ -698,7 +860,7 @@ class TLSBase(unittest.TestCase):
                         except AttributeError:
                             saved_version = None
                         with self.assertRaises(ValueError) as error:
-                            self.class_under_test(mock_logger_queue, None, mock_publisher, config, {})
+                            self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
                         if saved_version:
                             ssl.PROTOCOL_TLSv1_2 = saved_version
                         self.assertEqual(error.exception.args[0], f"Invalid 'tls_version'., {tls_version}")
@@ -726,6 +888,14 @@ class TLSBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+    }
+
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
                 with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
@@ -736,7 +906,7 @@ class TLSBase(unittest.TestCase):
                         except AttributeError:
                             saved_version = None
                         with self.assertRaises(ValueError) as error:
-                            self.class_under_test(mock_logger_queue, None, mock_publisher, config, {})
+                            self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
                         if saved_version:
                             ssl.PROTOCOL_SSLv2 = saved_version
                         self.assertEqual(error.exception.args[0], f"Invalid 'tls_version'., {tls_version}")
@@ -764,6 +934,14 @@ class TLSBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+    }
+
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
                 with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
@@ -774,7 +952,7 @@ class TLSBase(unittest.TestCase):
                         except AttributeError:
                             saved_version = None
                         with self.assertRaises(ValueError) as error:
-                            self.class_under_test(mock_logger_queue, None, mock_publisher, config, {})
+                            self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
                         if saved_version:
                             ssl.PROTOCOL_SSLv23 = saved_version
                         self.assertEqual(error.exception.args[0], f"Invalid 'tls_version'., {tls_version}")
@@ -802,6 +980,14 @@ class TLSBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+    }
+
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
                 with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
@@ -812,7 +998,7 @@ class TLSBase(unittest.TestCase):
                         except AttributeError:
                             saved_version = None
                         with self.assertRaises(ValueError) as error:
-                            self.class_under_test(mock_logger_queue, None, mock_publisher, config, {})
+                            self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
                         if saved_version:
                             ssl.PROTOCOL_SSLv3 = saved_version
                         self.assertEqual(error.exception.args[0], f"Invalid 'tls_version'., {tls_version}")
@@ -840,6 +1026,14 @@ class TLSBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+    }
+
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
                 with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
@@ -850,7 +1044,7 @@ class TLSBase(unittest.TestCase):
                         except AttributeError:
                             saved_version = None
                         with self.assertRaises(ValueError) as error:
-                            self.class_under_test(mock_logger_queue, None, mock_publisher, config, {})
+                            self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
                         if saved_version:
                             ssl.PROTOCOL_SSLv3 = saved_version
                         self.assertEqual(error.exception.args[0], f"Invalid 'certs_required'., {certs_required}")
