@@ -127,9 +127,8 @@ class AbstractPublisher(abc.ABC):
         self.publisher = publisher
         self.mqtt_config = mqtt_config
 
-        # ToDO: Figure out how to make configurable
-        self.monitor_on_message = None
-        self.monitor_on_connect = None
+        self.monitor_on_message = monitor_config['monitor_on_message']
+        self.monitor_on_connect = monitor_config['monitor_on_connect']
 
         self.client = self.get_client(mqtt_config['clientid'], mqtt_config['protocol'])
         self.set_callbacks(mqtt_config['log_mqtt'])
@@ -681,7 +680,13 @@ class MQTTPublish(StdService):
         self.logger.logdbg(f"sanitized mqtt_config removed {exclude_keys}")
         self.logger.logdbg(f"sanitized_mqtt_config is {sanitized_mqtt_config}")
 
-        self.monitor_config = {}
+        self.monitor_config = {
+            'monitor_queue': service_dict.get('monitor_queue'),
+            'monitor_record_update': service_dict.get('monitor_record_update'),
+            'monitor_on_weewx_data': service_dict.get('monitor_on_weewx_data'),
+            'monitor_on_message': service_dict.get('monitor_on_message'),
+            'monitor_on_connect': service_dict.get('monitor_on_connect'),
+        }
 
         self.max_thread_restarts = to_int(service_dict.get('max_thread_restarts', 2))
         self.thread_restarts = 0
@@ -1021,10 +1026,9 @@ class QueueProcessor():
 
         self.start_time = 0
 
-        self.monitor_queue = weewx_dict['config_dict']['MQTTPublish'].get('monitor_queue')
-        # ToDo
-        self.monitor_record_update = weewx_dict['config_dict']['MQTTPublish'].get('monitor_record_update')
-        self.monitor_on_weewx_data = weewx_dict['config_dict']['MQTTPublish'].get('monitor_on_weewx_data')
+        self.monitor_queue = monitor_config['monitor_queue']
+        self.monitor_record_update = monitor_config['monitor_record_update']
+        self.monitor_on_weewx_data = monitor_config['monitor_on_weewx_data']
 
         self.plugins = plugins
         self.weewx_dict = weewx_dict
