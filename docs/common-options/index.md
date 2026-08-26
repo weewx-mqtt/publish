@@ -32,6 +32,12 @@ The number of times to attempt to start the publishing thread.
 When a thread is running a successful connection is established, it is reset to `0`.
 The default is `2`.
 
+#### multiprocess
+
+Controls if preparation and publishing is run in a seperate thread or process.
+Valid values are `true` or `false`.
+The default value is `true`.
+
 #### plugins
 
 A list of plugins for MQTTPublish.
