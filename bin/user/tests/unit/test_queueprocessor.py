@@ -35,6 +35,7 @@ class TestQueueProcessor(unittest.TestCase):
                                               weewx_dict,
                                               None,
                                               config,
+                                              {},
                                               topics_loop,
                                               topics_archive,
                                               data_queue)
@@ -93,6 +94,7 @@ class TestQueueProcessor(unittest.TestCase):
                                               weewx_dict,
                                               None,
                                               config,
+                                              {},
                                               topics_loop,
                                               topics_archive,
                                               data_queue_mock)

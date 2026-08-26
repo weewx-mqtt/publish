@@ -112,7 +112,7 @@ class PluginManager():
 
 class AbstractPublisher(abc.ABC):
     """ Managing publishing to MQTT. """
-    def __init__(self, logger_queue, plugin_manager, publisher, mqtt_config):
+    def __init__(self, logger_queue, plugin_manager, publisher, mqtt_config, monitor_config):
         self.logger_queue = logger_queue
         self.plugin_manager = plugin_manager
         self.connected = False
@@ -154,16 +154,16 @@ class AbstractPublisher(abc.ABC):
         self._connect()
 
     @classmethod
-    def get_publisher(cls, logger, plugin_manager, publisher, mqtt_config):
+    def get_publisher(cls, logger, plugin_manager, publisher, mqtt_config, monitor_config):
         ''' Factory method to get appropriate MQTTPublish for paho mqtt version. '''
         if hasattr(mqtt, 'CallbackAPIVersion'):
             protocol = mqtt_config['protocol']
             if protocol in [mqtt.MQTTv31, mqtt.MQTTv311]:
-                return PublisherV2MQTT3(logger, plugin_manager, publisher, mqtt_config)
+                return PublisherV2MQTT3(logger, plugin_manager, publisher, mqtt_config, monitor_config)
 
-            return PublisherV2(logger, plugin_manager, publisher, mqtt_config)
+            return PublisherV2(logger, plugin_manager, publisher, mqtt_config, monitor_config)
 
-        return PublisherV1(logger, plugin_manager, publisher, mqtt_config)
+        return PublisherV1(logger, plugin_manager, publisher, mqtt_config, monitor_config)
 
     def _connect(self):
         self.logger_queue.put({'log_type': 'INFO',
@@ -392,14 +392,14 @@ class AbstractPublisher(abc.ABC):
 
 class PublisherV1(AbstractPublisher):
     ''' MQTTPublish that communicates with paho mqtt v1.'''
-    def __init__(self, logger_queue, plugin_manager, publisher, mqtt_config):
+    def __init__(self, logger_queue, plugin_manager, publisher, mqtt_config, monitor_config):
         # ToDO: Figure out how to make configurable
         self.monitor_on_connect = 'INFO'
         protocol = mqtt_config['protocol']
         if protocol not in [mqtt.MQTTv31, mqtt.MQTTv311]:
             raise ValueError(f"Invalid protocol, {protocol}.")
 
-        super().__init__(logger_queue, plugin_manager, publisher, mqtt_config)
+        super().__init__(logger_queue, plugin_manager, publisher, mqtt_config, monitor_config)
 
     def get_client(self, client_id, protocol):
         return mqtt.Client(  # depends on version of paho.mqtt pylint: disable=no-value-for-parameter
@@ -681,6 +681,8 @@ class MQTTPublish(StdService):
         self.logger.logdbg(f"sanitized mqtt_config removed {exclude_keys}")
         self.logger.logdbg(f"sanitized_mqtt_config is {sanitized_mqtt_config}")
 
+        self.monitor_config = {}
+
         self.max_thread_restarts = to_int(service_dict.get('max_thread_restarts', 2))
         self.thread_restarts = 0
 
@@ -696,6 +698,7 @@ class MQTTPublish(StdService):
                                                self.weewx_dict,
                                                self.manager_dict,
                                                self.mqtt_config,
+                                               self.monitor_config,
                                                self.topics_loop,
                                                self.topics_archive,
                                                self.data_queue)
@@ -707,6 +710,7 @@ class MQTTPublish(StdService):
                                               self.weewx_dict,
                                               self.manager_dict,
                                               self.mqtt_config,
+                                              self.monitor_config,
                                               self.topics_loop,
                                               self.topics_archive,
                                               self.data_queue)
@@ -909,6 +913,7 @@ class MQTTPublish(StdService):
                                        self.weewx_dict,
                                        self.manager_dict,
                                        self.mqtt_config,
+                                       self.monitor_config,
                                        self.topics_loop,
                                        self.topics_archive,
                                        self.data_queue)
@@ -1005,6 +1010,7 @@ class QueueProcessor():
                  weewx_dict,
                  manager_dict,
                  mqtt_config,
+                 monitor_config,
                  topics_loop,
                  topics_archive,
                  data_queue):
@@ -1016,6 +1022,7 @@ class QueueProcessor():
         self.start_time = 0
 
         self.monitor_queue = weewx_dict['config_dict']['MQTTPublish'].get('monitor_queue')
+        # ToDo
         self.monitor_record_update = weewx_dict['config_dict']['MQTTPublish'].get('monitor_record_update')
         self.monitor_on_weewx_data = weewx_dict['config_dict']['MQTTPublish'].get('monitor_on_weewx_data')
 
@@ -1028,6 +1035,7 @@ class QueueProcessor():
         self.plugin_manager = None
 
         self.mqtt_config = mqtt_config
+        self.monitor_config = monitor_config
         self.topics_loop = topics_loop
         self.topics_archive = topics_archive
         self.all_topics = {**self.topics_loop, **self.topics_archive}
@@ -1226,7 +1234,10 @@ class QueueProcessor():
             self.plugin_manager.create_plugin(plugin_name, self.plugins[plugin], self.mqtt_config, self.all_topics, self.weewx_dict)
 
         # need to instantiate inside thread
-        self.publisher = AbstractPublisher.get_publisher(self.logger_queue, self.plugin_manager, self, self.mqtt_config)
+        self.publisher = AbstractPublisher.get_publisher(self.logger_queue,
+                                                         self.plugin_manager,
+                                                         self, self.mqtt_config,
+                                                         self.monitor_config)
 
         with weewx.manager.open_manager(self.manager_dict) as db_manager:
             self.db_manager = db_manager
@@ -1318,6 +1329,7 @@ class PublishWeeWXThread(threading.Thread):
                  weewx_dict,
                  manager_dict,
                  mqtt_config,
+                 monitor_config,
                  topics_loop,
                  topics_archive,
                  data_queue):
@@ -1329,6 +1341,7 @@ class PublishWeeWXThread(threading.Thread):
                                         weewx_dict,
                                         manager_dict,
                                         mqtt_config,
+                                        monitor_config,
                                         topics_loop,
                                         topics_archive,
                                         data_queue)
@@ -1350,6 +1363,7 @@ class PublishWeeWXProcess(multiprocessing.Process):
                  weewx_dict,
                  manager_dict,
                  mqtt_config,
+                 monitor_config,
                  topics_loop,
                  topics_archive,
                  data_queue):
@@ -1361,6 +1375,7 @@ class PublishWeeWXProcess(multiprocessing.Process):
                                         weewx_dict,
                                         manager_dict,
                                         mqtt_config,
+                                        monitor_config,
                                         topics_loop,
                                         topics_archive,
                                         data_queue)
