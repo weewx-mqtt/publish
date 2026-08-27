@@ -1191,6 +1191,7 @@ class QueueProcessor():
                                    'log_message': (f"monitor: {run_time:<12.10f} update_record (delay) {topic}")})
             delay_time += run_time
 
+            start_time = time.time()
             if updated_record:
                 if topics[topic]['type'] == 'json':
                     self.publisher.publish_message(time_stamp,
@@ -1212,6 +1213,9 @@ class QueueProcessor():
                                                        topics[topic]['retain'],
                                                        topic + '/' + key,
                                                        value)
+            self.logger_queue.put({'log_type': self.monitor_record_update,
+                                   'log_message': (f"monitor: {(time.time() - start_time):<12.10f} "
+                                                   f"update_record (publish_message) {topic} ")})
 
         self.logger_queue.put({'log_type': self.monitor_record_update,
                                'log_message': (f"monitor: {immediate_time:<12.10f} update_record (immediate)")})
@@ -1219,7 +1223,8 @@ class QueueProcessor():
                                'log_message': (f"monitor: {delay_time:<12.10f} update_record (delay)")})
 
         self.logger_queue.put({'log_type': self.monitor_record_update,
-                               'log_message': (f"monitor: {(time.time() - process_time):<12.10f} update_record (process_row total)")})
+                               'log_message': (f"monitor: {(time.time() - process_time):<12.10f} "
+                                               f"update_record (publish_row total)")})
 
     def run(self):
         """ Process the queue. """
