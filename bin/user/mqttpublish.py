@@ -1145,6 +1145,7 @@ class QueueProcessor():
         """ Publish the data. """
         immediate_time = 0
         delay_time = 0
+        process_time = time.time()
         for topic in topics:
             record = copy.deepcopy(data)
             run_time = 0
@@ -1217,6 +1218,9 @@ class QueueProcessor():
         self.logger_queue.put({'log_type': self.monitor_record_update,
                                'log_message': (f"monitor: {delay_time:<12.10f} update_record (delay)")})
 
+        self.logger_queue.put({'log_type': self.monitor_record_update,
+                               'log_message': (f"monitor: {(time.time() - process_time):<12.10f} update_record (process_row total)")})
+
     def run(self):
         """ Process the queue. """
         threading.current_thread().name = f"MQTTPublish-{threading.get_native_id()}"
@@ -1274,6 +1278,7 @@ class QueueProcessor():
                                                                f"{plugin_name}")})
                     self.logger_queue.put({'log_type': self.monitor_on_weewx_data,
                                            'log_message': (f"monitor: {run_time:<12.10f} on_weewx_data (immediate)")})
+
                     time_stamp = data2['time_stamp']
                     data_type = data2['type']
                     data = data2['data']
