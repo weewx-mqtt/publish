@@ -316,10 +316,11 @@ class AbstractPublisher(abc.ABC):
         if data is not None and data_type not in (str, bytearray, int, float):
             payload = json.dumps(data)
 
+        start_time = time.time()
         mqtt_message_info = self.client.publish(topic, payload, qos=qos, retain=retain)
         self.logger_queue.put({'log_type': 'DEBUG',
-                               'log_message': (f"At {int(time.time())} "
-                                               f"publishing: {int(time_stamp)} {mqtt_message_info.mid} {qos} {topic}")})
+                               'log_message': (f"monitor: At {int(time.time())}  publishing: {int(time_stamp)} "
+                                               f" {mqtt_message_info.mid} {qos} {topic} took {time.time() - start_time}")})
 
         self.client.loop(timeout=0.1)
 
