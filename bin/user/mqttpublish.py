@@ -1160,10 +1160,10 @@ class QueueProcessor():
                                                                                                    topics[topic]['retain'])
                 self.logger_queue.put({'log_type': self.monitor_record_update,
                                        'log_message': (f"monitor: {delta_time:<12.10f} update_record (immmediate) "
-                                                      f"{plugin_name} for {topic}")})
+                                                      f"{topic} for {plugin_name}")})
 
             self.logger_queue.put({'log_type': self.monitor_record_update,
-                                   'log_message': (f"monitor: {run_time:<12.10f} update_record (immediate) for {topic}")})
+                                   'log_message': (f"monitor: {run_time:<12.10f} update_record (immediate) {topic}")})
             immediate_time += run_time
 
             updated_record = self.update_record(topics[topic], time_stamp, record)
@@ -1185,9 +1185,9 @@ class QueueProcessor():
                                                                                                topics[topic]['retain'])
                 self.logger_queue.put({'log_type': self.monitor_record_update,
                                        'log_message': (f"monitor: {delta_time:<12.10f} update_record (delay) "
-                                                       f"{plugin_name} for {topic}")})
+                                                       f"{topic} for {plugin_name}")})
             self.logger_queue.put({'log_type': self.monitor_record_update,
-                                   'log_message': (f"monitor: {run_time:<12.10f} update_record (delay) for {topic}")})
+                                   'log_message': (f"monitor: {run_time:<12.10f} update_record (delay) {topic}")})
             delay_time += run_time
 
             if updated_record:
