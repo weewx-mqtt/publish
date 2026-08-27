@@ -1169,7 +1169,11 @@ class QueueProcessor():
                                    'log_message': (f"monitor: {run_time:<12.10f} update_record (immediate) {topic}")})
             immediate_time += run_time
 
+            start_time = time.time()
             updated_record = self.update_record(topics[topic], time_stamp, record)
+            self.logger_queue.put({'log_type': self.monitor_record_update,
+                                   'log_message': (f"monitor: {(time.time() - start_time):<12.10f} "
+                                                   f"update_record (update_record) {topic}")})
 
             run_time = 0
             for plugin_name in self.publisher.plugin_manager.callbacks['update_record']['delay']:
