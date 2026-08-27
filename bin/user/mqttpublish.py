@@ -1250,7 +1250,7 @@ class QueueProcessor():
             self.db_manager = db_manager
 
             prev_time = time.time()
-            first_data = True
+            first_data = False
             while self.process:
                 try:
                     data2 = self.data_queue.get_nowait()
@@ -1258,14 +1258,14 @@ class QueueProcessor():
                         first_data = False
                         queue_size = self.data_queue.qsize()
                         self.logger_queue.put({'log_type': self.monitor_queue,
-                                               'log_message': f"Before emptying, queue size is {queue_size}"})
+                                               'log_message': f"monitor: Before emptying, queue size is {queue_size}"})
                         for _ in range(queue_size):
                             try:
                                 self.data_queue.get_nowait()
                             except Queue.Empty:
                                 break
                         self.logger_queue.put({'log_type': self.monitor_queue,
-                                               'log_message': f"After emptying, queue size is {self.data_queue.qsize()}"})
+                                               'log_message': f"monitor: After emptying, queue size is {self.data_queue.qsize()}"})
 
                     curr_time = time.time()
                     self.logger_queue.put({'log_type': self.monitor_queue,
@@ -1315,7 +1315,7 @@ class QueueProcessor():
                                                            f"took {run_time} ")})
                 except Queue.Empty:
                     self.logger_queue.put({'log_type': self.monitor_queue,
-                                           'log_message': ("monitor: Queue is empty")})
+                                           'log_message': f"monitor: Queue is empty. Waiting {self.mqtt_config['wait_for_queue_element']}"})
                     self.publisher.client.loop(timeout=0.1)
                     self.threading_event.wait(self.mqtt_config['wait_for_queue_element'])
                     self.threading_event.clear()
