@@ -1160,7 +1160,7 @@ class QueueProcessor():
                                                                                                    topics[topic]['retain'])
                 self.logger_queue.put({'log_type': self.monitor_record_update,
                                        'log_message': (f"monitor: {delta_time:<12.10f} update_record (immmediate) "
-                                                      f"{topic} for {plugin_name}")})
+                                                       f"{topic} for {plugin_name}")})
 
             self.logger_queue.put({'log_type': self.monitor_record_update,
                                    'log_message': (f"monitor: {run_time:<12.10f} update_record (immediate) {topic}")})
