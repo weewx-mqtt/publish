@@ -308,6 +308,7 @@ class AbstractPublisher(abc.ABC):
 
     def publish_message(self, time_stamp, qos, retain, topic, data):
         """ Publish the message. """
+        start_time = time.time()
         if not self.connected:
             self._reconnect()
 
@@ -318,7 +319,7 @@ class AbstractPublisher(abc.ABC):
 
         start_time = time.time()
         mqtt_message_info = self.client.publish(topic, payload, qos=qos, retain=retain)
-        self.logger_queue.put({'log_type': 'DEBUG',
+        self.logger_queue.put({'log_type': 'INFO',
                                'log_message': (f"monitor: At {int(time.time())}  publishing: {int(time_stamp)} "
                                                f" {mqtt_message_info.mid} {qos} {topic} took {time.time() - start_time}")})
 
