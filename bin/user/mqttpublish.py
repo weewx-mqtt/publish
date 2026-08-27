@@ -902,6 +902,7 @@ class MQTTPublish(StdService):
 
     def new_loop_packet(self, event):
         """ Handle loop packets. """
+        self.logger.loginf("new loop")
         self._handle_record('loop', copy.deepcopy(event.packet))
 
     def new_archive_record(self, event):
@@ -924,11 +925,13 @@ class MQTTPublish(StdService):
                                        self.data_queue)
                 self.thread_start()
 
+                self.logger.loginf("adding to queue")
                 self.data_queue.put({'time_stamp': data['dateTime'], 'type': data_type, 'data': data})
                 self._thread.processor.threading_event.set()
             else:
                 raise weewx.StopNow("MQTT publishing thread has stopped.")
         else:
+            self.logger.loginf("adding to queue")
             self.data_queue.put({'time_stamp': data.get('dateTime', time.time()), 'type': data_type, 'data': data})
             self._thread.processor.threading_event.set()
             # A bit of a hack. The thread is running and the MQTT client is connexted.
@@ -1246,25 +1249,27 @@ class QueueProcessor():
         with weewx.manager.open_manager(self.manager_dict) as db_manager:
             self.db_manager = db_manager
 
-            queue_size = self.data_queue.qsize()
-            self.logger_queue.put({'log_type': 'INFO',
-                                   'log_message': f"Before emptying, queue size is {queue_size}"})
-            for _ in range(queue_size):
-                try:
-                    self.data_queue.get_nowait()
-                except Queue.Empty:
-                    break
-            self.logger_queue.put({'log_type': 'INFO',
-                                   'log_message': f"After emptying, queue size is {self.data_queue.qsize()}"})
-
             prev_time = time.time()
+            first_data = True
             while self.process:
                 try:
                     data2 = self.data_queue.get_nowait()
+                    if first_data:
+                        first_data = False
+                        queue_size = self.data_queue.qsize()
+                        self.logger_queue.put({'log_type': self.monitor_queue,
+                                               'log_message': f"Before emptying, queue size is {queue_size}"})
+                        for _ in range(queue_size):
+                            try:
+                                self.data_queue.get_nowait()
+                            except Queue.Empty:
+                                break
+                        self.logger_queue.put({'log_type': self.monitor_queue,
+                                               'log_message': f"After emptying, queue size is {self.data_queue.qsize()}"})
 
                     curr_time = time.time()
                     self.logger_queue.put({'log_type': self.monitor_queue,
-                                           'log_message': (f"Queue size: {self.data_queue.qsize()} "
+                                           'log_message': (f"monitor: Queue size: {self.data_queue.qsize()} "
                                                            f"Process time: {curr_time - prev_time}")
                                            })
                     prev_time = curr_time
@@ -1309,6 +1314,8 @@ class QueueProcessor():
                                            'log_message': (f"monitor: on_weewx_data (delay) "
                                                            f"took {run_time} ")})
                 except Queue.Empty:
+                    self.logger_queue.put({'log_type': self.monitor_queue,
+                                           'log_message': ("monitor: Queue is empty")})
                     self.publisher.client.loop(timeout=0.1)
                     self.threading_event.wait(self.mqtt_config['wait_for_queue_element'])
                     self.threading_event.clear()
