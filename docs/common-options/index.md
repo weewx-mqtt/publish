@@ -32,6 +32,43 @@ The number of times to attempt to start the publishing thread.
 When a thread is running a successful connection is established, it is reset to `0`.
 The default is `2`.
 
+#### monitor_on_connect
+
+Used to monitor execution time of plugins that are run via the [on_connect](https://weewx-mqtt.github.io/publish/plugin-development/#on_connect) callback.
+Set it to logging level the information should be logged at.
+Valid values are `DEBUG`, `INFO`, `ERROR`.
+Default value is `None`, meaning that nothing is logged.
+#### monitor_on_message
+
+Used to monitor execution time of plugins that are run via the [on_message](https://weewx-mqtt.github.io/publish/plugin-development/#on_message) callback.
+Set it to logging level the information should be logged at.
+Valid values are `DEBUG`, `INFO`, `ERROR`.
+Default value is `None`, meaning that nothing is logged.
+#### monitor_on_weewx_data
+
+Used to monitor execution time of plugins that are run via the [on_weewx_data](https://weewx-mqtt.github.io/publish/plugin-development/#on_weewx_data) callback.
+Set it to logging level the information should be logged at.
+Valid values are `DEBUG`, `INFO`, `ERROR`.
+Default value is `None`, meaning that nothing is logged.
+#### monitor_record_update
+
+Used to monitor execution time of plugins that are run via the [update_record](https://weewx-mqtt.github.io/publish/plugin-development/#update_record) callback.
+Set it to logging level the information should be logged at.
+Valid values are `DEBUG`, `INFO`, `ERROR`.
+Default value is `None`, meaning that nothing is logged.
+#### monitor_queue
+
+Used to monitor the size of the data queue and the time it takes to process each queue element.
+Set it to logging level the information should be logged at.
+Valid values are `DEBUG`, `INFO`, `ERROR`.
+Default value is `None`, meaning that nothing is logged.
+
+#### multiprocess
+
+Controls if preparation and publishing is run in a seperate thread or process.
+Valid values are `true` or `false`.
+The default value is `true`.
+
 #### plugins
 
 A list of plugins for MQTTPublish.
