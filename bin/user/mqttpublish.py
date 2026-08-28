@@ -520,7 +520,7 @@ class PublisherV2(AbstractPublisher):
                                                                                        reason_code,
                                                                                        properties)
             delta_time = time.time() - start_time
-            run_time += delta_time            
+            run_time += delta_time
             self.logger_queue.put({'log_type': self.monitor_on_connect,
                                    'log_message': (f"monitor: {delta_time:<12.10f} on_connect (immediate) {plugin_name}")})
         self.logger_queue.put({'log_type': self.monitor_on_connect,
@@ -1157,7 +1157,7 @@ class QueueProcessor():
                                                                                                    topics[topic]['qos'],
                                                                                                    topics[topic]['retain'])
                 delta_time = time.time() - start_time
-                run_time += delta_time                
+                run_time += delta_time
                 self.logger_queue.put({'log_type': self.monitor_record_update,
                                        'log_message': (f"monitor: {delta_time:<12.10f} update_record (immmediate) "
                                                        f"{topic} for {plugin_name}")})
@@ -1186,7 +1186,7 @@ class QueueProcessor():
                                                                                                topics[topic]['qos'],
                                                                                                topics[topic]['retain'])
                 delta_time = time.time() - start_time
-                run_time += delta_time                
+                run_time += delta_time
                 self.logger_queue.put({'log_type': self.monitor_record_update,
                                        'log_message': (f"monitor: {delta_time:<12.10f} update_record (delay) "
                                                        f"{topic} for {plugin_name}")})
