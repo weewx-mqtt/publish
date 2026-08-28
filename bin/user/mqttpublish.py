@@ -1254,23 +1254,9 @@ class QueueProcessor():
             self.db_manager = db_manager
 
             prev_time = time.time()
-            first_data = False
             while self.process:
                 try:
                     data2 = self.data_queue.get_nowait()
-                    if first_data:
-                        first_data = False
-                        queue_size = self.data_queue.qsize()
-                        self.logger_queue.put({'log_type': self.monitor_queue,
-                                               'log_message': f"monitor: Before emptying, queue size is {queue_size}"})
-                        for _ in range(queue_size):
-                            try:
-                                self.data_queue.get_nowait()
-                            except Queue.Empty:
-                                break
-                        self.logger_queue.put({'log_type': self.monitor_queue,
-                                               'log_message': f"monitor: After emptying, queue size is {self.data_queue.qsize()}"})
-
                     curr_time = time.time()
                     self.logger_queue.put({'log_type': self.monitor_queue,
                                            'log_message': (f"monitor: Queue size: {self.data_queue.qsize()} "
