@@ -514,13 +514,13 @@ class PublisherV2(AbstractPublisher):
         run_time = 0
         for plugin_name in self.plugin_manager.callbacks['on_mqtt_connect']['immediate']:
             start_time = time.time()
-            delta_time = time.time() - start_time
-            run_time += delta_time
             self.plugin_manager.callbacks['on_mqtt_connect']['immediate'][plugin_name](client,
                                                                                        userdata,
                                                                                        flags,
                                                                                        reason_code,
                                                                                        properties)
+            delta_time = time.time() - start_time
+            run_time += delta_time            
             self.logger_queue.put({'log_type': self.monitor_on_connect,
                                    'log_message': (f"monitor: {delta_time:<12.10f} on_connect (immediate) {plugin_name}")})
         self.logger_queue.put({'log_type': self.monitor_on_connect,
@@ -1153,14 +1153,14 @@ class QueueProcessor():
             run_time = 0
             for plugin_name in self.publisher.plugin_manager.callbacks['update_record']['immediate']:
                 start_time = time.time()
-                delta_time = time.time() - start_time
-                run_time += delta_time
                 self.publisher.plugin_manager.callbacks['update_record']['immediate'][plugin_name](self.publisher.client,
                                                                                                    topic,
                                                                                                    record,
                                                                                                    data['usUnits'],
                                                                                                    topics[topic]['qos'],
                                                                                                    topics[topic]['retain'])
+                delta_time = time.time() - start_time
+                run_time += delta_time                
                 self.logger_queue.put({'log_type': self.monitor_record_update,
                                        'log_message': (f"monitor: {delta_time:<12.10f} update_record (immmediate) "
                                                        f"{topic} for {plugin_name}")})
@@ -1182,14 +1182,14 @@ class QueueProcessor():
                 # 2. The record may not be publishing the field usUnits.
                 # self.profile(f"  profile: before delay update_record {time.time() - self.start_time} {topic} {plugin_name}")
                 start_time = time.time()
-                delta_time = time.time() - start_time
-                run_time += delta_time
                 self.publisher.plugin_manager.callbacks['update_record']['delay'][plugin_name](self.publisher.client,
                                                                                                topic,
                                                                                                updated_record,
                                                                                                topics[topic]['unit_system'],
                                                                                                topics[topic]['qos'],
                                                                                                topics[topic]['retain'])
+                delta_time = time.time() - start_time
+                run_time += delta_time                
                 self.logger_queue.put({'log_type': self.monitor_record_update,
                                        'log_message': (f"monitor: {delta_time:<12.10f} update_record (delay) "
                                                        f"{topic} for {plugin_name}")})
