@@ -896,7 +896,6 @@ class MQTTPublish(StdService):
 
     def new_loop_packet(self, event):
         """ Handle loop packets. """
-        self.logger.loginf("new loop")
         self._handle_record('loop', copy.deepcopy(event.packet))
 
     def new_archive_record(self, event):
@@ -919,13 +918,11 @@ class MQTTPublish(StdService):
                                        self.data_queue)
                 self.thread_start()
 
-                self.logger.loginf("adding to queue")
                 self.data_queue.put({'time_stamp': data['dateTime'], 'type': data_type, 'data': data})
                 self._thread.processor.threading_event.set()
             else:
                 raise weewx.StopNow("MQTT publishing thread has stopped.")
         else:
-            self.logger.loginf("adding to queue")
             self.data_queue.put({'time_stamp': data.get('dateTime', time.time()), 'type': data_type, 'data': data})
             self._thread.processor.threading_event.set()
             # A bit of a hack. The thread is running and the MQTT client is connexted.
