@@ -308,6 +308,7 @@ class AbstractPublisher(abc.ABC):
 
     def publish_message(self, time_stamp, qos, retain, topic, data):
         """ Publish the message. """
+        start_time = time.time()
         if not self.connected:
             self._reconnect()
 
@@ -316,10 +317,11 @@ class AbstractPublisher(abc.ABC):
         if data is not None and data_type not in (str, bytearray, int, float):
             payload = json.dumps(data)
 
+        start_time = time.time()
         mqtt_message_info = self.client.publish(topic, payload, qos=qos, retain=retain)
         self.logger_queue.put({'log_type': 'DEBUG',
-                               'log_message': (f"At {int(time.time())} "
-                                               f"publishing: {int(time_stamp)} {mqtt_message_info.mid} {qos} {topic}")})
+                               'log_message': (f"At {int(time.time())}  publishing: {int(time_stamp)} "
+                                               f" {mqtt_message_info.mid} {qos} {topic} took {time.time() - start_time}")})
 
         self.client.loop(timeout=0.1)
 
@@ -369,11 +371,9 @@ class AbstractPublisher(abc.ABC):
             delta_time = time.time() - start_time
             run_time += delta_time
             self.logger_queue.put({'log_type': self.monitor_on_message,
-                                   'log_message': (f"monitor: on_message (immediate) {plugin_name}  {msg}"
-                                                   f"took {delta_time} ")})
+                                   'log_message': (f"monitor: {delta_time:<12.10f} on_message (immediate) {plugin_name}  {msg}")})
         self.logger_queue.put({'log_type': self.monitor_on_message,
-                               'log_message': (f"monitor: on_message (immediate) "
-                                               f"took {run_time} ")})
+                               'log_message': (f"monitor: {run_time:<12.10f} on_message (immediate)")})
 
         run_time = 0
         for plugin_name in self.plugin_manager.callbacks['on_mqtt_message']['delay']:
@@ -382,12 +382,10 @@ class AbstractPublisher(abc.ABC):
             delta_time = time.time() - start_time
             run_time += delta_time
             self.logger_queue.put({'log_type': self.monitor_on_message,
-                                   'log_message': (f"monitor: on_message (delay) {plugin_name} {msg} "
-                                                   f"took {delta_time} ")})
+                                   'log_message': (f"monitor: {delta_time:<12.10f} on_message (delay) {plugin_name} {msg}")})
 
         self.logger_queue.put({'log_type': self.monitor_on_message,
-                               'log_message': (f"monitor: on_message (delay) "
-                                               f"took {run_time} ")})
+                               'log_message': (f"monitor: {run_time:<12.10f} on_message (delay)")})
 
 class PublisherV1(AbstractPublisher):
     ''' MQTTPublish that communicates with paho mqtt v1.'''
@@ -443,8 +441,8 @@ class PublisherV1(AbstractPublisher):
                                                                                        reason_code,
                                                                                        properties)
             self.logger_queue.put({'log_type': self.monitor_on_connect,
-                                   'log_message': (f"mmonitor: on_connect (immediate) {plugin_name} "
-                                                   f"took {time.time() - start_time} ")})
+                                   'log_message': (f"mmonitor: {(time.time() - start_time):<12.10f} "
+                                                   f"on_connect (immediate) {plugin_name}")})
 
         if self.lwt_dict is not None and to_bool(self.lwt_dict.get('enable', True)):
             self.client.publish(topic=self.lwt_dict.get('topic', 'status'),
@@ -456,8 +454,8 @@ class PublisherV1(AbstractPublisher):
             start_time = time.time()
             self.plugin_manager.callbacks['on_mqtt_connect']['delay'][plugin_name](client, userdata, flags, reason_code, properties)
             self.logger_queue.put({'log_type': self.monitor_on_connect,
-                                   'log_message': (f"monitor: on_connect (delay) {plugin_name} "
-                                                   f"took {time.time() - start_time} ")})
+                                   'log_message': (f"monitor: {(time.time() - start_time):<12.10f} on_connect (delay) "
+                                                   f"{plugin_name}")})
         self.connected = True
 
     def on_disconnect(self, _client, _userdata, flags_rc, reason_code=None, properties=None):
@@ -516,19 +514,17 @@ class PublisherV2(AbstractPublisher):
         run_time = 0
         for plugin_name in self.plugin_manager.callbacks['on_mqtt_connect']['immediate']:
             start_time = time.time()
-            delta_time = time.time() - start_time
-            run_time += delta_time
             self.plugin_manager.callbacks['on_mqtt_connect']['immediate'][plugin_name](client,
                                                                                        userdata,
                                                                                        flags,
                                                                                        reason_code,
                                                                                        properties)
+            delta_time = time.time() - start_time
+            run_time += delta_time
             self.logger_queue.put({'log_type': self.monitor_on_connect,
-                                   'log_message': (f"monitor: on_connect (immediate) {plugin_name} "
-                                                   f"took {delta_time} ")})
+                                   'log_message': (f"monitor: {delta_time:<12.10f} on_connect (immediate) {plugin_name}")})
         self.logger_queue.put({'log_type': self.monitor_on_connect,
-                               'log_message': (f"monitor: on_connect (immediate) "
-                                               f"took {run_time} ")})
+                               'log_message': (f"monitor: {run_time:<12.10f} on_connect (immediate)")})
 
         if self.lwt_dict is not None and to_bool(self.lwt_dict.get('enable', True)):
             self.client.publish(topic=self.lwt_dict.get('topic', 'status'),
@@ -543,11 +539,9 @@ class PublisherV2(AbstractPublisher):
             delta_time = time.time() - start_time
             run_time += delta_time
             self.logger_queue.put({'log_type': self.monitor_on_connect,
-                                   'log_message': (f"monitor: on_connect (delay) {plugin_name} "
-                                                   f"took {delta_time} ")})
+                                   'log_message': (f"monitor: {delta_time:<12.10f} on_connect (delay) {plugin_name}")})
         self.logger_queue.put({'log_type': self.monitor_on_connect,
-                               'log_message': (f"monitor: on_connect (delay) "
-                                               f"took {run_time} ")})
+                               'log_message': (f"monitor: {run_time:<12.10f} on_connect (delay)")})
         self.connected = True
 
     def on_disconnect(self, _client, _userdata, _flags, reason_code, _properties):
@@ -1150,28 +1144,33 @@ class QueueProcessor():
         """ Publish the data. """
         immediate_time = 0
         delay_time = 0
+        process_time = time.time()
         for topic in topics:
             record = copy.deepcopy(data)
             run_time = 0
             for plugin_name in self.publisher.plugin_manager.callbacks['update_record']['immediate']:
                 start_time = time.time()
-                delta_time = time.time() - start_time
-                run_time += delta_time
                 self.publisher.plugin_manager.callbacks['update_record']['immediate'][plugin_name](self.publisher.client,
                                                                                                    topic,
                                                                                                    record,
                                                                                                    data['usUnits'],
                                                                                                    topics[topic]['qos'],
                                                                                                    topics[topic]['retain'])
+                delta_time = time.time() - start_time
+                run_time += delta_time
                 self.logger_queue.put({'log_type': self.monitor_record_update,
-                                       'log_message': (f"monitor: update_record (immmediate) {plugin_name} for {topic} "
-                                                       f"took {delta_time} ")})
+                                       'log_message': (f"monitor: {delta_time:<12.10f} update_record (immmediate) "
+                                                       f"{topic} for {plugin_name}")})
+
             self.logger_queue.put({'log_type': self.monitor_record_update,
-                                   'log_message': (f"monitor: update_record (immediate) for {topic} "
-                                                   f"took {run_time} ")})
+                                   'log_message': (f"monitor: {run_time:<12.10f} update_record (immediate) {topic}")})
             immediate_time += run_time
 
+            start_time = time.time()
             updated_record = self.update_record(topics[topic], time_stamp, record)
+            self.logger_queue.put({'log_type': self.monitor_record_update,
+                                   'log_message': (f"monitor: {(time.time() - start_time):<12.10f} "
+                                                   f"update_record (update_record) {topic}")})
 
             run_time = 0
             for plugin_name in self.publisher.plugin_manager.callbacks['update_record']['delay']:
@@ -1180,22 +1179,22 @@ class QueueProcessor():
                 # 2. The record may not be publishing the field usUnits.
                 # self.profile(f"  profile: before delay update_record {time.time() - self.start_time} {topic} {plugin_name}")
                 start_time = time.time()
-                delta_time = time.time() - start_time
-                run_time += delta_time
                 self.publisher.plugin_manager.callbacks['update_record']['delay'][plugin_name](self.publisher.client,
                                                                                                topic,
                                                                                                updated_record,
                                                                                                topics[topic]['unit_system'],
                                                                                                topics[topic]['qos'],
                                                                                                topics[topic]['retain'])
+                delta_time = time.time() - start_time
+                run_time += delta_time
                 self.logger_queue.put({'log_type': self.monitor_record_update,
-                                       'log_message': (f"monitor: update_record (delay) {plugin_name} for {topic} "
-                                                       f"took {delta_time} ")})
+                                       'log_message': (f"monitor: {delta_time:<12.10f} update_record (delay) "
+                                                       f"{topic} for {plugin_name}")})
             self.logger_queue.put({'log_type': self.monitor_record_update,
-                                   'log_message': (f"monitor: update_record (delay) for {topic} "
-                                                   f"took {run_time} ")})
+                                   'log_message': (f"monitor: {run_time:<12.10f} update_record (delay) {topic}")})
             delay_time += run_time
 
+            start_time = time.time()
             if updated_record:
                 if topics[topic]['type'] == 'json':
                     self.publisher.publish_message(time_stamp,
@@ -1217,13 +1216,18 @@ class QueueProcessor():
                                                        topics[topic]['retain'],
                                                        topic + '/' + key,
                                                        value)
+            self.logger_queue.put({'log_type': self.monitor_record_update,
+                                   'log_message': (f"monitor: {(time.time() - start_time):<12.10f} "
+                                                   f"update_record (publish_message) {topic} ")})
 
         self.logger_queue.put({'log_type': self.monitor_record_update,
-                               'log_message': (f"monitor: update_record (immediate) "
-                                               f"took {immediate_time} ")})
+                               'log_message': (f"monitor: {immediate_time:<12.10f} update_record (immediate)")})
         self.logger_queue.put({'log_type': self.monitor_record_update,
-                               'log_message': (f"monitor: update_record (delay) "
-                                               f"took {delay_time} ")})
+                               'log_message': (f"monitor: {delay_time:<12.10f} update_record (delay)")})
+
+        self.logger_queue.put({'log_type': self.monitor_record_update,
+                               'log_message': (f"monitor: {(time.time() - process_time):<12.10f} "
+                                               f"update_record (publish_row total)")})
 
     def run(self):
         """ Process the queue. """
@@ -1246,25 +1250,13 @@ class QueueProcessor():
         with weewx.manager.open_manager(self.manager_dict) as db_manager:
             self.db_manager = db_manager
 
-            queue_size = self.data_queue.qsize()
-            self.logger_queue.put({'log_type': 'INFO',
-                                   'log_message': f"Before emptying, queue size is {queue_size}"})
-            for _ in range(queue_size):
-                try:
-                    self.data_queue.get_nowait()
-                except Queue.Empty:
-                    break
-            self.logger_queue.put({'log_type': 'INFO',
-                                   'log_message': f"After emptying, queue size is {self.data_queue.qsize()}"})
-
             prev_time = time.time()
             while self.process:
                 try:
                     data2 = self.data_queue.get_nowait()
-
                     curr_time = time.time()
                     self.logger_queue.put({'log_type': self.monitor_queue,
-                                           'log_message': (f"Queue size: {self.data_queue.qsize()} "
+                                           'log_message': (f"monitor: Queue size: {self.data_queue.qsize()} "
                                                            f"Process time: {curr_time - prev_time}")
                                            })
                     prev_time = curr_time
@@ -1276,11 +1268,11 @@ class QueueProcessor():
                         delta_time = time.time() - start_time
                         run_time += delta_time
                         self.logger_queue.put({'log_type': self.monitor_on_weewx_data,
-                                               'log_message': (f"monitor: on_weewx_data (immmediate) {plugin_name}  "
-                                                               f"took {delta_time} ")})
+                                               'log_message': (f"monitor: {delta_time:<12.10f} on_weewx_data (immmediate) "
+                                                               f"{plugin_name}")})
                     self.logger_queue.put({'log_type': self.monitor_on_weewx_data,
-                                           'log_message': (f"monitor: on_weewx_data (immediate) "
-                                                           f"took {run_time} ")})
+                                           'log_message': (f"monitor: {run_time:<12.10f} on_weewx_data (immediate)")})
+
                     time_stamp = data2['time_stamp']
                     data_type = data2['type']
                     data = data2['data']
@@ -1303,12 +1295,15 @@ class QueueProcessor():
                         delta_time = time.time() - start_time
                         run_time += delta_time
                         self.logger_queue.put({'log_type': self.monitor_on_weewx_data,
-                                               'log_message': (f"monitor: on_weewx_data (delay) {plugin_name}  "
-                                                               f"took {delta_time} ")})
+                                               'log_message': (f" {delta_time:<12.10f} on_weewx_data (delay) {plugin_name}  "
+                                                               f"")})
                     self.logger_queue.put({'log_type': self.monitor_on_weewx_data,
-                                           'log_message': (f"monitor: on_weewx_data (delay) "
-                                                           f"took {run_time} ")})
+                                           'log_message': (f"monitor: {run_time:<12.10f} on_weewx_data (delay) "
+                                                           f"")})
                 except Queue.Empty:
+                    self.logger_queue.put({'log_type': self.monitor_queue,
+                                           'log_message': (f"monitor: Queue is empty. "
+                                                           f"Waiting {self.mqtt_config['wait_for_queue_element']}")})
                     self.publisher.client.loop(timeout=0.1)
                     self.threading_event.wait(self.mqtt_config['wait_for_queue_element'])
                     self.threading_event.clear()
