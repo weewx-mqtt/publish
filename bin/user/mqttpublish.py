@@ -319,7 +319,7 @@ class AbstractPublisher(abc.ABC):
 
         start_time = time.time()
         mqtt_message_info = self.client.publish(topic, payload, qos=qos, retain=retain)
-        self.logger_queue.put({'log_type': 'INFO',
+        self.logger_queue.put({'log_type': 'DEBUG',
                                'log_message': (f"At {int(time.time())}  publishing: {int(time_stamp)} "
                                                f" {mqtt_message_info.mid} {qos} {topic} took {time.time() - start_time}")})
 
