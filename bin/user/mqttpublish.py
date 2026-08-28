@@ -320,7 +320,7 @@ class AbstractPublisher(abc.ABC):
         start_time = time.time()
         mqtt_message_info = self.client.publish(topic, payload, qos=qos, retain=retain)
         self.logger_queue.put({'log_type': 'INFO',
-                               'log_message': (f"monitor: At {int(time.time())}  publishing: {int(time_stamp)} "
+                               'log_message': (f"At {int(time.time())}  publishing: {int(time_stamp)} "
                                                f" {mqtt_message_info.mid} {qos} {topic} took {time.time() - start_time}")})
 
         self.client.loop(timeout=0.1)
