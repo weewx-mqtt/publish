@@ -934,6 +934,14 @@ class MQTTPublish(StdService):
         """Run when an engine shutdown is requested."""
         self.logger.loginf("Shutdown initiated")
         if self._thread:
+
+            self.logger.loginf(f"Emptying queue with size of {self.data_queue.qsize()}.")
+            while self.data_queue.qsize() > 1:
+                try:
+                    self.data_queue.get_nowait()
+                except Queue.Empty:
+                    break
+
             self.logger.loginf("Shutdown of thread initiated")
             self.data_queue.put({'time_stamp': time.time(), 'type': 'shutdown', 'data': {}})
             # self._thread.process = False
