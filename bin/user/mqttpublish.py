@@ -685,6 +685,8 @@ class MQTTPublish(StdService):
         self.max_thread_restarts = to_int(service_dict.get('max_thread_restarts', 2))
         self.thread_restarts = 0
 
+        self.wait_for_thread_shutdown = to_int(service_dict.get('wait_for_thread_shutdown', 10))
+
         if 'binding' in service_dict:
             self.logger.loginf("'binding' is deprecated and no longer used.")
 
@@ -946,7 +948,7 @@ class MQTTPublish(StdService):
             self.data_queue.put({'time_stamp': time.time(), 'type': 'shutdown', 'data': {}})
             # self._thread.process = False
             self._thread.processor.threading_event.set()
-            self._thread.join()
+            self._thread.join(self.wait_for_thread_shutdown)
             if self._thread.is_alive():
                 self.logger.logerr(f"Unable to shut down {self._thread.name} thread")
 
@@ -954,7 +956,7 @@ class MQTTPublish(StdService):
 
         self.logger.loginf("Shutdown of logger thread initiated")
         self.logger_queue.put(None)
-        self.logger_thread.join()
+        self.logger_thread.join(self.wait_for_thread_shutdown)
         if self.logger_thread.is_alive():
             self.logger.logerr(f"Unable to shut down {self.logger_thread.name} thread")
 
