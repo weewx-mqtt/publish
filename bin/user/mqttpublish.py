@@ -908,25 +908,35 @@ class MQTTPublish(StdService):
         if not self._thread.is_alive():
             if self.thread_restarts < self.max_thread_restarts:
                 self.thread_restarts += 1
-                self._thread = \
-                    PublishWeeWXThread(self.logger_queue,
-                                       self.plugins,
-                                       self.weewx_dict,
-                                       self.manager_dict,
-                                       self.mqtt_config,
-                                       self.monitor_config,
-                                       self.topics_loop,
-                                       self.topics_archive,
-                                       self.data_queue)
+                if self.multiprocess:
+                    self._thread = PublishWeeWXProcess(self.logger_queue,
+                                                       self.plugins,
+                                                       self.weewx_dict,
+                                                       self.manager_dict,
+                                                       self.mqtt_config,
+                                                       self.monitor_config,
+                                                       self.topics_loop,
+                                                       self.topics_archive,
+                                                       self.data_queue)
+                else:
+                    self._thread = PublishWeeWXThread(self.logger_queue,
+                                                      self.plugins,
+                                                      self.weewx_dict,
+                                                      self.manager_dict,
+                                                      self.mqtt_config,
+                                                      self.monitor_config,
+                                                      self.topics_loop,
+                                                      self.topics_archive,
+                                                      self.data_queue)
+                    self._thread.daemon = True
+
                 self.thread_start()
 
                 self.data_queue.put({'time_stamp': data['dateTime'], 'type': data_type, 'data': data})
-                self._thread.processor.threading_event.set()
             else:
                 raise weewx.StopNow("MQTT publishing thread has stopped.")
         else:
             self.data_queue.put({'time_stamp': data.get('dateTime', time.time()), 'type': data_type, 'data': data})
-            self._thread.processor.threading_event.set()
             # A bit of a hack. The thread is running and the MQTT client is connexted.
             # So, we will reset the restart count.
             if self._thread.processor.publisher and self._thread.processor.publisher.connected:
@@ -937,21 +947,25 @@ class MQTTPublish(StdService):
         self.logger.loginf("Shutdown initiated")
         if self._thread:
 
-            self.logger.loginf(f"Emptying queue with size of {self.data_queue.qsize()}.")
-            while self.data_queue.qsize() > 0:
+            self.logger.loginf(f"Emptying data queue with size of {self.data_queue.qsize()}.")
+            # If another process is already performing the get operation,
+            # and this process does not have time to acquire the lock to ensure exclusive access,
+            # queue.Empty is raised - even though the queue is not empty.
+            # https://github.com/python/cpython/issues/87302#issuecomment-3659919391
+            while True:
                 try:
-                    self.data_queue.get_nowait()
+                    self.data_queue.get(timeout=0.05)
                 except Queue.Empty:
-                    break
+                    if not self.data_queue.qsize():
+                        break
+
             self.logger.loginf(f"Emptied queue has size of {self.data_queue.qsize()}.")
 
             self.logger.loginf("Shutdown of thread initiated")
             self.data_queue.put({'time_stamp': time.time(), 'type': 'shutdown', 'data': {}})
-            # self._thread.process = False
-            self._thread.processor.threading_event.set()
             self._thread.join(self.wait_for_thread_shutdown)
-            if self._thread.is_alive():
-                self.logger.logerr(f"Unable to shut down {self._thread.name} thread")
+            if self._thread.is_alive() and self.multiprocess:
+                self._thread.terminate()
 
             self._thread = None
 
@@ -1051,7 +1065,6 @@ class QueueProcessor():
         self.lwt_dict = mqtt_config.get('lwt')
 
         self.data_queue = data_queue
-        self.threading_event = threading.Event()
 
         # Flag to control thread running.
         # Setting to False will stop the thread.
@@ -1317,8 +1330,7 @@ class QueueProcessor():
                                            'log_message': (f"monitor: Queue is empty. "
                                                            f"Waiting {self.mqtt_config['wait_for_queue_element']}")})
                     self.publisher.client.loop(timeout=0.1)
-                    self.threading_event.wait(self.mqtt_config['wait_for_queue_element'])
-                    self.threading_event.clear()
+                    time.sleep(self.mqtt_config['wait_for_queue_element'])
                 except CannotConnectError:
                     self.process = False
 
@@ -1457,7 +1469,7 @@ if __name__ == "__main__":
             engine.dispatchEvent(new_loop_packet_event)
 
         loop_count = 0
-        while mqtt_publish._thread.processor.threading_event.is_set() and loop_count < max_loops:  # pylint: disable=protected-access
+        while loop_count < max_loops:
             print("sleepting")
             time.sleep(1)
             loop_count += 1
