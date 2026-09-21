@@ -938,11 +938,12 @@ class MQTTPublish(StdService):
         if self._thread:
 
             self.logger.loginf(f"Emptying queue with size of {self.data_queue.qsize()}.")
-            while self.data_queue.qsize() > 1:
+            while self.data_queue.qsize() > 0:
                 try:
                     self.data_queue.get_nowait()
                 except Queue.Empty:
                     break
+            self.logger.loginf(f"Emptied queue has size of {self.data_queue.qsize()}.")
 
             self.logger.loginf("Shutdown of thread initiated")
             self.data_queue.put({'time_stamp': time.time(), 'type': 'shutdown', 'data': {}})
@@ -1264,9 +1265,15 @@ class QueueProcessor():
             while self.process:
                 try:
                     data2 = self.data_queue.get_nowait()
+                    data_type = data2['type']
+                    if data_type == 'shutdown':
+                        self.logger_queue.put({'log_type': 'INFO',
+                                               'log_message': "Shutting down queue processor."})
+                        break
+                    queue_size = self.data_queue.qsize()
                     curr_time = time.time()
                     self.logger_queue.put({'log_type': self.monitor_queue,
-                                           'log_message': (f"monitor: Queue size: {self.data_queue.qsize()} "
+                                           'log_message': (f"monitor: Queue size: {queue_size} "
                                                            f"Process time: {curr_time - prev_time}")
                                            })
                     prev_time = curr_time
@@ -1284,16 +1291,11 @@ class QueueProcessor():
                                            'log_message': (f"monitor: {run_time:<12.10f} on_weewx_data (immediate)")})
 
                     time_stamp = data2['time_stamp']
-                    data_type = data2['type']
                     data = data2['data']
                     if data_type == 'loop':
                         self.publish_row(time_stamp, data, self.topics_loop)
                     elif data_type == 'archive':
                         self.publish_row(time_stamp, data, self.topics_archive)
-                    elif data_type == 'shutdown':
-                        self.logger_queue.put({'log_type': 'INFO',
-                                               'log_message': "Shutting down queue processor."})
-                        break
                     else:
                         self.logger_queue.put({'log_type': 'ERROR',
                                                'log_message': f"Unknown data type, {data_type}"})
