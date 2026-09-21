@@ -24,6 +24,7 @@ This is the step that processes WeeWX loop packets or archive records.
 It is called with a single dictionary containg the following information.
 
 - time_stamp: The timestamp for this data
+- queue_size:
 - data_type: dentifies the origin of the data 'archive' or 'loop'
 - data: The WeeWX archive record or loop packet.
 
