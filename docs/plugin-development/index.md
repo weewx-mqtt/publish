@@ -25,6 +25,7 @@ It is called with a single dictionary containg the following information.
 
 - time_stamp: The timestamp for this data
 - data_type: dentifies the origin of the data 'archive' or 'loop'
+- queue_size: The current size of the data queue
 - data: The WeeWX archive record or loop packet.
 
 ### on_connect

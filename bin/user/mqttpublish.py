@@ -1284,6 +1284,7 @@ class QueueProcessor():
                                                'log_message': "Shutting down queue processor."})
                         break
                     queue_size = self.data_queue.qsize()
+                    data2['queue_size'] = queue_size
                     curr_time = time.time()
                     self.logger_queue.put({'log_type': self.monitor_queue,
                                            'log_message': (f"monitor: Queue size: {queue_size} "
