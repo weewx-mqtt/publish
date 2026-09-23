@@ -98,17 +98,17 @@ class PluginManager():
             },
         }
 
-    def create_plugin(self, plugin_name, plugin_dict, mqtt_dict, topics, weewx_dict):
+    def create_plugin(self, name, plugin_name, plugin_dict, mqtt_dict, topics, weewx_dict):
         """ Create the plugin. """
-        self.plugins[plugin_name] = {}
+        self.plugins[name] = {}
         plugin_class = weeutil.weeutil.get_object(plugin_name)
         plugin = plugin_class(self.logger, plugin_name, plugin_dict, mqtt_dict, topics, weewx_dict)
-        self.plugins[plugin_name]['plugin'] = plugin
+        self.plugins[name]['plugin'] = plugin
         callbacks = plugin.get_callbacks()
         for callback in callbacks:
             for callback_name in callback:
                 timing = callback[callback_name]['timing']
-                self.callbacks[callback_name][timing][plugin_name] = callback[callback_name]['callback']
+                self.callbacks[callback_name][timing][name] = callback[callback_name]['callback']
 
 class AbstractPublisher(abc.ABC):
     """ Managing publishing to MQTT. """
@@ -1263,7 +1263,7 @@ class QueueProcessor():
                 plugin_name = self.plugins[plugin]['module'] + '.' + plugin
             else:
                 plugin_name = self.plugins[plugin]['plugin']
-            self.plugin_manager.create_plugin(plugin_name, self.plugins[plugin], self.mqtt_config, self.all_topics, self.weewx_dict)
+            self.plugin_manager.create_plugin(plugin, plugin_name, self.plugins[plugin], self.mqtt_config, self.all_topics, self.weewx_dict)
 
         # need to instantiate inside thread
         self.publisher = AbstractPublisher.get_publisher(self.logger_queue,
