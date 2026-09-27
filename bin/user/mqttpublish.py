@@ -885,16 +885,11 @@ class MQTTPublish(StdService):
 
     def thread_start(self):
         """Start the publishing thread."""
-        self.logger.loginf("Starting thread.")
+        self.logger.loginf("Starting up queue processor.")
         self._thread.start()
-        self.logger.loginf("Joining thread.")
-        # self._thread.join(self.thread_start_wait)
-        self.logger.loginf("Joined thread.")
 
         if not self._thread.is_alive():
             raise weewx.WakeupError("Unable to start MQTT publishing thread.")
-
-        self.logger.loginf("Thread started.")
 
     def new_loop_packet(self, event):
         """ Handle loop packets. """
@@ -928,7 +923,7 @@ class MQTTPublish(StdService):
                                                       self.topics_loop,
                                                       self.topics_archive,
                                                       self.data_queue)
-                    self._thread.daemon = True
+                self._thread.daemon = True
 
                 self.thread_start()
 
@@ -959,17 +954,17 @@ class MQTTPublish(StdService):
                     if not self.data_queue.qsize():
                         break
 
-            self.logger.loginf(f"Emptied queue has size of {self.data_queue.qsize()}.")
-
-            self.logger.loginf("Shutdown of thread initiated")
+            self.logger.loginf(f"Data queue has size of {self.data_queue.qsize()}.")
+            self.logger.loginf("Shutdown of queue processor initiated")
             self.data_queue.put({'time_stamp': time.time(), 'type': 'shutdown', 'data': {}})
             self._thread.join(self.wait_for_thread_shutdown)
-            if self._thread.is_alive() and self.multiprocess:
-                self._thread.terminate()
+            #if self._thread.is_alive() and self.multiprocess:
+            #    self.logger.logerr(f"Unable to shut down {self._thread.pid}, terminating it.")
+            #    self._thread.terminate()
 
             self._thread = None
 
-        self.logger.loginf("Shutdown of logger thread initiated")
+        self.logger.loginf(f"Shutdown of logger thread, {self.logger_thread.name} initiated")
         self.logger_queue.put(None)
         self.logger_thread.join(self.wait_for_thread_shutdown)
         if self.logger_thread.is_alive():
@@ -993,7 +988,7 @@ class LoggerThread(threading.Thread):
 
     def run(self):
         threading.current_thread().name = f"MQTTPublish-{threading.get_native_id()}"
-        self.logger.loginf(f"Starting logger queue  {self.name}.")
+        self.logger.loginf(f"Starting logger thread,  {self.name}.")
 
         while True:
             message = self.log_queue.get()
@@ -1005,7 +1000,7 @@ class LoggerThread(threading.Thread):
             except (TypeError, KeyError):
                 self.logger.logerr(message)
 
-        self.logger.loginf(f"Exited logger queue {self.name}.")
+        self.logger.loginf(f"Exited logger thread, {self.name}.")
 
 class QueueProcessor():
     """Publish WeeWX data to MQTT. """
@@ -1371,13 +1366,13 @@ class PublishWeeWXThread(threading.Thread):
                                         data_queue)
 
     def run(self):
-        threading.current_thread().name = f"MQTTPublish-{threading.get_native_id()}"
+        threading.current_thread().name = f"PublishWeeWXThread-{threading.get_native_id()}"
         self.logger_queue.put({'log_type': 'INFO',
-                               'log_message': f"Starting queue processor  {self.name}."})
+                               'log_message': f"Starting queue thread,  {self.name}."})
 
         self.processor.run()
         self.logger_queue.put({'log_type': 'INFO',
-                               'log_message': f"Exited queue processor {self.name}."})
+                               'log_message': f"Exited queue thread, {self.name}."})
 
 class PublishWeeWXProcess(multiprocessing.Process):
     """Publish WeeWX data to MQTT. """
@@ -1407,13 +1402,13 @@ class PublishWeeWXProcess(multiprocessing.Process):
     def run(self):
         # We will ignore these and let the main process start an orderly shut down.
         signal.signal(signal.SIGINT, signal.SIG_IGN)
-        threading.current_thread().name = f"MQTTPublish-{threading.get_native_id()}"
+        self.name = f"PublishWeeWXProcess-{multiprocessing.current_process().pid}"
         self.logger_queue.put({'log_type': 'INFO',
-                               'log_message': f"Starting queue processor  {self.name}."})
+                               'log_message': f"Starting queue sub-process,  {self.name}."})
 
         self.processor.run()
         self.logger_queue.put({'log_type': 'INFO',
-                               'log_message': f"Exited queue processor {self.name}."})
+                               'log_message': f"Exited queue sub-process, {self.name}."})
 
 if __name__ == "__main__":
     import argparse
