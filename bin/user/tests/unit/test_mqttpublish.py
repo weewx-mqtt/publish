@@ -34,8 +34,8 @@ class TestInit(unittest.TestCase):
                 with mock.patch('user.mqttpublish.Logger'):
                     SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
                     SUT.logger_queue.put(None)
-                    SUT.logger.logerr.assert_called_once_with(
-                        "'PublishWeeWX' is deprecated. Move options to top level, '[MQTTPublish]'.")
+                    SUT.logger.logerr.assert_called_once_with("",
+                                                              "'PublishWeeWX' is deprecated. Move options to top level, '[MQTTPublish]'.")
 
 class TestConfigureTopics(unittest.TestCase):
     def test_config_topics(self):

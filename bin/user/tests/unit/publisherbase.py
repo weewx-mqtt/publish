@@ -126,7 +126,7 @@ class PublisherBase(unittest.TestCase):
             'monitor_on_connect': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
-    }
+        }
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -160,8 +160,7 @@ class PublisherBase(unittest.TestCase):
             'monitor_on_connect': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
-    }
-
+        }
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -195,8 +194,7 @@ class PublisherBase(unittest.TestCase):
             'monitor_on_connect': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
-    }
-
+        }
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -235,11 +233,11 @@ class PublisherBase(unittest.TestCase):
 
         monitor_dict = {
             'monitor_queue': None,
-             'monitor_on_message': None,
-             'monitor_on_connect': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
-    }
+        }
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -277,7 +275,7 @@ class PublisherBase(unittest.TestCase):
             'monitor_on_connect': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
-    }
+        }
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -315,7 +313,7 @@ class PublisherBase(unittest.TestCase):
             'monitor_on_connect': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
-    }
+        }
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -354,7 +352,7 @@ class PublisherBase(unittest.TestCase):
             'monitor_on_connect': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
-    }
+        }
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -394,7 +392,7 @@ class PublisherBase(unittest.TestCase):
             'monitor_on_connect': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
-    }
+        }
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -435,7 +433,7 @@ class PublisherBase(unittest.TestCase):
             'monitor_on_connect': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
-    }
+        }
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -472,7 +470,7 @@ class PublisherBase(unittest.TestCase):
             'monitor_on_connect': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
-    }
+        }
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -516,7 +514,7 @@ class PublisherBase(unittest.TestCase):
             'monitor_on_connect': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
-    }
+        }
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -569,7 +567,7 @@ class PublisherBase(unittest.TestCase):
             'monitor_on_connect': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
-    }
+        }
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -617,7 +615,7 @@ class PublisherBase(unittest.TestCase):
             'monitor_on_connect': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
-    }
+        }
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -666,7 +664,7 @@ class TLSBase(unittest.TestCase):
             'monitor_on_connect': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
-    }
+        }
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -710,7 +708,7 @@ class TLSBase(unittest.TestCase):
             'monitor_on_connect': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
-    }
+        }
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -756,7 +754,7 @@ class TLSBase(unittest.TestCase):
             'monitor_on_connect': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
-    }
+        }
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -802,7 +800,7 @@ class TLSBase(unittest.TestCase):
             'monitor_on_connect': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
-    }
+        }
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -848,7 +846,7 @@ class TLSBase(unittest.TestCase):
             'monitor_on_connect': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
-    }
+        }
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -894,7 +892,7 @@ class TLSBase(unittest.TestCase):
             'monitor_on_connect': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
-    }
+        }
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -940,7 +938,7 @@ class TLSBase(unittest.TestCase):
             'monitor_on_connect': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
-    }
+        }
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -986,7 +984,7 @@ class TLSBase(unittest.TestCase):
             'monitor_on_connect': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
-    }
+        }
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -1032,7 +1030,7 @@ class TLSBase(unittest.TestCase):
             'monitor_on_connect': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
-    }
+        }
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
