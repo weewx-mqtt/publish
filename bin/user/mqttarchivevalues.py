@@ -28,7 +28,8 @@ class MQTTArchiveValues:
         self.enabled = to_bool(self.plugin_dict.get('enable', True))
 
         if not self.enabled:
-            self.logger_queue.put({'log_type': 'INFO',
+            self.logger_queue.put({'name': 'MQTTArchiveValues',
+                                   'log_type': 'INFO',
                                    'log_message': f"Plugin {self.name} is not enabled."})
             return
 
