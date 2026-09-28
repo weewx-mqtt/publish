@@ -15,6 +15,7 @@
 #
 # ###################################################################################################################################
 
+import threading
 import weeutil
 from weeutil.weeutil import to_bool, to_list
 import weewx
@@ -23,14 +24,14 @@ class MQTTArchiveValues:
     """ Calculate aggregate values. """
     def __init__(self, logger_queue, name, plugin_dict, _mqtt_dict, _topics, _weewx_dict):
         self.logger_queue = logger_queue
-        self.name = name
         self.plugin_dict = weeutil.config.deep_copy(plugin_dict)
         self.enabled = to_bool(self.plugin_dict.get('enable', True))
+        self.name = f"{self.__class__.__name__}-{threading.get_native_id()}"
 
         if not self.enabled:
-            self.logger_queue.put({'name': 'MQTTArchiveValues',
+            self.logger_queue.put({'name': self.name,
                                    'log_type': 'INFO',
-                                   'log_message': f"Plugin {self.name} is not enabled."})
+                                   'log_message': f"Plugin {name} is not enabled."})
             return
 
         # ToDo: check that these are mutually exclusive

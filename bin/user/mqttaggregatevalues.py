@@ -7,6 +7,7 @@
 """ Plugin to calculate aggregate values. """
 
 import datetime
+import threading
 import time
 import traceback
 
@@ -190,14 +191,14 @@ class MQTTAggregateValues:
     """ Calculate aggregate values. """
     def __init__(self, logger_queue, name, plugin_dict, _mqtt_dict, _topics, weewx_dict):
         self.logger_queue = logger_queue
-        self.name = name
         self.plugin_dict = weeutil.config.deep_copy(plugin_dict)
         self.enabled = to_bool(self.plugin_dict.get('enable', True))
+        self.name = f"{self.__class__.__name__}-{threading.get_native_id()}"
 
         if not self.enabled:
-            self.logger_queue.put({'name': 'MQTTAggregateValues',
+            self.logger_queue.put({'name': self.name,
                                    'log_type': 'INFO',
-                                   'log_message': f"Plugin {self.name} is not enabled."})
+                                   'log_message': f"Plugin {name} is not enabled."})
             return
 
         self.offset = to_int(plugin_dict.get('offset'))
@@ -213,7 +214,7 @@ class MQTTAggregateValues:
             for (aggregate_observation, aggregate) in self.plugin_dict['topics'][topic].items():
                 if to_bool(aggregate.get('enable', True)) \
                     and aggregate['period'] not in self.timespan_provider.period_timespans:
-                    self.logger_queue.put({'name': 'MQTTAggregateValues',
+                    self.logger_queue.put({'name': self.name,
                                            'log_type': 'ERROR',
                                            'log_message': f"Invalid 'period', {aggregate['period']}"})
                     raise ValueError(f"Invalid 'period', {aggregate['period']}")
@@ -284,10 +285,10 @@ class MQTTAggregateValues:
                     self.last_calculated[topic][aggregate_observation]['interval_end'] = interval_end
 
                 except (weewx.CannotCalculate, weewx.UnknownAggregation, weewx.UnknownType) as exception:
-                    self.logger_queue.put({'name': 'MQTTAggregateValues',
+                    self.logger_queue.put({'name': self.name,
                                            'log_type': 'ERROR',
                                            'log_message': f"Aggregation failed: {exception}"})
-                    self.logger_queue.put({'name': 'MQTTAggregateValues',
+                    self.logger_queue.put({'name': self.name,
                                            'log_type': 'ERROR',
                                            'log_message': traceback.format_exc()})
 
