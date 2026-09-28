@@ -195,7 +195,8 @@ class MQTTAggregateValues:
         self.enabled = to_bool(self.plugin_dict.get('enable', True))
 
         if not self.enabled:
-            self.logger_queue.put({'log_type': 'INFO',
+            self.logger_queue.put({'name': 'MQTTAggregateValues',
+                                   'log_type': 'INFO',
                                    'log_message': f"Plugin {self.name} is not enabled."})
             return
 
@@ -212,7 +213,8 @@ class MQTTAggregateValues:
             for (aggregate_observation, aggregate) in self.plugin_dict['topics'][topic].items():
                 if to_bool(aggregate.get('enable', True)) \
                     and aggregate['period'] not in self.timespan_provider.period_timespans:
-                    self.logger_queue.put({'log_type': 'ERROR',
+                    self.logger_queue.put({'name': 'MQTTAggregateValues',
+                                           'log_type': 'ERROR',
                                            'log_message': f"Invalid 'period', {aggregate['period']}"})
                     raise ValueError(f"Invalid 'period', {aggregate['period']}")
                 if 'calculation_interval' not in aggregate:
@@ -282,9 +284,11 @@ class MQTTAggregateValues:
                     self.last_calculated[topic][aggregate_observation]['interval_end'] = interval_end
 
                 except (weewx.CannotCalculate, weewx.UnknownAggregation, weewx.UnknownType) as exception:
-                    self.logger_queue.put({'log_type': 'ERROR',
+                    self.logger_queue.put({'name': 'MQTTAggregateValues',
+                                           'log_type': 'ERROR',
                                            'log_message': f"Aggregation failed: {exception}"})
-                    self.logger_queue.put({'log_type': 'ERROR',
+                    self.logger_queue.put({'name': 'MQTTAggregateValues',
+                                           'log_type': 'ERROR',
                                            'log_message': traceback.format_exc()})
 
             aggregates[aggregate_observation] = self.last_calculated[topic][aggregate_observation]['value']
