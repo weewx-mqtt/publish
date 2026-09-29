@@ -630,37 +630,39 @@ class MQTTPublish(StdService):
     def __init__(self, engine, config_dict):
         super().__init__(engine, config_dict)
         self.logger = Logger()
+        self.name = f"{self.__class__.__name__}-{threading.get_native_id()}"
 
-        self.logger.loginf("", f"MQTTPublish version: {VERSION}.")
+        self.logger.loginf(self.name, f"MQTTPublish version: {VERSION}.")
 
         service_dict = config_dict.get('MQTTPublish', {})
         plugins = service_dict.get('plugins', [])
         if isinstance(plugins, dict):
-            self.logger.logerr("", ("'[[plugins]]' is deprecated. "
+            self.logger.logerr(self.name,
+                               ("'[[plugins]]' is deprecated. "
                                 "To configure see, https://weewx-mqtt.github.io/publish/plugins/"))
             self.plugins = plugins
         else:
-            self.logger.loginf("", f"The plugins are: {plugins}")
+            self.logger.loginf(self.name, f"The plugins are: {plugins}")
             self.plugins = configobj.ConfigObj({})
             for plugin in to_list(plugins):
                 if plugin not in config_dict:
-                    self.logger.logerr("", f"{plugin} is missing its configuration section.")
+                    self.logger.logerr(self.name, f"{plugin} is missing its configuration section.")
                 else:
                     self.plugins[plugin] = config_dict[plugin]
 
         exclude_keys = ['password']
         sanitized_service_dict = {k: service_dict[k] for k in set(list(service_dict.keys())) - set(exclude_keys)}
-        self.logger.logdbg("", f"sanitized configuration removed {exclude_keys}")
-        self.logger.logdbg("", f"sanitized_service_dict is {sanitized_service_dict}")
+        self.logger.logdbg(self.name, f"sanitized configuration removed {exclude_keys}")
+        self.logger.logdbg(self.name, f"sanitized_service_dict is {sanitized_service_dict}")
 
         #  backwards compatability
         if 'PublishWeeWX' in service_dict.sections:
-            self.logger.logerr("", "'PublishWeeWX' is deprecated. Move options to top level, '[MQTTPublish]'.")
+            self.logger.logerr(self.name, "'PublishWeeWX' is deprecated. Move options to top level, '[MQTTPublish]'.")
             service_dict = config_dict.get('MQTTPublish', {}).get('PublishWeeWX', {})
 
         self.enable = to_bool(service_dict.get('enable', True))
         if not self.enable:
-            self.logger.loginf("", "Not enabled, exiting.")
+            self.logger.loginf(self.name, "Not enabled, exiting.")
             return
 
         data_binding = service_dict.get('data_binding', 'wx_binding')
@@ -678,8 +680,8 @@ class MQTTPublish(StdService):
             weeutil.config.merge_config(self.weewx_dict['defaults'], config_dict['StdReport']['Defaults'])
 
         self.topics_loop, self.topics_archive, binding = self.configure_topics(service_dict)
-        self.logger.logdbg("", f"archive topic configuration is: {self.topics_archive}")
-        self.logger.logdbg("", f"loop topic configuration is: {self.topics_loop}")
+        self.logger.logdbg(self.name, f"archive topic configuration is: {self.topics_archive}")
+        self.logger.logdbg(self.name, f"loop topic configuration is: {self.topics_loop}")
 
         self.mqtt_config = {}
         self.mqtt_config['keepalive'] = to_int(service_dict.get('keepalive', 60))
@@ -701,13 +703,13 @@ class MQTTPublish(StdService):
         self.mqtt_config['tls'] = service_dict.get('tls')
         self.mqtt_config['lwt'] = service_dict.get('lwt')
         if self.mqtt_config['lwt'] is not None:
-            self.logger.logerr("", "'[[lwt]]' is deprecated.  use [[availablity_topic]].")
+            self.logger.logerr(self.name, "'[[lwt]]' is deprecated.  use [[availablity_topic]].")
         else:
             self.mqtt_config['lwt'] = service_dict.get('availability_topic', {})
 
         sanitized_mqtt_config = {k: self.mqtt_config[k] for k in set(list(self.mqtt_config.keys())) - set(exclude_keys)}
-        self.logger.logdbg("", f"sanitized mqtt_config removed {exclude_keys}")
-        self.logger.logdbg("", f"sanitized_mqtt_config is {sanitized_mqtt_config}")
+        self.logger.logdbg(self.name, f"sanitized mqtt_config removed {exclude_keys}")
+        self.logger.logdbg(self.name, f"sanitized_mqtt_config is {sanitized_mqtt_config}")
 
         self.monitor_config = {
             'monitor_queue': service_dict.get('monitor_queue'),
@@ -723,7 +725,7 @@ class MQTTPublish(StdService):
         self.wait_for_thread_shutdown = to_int(service_dict.get('wait_for_thread_shutdown', 10))
 
         if 'binding' in service_dict:
-            self.logger.loginf("", "'binding' is deprecated and no longer used.")
+            self.logger.loginf(self.name, "'binding' is deprecated and no longer used.")
 
         self.multiprocess = to_bool(service_dict.get('multiprocess', False))
         if self.multiprocess:
@@ -849,7 +851,8 @@ class MQTTPublish(StdService):
             aggregates = topic_dict.get('aggregates', {})
             if aggregates:
                 # Temporarily build the MQTTAggregateValues plugin configuration
-                self.logger.logerr("", ("'[aggregates]' is deprecated and has moved to a plugin. "
+                self.logger.logerr(self.name,
+                                   ("'[aggregates]' is deprecated and has moved to a plugin. "
                                     "To configure see, https://weewx-mqtt.github.io/publish/plugins/aggregatevalues/"))
                 if 'MQTTAggregateValues' not in self.plugins:
                     self.plugins['MQTTAggregateValues'] = {}
@@ -877,7 +880,7 @@ class MQTTPublish(StdService):
             if 'loop' in binding:
                 if not publish:
                     continue
-                self.logger.loginf("", f"Publishing to {topic} for loop data.")
+                self.logger.loginf(self.name, f"Publishing to {topic} for loop data.")
                 topics_loop[topic] = {}
                 topics_loop[topic]['qos'] = qos
                 topics_loop[topic]['minimum_interval'] = minimum_interval
@@ -897,7 +900,7 @@ class MQTTPublish(StdService):
             if 'archive' in binding:
                 if not publish:
                     continue
-                self.logger.loginf("", f"Publishing to {topic} for archive data.")
+                self.logger.loginf(self.name, f"Publishing to {topic} for archive data.")
                 topics_archive[topic] = {}
                 topics_archive[topic]['qos'] = qos
                 topics_archive[topic]['minimum_interval'] = minimum_interval
@@ -914,13 +917,13 @@ class MQTTPublish(StdService):
                 topics_archive[topic]['data_last_published'] = {}
                 event_binding['archive'] = True
 
-        self.logger.logdbg("", f"Loop topics: {topics_loop}")
-        self.logger.logdbg("", f"Archive topics: {topics_archive}")
+        self.logger.logdbg(self.name, f"Loop topics: {topics_loop}")
+        self.logger.logdbg(self.name, f"Archive topics: {topics_archive}")
         return topics_loop, topics_archive, event_binding.keys()
 
     def thread_start(self):
         """Start the publishing thread."""
-        self.logger.loginf("", "Starting up queue processor.")
+        self.logger.loginf(self.name, "Starting up queue processor.")
         self._thread.start()
 
         if not self._thread.is_alive():
@@ -974,10 +977,10 @@ class MQTTPublish(StdService):
 
     def shutDown(self):
         """Run when an engine shutdown is requested."""
-        self.logger.loginf("", "Shutdown initiated")
+        self.logger.loginf(self.name, "Shutdown initiated")
         if self._thread:
 
-            self.logger.loginf("", f"Emptying data queue with size of {self.data_queue.qsize()}.")
+            self.logger.loginf(self.name, f"Emptying data queue with size of {self.data_queue.qsize()}.")
             # If another process is already performing the get operation,
             # and this process does not have time to acquire the lock to ensure exclusive access,
             # queue.Empty is raised - even though the queue is not empty.
@@ -989,21 +992,21 @@ class MQTTPublish(StdService):
                     if not self.data_queue.qsize():
                         break
 
-            self.logger.loginf("", f"Data queue has size of {self.data_queue.qsize()}.")
-            self.logger.loginf("", "Shutdown of queue processor initiated")
+            self.logger.loginf(self.name, f"Data queue has size of {self.data_queue.qsize()}.")
+            self.logger.loginf(self.name, "Shutdown of queue processor initiated")
             self.data_queue.put({'time_stamp': time.time(), 'type': 'shutdown', 'data': {}})
             self._thread.join(self.wait_for_thread_shutdown)
             #if self._thread.is_alive() and self.multiprocess:
-            #    self.logger.logerr("", f"Unable to shut down {self._thread.pid}, terminating it.")
+            #    self.logger.logerr(self.name, f"Unable to shut down {self._thread.pid}, terminating it.")
             #    self._thread.terminate()
 
             self._thread = None
 
-        self.logger.loginf("", f"Shutdown of logger thread, {self.logger_thread.name} initiated")
+        self.logger.loginf(self.name, f"Shutdown of logger thread, {self.logger_thread.name} initiated")
         self.logger_queue.put(None)
         self.logger_thread.join(self.wait_for_thread_shutdown)
         if self.logger_thread.is_alive():
-            self.logger.logerr("", f"Unable to shut down {self.logger_thread.name} thread")
+            self.logger.logerr(self.name, f"Unable to shut down {self.logger_thread.name} thread")
 
 class LoggerThread(threading.Thread):
     """ Thread to manage logging.
@@ -1023,7 +1026,7 @@ class LoggerThread(threading.Thread):
 
     def run(self):
         threading.current_thread().name = f"MQTTPublish-{threading.get_native_id()}"
-        self.logger.loginf("", f"Starting logger thread,  {self.name}.")
+        self.logger.loginf(self.name, f"Starting logger thread,  {self.name}.")
 
         while True:
             message = self.log_queue.get()
@@ -1033,9 +1036,9 @@ class LoggerThread(threading.Thread):
                 if message['log_type'] is not None:
                     self.log_types[message['log_type']](message['name'], message['log_message'])
             except (TypeError, KeyError):
-                self.logger.logerr("", message)
+                self.logger.logerr(self.name, message)
 
-        self.logger.loginf("", f"Exited logger thread, {self.name}.")
+        self.logger.loginf(self.name, f"Exited logger thread, {self.name}.")
 
 class QueueProcessor():
     """Publish WeeWX data to MQTT. """
