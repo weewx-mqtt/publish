@@ -1000,8 +1000,8 @@ class MQTTPublish(StdService):
             self.logger.loginf(self.name, "Shutdown of queue processor initiated")
             self.data_queue.put({'time_stamp': time.time(), 'type': 'shutdown', 'data': {}})
             self._thread.join(self.wait_for_thread_shutdown)
-            #if self._thread.is_alive() and self.multiprocess:
-            #    self.logger.logerr(self.name, f"Unable to shut down {self._thread.pid}, terminating it.")
+            if self._thread.is_alive():
+                self.logger.logerr(self.name, f"Unable to shut down {self._thread.pid}")
             #    self._thread.terminate()
 
             self._thread = None
@@ -1407,6 +1407,9 @@ class QueueProcessor():
                                           retain=to_bool(self.lwt_dict.get('retain', True)))
 
         self.publisher.client.disconnect()
+        self.logger_queue.put({'name': self.name,
+                               'log_type': 'INFO',
+                               'log_message': "Queue processor is shut down."})
 
 class PublishWeeWXThread(threading.Thread):
     """Publish WeeWX data to MQTT. """
