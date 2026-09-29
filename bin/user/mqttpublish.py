@@ -938,6 +938,10 @@ class MQTTPublish(StdService):
         self._handle_record('archive', copy.deepcopy(event.record))
 
     def _handle_record(self, data_type, data):
+        queue_size = self.data_queue.qsize()
+        if queue_size > 0 and queue_size % 10 == 0:
+            self.logger.logerr(self.name, f"Data queue has size of {self.data_queue.qsize()}.")
+
         if not self._thread.is_alive():
             if self.thread_restarts < self.max_thread_restarts:
                 self.thread_restarts += 1
@@ -1025,8 +1029,8 @@ class LoggerThread(threading.Thread):
         self.log_queue = log_queue
 
     def run(self):
-        threading.current_thread().name = f"MQTTPublish-{threading.get_native_id()}"
-        self.logger.loginf(self.name, f"Starting logger thread,  {self.name}.")
+        threading.current_thread().name = f"{self.__class__.__name__}-{threading.get_native_id()}"
+        self.logger.loginf(self.name, "Starting logger thread")
 
         while True:
             message = self.log_queue.get()
@@ -1333,6 +1337,7 @@ class QueueProcessor():
                         self.logger_queue.put({'name': self.name,
                                                'log_type': 'INFO',
                                                'log_message': "Shutting down queue processor."})
+                        self.process = False
                         break
                     queue_size = self.data_queue.qsize()
                     data2['queue_size'] = queue_size
