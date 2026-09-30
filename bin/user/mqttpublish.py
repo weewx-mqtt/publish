@@ -21,6 +21,7 @@ import ssl
 import sys
 import threading
 import time
+import traceback
 
 import configobj
 import paho.mqtt.client as mqtt
@@ -1331,7 +1332,9 @@ class QueueProcessor():
             prev_time = time.time()
             while self.process:
                 try:
-                    data2 = self.data_queue.get_nowait()
+                    # Trying a get() to see if that will fix the queueing issues
+                    # data2 = self.data_queue.get_nowait()
+                    data2 = self.data_queue.get(block=True, timeout=None)
                     data_type = data2['type']
                     if data_type == 'shutdown':
                         self.logger_queue.put({'name': self.name,
@@ -1480,7 +1483,17 @@ class PublishWeeWXProcess(multiprocessing.Process):
                                'log_type': 'INFO',
                                'log_message': f"Starting queue sub-process,  {self.name}."})
 
-        self.processor.run()
+        try:
+            self.processor.run()
+        except (Exception) as exception:
+            self.logger_queue.put({'name': self.name,
+                                   'log_type': 'ERROR',
+                                   'log_message': f"Failure: {exception}"})
+            self.logger_queue.put({'name': self.name,
+                                   'log_type': 'ERROR',
+                                   'log_message': traceback.format_exc()})
+            raise exception
+
         self.logger_queue.put({'name': self.name,
                                'log_type': 'INFO',
                                'log_message': f"Exited queue sub-process, {self.name}."})
