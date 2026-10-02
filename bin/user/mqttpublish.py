@@ -96,7 +96,7 @@ class PluginManager():
             },
         }
 
-    def create_plugin(self, name, monitor_config, plugin_name, plugin_dict, mqtt_dict, topics, weewx_dict):
+    def create_plugin(self, name, plugin_name, monitor_config, plugin_dict, mqtt_dict, topics, weewx_dict):
         """ Create the plugin. """
         self.plugins[name] = {}
         plugin_class = weeutil.weeutil.get_object(plugin_name)
