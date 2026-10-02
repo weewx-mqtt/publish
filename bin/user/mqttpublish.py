@@ -16,13 +16,10 @@ import logging
 import multiprocessing
 import os
 import random
-import signal
 import ssl
 import sys
 import threading
 import time
-import traceback
-
 import configobj
 import paho.mqtt.client as mqtt
 
@@ -31,7 +28,7 @@ bin_root = os.getenv('BIN_ROOT')
 if bin_root is not None:
     sys.path.append(bin_root)
 
-# And the MQTTSubscribe module
+# And the mqttpublish module
 user_root = os.getenv('USER_ROOT')
 if user_root is not None:
     sys.path.append(user_root + '/..')
@@ -729,8 +726,8 @@ class MQTTPublish(StdService):
             self.logger.loginf(self.name, "'binding' is deprecated and no longer used.")
 
         self.multiprocess = to_bool(service_dict.get('multiprocess', False))
+        self.data_queue = Queue.Queue()
         if self.multiprocess:
-            self.data_queue = multiprocessing.Queue()
             self.logger_queue = multiprocessing.Queue()
             self._thread = PublishWeeWXProcess(self.logger_queue,
                                                self.plugins,
@@ -742,7 +739,6 @@ class MQTTPublish(StdService):
                                                self.topics_archive,
                                                self.data_queue)
         else:
-            self.data_queue = Queue.Queue()
             self.logger_queue = Queue.Queue()
             self._thread = PublishWeeWXThread(self.logger_queue,
                                               self.plugins,
@@ -971,10 +967,16 @@ class MQTTPublish(StdService):
                 self.thread_start()
 
                 self.data_queue.put({'time_stamp': data['dateTime'], 'type': data_type, 'data': data})
+                self.logger_queue.put({'name': self.name,
+                                       'log_type': self.monitor_config['monitor_queue'],
+                                       'log_message': f"monitor: Input queue size: {self.data_queue.qsize()}"})
             else:
                 raise weewx.StopNow("MQTT publishing thread has stopped.")
         else:
             self.data_queue.put({'time_stamp': data.get('dateTime', time.time()), 'type': data_type, 'data': data})
+            self.logger_queue.put({'name': self.name,
+                                   'log_type': self.monitor_config['monitor_queue'],
+                                   'log_message': f"monitor: Input queue size: {self.data_queue.qsize()}"})
             # A bit of a hack. The thread is running and the MQTT client is connexted.
             # So, we will reset the restart count.
             if self._thread.processor.publisher and self._thread.processor.publisher.connected:
@@ -1045,8 +1047,13 @@ class LoggerThread(threading.Thread):
 
         self.logger.loginf(self.name, f"Exited logger thread, {self.name}.")
 
-class QueueProcessor():
+class QueueProcessor(multiprocessing.Process):
     """Publish WeeWX data to MQTT. """
+    # For some reason, when PublishWeeWXProcess was a process, getting data from the Queue would lock.
+    # The locks seemed to random. I tried all types of multiprocessing queues and Pipe (send/recv).
+    # Changing PublishWeeWXProcess to a thread that re-queues the data for this process seems to have fixed it.
+    # Note, PublishWeeWXThread calls this class's run method directly, avoiding the overhead of the extra queue.
+    # The queueing problem was on Ubuntu 22.04 and python 3.10.13
     UNIT_REDUCTIONS = {
         'degree_F': 'F',
         'degree_C': 'C',
@@ -1076,9 +1083,10 @@ class QueueProcessor():
                  topics_loop,
                  topics_archive,
                  data_queue):
-        self.logger_queue = logger_queue
+        multiprocessing.Process.__init__(self)
         self.name = f"{self.__class__.__name__}-{threading.get_native_id()}"
 
+        self.logger_queue = logger_queue
         self.logger_queue.put({'name': self.name,
                                'log_type': 'INFO',
                                'log_message': "Initializing queue processor."})
@@ -1427,6 +1435,7 @@ class PublishWeeWXThread(threading.Thread):
                  topics_archive,
                  data_queue):
         threading.Thread.__init__(self)
+        self.name = f"{self.__class__.__name__}-{threading.get_native_id()}"
 
         self.logger_queue = logger_queue
         self.processor = QueueProcessor(self.logger_queue,
@@ -1440,7 +1449,6 @@ class PublishWeeWXThread(threading.Thread):
                                         data_queue)
 
     def run(self):
-        threading.current_thread().name = f"PublishWeeWXThread-{threading.get_native_id()}"
         self.logger_queue.put({'name': self.name,
                                'log_type': 'INFO',
                                'log_message': f"Starting queue thread,  {self.name}."})
@@ -1450,7 +1458,7 @@ class PublishWeeWXThread(threading.Thread):
                                'log_type': 'INFO',
                                'log_message': f"Exited queue thread, {self.name}."})
 
-class PublishWeeWXProcess(multiprocessing.Process):
+class PublishWeeWXProcess(threading.Thread):
     """Publish WeeWX data to MQTT. """
     def __init__(self,
                  logger_queue,
@@ -1462,9 +1470,13 @@ class PublishWeeWXProcess(multiprocessing.Process):
                  topics_loop,
                  topics_archive,
                  data_queue):
-        multiprocessing.Process.__init__(self)
+        threading.Thread.__init__(self)
+        self.name = f"{self.__class__.__name__}-{threading.get_native_id()}"
 
         self.logger_queue = logger_queue
+        self.data_queue = data_queue
+        self.monitor_config = monitor_config
+        self.out_queue = multiprocessing.JoinableQueue()
         self.processor = QueueProcessor(self.logger_queue,
                                         plugins,
                                         weewx_dict,
@@ -1473,30 +1485,24 @@ class PublishWeeWXProcess(multiprocessing.Process):
                                         monitor_config,
                                         topics_loop,
                                         topics_archive,
-                                        data_queue)
+                                        self.out_queue)
+        self.processor.start()
 
     def run(self):
-        # We will ignore these and let the main process start an orderly shut down.
-        signal.signal(signal.SIGINT, signal.SIG_IGN)
-        self.name = f"PublishWeeWXProcess-{multiprocessing.current_process().pid}"
-        self.logger_queue.put({'name': self.name,
-                               'log_type': 'INFO',
-                               'log_message': f"Starting queue sub-process,  {self.name}."})
-
-        try:
-            self.processor.run()
-        except (Exception) as exception:
+        while True:
+            data = self.data_queue.get(block=True, timeout=None)
             self.logger_queue.put({'name': self.name,
-                                   'log_type': 'ERROR',
-                                   'log_message': f"Failure: {exception}"})
+                                   'log_type': self.monitor_config['monitor_queue'],
+                                   'log_message': f"monitor: Input-2 queue size: {self.data_queue.qsize()}"})
+            if data['type'] == 'shutdown':
+                self.logger_queue.put({'name': self.name,
+                                       'log_type': 'INFO',
+                                       'log_message': "Shutting down queue processor."})
+                break
+            self.out_queue.put(data)
             self.logger_queue.put({'name': self.name,
-                                   'log_type': 'ERROR',
-                                   'log_message': traceback.format_exc()})
-            raise exception
-
-        self.logger_queue.put({'name': self.name,
-                               'log_type': 'INFO',
-                               'log_message': f"Exited queue sub-process, {self.name}."})
+                                   'log_type': self.monitor_config['monitor_queue'],
+                                   'log_message': f"monitor: Output queue size: {self.out_queue.qsize()}"})
 
 if __name__ == "__main__":
     import argparse
