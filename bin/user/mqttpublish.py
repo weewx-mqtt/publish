@@ -96,11 +96,11 @@ class PluginManager():
             },
         }
 
-    def create_plugin(self, name, plugin_name, plugin_dict, mqtt_dict, topics, weewx_dict):
+    def create_plugin(self, name, monitor_config, plugin_name, plugin_dict, mqtt_dict, topics, weewx_dict):
         """ Create the plugin. """
         self.plugins[name] = {}
         plugin_class = weeutil.weeutil.get_object(plugin_name)
-        plugin = plugin_class(self.logger, plugin_name, plugin_dict, mqtt_dict, topics, weewx_dict)
+        plugin = plugin_class(self.logger, monitor_config, plugin_name, plugin_dict, mqtt_dict, topics, weewx_dict)
         self.plugins[name]['plugin'] = plugin
         callbacks = plugin.get_callbacks()
         for callback in callbacks:
@@ -1323,6 +1323,7 @@ class QueueProcessor(multiprocessing.Process):
                 plugin_name = self.plugins[plugin]['plugin']
             self.plugin_manager.create_plugin(plugin,
                                               plugin_name,
+                                              self.monitor_config,
                                               self.plugins[plugin],
                                               self.mqtt_config,
                                               self.all_topics,

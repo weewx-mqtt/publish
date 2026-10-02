@@ -38,7 +38,12 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
             'defaults': {}
         }
 
-        user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger_queue, name, configobj.ConfigObj(plugin_dict), {}, topics, weewx_dict)
+        user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger_queue,
+                                                  None,
+                                                  name,
+                                                  configobj.ConfigObj(plugin_dict),
+                                                  {},
+                                                  topics, weewx_dict)
 
     def test_init_mqtt_config(self):
         mock_logger_queue = mock.Mock()
@@ -65,6 +70,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
         }
 
         SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger_queue,
+                                                        None,
                                                         name,
                                                         configobj.ConfigObj(plugin_dict),
                                                         {},
@@ -103,6 +109,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
         }
 
         SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger_queue,
+                                                        None,
                                                         name,
                                                         configobj.ConfigObj(plugin_dict),
                                                         {},
@@ -145,6 +152,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
         }
 
         SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger_queue,
+                                                        None,
                                                         name,
                                                         configobj.ConfigObj(plugin_dict),
                                                         {},
@@ -194,6 +202,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
         }
 
         SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger_queue,
+                                                        None,
                                                         name,
                                                         configobj.ConfigObj(plugin_dict),
                                                         {},
@@ -240,6 +249,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
         }
 
         SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger_queue,
+                                                        None,
                                                         name,
                                                         configobj.ConfigObj(plugin_dict),
                                                         {},
@@ -290,6 +300,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
         }
 
         SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger_queue,
+                                                        None,
                                                         name,
                                                         configobj.ConfigObj(plugin_dict),
                                                         {},
@@ -327,6 +338,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
         }
 
         SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger_queue,
+                                                        None,
                                                         name,
                                                         configobj.ConfigObj(plugin_dict),
                                                         {},
@@ -361,6 +373,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
         }
 
         SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger_queue,
+                                                        None,
                                                         name,
                                                         configobj.ConfigObj(plugin_dict),
                                                         {},
@@ -394,6 +407,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
         }
 
         SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger_queue,
+                                                        None,
                                                         name,
                                                         configobj.ConfigObj(plugin_dict),
                                                         {},
@@ -432,6 +446,7 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
         }
 
         SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger_queue,
+                                                        None,
                                                         name,
                                                         configobj.ConfigObj(plugin_dict),
                                                         {},

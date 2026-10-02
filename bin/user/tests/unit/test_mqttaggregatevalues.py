@@ -52,7 +52,13 @@ class Test_MQTTAggregateValues(unittest.TestCase):
                     mock_xtype.get_aggregate.return_value = (aggregate_value, 'bar', 'foobar')
                     date_time = time.time()
 
-                    SUT = user.mqttaggregatevalues.MQTTAggregateValues(mock_logger_queue, name, plugin_config, None, {}, weewx_dict)
+                    SUT = user.mqttaggregatevalues.MQTTAggregateValues(mock_logger_queue,
+                                                                       None,
+                                                                       name,
+                                                                       plugin_config,
+                                                                       None,
+                                                                       {},
+                                                                       weewx_dict)
 
                     record = {
                         'dateTime': date_time
@@ -95,7 +101,13 @@ class Test_MQTTAggregateValues(unittest.TestCase):
                     mock_xtype.get_aggregate.side_effect = weewx.CannotCalculate
                     date_time = time.time()
 
-                    SUT = user.mqttaggregatevalues.MQTTAggregateValues(mock_logger_queue, name, plugin_config, None, {}, weewx_dict)
+                    SUT = user.mqttaggregatevalues.MQTTAggregateValues(mock_logger_queue,
+                                                                       None,
+                                                                       name,
+                                                                       plugin_config,
+                                                                       None,
+                                                                       {},
+                                                                       weewx_dict)
 
                     record = {
                         'dateTime': date_time
@@ -136,7 +148,13 @@ class Test_MQTTAggregateValues(unittest.TestCase):
                     mock_timespan_provider.return_value.period_timespans = [period]
                     mock_xtype.get_aggregate.side_effect = weewx.CannotCalculate
 
-                    SUT = user.mqttaggregatevalues.MQTTAggregateValues(mock_logger_queue, name, plugin_config, None, {}, weewx_dict)
+                    SUT = user.mqttaggregatevalues.MQTTAggregateValues(mock_logger_queue,
+                                                                       None,
+                                                                       name,
+                                                                       plugin_config,
+                                                                       None,
+                                                                       {},
+                                                                       weewx_dict)
 
                     callbacks = SUT.get_callbacks()
 

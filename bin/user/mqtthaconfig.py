@@ -8,7 +8,7 @@
 
 import user.mqttconfigha
 
-import weewx  # Needed for unit tests
+import weewx  # Needed for unit tests pylint: disable=unused-import
 
 MQTTHomeAssistantConfig = user.mqttconfigha.MQTTConfigHA
 
