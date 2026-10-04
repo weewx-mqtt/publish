@@ -1495,12 +1495,12 @@ class PublishWeeWXProcess(threading.Thread):
             self.logger_queue.put({'name': self.name,
                                    'log_type': self.monitor_config['monitor_queue'],
                                    'log_message': f"monitor: Input-2 queue size: {self.data_queue.qsize()}"})
+            self.out_queue.put(data)  
             if data['type'] == 'shutdown':
                 self.logger_queue.put({'name': self.name,
                                        'log_type': 'INFO',
                                        'log_message': "Shutting down queue processor."})
                 break
-            self.out_queue.put(data)
             self.logger_queue.put({'name': self.name,
                                    'log_type': self.monitor_config['monitor_queue'],
                                    'log_message': f"monitor: Output queue size: {self.out_queue.qsize()}"})
