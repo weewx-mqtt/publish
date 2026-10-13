@@ -86,7 +86,7 @@ The default is `5`.
 The number of seconds to wait for connection processing.
 The default value is `1`.
 
-#### wait_for_queue_elemen
+#### wait_for_queue_element
 
 The number of seconds to wait for the queue to have data to be processed.
 The default value is `5`.

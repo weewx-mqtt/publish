@@ -12,7 +12,9 @@ import mock
 import helpers
 
 import configobj
+import queue
 import random
+import threading
 import time
 
 import user.mqttpublish
@@ -327,6 +329,53 @@ class TestQueueProcessor(unittest.TestCase):
                 final_record = SUT.update_record(topic_dict, now, record)
 
         self.assertDictEqual(final_record, {})
+
+    def test_run_services_client_while_idle(self):
+        mock_logger_queue = mock.Mock()
+        weewx_dict = {
+            'config_dict': {
+                'MQTTPublish': {}
+            }
+        }
+
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+        }
+
+        data_queue = queue.Queue()
+        mqtt_config = {
+            'wait_for_queue_element': 0.05,
+        }
+
+        SUT = user.mqttpublish.QueueProcessor(mock_logger_queue,
+                                              {},
+                                              weewx_dict,
+                                              None,
+                                              mqtt_config,
+                                              monitor_dict,
+                                              {},
+                                              {},
+                                              data_queue)
+
+        mock_publisher = mock.Mock()
+
+        run_thread = threading.Thread(target=SUT.run, daemon=True)
+        with mock.patch.object(user.mqttpublish.AbstractPublisher, 'get_publisher', return_value=mock_publisher):
+            with mock.patch('user.mqttpublish.weewx.manager'):
+                run_thread.start()
+                try:
+                    time.sleep(0.5)
+
+                    self.assertGreaterEqual(mock_publisher.client.loop.call_count, 1)
+                finally:
+                    data_queue.put({'time_stamp': time.time(), 'type': 'shutdown', 'data': {}})
+                    run_thread.join(timeout=5)
+
+        self.assertFalse(run_thread.is_alive())
 
 if __name__ == '__main__':
     helpers.run_tests()

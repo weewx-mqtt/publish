@@ -1362,9 +1362,8 @@ class QueueProcessor(multiprocessing.Process):
             prev_time = time.time()
             while self.process:
                 try:
-                    # Trying a get() to see if that will fix the queueing issues
-                    # data2 = self.data_queue.get_nowait()
-                    data2 = self.data_queue.get(block=True, timeout=None)
+                    # Note: the get() has a timeout, so the Queue.Empty branch below can call the loop method, 
+                    data2 = self.data_queue.get(block=True, timeout=self.mqtt_config['wait_for_queue_element'])
                     data_type = data2['type']
                     if data_type == 'shutdown':
                         self.logger_queue.put({'name': self.name,
