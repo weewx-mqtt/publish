@@ -1170,7 +1170,13 @@ class QueueProcessor(multiprocessing.Process):
 
             if (interval_end is None or last_published_timestamp is None or interval_end > last_published_timestamp) or \
                 (value < last_published_value - threshold or value > last_published_value + threshold):
-                final_record[name] = value
+                format_string = fieldinfo.get('format_string', topic_dict.get('format_string'))
+                if format_string is not None:
+                    formatted_value = format_string % value
+                else:
+                    formatted_value = value
+
+                final_record[name] = formatted_value
                 topic_dict['data_last_published'][name] = {
                     'value': value,
                     'interval_end': interval_end,
@@ -1220,12 +1226,7 @@ class QueueProcessor(multiprocessing.Process):
         if round_amount and isinstance(converted_value, float):
             converted_value = round(converted_value, round_amount)
 
-        if format_string is not None:
-            formatted_value = format_string % converted_value
-        else:
-            formatted_value = converted_value
-
-        return name, formatted_value
+        return name, converted_value
 
     def publish_row(self, time_stamp, data, topics):
         """ Publish the data. """
