@@ -23,7 +23,7 @@ import time
 import configobj
 import paho.mqtt.client as mqtt
 
-# When running 'standalone' in a package install or git 'install', need to know where thw WeeWX modules are
+# When running 'standalone' in a package install or git 'install', need to know where the WeeWX modules are
 bin_root = os.getenv('BIN_ROOT')
 if bin_root is not None:
     sys.path.append(bin_root)
@@ -53,7 +53,7 @@ def setup_logging(logging_level, config_dict):
     if logging_level:
         weewx.debug = logging_level
 
-    weeutil.logger.setup('wee_MQTTSS', config_dict)
+    weeutil.logger.setup('wee_MQTTPublish', config_dict)
 
 class Logger:
     ''' Manage the logging '''
@@ -319,7 +319,6 @@ class AbstractPublisher(abc.ABC):
 
     def publish_message(self, time_stamp, qos, retain, topic, data):
         """ Publish the message. """
-        start_time = time.time()
         if not self.connected:
             self._reconnect()
 
@@ -356,19 +355,19 @@ class AbstractPublisher(abc.ABC):
     def on_connect(self, client, userdata, flags, reason_code, properties):
         """ The on_connect callback.
             The signature differs between V1 and V2 of paho.mqtt, with more added in V2.
-            So, in V1 the additional paramters are made as 'optional'."""
+            So, in V1 the additional parameters are made as 'optional'."""
         raise NotImplementedError("Method 'on_connect' is not implemented")
 
     def on_disconnect(self, client, userdata, flags_rc, reason_code, properties):
         """ The on_disconnect callback.
             The signature differs between V1 and V2 of paho.mqtt, with more added in V2.
-            So, in V1 the additional paramters are made as 'optional'."""
+            So, in V1 the additional parameters are made as 'optional'."""
         raise NotImplementedError("Method 'on_disconnect' is not implemented")
 
     def on_publish(self, client, userdata, mid, reason_codes, properties):
         """ The on_publish callback.
             The signature differs between V1 and V2 of paho.mqtt, with more added in V2.
-            So, in V1 the additional paramters are made as 'optional'."""
+            So, in V1 the additional parameters are made as 'optional'."""
         raise NotImplementedError("Method 'on_publish' is not implemented")
 
     def on_message(self, client, userdata, msg):
@@ -407,8 +406,6 @@ class AbstractPublisher(abc.ABC):
 class PublisherV1(AbstractPublisher):
     ''' MQTTPublish that communicates with paho mqtt v1.'''
     def __init__(self, logger_queue, plugin_manager, publisher, mqtt_config, monitor_config):
-        # ToDO: Figure out how to make configurable
-        self.monitor_on_connect = 'INFO'
         protocol = mqtt_config['protocol']
         if protocol not in [mqtt.MQTTv31, mqtt.MQTTv311]:
             raise ValueError(f"Invalid protocol, {protocol}.")
@@ -470,7 +467,7 @@ class PublisherV1(AbstractPublisher):
                                                                                        properties)
             self.logger_queue.put({'name': self.name,
                                    'log_type': self.monitor_on_connect,
-                                   'log_message': (f"mmonitor: {(time.time() - start_time):<12.10f} "
+                                   'log_message': (f"monitor: {(time.time() - start_time):<12.10f} "
                                                    f"on_connect (immediate) {plugin_name}")})
 
         if self.lwt_dict is not None and to_bool(self.lwt_dict.get('enable', True)):
@@ -489,7 +486,7 @@ class PublisherV1(AbstractPublisher):
         self.connected = True
 
     def on_disconnect(self, _client, _userdata, flags_rc, reason_code=None, properties=None):
-        # https://pypi.org/project/paho-mqtt/#on-discconnect
+        # https://pypi.org/project/paho-mqtt/#on-disconnect
         # The rc parameter indicates the disconnection state.
         # If MQTT_ERR_SUCCESS (0), the callback was called in response to a disconnect() call.
         # If any other value the disconnection was unexpected,
@@ -593,7 +590,7 @@ class PublisherV2(AbstractPublisher):
         self.connected = True
 
     def on_disconnect(self, _client, _userdata, _flags, reason_code, _properties):
-        # https://pypi.org/project/paho-mqtt/#on-discconnect
+        # https://pypi.org/project/paho-mqtt/#on-disconnect
         # The rc parameter indicates the disconnection state.
         # If MQTT_ERR_SUCCESS (0), the callback was called in response to a disconnect() call.
         # If any other value the disconnection was unexpected,
@@ -671,7 +668,7 @@ class MQTTPublish(StdService):
         self.logger.logdbg(self.name, f"sanitized configuration removed {exclude_keys}")
         self.logger.logdbg(self.name, f"sanitized_service_dict is {sanitized_service_dict}")
 
-        #  backwards compatability
+        #  backwards compatibility
         if 'PublishWeeWX' in service_dict.sections:
             self.logger.logerr(self.name, "'PublishWeeWX' is deprecated. Move options to top level, '[MQTTPublish]'.")
             service_dict = config_dict.get('MQTTPublish', {}).get('PublishWeeWX', {})
@@ -719,7 +716,7 @@ class MQTTPublish(StdService):
         self.mqtt_config['tls'] = service_dict.get('tls')
         self.mqtt_config['lwt'] = service_dict.get('lwt')
         if self.mqtt_config['lwt'] is not None:
-            self.logger.logerr(self.name, "'[[lwt]]' is deprecated.  use [[availablity_topic]].")
+            self.logger.logerr(self.name, "'[[lwt]]' is deprecated.  use [[availability_topic]].")
         else:
             self.mqtt_config['lwt'] = service_dict.get('availability_topic', {})
 
@@ -995,7 +992,7 @@ class MQTTPublish(StdService):
             self.logger_queue.put({'name': self.name,
                                    'log_type': self.monitor_config['monitor_queue'],
                                    'log_message': f"monitor: Input queue size: {self.data_queue.qsize()}"})
-            # A bit of a hack. The thread is running and the MQTT client is connexted.
+            # A bit of a hack. The thread is running and the MQTT client is connected.
             # So, we will reset the restart count.
             if self._thread.processor.publisher and self._thread.processor.publisher.connected:
                 self.thread_restarts = 0
@@ -1034,7 +1031,7 @@ class MQTTPublish(StdService):
 
 class LoggerThread(threading.Thread):
     """ Thread to manage logging.
-        This has to be a thread becausee WeeWX 'owns' the logger.
+        This has to be a thread because WeeWX 'owns' the logger.
         So logging has to happen in that process and not a subprocess. """
 
     def __init__(self, logger, log_queue):
@@ -1178,7 +1175,7 @@ class QueueProcessor(multiprocessing.Process):
 
             if new_interval or (value < last_published_value - threshold or value > last_published_value + threshold):
                 format_string = fieldinfo.get('format_string', topic_dict.get('format_string'))
-                if format_string is not None:
+                if format_string is not None and value is not None:
                     formatted_value = format_string % value
                 else:
                     formatted_value = value
@@ -1223,7 +1220,6 @@ class QueueProcessor(multiprocessing.Process):
 
         conversion_type = fieldinfo.get('conversion_type', topic_dict.get('conversion_type'))
         round_amount = fieldinfo.get('round', topic_dict.get('round'))
-        format_string = fieldinfo.get('format_string', topic_dict.get('format_string'))
         if conversion_type == 'integer':
             converted_value = to_int(converted_value)
         elif conversion_type == 'float':
@@ -1254,7 +1250,7 @@ class QueueProcessor(multiprocessing.Process):
                 run_time += delta_time
                 self.logger_queue.put({'name': self.name,
                                        'log_type': self.monitor_record_update,
-                                       'log_message': (f"monitor: {delta_time:<12.10f} update_record (immmediate) "
+                                       'log_message': (f"monitor: {delta_time:<12.10f} update_record (immediate) "
                                                        f"{topic} for {plugin_name}")})
 
             self.logger_queue.put({'name': self.name,
@@ -1362,7 +1358,7 @@ class QueueProcessor(multiprocessing.Process):
             prev_time = time.time()
             while self.process:
                 try:
-                    # Note: the get() has a timeout, so the Queue.Empty branch below can call the loop method, 
+                    # Note: the get() has a timeout, so the Queue.Empty branch below can call the loop method.
                     data2 = self.data_queue.get(block=True, timeout=self.mqtt_config['wait_for_queue_element'])
                     data_type = data2['type']
                     if data_type == 'shutdown':
@@ -1389,7 +1385,7 @@ class QueueProcessor(multiprocessing.Process):
                         run_time += delta_time
                         self.logger_queue.put({'name': self.name,
                                                'log_type': self.monitor_on_weewx_data,
-                                               'log_message': (f"monitor: {delta_time:<12.10f} on_weewx_data (immmediate) "
+                                               'log_message': (f"monitor: {delta_time:<12.10f} on_weewx_data (immediate) "
                                                                f"{plugin_name}")})
                     self.logger_queue.put({'name': self.name,
                                            'log_type': self.monitor_on_weewx_data,
@@ -1546,7 +1542,7 @@ if __name__ == "__main__":
                             help="The file with the test messages")
 
         parser.add_argument("--max-loops", type=int, default=5,
-                            help="The maximum number of 'wait loops' for the thread procssing to terminate.")
+                            help="The maximum number of 'wait loops' for the thread processing to terminate.")
 
         parser.add_argument("config_file")
 
@@ -1590,7 +1586,7 @@ if __name__ == "__main__":
 
         loop_count = 0
         while loop_count < max_loops:
-            print("sleepting")
+            print("sleeping")
             time.sleep(1)
             loop_count += 1
 
