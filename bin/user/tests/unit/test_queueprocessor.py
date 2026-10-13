@@ -362,18 +362,21 @@ class TestQueueProcessor(unittest.TestCase):
                                               data_queue)
 
         mock_publisher = mock.Mock()
+        real_sleep = time.sleep
 
         run_thread = threading.Thread(target=SUT.run, daemon=True)
         with mock.patch.object(user.mqttpublish.AbstractPublisher, 'get_publisher', return_value=mock_publisher):
             with mock.patch('user.mqttpublish.weewx.manager'):
-                run_thread.start()
-                try:
-                    time.sleep(0.5)
+                with mock.patch('user.mqttpublish.time.sleep') as mock_sleep:
+                    run_thread.start()
+                    try:
+                        real_sleep(0.5)
 
-                    self.assertGreaterEqual(mock_publisher.client.loop.call_count, 1)
-                finally:
-                    data_queue.put({'time_stamp': time.time(), 'type': 'shutdown', 'data': {}})
-                    run_thread.join(timeout=5)
+                        self.assertGreaterEqual(mock_publisher.client.loop.call_count, 1)
+                        mock_sleep.assert_not_called()
+                    finally:
+                        data_queue.put({'time_stamp': time.time(), 'type': 'shutdown', 'data': {}})
+                        run_thread.join(timeout=5)
 
         self.assertFalse(run_thread.is_alive())
 
