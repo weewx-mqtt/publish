@@ -41,16 +41,16 @@ All of the WeeWX fields published to the REPLACE_ME_TOPIC will be components ass
 By default the data published to REPLACE_ME_TOPIC is expected to be json.
 But, this can be configured for each WeeWX field to be published individually to topics named, REPLACE_ME_TOPIC/fieldname.
 
-THe following Home Assistant data is automatically derived from the data in WeeWX.
+The following Home Assistant data is automatically derived from the data in WeeWX.
 
 - The `device_class` is set based on the WeeWX fieldname.
 - The `name` is sourced from [WeeWX's labels](https://weewx.com/docs/5.0/custom/custom-reports/?h=label#changing-labels).
 - The `platform` is set `sensor`.
 - The `state_class` is based on the the name (barometer, outTemp, etc.) of the WeeWX data.
-- The `unique_id` is set to the device_id concatentated with the name of the WeeWX observation.
+- The `unique_id` is set to the device_id concatenated with the name of the WeeWX observation.
 - The `unit_of_measurement` is set based on the units of the WeeWX data.
 - The `value_template` depends on whether json or 'individual' data is being published. {% raw %}
-For json payloads it is set to, `{{ value_json."compoent-id" | default(this.state) }}`.
+For json payloads it is set to, `{{ value_json."component-id" | default(this.state) }}`.
 For individual payloads it is set to `{{ value }}`.
 {% endraw %}
 

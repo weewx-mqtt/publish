@@ -65,9 +65,9 @@ Default value is `None`, meaning that nothing is logged.
 
 #### multiprocess
 
-Controls if preparation and publishing is run in a seperate thread or process.
+Controls if preparation and publishing is run in a separate thread or process.
 Valid values are `true` or `false`.
-The default value is `true`.
+The default value is `false`.
 
 #### plugins
 
@@ -78,7 +78,7 @@ The default is an empty (not set) list.
 
 #### wait_between_retries
 
-The number of secconds to wait before trying to reconnect when there is a connection error.
+The number of seconds to wait before trying to reconnect when there is a connection error.
 The default is `5`.
 
 #### wait_for_connection
@@ -98,6 +98,11 @@ The default value is `5`.
 When set, only data that has changed since the publication is published.
 This is the minimum amount of time between publication of the 'full set' of data.
 For example, if it is set to 5, then approximately every 5 minutes the 'full set' of data will be published.
+
+When set, the published data will also include an `interval_end_ts` field.
+It is the unix timestamp of the end of the interval the data belongs to.
+It is published when the interval has rolled over since a field was last published.
+For a topic with `type` `individual`, it is published on the subtopic `<topic_name>/interval_end_ts`.
 
 #### qos
 

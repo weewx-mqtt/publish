@@ -1174,13 +1174,13 @@ class QueueProcessor(multiprocessing.Process):
             publish_interval_end_ts = publish_interval_end_ts or new_interval
 
             # Either value or last_published_value is None, but not both nor neither
-            is_none = value is not None and last_published_value is not None
+            is_none = (value is None) != (last_published_value is None)
             # A None value has no magnitude to compare against the suppression threshold.
             # So publish it when it appears or disappears, but not on every record.
-            if new_interval \
-                or is_none \
-                or (value is not None and last_published_value is not None
-                    and (value < last_published_value - threshold or value > last_published_value + threshold)):
+            if new_interval or \
+                is_none or \
+                (value is not None and last_published_value is not None and
+                    (value < last_published_value - threshold or value > last_published_value + threshold)):
                 format_string = fieldinfo.get('format_string', topic_dict.get('format_string'))
                 if format_string is not None and value is not None:
                     formatted_value = format_string % value

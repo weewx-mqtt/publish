@@ -30,7 +30,7 @@ Valid values are `true` or `false`.
 #### [publish_none_value]({{ site.baseurl }}{% link common-options/topics/topic-name/index.md %}/#publish_none_value))
 
 Controls if data with a value of `None` should be published.
-Valud values are `true` or `false`.
+Valid values are `true` or `false`.
 
 #### [round]({{ site.baseurl }}{% link common-options/topics/topic-name/index.md %}/#round)
 

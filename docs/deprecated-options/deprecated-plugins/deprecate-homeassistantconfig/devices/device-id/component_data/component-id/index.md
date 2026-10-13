@@ -9,26 +9,26 @@ nav_order: 1
 ## The `[[[[[[[component-id]]]]]]]` section
 
 The following options are set by MQTTHomeAssistantConfig.
-These can easily be overriden in `weewx.conf`.
+These can easily be overridden in `weewx.conf`.
 Additional options can be set in `weewx.conf`.
 
 ### device_class
 
 The device_class of the component.
 This is set by looking up the value for the given WeeWX fieldname.
-The lookup 'table' can be found at the beginnng of the `mqtthaconfig.py` file.
+The lookup 'table' can be found at the beginning of the `mqtthaconfig.py` file.
 
 ### state_class
 
 The state_class of the component.
 This is set by looking up the value for the given WeeWX fieldname.
-The lookup 'table' can be found at the beginnng of the `mqtthaconfig.py` file.
+The lookup 'table' can be found at the beginning of the `mqtthaconfig.py` file.
 
-### unit_of_measureent
+### unit_of_measurement
 
 Defines the units of measurement of the component, if any.
 This is set by mapping the WeeWX unit to the HA unit.
-The lookup 'table' can be found near the beginnng of the `mqtthaconfig.py` file.
+The lookup 'table' can be found near the beginning of the `mqtthaconfig.py` file.
 
 ### unique_id
 
@@ -44,7 +44,7 @@ Set to the MQTTPublish topic the data is being published to.
 
 Defines the template to extract the value.
 {% raw %}
-For json payloads it is set to, `{{ value_json."compoent-id" | default(this.state) }}`
+For json payloads it is set to, `{{ value_json."component-id" | default(this.state) }}`
 For individual payloads it is set to `{{ value }}`
 {% endraw %}
 

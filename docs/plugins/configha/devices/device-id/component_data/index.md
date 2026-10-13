@@ -9,7 +9,7 @@ nav_order: 4
 ## The `[[[[component_data]]]]` section
 
 The options below are set by MQTTConfigHA.
-These can easily be overriden in `weewx.conf`.
+These can easily be overridden in `weewx.conf`.
 Additional options can also be set in `weewx.conf`.
 
 These MQTTConfigHA options can be overridden in [`[[[[defaults]]]]` section](defaults/index.md).
@@ -31,13 +31,13 @@ It is set to `sensor`.
 
 The device_class of the component.
 This is set by looking up the value for the given WeeWX fieldname.
-The lookup 'table' can be found at the beginnng of the `mqtthaconfig.py` file.
+The lookup 'table' can be found at the beginning of the `mqtthaconfig.py` file.
 
 ### state_class
 
 The state_class of the component.
 This is set by looking up the value for the given WeeWX fieldname.
-The lookup 'table' can be found at the beginnng of the `mqtthaconfig.py` file.
+The lookup 'table' can be found at the beginning of the `mqtthaconfig.py` file.
 
 ### state_topic
 
@@ -49,16 +49,16 @@ Set to the MQTTPublish topic the data is being published to.
 An ID that uniquely identifies this component.
 Set to the `device_id_component-id`.
 
-### unit_of_measureent
+### unit_of_measurement
 
 Defines the units of measurement of the component, if any.
 This is set by mapping the WeeWX unit to the HA unit.
-The lookup 'table' can be found near the beginnng of the `mqtthaconfig.py` file.
+The lookup 'table' can be found near the beginning of the `mqtthaconfig.py` file.
 
 ### value_template
 
 Defines the template to extract the value.
 {% raw %}
-For json payloads it is set to, `{{ value_json."compoent-id" | default(this.state) }}`
+For json payloads it is set to, `{{ value_json."component-id" | default(this.state) }}`
 For individual payloads it is set to `{{ value }}`
 {% endraw %}

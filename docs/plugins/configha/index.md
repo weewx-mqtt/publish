@@ -49,5 +49,5 @@ Default is `offline`.
 
 ### discovery_topic_prefix
 
-THe Home Assistant discovery topic prefix.
+The Home Assistant discovery topic prefix.
 Default is `homeassistant`.

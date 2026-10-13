@@ -22,17 +22,17 @@ Each of these callouts can be called either before MQTTPublish does its processi
 ### on_weewx_data
 
 This is the step that processes WeeWX loop packets or archive records.
-It is called with a single dictionary containg the following information.
+It is called with a single dictionary containing the following information.
 
 - time_stamp: The timestamp for this data
-- data_type: dentifies the origin of the data 'archive' or 'loop'
+- data_type: identifies the origin of the data 'archive' or 'loop'
 - data: The WeeWX archive record or loop packet.
 
 ### on_connect
 
 This is the MQTT on_connect callback.
 It is called with the following parameters.
-The are the same paramters that the Paho MQTT client calls. the `on_connect` callback with.
+These are the same parameters that the Paho MQTT client calls. the `on_connect` callback with.
 
 - mqtt_client: the client instance for this callback
 - userdata: the private user data as set in Client() or user_data_set()
@@ -54,7 +54,7 @@ It is called with the following parameters.
 This is when the data to be published is manipulated by MQTTPublish.
 It is called with the following parameters.
 
-- mqtt_client: the client instance to be used when publising the message
+- mqtt_client: the client instance to be used when publishing the message
 - topic: The topic that the message should be published on.
 - data: the message to be sent.
 - qos: The quality of service level to use.
@@ -75,12 +75,12 @@ It is called with the following parameters.
 ## Required methods
 
 The plugin must implement the `get_callbacks` method.
-This method takes no paramters.
+This method takes no parameters.
 It returns a list of callback definitions.
 A callback definition is a dictionary whose name is the name of the callback.
 It has two entries.
 
-1. timing: It can be one of `immediate` or `delayed`. `immnediate` means the callback is invoked before MQTTPublishing processing. `delayed` means the callout is invoked after the MQTTPublish processing.
+1. timing: It can be one of `immediate` or `delayed`. `immediate` means the callback is invoked before MQTTPublishing processing. `delayed` means the callout is invoked after the MQTTPublish processing.
 2. callback: The actual method to be invoked.
 
 Here is an example `get_callbacks` method.

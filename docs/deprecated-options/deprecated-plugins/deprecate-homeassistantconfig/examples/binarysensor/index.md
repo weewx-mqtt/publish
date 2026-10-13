@@ -37,10 +37,10 @@ This is an example of using MQTTHomeAssistantConfig for a Home Assistant `binary
                     # Observations know to WeeWX can have default values overridden.
                     # Observations that have been added to WeeWX can be defined here.
                     [[[[[[component_data]]]]]]
-                        # The WeeWX observeration name that is published to MQTT.
+                        # The WeeWX observation name that is published to MQTT.
                         # This is an observation that has been added to WeeWX
                         [[[[[[[leak_mon1]]]]]]]
-                            # Data used by Home Assistant to configue this device follow.
+                            # Data used by Home Assistant to configure this device follow.
                             name = Shed
                             platform = binary_sensor
                             payload_off = 0

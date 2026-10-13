@@ -60,7 +60,7 @@ Default value is `false`.
 #### publish_none_value
 
 Controls if data with a value of `None` should be published.
-Valud values are `true` or `false`.
+Valid values are `true` or `false`.
 The default value is `false`.
 
 ### Options for controlling topic processing
