@@ -22,7 +22,7 @@ import weewx
 
 class MQTTArchiveValues:
     """ Calculate aggregate values. """
-    def __init__(self, logger_queue, name, plugin_dict, _mqtt_dict, _topics, _weewx_dict):
+    def __init__(self, logger_queue, _monitor_config, name, plugin_dict, _mqtt_dict, _topics, _weewx_dict):
         self.logger_queue = logger_queue
         self.plugin_dict = weeutil.config.deep_copy(plugin_dict)
         self.enabled = to_bool(self.plugin_dict.get('enable', True))
