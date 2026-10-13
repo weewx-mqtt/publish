@@ -1422,7 +1422,6 @@ class QueueProcessor(multiprocessing.Process):
                                            'log_message': (f"monitor: Queue is empty. "
                                                            f"Waiting {self.mqtt_config['wait_for_queue_element']}")})
                     self.publisher.client.loop(timeout=0.1)
-                    time.sleep(self.mqtt_config['wait_for_queue_element'])
                 except CannotConnectError:
                     self.process = False
 
