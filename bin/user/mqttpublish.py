@@ -433,7 +433,9 @@ class PublisherV1(AbstractPublisher):
         self.client.connect(host, port, keepalive)
 
     def on_log(self, _client, _userdata, level, msg):
-        self.mqtt_logger[level](f"MQTT log: {msg}")
+        self.logger_queue.put({'name': self.name,
+                               'log_type': self.mqtt_logger.get(level, None),
+                               'log_message': f"MQTT log: {msg}"})
 
     def on_connect(self, client, userdata, flags, reason_code, properties=None):
         # https://pypi.org/project/paho-mqtt/#on-connect
@@ -534,7 +536,9 @@ class PublisherV2(AbstractPublisher):
         self.client.connect(host=host, port=port, keepalive=keepalive, clean_start=True)
 
     def on_log(self, _client, _userdata, level, msg):
-        self.mqtt_logger[level](f"MQTT log: {msg}")
+        self.logger_queue.put({'name': self.name,
+                               'log_type': self.mqtt_logger.get(level, None),
+                               'log_message': f"MQTT log: {msg}"})
 
     def on_connect(self, client, userdata, flags, reason_code, properties):
         if reason_code.is_failure:

@@ -109,6 +109,64 @@ class PublisherBase(unittest.TestCase):
                     self.assertEqual(SUT.client.on_disconnect, SUT.on_disconnect)
                     self.assertEqual(SUT.client.on_publish, SUT.on_publish)
 
+    def test_on_log(self):
+        mock_logger_queue = mock.Mock()
+        mock_publisher = mock.Mock()
+
+        config_dict = {
+            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
+            'clientid': helpers.random_string(),
+            'log_mqtt': True,
+            'username': None,
+            'password': None,
+            'host': helpers.random_string(),
+            'port': random.randint(1, 65535),
+            'keepalive': random.randint(1, 30),
+            'max_retries': 0,
+        }
+        config = configobj.ConfigObj(config_dict)
+
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+        }
+
+        with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
+            with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
+
+                SUT = self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
+
+                level_dict = {
+                    user.mqttpublish.mqtt.MQTT_LOG_INFO: 'INFO',
+                    user.mqttpublish.mqtt.MQTT_LOG_NOTICE: 'INFO',
+                    user.mqttpublish.mqtt.MQTT_LOG_WARNING: 'INFO',
+                    user.mqttpublish.mqtt.MQTT_LOG_ERR: 'ERROR',
+                    user.mqttpublish.mqtt.MQTT_LOG_DEBUG: 'DEBUG',
+                }
+
+                for level, log_type in level_dict.items():
+                    msg = helpers.random_string()
+                    mock_logger_queue.reset_mock()
+
+                    SUT.on_log(None, None, level, msg)
+
+                    mock_logger_queue.put.assert_called_once_with({'name': SUT.name,
+                                                                   'log_type': log_type,
+                                                                   'log_message': f"MQTT log: {msg}"})
+
+
+                msg = helpers.random_string()
+                mock_logger_queue.reset_mock()
+
+                SUT.on_log(None, None, 0x20, msg)
+
+                mock_logger_queue.put.assert_called_once_with({'name': SUT.name,
+                                                               'log_type': None,
+                                                               'log_message': f"MQTT log: {msg}"})
+
     def test_username_set(self):
         mock_logger_queue = mock.Mock()
         mock_publisher = mock.Mock()
