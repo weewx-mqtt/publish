@@ -1516,7 +1516,7 @@ class PublishWeeWXProcess(threading.Thread):
             self.logger_queue.put({'name': self.name,
                                    'log_type': self.monitor_config['monitor_queue'],
                                    'log_message': f"monitor: Input-2 queue size: {self.data_queue.qsize()}"})
-            self.out_queue.put(data)  
+            self.out_queue.put(data)
             if data['type'] == 'shutdown':
                 self.logger_queue.put({'name': self.name,
                                        'log_type': 'INFO',
@@ -1525,6 +1525,13 @@ class PublishWeeWXProcess(threading.Thread):
             self.logger_queue.put({'name': self.name,
                                    'log_type': self.monitor_config['monitor_queue'],
                                    'log_message': f"monitor: Output queue size: {self.out_queue.qsize()}"})
+
+        # Shutdown has been passed into queue processor
+        # so wait for it to shut down
+        if self.processor:
+            self.processor.join(5) # ToDo: make configurable
+            if self.processor.is_alive():
+                self.logger.logerr(self.name, f"Unable to shut down {self.processor.name}")
 
 if __name__ == "__main__":
     import argparse
