@@ -706,7 +706,7 @@ class MQTTPublish(StdService):
         self.mqtt_config['wait_for_connection'] = to_int(service_dict.get('wait_for_connection', 1))
 
         self.mqtt_config['wait_between_retries'] = to_int(service_dict.get('wait_between_retries', 5))
-        self.mqtt_config['log_mqtt'] = to_bool(service_dict.get('mqtt_log', False))
+        self.mqtt_config['log_mqtt'] = to_bool(service_dict.get('log_mqtt', False))
         self.mqtt_config['host'] = service_dict.get('host', 'localhost')
         self.mqtt_config['port'] = to_int(service_dict.get('port', 1883))
         self.mqtt_config['username'] = service_dict.get('username', None)
@@ -1528,9 +1528,11 @@ class PublishWeeWXProcess(threading.Thread):
         # Shutdown has been passed into queue processor
         # so wait for it to shut down
         if self.processor:
-            self.processor.join(5) # ToDo: make configurable
+            self.processor.join(5)  # ToDo: make configurable
             if self.processor.is_alive():
-                self.logger.logerr(self.name, f"Unable to shut down {self.processor.name}")
+                self.logger_queue.put({'name': self.name,
+                                       'log_type': 'ERROR',
+                                       'log_message': f"Unable to shut down {self.processor.name}"})
 
 if __name__ == "__main__":
     import argparse

@@ -377,5 +377,42 @@ class TestQueueProcessor(unittest.TestCase):
 
         self.assertFalse(run_thread.is_alive())
 
+class TestPublishWeeWXProcess(unittest.TestCase):
+    def test_run_logs_error_when_processor_does_not_shutdown(self):
+        mock_logger_queue = mock.Mock()
+
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+        }
+
+        data_queue = queue.Queue()
+        data_queue.put({'time_stamp': time.time(), 'type': 'shutdown', 'data': {}})
+
+        with mock.patch('user.mqttpublish.QueueProcessor'):
+            SUT = user.mqttpublish.PublishWeeWXProcess(mock_logger_queue,
+                                                       {},
+                                                       {},
+                                                       None,
+                                                       {},
+                                                       monitor_dict,
+                                                       {},
+                                                       {},
+                                                       data_queue)
+
+        processor_name = helpers.random_string()
+        SUT.processor.name = processor_name
+        SUT.processor.is_alive.return_value = True
+
+        SUT.run()
+
+        SUT.processor.join.assert_called_once_with(5)
+        mock_logger_queue.put.assert_any_call({'name': SUT.name,
+                                               'log_type': 'ERROR',
+                                               'log_message': f"Unable to shut down {processor_name}"})
+
 if __name__ == '__main__':
     helpers.run_tests()
