@@ -1341,17 +1341,7 @@ class QueueProcessor(multiprocessing.Process):
         """ Process the queue. """
         threading.current_thread().name = f"MQTTPublish-{threading.get_native_id()}"
 
-        self.plugin_manager = PluginManager(self.logger_queue,
-                                            self.monitor_config,
-                                            self.mqtt_config,
-                                            self.all_topics,
-                                            self.weewx_dict)
-        for plugin in self.plugins:
-            if 'module' in self.plugins[plugin]:
-                plugin_name = self.plugins[plugin]['module'] + '.' + plugin
-            else:
-                plugin_name = self.plugins[plugin]['plugin']
-            self.plugin_manager.create_plugin(plugin, plugin_name, self.plugins[plugin])
+        self.create_plugins()
 
         # need to instantiate inside thread
         self.publisher = AbstractPublisher.get_publisher(self.logger_queue,
@@ -1361,76 +1351,7 @@ class QueueProcessor(multiprocessing.Process):
 
         with weewx.manager.open_manager(self.manager_dict) as db_manager:
             self.db_manager = db_manager
-
-            prev_time = time.time()
-            while self.process:
-                try:
-                    # Note: the get() has a timeout, so the Queue.Empty branch below can call the loop method.
-                    data2 = self.data_queue.get(block=True, timeout=self.mqtt_config['wait_for_queue_element'])
-                    data_type = data2['type']
-                    if data_type == 'shutdown':
-                        self.logger_queue.put({'name': self.name,
-                                               'log_type': 'INFO',
-                                               'log_message': "Shutting down queue processor."})
-                        self.process = False
-                        break
-                    queue_size = self.data_queue.qsize()
-                    data2['queue_size'] = queue_size
-                    curr_time = time.time()
-                    self.logger_queue.put({'name': self.name,
-                                           'log_type': self.monitor_queue,
-                                           'log_message': (f"monitor: Queue size: {queue_size} "
-                                                           f"Process time: {curr_time - prev_time}")
-                                           })
-                    prev_time = curr_time
-
-                    run_time = 0
-                    for plugin_name in self.plugin_manager.callbacks['on_weewx_data']['immediate']:
-                        start_time = time.time()
-                        self.plugin_manager.callbacks['on_weewx_data']['immediate'][plugin_name](data2)
-                        delta_time = time.time() - start_time
-                        run_time += delta_time
-                        self.logger_queue.put({'name': self.name,
-                                               'log_type': self.monitor_on_weewx_data,
-                                               'log_message': (f"monitor: {delta_time:<12.10f} on_weewx_data (immediate) "
-                                                               f"{plugin_name}")})
-                    self.logger_queue.put({'name': self.name,
-                                           'log_type': self.monitor_on_weewx_data,
-                                           'log_message': (f"monitor: {run_time:<12.10f} on_weewx_data (immediate)")})
-
-                    time_stamp = data2['time_stamp']
-                    data = data2['data']
-                    if data_type == 'loop':
-                        self.publish_row(time_stamp, data, self.topics_loop)
-                    elif data_type == 'archive':
-                        self.publish_row(time_stamp, data, self.topics_archive)
-                    else:
-                        self.logger_queue.put({'name': self.name,
-                                               'log_type': 'ERROR',
-                                               'log_message': f"Unknown data type, {data_type}"})
-
-                    run_time = 0
-                    for plugin_name in self.plugin_manager.callbacks['on_weewx_data']['delay']:
-                        start_time = time.time()
-                        self.plugin_manager.callbacks['on_weewx_data']['delay'][plugin_name](data2)
-                        delta_time = time.time() - start_time
-                        run_time += delta_time
-                        self.logger_queue.put({'name': self.name,
-                                               'log_type': self.monitor_on_weewx_data,
-                                               'log_message': (f" {delta_time:<12.10f} on_weewx_data (delay) {plugin_name}  "
-                                                               f"")})
-                    self.logger_queue.put({'name': self.name,
-                                           'log_type': self.monitor_on_weewx_data,
-                                           'log_message': (f"monitor: {run_time:<12.10f} on_weewx_data (delay) "
-                                                           f"")})
-                except Queue.Empty:
-                    self.logger_queue.put({'name': self.name,
-                                           'log_type': self.monitor_queue,
-                                           'log_message': (f"monitor: Queue is empty. "
-                                                           f"Waiting {self.mqtt_config['wait_for_queue_element']}")})
-                    self.publisher.client.loop(timeout=0.1)
-                except CannotConnectError:
-                    self.process = False
+            self.process_queue()
 
         # MQTT's LWT is sent from the broker on an unexpected disconnect.
         # So we need to send an offline message on an 'expected' disconnect.
@@ -1444,6 +1365,111 @@ class QueueProcessor(multiprocessing.Process):
         self.logger_queue.put({'name': self.name,
                                'log_type': 'INFO',
                                'log_message': "Queue processor is shut down."})
+
+    def create_plugins(self):
+        """ Create the plugin manager and instantiate each configured plugin. """
+        self.plugin_manager = PluginManager(self.logger_queue,
+                                            self.monitor_config,
+                                            self.mqtt_config,
+                                            self.all_topics,
+                                            self.weewx_dict)
+        for plugin in self.plugins:
+            if 'module' in self.plugins[plugin]:
+                plugin_name = self.plugins[plugin]['module'] + '.' + plugin
+            else:
+                plugin_name = self.plugins[plugin]['plugin']
+            self.plugin_manager.create_plugin(plugin, plugin_name, self.plugins[plugin])
+
+    def process_queue(self):
+        """ Pull items off the queue and process them until asked to shut down. """
+        prev_time = time.time()
+        while self.process:
+            try:
+                # Note: the get() has a timeout, so the Queue.Empty branch below can call the loop method.
+                data2 = self.data_queue.get(block=True, timeout=self.mqtt_config['wait_for_queue_element'])
+                prev_time = self.handle_queue_item(data2, prev_time)
+                if prev_time is None:
+                    break
+            except Queue.Empty:
+                self.logger_queue.put({'name': self.name,
+                                       'log_type': self.monitor_queue,
+                                       'log_message': (f"monitor: Queue is empty. "
+                                                       f"Waiting {self.mqtt_config['wait_for_queue_element']}")})
+                self.publisher.client.loop(timeout=0.1)
+            except CannotConnectError:
+                self.process = False
+
+    def handle_queue_item(self, data2, prev_time):
+        """ Process one queue item.
+
+        Returns the new previous time, or None when the processor is shutting down.
+        """
+        data_type = data2['type']
+        if data_type == 'shutdown':
+            self.logger_queue.put({'name': self.name,
+                                   'log_type': 'INFO',
+                                   'log_message': "Shutting down queue processor."})
+            self.process = False
+            return None
+
+        queue_size = self.data_queue.qsize()
+        data2['queue_size'] = queue_size
+        curr_time = time.time()
+        self.logger_queue.put({'name': self.name,
+                               'log_type': self.monitor_queue,
+                               'log_message': (f"monitor: Queue size: {queue_size} "
+                                               f"Process time: {curr_time - prev_time}")
+                               })
+
+        self.on_weewx_data_immediate(data2)
+
+        time_stamp = data2['time_stamp']
+        data = data2['data']
+        if data_type == 'loop':
+            self.publish_row(time_stamp, data, self.topics_loop)
+        elif data_type == 'archive':
+            self.publish_row(time_stamp, data, self.topics_archive)
+        else:
+            self.logger_queue.put({'name': self.name,
+                                   'log_type': 'ERROR',
+                                   'log_message': f"Unknown data type, {data_type}"})
+
+        self.on_weewx_data_delay(data2)
+
+        return curr_time
+
+    def on_weewx_data_immediate(self, data2):
+        """ Run the 'immediate' on_weewx_data plugin callbacks. """
+        run_time = 0
+        for plugin_name in self.plugin_manager.callbacks['on_weewx_data']['immediate']:
+            start_time = time.time()
+            self.plugin_manager.callbacks['on_weewx_data']['immediate'][plugin_name](data2)
+            delta_time = time.time() - start_time
+            run_time += delta_time
+            self.logger_queue.put({'name': self.name,
+                                   'log_type': self.monitor_on_weewx_data,
+                                   'log_message': (f"monitor: {delta_time:<12.10f} on_weewx_data (immediate) "
+                                                   f"{plugin_name}")})
+        self.logger_queue.put({'name': self.name,
+                               'log_type': self.monitor_on_weewx_data,
+                               'log_message': (f"monitor: {run_time:<12.10f} on_weewx_data (immediate)")})
+
+    def on_weewx_data_delay(self, data2):
+        """ Run the 'delay' on_weewx_data plugin callbacks. """
+        run_time = 0
+        for plugin_name in self.plugin_manager.callbacks['on_weewx_data']['delay']:
+            start_time = time.time()
+            self.plugin_manager.callbacks['on_weewx_data']['delay'][plugin_name](data2)
+            delta_time = time.time() - start_time
+            run_time += delta_time
+            self.logger_queue.put({'name': self.name,
+                                   'log_type': self.monitor_on_weewx_data,
+                                   'log_message': (f" {delta_time:<12.10f} on_weewx_data (delay) {plugin_name}  "
+                                                   f"")})
+        self.logger_queue.put({'name': self.name,
+                               'log_type': self.monitor_on_weewx_data,
+                               'log_message': (f"monitor: {run_time:<12.10f} on_weewx_data (delay) "
+                                               f"")})
 
 class PublishWeeWXThread(threading.Thread):
     """Publish WeeWX data to MQTT. """
