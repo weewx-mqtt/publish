@@ -747,28 +747,26 @@ class MQTTPublish(StdService):
 
         self.multiprocess = to_bool(service_dict.get('multiprocess', False))
         self.data_queue = Queue.Queue()
+        # Everything the queue processor needs, other than the queues it reads from and logs to.
+        self.processor_config = {
+            'plugins': self.plugins,
+            'weewx_dict': self.weewx_dict,
+            'manager_dict': self.manager_dict,
+            'mqtt_config': self.mqtt_config,
+            'monitor_config': self.monitor_config,
+            'topics_loop': self.topics_loop,
+            'topics_archive': self.topics_archive,
+        }
         if self.multiprocess:
             self.logger_queue = multiprocessing.Queue()
             self._thread = PublishWeeWXProcess(self.logger_queue,
-                                               self.plugins,
-                                               self.weewx_dict,
-                                               self.manager_dict,
-                                               self.mqtt_config,
-                                               self.monitor_config,
-                                               self.topics_loop,
-                                               self.topics_archive,
-                                               self.data_queue)
+                                               self.data_queue,
+                                               self.processor_config)
         else:
             self.logger_queue = Queue.Queue()
             self._thread = PublishWeeWXThread(self.logger_queue,
-                                              self.plugins,
-                                              self.weewx_dict,
-                                              self.manager_dict,
-                                              self.mqtt_config,
-                                              self.monitor_config,
-                                              self.topics_loop,
-                                              self.topics_archive,
-                                              self.data_queue)
+                                              self.data_queue,
+                                              self.processor_config)
 
         self.logger_thread = LoggerThread(self.logger, self.logger_queue)
         self.logger_thread.start()
@@ -961,24 +959,12 @@ class MQTTPublish(StdService):
                 self.thread_restarts += 1
                 if self.multiprocess:
                     self._thread = PublishWeeWXProcess(self.logger_queue,
-                                                       self.plugins,
-                                                       self.weewx_dict,
-                                                       self.manager_dict,
-                                                       self.mqtt_config,
-                                                       self.monitor_config,
-                                                       self.topics_loop,
-                                                       self.topics_archive,
-                                                       self.data_queue)
+                                                       self.data_queue,
+                                                       self.processor_config)
                 else:
                     self._thread = PublishWeeWXThread(self.logger_queue,
-                                                      self.plugins,
-                                                      self.weewx_dict,
-                                                      self.manager_dict,
-                                                      self.mqtt_config,
-                                                      self.monitor_config,
-                                                      self.topics_loop,
-                                                      self.topics_archive,
-                                                      self.data_queue)
+                                                      self.data_queue,
+                                                      self.processor_config)
                 self._thread.daemon = True
 
                 self.thread_start()
@@ -1091,14 +1077,10 @@ class QueueProcessor(multiprocessing.Process):
 
     def __init__(self,
                  logger_queue,
-                 plugins,
-                 weewx_dict,
-                 manager_dict,
-                 mqtt_config,
-                 monitor_config,
-                 topics_loop,
-                 topics_archive,
-                 data_queue):
+                 data_queue,
+                 processor_config):
+        # processor_config holds: plugins, weewx_dict, manager_dict,
+        #                         mqtt_config, monitor_config, topics_loop, topics_archive
         multiprocessing.Process.__init__(self)
         self.name = f"{self.__class__.__name__}-{threading.get_native_id()}"
 
@@ -1109,24 +1091,24 @@ class QueueProcessor(multiprocessing.Process):
 
         self.start_time = 0
 
-        self.monitor_queue = monitor_config['monitor_queue']
-        self.monitor_record_update = monitor_config['monitor_record_update']
-        self.monitor_on_weewx_data = monitor_config['monitor_on_weewx_data']
+        self.monitor_config = processor_config['monitor_config']
+        self.monitor_queue = self.monitor_config['monitor_queue']
+        self.monitor_record_update = self.monitor_config['monitor_record_update']
+        self.monitor_on_weewx_data = self.monitor_config['monitor_on_weewx_data']
 
-        self.plugins = plugins
-        self.weewx_dict = weewx_dict
-        self.manager_dict = manager_dict
+        self.plugins = processor_config['plugins']
+        self.weewx_dict = processor_config['weewx_dict']
+        self.manager_dict = processor_config['manager_dict']
         self.publisher = None
 
         self.db_manager = None
         self.plugin_manager = None
 
-        self.mqtt_config = mqtt_config
-        self.monitor_config = monitor_config
-        self.topics_loop = topics_loop
-        self.topics_archive = topics_archive
+        self.mqtt_config = processor_config['mqtt_config']
+        self.topics_loop = processor_config['topics_loop']
+        self.topics_archive = processor_config['topics_archive']
         self.all_topics = {**self.topics_loop, **self.topics_archive}
-        self.lwt_dict = mqtt_config.get('lwt')
+        self.lwt_dict = self.mqtt_config.get('lwt')
 
         self.data_queue = data_queue
 
@@ -1475,27 +1457,15 @@ class PublishWeeWXThread(threading.Thread):
     """Publish WeeWX data to MQTT. """
     def __init__(self,
                  logger_queue,
-                 plugins,
-                 weewx_dict,
-                 manager_dict,
-                 mqtt_config,
-                 monitor_config,
-                 topics_loop,
-                 topics_archive,
-                 data_queue):
+                 data_queue,
+                 processor_config):
         threading.Thread.__init__(self)
         self.name = f"{self.__class__.__name__}-{threading.get_native_id()}"
 
         self.logger_queue = logger_queue
         self.processor = QueueProcessor(self.logger_queue,
-                                        plugins,
-                                        weewx_dict,
-                                        manager_dict,
-                                        mqtt_config,
-                                        monitor_config,
-                                        topics_loop,
-                                        topics_archive,
-                                        data_queue)
+                                        data_queue,
+                                        processor_config)
 
     def run(self):
         self.logger_queue.put({'name': self.name,
@@ -1511,30 +1481,18 @@ class PublishWeeWXProcess(threading.Thread):
     """Publish WeeWX data to MQTT. """
     def __init__(self,
                  logger_queue,
-                 plugins,
-                 weewx_dict,
-                 manager_dict,
-                 mqtt_config,
-                 monitor_config,
-                 topics_loop,
-                 topics_archive,
-                 data_queue):
+                 data_queue,
+                 processor_config):
         threading.Thread.__init__(self)
         self.name = f"{self.__class__.__name__}-{threading.get_native_id()}"
 
         self.logger_queue = logger_queue
         self.data_queue = data_queue
-        self.monitor_config = monitor_config
+        self.monitor_config = processor_config['monitor_config']
         self.out_queue = multiprocessing.JoinableQueue()
         self.processor = QueueProcessor(self.logger_queue,
-                                        plugins,
-                                        weewx_dict,
-                                        manager_dict,
-                                        mqtt_config,
-                                        monitor_config,
-                                        topics_loop,
-                                        topics_archive,
-                                        self.out_queue)
+                                        self.out_queue,
+                                        processor_config)
         self.processor.start()
 
     def run(self):
