@@ -1150,7 +1150,7 @@ class QueueProcessor(multiprocessing.Process):
         if topic_dict['minimum_interval']:
             interval_end = startOfInterval(time.time(), topic_dict['minimum_interval']) + topic_dict['minimum_interval']
 
-        publish_interval_end_ts = interval_end is None
+        publish_interval_end_ts = False
         updated_record = weewx.units.to_std_system(record, topic_dict['unit_system'])
 
         for field in updated_record:
@@ -1193,7 +1193,7 @@ class QueueProcessor(multiprocessing.Process):
             if new_interval and (name not in final_record):
                 final_record[name] = topic_dict['data_last_published'][name]['value']
 
-        if final_record and publish_interval_end_ts:
+        if final_record and interval_end is not None and publish_interval_end_ts:
             final_record['interval_end_ts'] = interval_end
 
         return final_record
