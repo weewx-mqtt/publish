@@ -24,6 +24,12 @@ class PublisherBase(unittest.TestCase):
     class_under_test = object
     protocol_string = None
 
+    def _reason_code(self, value):
+        # paho mqtt v1 passes 'reason_code' as an int, v2 as a ReasonCode object.
+        if issubclass(self.class_under_test, user.mqttpublish.PublisherV2):
+            return mqttstubs.ReasonCodeStub(value)
+        return value
+
     def test_get_client(self):
         raise NotImplementedError("test 'test_get_client' is not implemented")
 
@@ -365,6 +371,168 @@ class PublisherBase(unittest.TestCase):
 
                     self.assertEqual(mock_connect.call_count, config_dict['max_retries'] + 1)
                     self.assertEqual(mock_logger_queue.put.call_count, 2 + 2 * config_dict['max_retries'])
+
+    def test_connect_refused_connection(self):
+        mock_logger_queue = mock.Mock()
+        mock_plugin_manager = mock.Mock()
+        mock_publisher = mock.Mock()
+
+        mock_plugin_manager.callbacks = {
+            'on_mqtt_connect': {
+                'immediate': {},
+                'delay': {}
+            },
+        }
+
+        config_dict = {
+            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
+            'clientid': helpers.random_string(),
+            'log_mqtt': random.choice([True, False]),
+            'username': None,
+            'password': None,
+            'host': helpers.random_string(),
+            'port': random.randint(1, 65535),
+            'keepalive': random.randint(1, 30),
+            'max_retries': 2,
+            'wait_between_retries': random.randint(0, 10),
+            'wait_for_connection': random.randint(0, 10),
+            'lwt': {
+                'enable': True,
+            }
+        }
+        config = configobj.ConfigObj(config_dict)
+
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+        }
+
+        with mock.patch('user.mqttpublish.time'):
+            with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
+                with mock.patch.object(user.mqttpublish.mqtt.Client,
+                                       'connect',
+                                       side_effect=mqttstubs.ClientStub.connect_with_refused_connection,
+                                       autospec=True) as mock_connect:
+                    with mock.patch.object(user.mqttpublish.mqtt.Client, 'publish') as mock_publish:
+
+                        SUT = self.class_under_test(mock_logger_queue, mock_plugin_manager, mock_publisher, config, monitor_dict)
+
+                        # A refused connection must not be treated as a connection, so the retry loop keeps retrying.
+                        self.assertEqual(mock_connect.call_count, config_dict['max_retries'] + 1)
+                        self.assertFalse(SUT.connected)
+                        # The LWT 'online' payload must not be published for a refused connection.
+                        mock_publish.assert_not_called()
+                        self.assertIn('ERROR', [call[0][0]['log_type'] for call in mock_logger_queue.put.call_args_list])
+
+    def test_on_connect_success(self):
+        mock_logger_queue = mock.Mock()
+        mock_plugin_manager = mock.Mock()
+        mock_publisher = mock.Mock()
+
+        mock_on_connect_callback = mock.Mock()
+        mock_plugin_manager.callbacks = {
+            'on_mqtt_connect': {
+                'immediate': {
+                    helpers.random_string(): mock_on_connect_callback,
+                },
+                'delay': {}
+            },
+        }
+
+        config_dict = {
+            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
+            'clientid': helpers.random_string(),
+            'log_mqtt': random.choice([True, False]),
+            'username': None,
+            'password': None,
+            'host': helpers.random_string(),
+            'port': random.randint(1, 65535),
+            'keepalive': random.randint(1, 30),
+            'max_retries': 0,
+            'lwt': {
+                'enable': True,
+            }
+        }
+        config = configobj.ConfigObj(config_dict)
+
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+        }
+
+        # Note: 'user.mqttpublish.time' is deliberately not mocked here. The monitor logging below
+        # does arithmetic and numeric formatting on time.time(), which a MagicMock does not support.
+        with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
+            with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
+                with mock.patch.object(user.mqttpublish.mqtt.Client, 'publish') as mock_publish:
+
+                    SUT = self.class_under_test(mock_logger_queue, mock_plugin_manager, mock_publisher, config, monitor_dict)
+
+                    SUT.on_connect(SUT.client, None, {}, self._reason_code(0), None)
+
+                    self.assertTrue(SUT.connected)
+                    mock_on_connect_callback.assert_called_once()
+                    mock_publish.assert_called_once()
+
+    def test_on_connect_failure(self):
+        mock_logger_queue = mock.Mock()
+        mock_plugin_manager = mock.Mock()
+        mock_publisher = mock.Mock()
+
+        mock_on_connect_callback = mock.Mock()
+        mock_plugin_manager.callbacks = {
+            'on_mqtt_connect': {
+                'immediate': {
+                    helpers.random_string(): mock_on_connect_callback,
+                },
+                'delay': {}
+            },
+        }
+
+        config_dict = {
+            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
+            'clientid': helpers.random_string(),
+            'log_mqtt': random.choice([True, False]),
+            'username': None,
+            'password': None,
+            'host': helpers.random_string(),
+            'port': random.randint(1, 65535),
+            'keepalive': random.randint(1, 30),
+            'max_retries': 0,
+            'lwt': {
+                'enable': True,
+            }
+        }
+        config = configobj.ConfigObj(config_dict)
+
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+        }
+
+        # Note: 'user.mqttpublish.time' is deliberately not mocked here, so that time.time() returns
+        # real numbers if on_connect() gets far enough to do monitor logging.
+        with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
+            with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
+                with mock.patch.object(user.mqttpublish.mqtt.Client, 'publish') as mock_publish:
+
+                    SUT = self.class_under_test(mock_logger_queue, mock_plugin_manager, mock_publisher, config, monitor_dict)
+
+                    SUT.on_connect(SUT.client, None, {}, self._reason_code(5), None)
+
+                    self.assertFalse(SUT.connected)
+                    mock_on_connect_callback.assert_not_called()
+                    mock_publish.assert_not_called()
+                    self.assertIn('ERROR', [call[0][0]['log_type'] for call in mock_logger_queue.put.call_args_list])
 
     def test_will_set_with_defaults(self):
         mock_logger_queue = mock.Mock()

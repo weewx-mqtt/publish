@@ -445,6 +445,13 @@ class PublisherV1(AbstractPublisher):
         # 4: Connection refused - bad username or password
         # 5: Connection refused - not authorised
         # 6-255: Currently unused.
+        if int(reason_code) != 0:
+            self.logger_queue.put({'name': self.name,
+                                   'log_type': 'ERROR',
+                                   'log_message': (f"Connection refused with result code {int(reason_code)}, "
+                                                   f"{mqtt.error_string(reason_code)}, flags {str(flags)}.")})
+            return
+
         self.logger_queue.put({'name': self.name,
                                'log_type': 'INFO',
                                'log_message': f"Connected with result code {int(reason_code)}, {mqtt.error_string(reason_code)}"})
@@ -530,6 +537,13 @@ class PublisherV2(AbstractPublisher):
         self.mqtt_logger[level](f"MQTT log: {msg}")
 
     def on_connect(self, client, userdata, flags, reason_code, properties):
+        if reason_code.is_failure:
+            self.logger_queue.put({'name': self.name,
+                                   'log_type': 'ERROR',
+                                   'log_message': (f"Connection refused with result code {int(reason_code.value)}, "
+                                                   f"flags {str(flags)}.")})
+            return
+
         self.logger_queue.put({'name': self.name,
                                'log_type': 'INFO',
                                'log_message': f"Connected with result code {int(int(reason_code.value))}"})

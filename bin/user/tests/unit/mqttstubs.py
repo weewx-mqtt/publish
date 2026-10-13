@@ -10,8 +10,6 @@ Stubs of paho mqtt code used by MQTTSubscribe.
 # pylint: disable=missing-function-docstring
 import contextlib
 
-from collections import namedtuple
-
 import helpers
 
 @contextlib.contextmanager
@@ -120,15 +118,18 @@ class ClientStub:
     # used to 'override' the connect method and 'perform' the connection (call on_connect)
     def connect_with_connection(self, host, port, keepalive, clean_start=None):  # need to match pylint: disable=unused-argument
         self.connect_call_count += 1
-        if self.callback_api_version is not None:  # self.callback_api_version.value == 2:
-            reason_code_dict = {
-                'value': 0
-            }
-            reason_code = namedtuple('reason_code', reason_code_dict.keys())(**reason_code_dict)
+        self._call_on_connect(0)
 
-            self.on_connect(self, self.userdata, 0, reason_code, 0)
+    # used to 'override' the connect method and call on_connect with a non-zero reason code (connection refused)
+    def connect_with_refused_connection(self, host, port, keepalive, clean_start=None):  # pylint: disable=unused-argument
+        self.connect_call_count += 1
+        self._call_on_connect(5)
+
+    def _call_on_connect(self, value):
+        if self.callback_api_version is not None:  # self.callback_api_version.value == 2:
+            self.on_connect(self, self.userdata, 0, ReasonCodeStub(value), 0)
         else:
-            self.on_connect(self, self.userdata, 0, 0)
+            self.on_connect(self, self.userdata, 0, value)
 
     # used to 'override' the on_connect method and raise an exceptioin
     def connect_exception_first_call(self, host, port, keepalive, clean_start=None):  # need to match pylint: disable=unused-argument
@@ -153,15 +154,25 @@ class ClientStub:
     # used to 'override' the reconnect method and 'perform' the reconnection (call on_connect)
     def reconnect_with_connection(self):
         self.reconnect_call_count += 1
-        if self.callback_api_version is not None:  # self.callback_api_version.value == 2:
-            reason_code_dict = {
-                'value': 0
-            }
-            reason_code = namedtuple('reason_code', reason_code_dict.keys())(**reason_code_dict)
+        self._call_on_connect(0)
 
-            self.on_connect(self, self.userdata, 0, reason_code, 0)
-        else:
-            self.on_connect(self, self.userdata, 0, 0)
+class ReasonCodeStub:
+    '''
+    Stub of paho.mqtt.reasoncodes.ReasonCode, i.e. what the paho v2 callbacks
+    get passed as 'reason_code'.
+    '''
+    def __init__(self, value):
+        self.value = value
+
+    @property
+    def is_failure(self):
+        return self.value != 0
+
+    def __int__(self):
+        return int(self.value)
+
+    def __repr__(self):
+        return f"ReasonCodeStub({self.value})"
 
 class ConnetExceptionTest(Exception):
     ''' Test Connect Exception'''
