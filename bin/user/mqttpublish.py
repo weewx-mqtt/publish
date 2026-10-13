@@ -1022,8 +1022,7 @@ class MQTTPublish(StdService):
             self.data_queue.put({'time_stamp': time.time(), 'type': 'shutdown', 'data': {}})
             self._thread.join(self.wait_for_thread_shutdown)
             if self._thread.is_alive():
-                self.logger.logerr(self.name, f"Unable to shut down {self._thread.pid}")
-            #    self._thread.terminate()
+                self.logger.logerr(self.name, f"Unable to shut down {self._thread.name}")
 
             self._thread = None
 
