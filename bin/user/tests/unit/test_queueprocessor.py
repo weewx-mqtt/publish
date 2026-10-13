@@ -330,6 +330,92 @@ class TestQueueProcessor(unittest.TestCase):
 
         self.assertDictEqual(final_record, {})
 
+    def test_update_record_none_value_within_interval(self):
+        mock_logger_queue = mock.Mock()
+        weewx_dict = {
+            'config_dict': {
+                'MQTTPublish': {}
+            }
+        }
+
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+        }
+
+        SUT = user.mqttpublish.QueueProcessor(mock_logger_queue,
+                                              {},
+                                              weewx_dict,
+                                              None,
+                                              {},
+                                              monitor_dict,
+                                              {},
+                                              {},
+                                              None)
+
+        field1 = helpers.random_string()
+        now = 1000.0
+
+        record = {
+            'dateTime': now,
+            'usUnits': 1,
+        }
+
+        updated_record = {
+            field1: None,
+            'usUnits': 1,
+        }
+
+        topic_dict = {
+            'unit_system': 1,
+            'fields': {
+                field1: {
+                    'ignore': False,
+                    'publish_none_value': True,
+                },
+                'usUnits': {
+                    'ignore': True,
+                },
+            },
+            'minimum_interval': 60,
+            'suppression_threshold': 0.0,
+            'data_last_published': {},
+        }
+
+        with mock.patch.object(user.mqttpublish.weewx.units, 'to_std_system', return_value=updated_record):
+            with mock.patch('user.mqttpublish.time') as mock_time:
+                mock_time.time.return_value = now
+
+                # A new interval always publishes the None value.
+                final_record = SUT.update_record(topic_dict, now, record)
+
+                self.assertDictEqual(final_record, {field1: None, 'interval_end_ts': 1020})
+
+                # The same None value within the interval is suppressed.
+                final_record = SUT.update_record(topic_dict, now, record)
+
+                self.assertDictEqual(final_record, {})
+
+                # A transition to a value within the interval is published.
+                updated_record[field1] = 5.567
+                final_record = SUT.update_record(topic_dict, now, record)
+
+                self.assertDictEqual(final_record, {field1: 5.567})
+
+                # The same value within the interval is suppressed.
+                final_record = SUT.update_record(topic_dict, now, record)
+
+                self.assertDictEqual(final_record, {})
+
+                # A transition back to None within the interval is published.
+                updated_record[field1] = None
+                final_record = SUT.update_record(topic_dict, now, record)
+
+                self.assertDictEqual(final_record, {field1: None})
+
     def test_run_services_client_while_idle(self):
         mock_logger_queue = mock.Mock()
         weewx_dict = {
