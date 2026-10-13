@@ -781,14 +781,7 @@ class MQTTPublish(StdService):
         if 'loop' in binding:
             self.bind(weewx.NEW_LOOP_PACKET, self.new_loop_packet)
 
-    def configure_fields(self,
-                         fields_dict,
-                         ignore,
-                         publish_none_value,
-                         append_unit_label,
-                         conversion_type,
-                         round_amount,
-                         format_string):
+    def configure_fields(self, fields_dict, field_defaults):
         """ Configure the fields. """
         fields = {}
         if fields_dict:
@@ -798,12 +791,14 @@ class MQTTPublish(StdService):
                 fields[field]['name'] = field_dict.get('name', field)
                 fields[field]['unit'] = field_dict.get('unit', None)
 
-                fields[field]['ignore'] = to_bool(field_dict.get('ignore', ignore))
-                fields[field]['publish_none_value'] = to_bool(field_dict.get('publish_none_value', publish_none_value))
-                fields[field]['append_unit_label'] = to_bool(field_dict.get('append_unit_label', append_unit_label))
-                fields[field]['conversion_type'] = field_dict.get('conversion_type', conversion_type)
-                fields[field]['round'] = to_int(field_dict.get('round', round_amount))
-                fields[field]['format_string'] = field_dict.get('format_string', format_string)
+                fields[field]['ignore'] = to_bool(field_dict.get('ignore', field_defaults['ignore']))
+                fields[field]['publish_none_value'] = to_bool(
+                    field_dict.get('publish_none_value', field_defaults['publish_none_value']))
+                fields[field]['append_unit_label'] = to_bool(
+                    field_dict.get('append_unit_label', field_defaults['append_unit_label']))
+                fields[field]['conversion_type'] = field_dict.get('conversion_type', field_defaults['conversion_type'])
+                fields[field]['round'] = to_int(field_dict.get('round', field_defaults['round']))
+                fields[field]['format_string'] = field_dict.get('format_string', field_defaults['format_string'])
 
         return fields
 
@@ -857,13 +852,15 @@ class MQTTPublish(StdService):
             fields_dict = topic_dict.get('fields', None)
             fields = {}
             if fields_dict is not None:
-                fields = self.configure_fields(fields_dict,
-                                               ignore,
-                                               publish_none_value,
-                                               append_unit_label,
-                                               conversion_type,
-                                               round_amount,
-                                               format_string)
+                field_defaults = {
+                    'ignore': ignore,
+                    'publish_none_value': publish_none_value,
+                    'append_unit_label': append_unit_label,
+                    'conversion_type': conversion_type,
+                    'round': round_amount,
+                    'format_string': format_string
+                }
+                fields = self.configure_fields(fields_dict, field_defaults)
 
             aggregates = topic_dict.get('aggregates', {})
             if aggregates:

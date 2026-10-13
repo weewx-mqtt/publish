@@ -161,5 +161,71 @@ class TestConfigureTopics(unittest.TestCase):
                 self.assertDictEqual(topics_loop, expected_topics)
                 self.assertDictEqual(topics_archive, expected_topics)
 
+    def test_config_topics_with_field_defaults(self):
+        mock_engine = mock.Mock()
+        config_dict = {
+            'MQTTPublish': {
+                'enable': False,
+            }
+        }
+        config = configobj.ConfigObj(config_dict)
+
+        topic1 = helpers.random_string()
+        field1 = helpers.random_string()
+        field2 = helpers.random_string()
+        service_dict = {
+            'topics': {
+                topic1: {
+                    'ignore': True,
+                    'publish_none_value': True,
+                    'append_unit_label': False,
+                    'conversion_type': 'float',
+                    'round': 2,
+                    'format_string': '%s',
+                    'fields': {
+                        field1: {
+                            'ignore': False,
+                        },
+                        field2: {
+                            'round': 0,
+                        },
+                    },
+                },
+            },
+        }
+        service_config = configobj.ConfigObj(service_dict)
+
+        with mock.patch('user.mqttpublish.PublishWeeWXThread'):
+            with mock.patch('user.mqttpublish.Logger'):
+                SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
+
+                topics_loop, topics_archive, _ = SUT.configure_topics(service_config)
+
+                expected_fields = {
+                    field1: {
+                        'name': field1,
+                        'unit': None,
+                        'ignore': False,
+                        'publish_none_value': True,
+                        'append_unit_label': False,
+                        'conversion_type': 'float',
+                        'round': 2,
+                        'format_string': '%s'
+                    },
+                    field2: {
+                        'name': field2,
+                        'unit': None,
+                        'ignore': True,
+                        'publish_none_value': True,
+                        'append_unit_label': False,
+                        'conversion_type': 'float',
+                        'round': 0,
+                        'format_string': '%s'
+                    }
+                }
+
+                self.assertDictEqual(topics_loop[topic1]['fields'], expected_fields)
+                self.assertDictEqual(topics_archive[topic1]['fields'], expected_fields)
+
 if __name__ == '__main__':
     helpers.run_tests()
