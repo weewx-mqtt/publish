@@ -74,8 +74,12 @@ class Logger:
 
 class PluginManager():
     """ Manage the plugin callbacks. """
-    def __init__(self, logger):
+    def __init__(self, logger, monitor_config, mqtt_dict, topics, weewx_dict):
         self.logger = logger
+        self.monitor_config = monitor_config
+        self.mqtt_dict = mqtt_dict
+        self.topics = topics
+        self.weewx_dict = weewx_dict
         self.plugins = {}
         self.callbacks = {
             'on_weewx_data': {
@@ -96,11 +100,12 @@ class PluginManager():
             },
         }
 
-    def create_plugin(self, name, plugin_name, monitor_config, plugin_dict, mqtt_dict, topics, weewx_dict):
+    def create_plugin(self, name, plugin_name, plugin_dict):
         """ Create the plugin. """
         self.plugins[name] = {}
         plugin_class = weeutil.weeutil.get_object(plugin_name)
-        plugin = plugin_class(self.logger, monitor_config, plugin_name, plugin_dict, mqtt_dict, topics, weewx_dict)
+        plugin = plugin_class(self.logger, self.monitor_config, plugin_name,
+                              plugin_dict, self.mqtt_dict, self.topics, self.weewx_dict)
         self.plugins[name]['plugin'] = plugin
         callbacks = plugin.get_callbacks()
         for callback in callbacks:
@@ -1339,19 +1344,17 @@ class QueueProcessor(multiprocessing.Process):
         """ Process the queue. """
         threading.current_thread().name = f"MQTTPublish-{threading.get_native_id()}"
 
-        self.plugin_manager = PluginManager(self.logger_queue)
+        self.plugin_manager = PluginManager(self.logger_queue,
+                                            self.monitor_config,
+                                            self.mqtt_config,
+                                            self.all_topics,
+                                            self.weewx_dict)
         for plugin in self.plugins:
             if 'module' in self.plugins[plugin]:
                 plugin_name = self.plugins[plugin]['module'] + '.' + plugin
             else:
                 plugin_name = self.plugins[plugin]['plugin']
-            self.plugin_manager.create_plugin(plugin,
-                                              plugin_name,
-                                              self.monitor_config,
-                                              self.plugins[plugin],
-                                              self.mqtt_config,
-                                              self.all_topics,
-                                              self.weewx_dict)
+            self.plugin_manager.create_plugin(plugin, plugin_name, self.plugins[plugin])
 
         # need to instantiate inside thread
         self.publisher = AbstractPublisher.get_publisher(self.logger_queue,
