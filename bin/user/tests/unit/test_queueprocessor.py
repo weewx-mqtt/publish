@@ -149,5 +149,122 @@ class TestQueueProcessor(unittest.TestCase):
                 self.assertEqual(name, f"{field1}_{topic_dict['fields'][field1]['unit']}")
                 self.assertEqual(value, converted_value)
 
+    def test_update_record_all_fields_ignored(self):
+        mock_logger_queue = mock.Mock()
+        weewx_dict = {
+            'config_dict': {
+                'MQTTPublish': {}
+            }
+        }
+
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+        }
+
+        SUT = user.mqttpublish.QueueProcessor(mock_logger_queue,
+                                              {},
+                                              weewx_dict,
+                                              None,
+                                              {},
+                                              monitor_dict,
+                                              {},
+                                              {},
+                                              None)
+
+        field1 = helpers.random_string()
+        now = 1000.0
+
+        record = {
+            'dateTime': now,
+            'usUnits': 1,
+        }
+
+        updated_record = {
+            field1: random.random(),
+            'usUnits': 1,
+        }
+
+        for minimum_interval in (None, 60):
+            topic_dict = {
+                'unit_system': 1,
+                'ignore': True,
+                'fields': {},
+                'minimum_interval': minimum_interval,
+                'data_last_published': {},
+            }
+
+            with mock.patch.object(user.mqttpublish.weewx.units, 'to_std_system', return_value=updated_record):
+                with mock.patch('user.mqttpublish.time') as mock_time:
+                    mock_time.time.return_value = now
+
+                    final_record = SUT.update_record(topic_dict, now, record)
+
+            self.assertDictEqual(final_record, {})
+
+    def test_update_record_all_fields_none(self):
+        mock_logger_queue = mock.Mock()
+        weewx_dict = {
+            'config_dict': {
+                'MQTTPublish': {}
+            }
+        }
+
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+        }
+
+        SUT = user.mqttpublish.QueueProcessor(mock_logger_queue,
+                                              {},
+                                              weewx_dict,
+                                              None,
+                                              {},
+                                              monitor_dict,
+                                              {},
+                                              {},
+                                              None)
+
+        field1 = helpers.random_string()
+        now = 1000.0
+
+        record = {
+            'dateTime': now,
+            'usUnits': 1,
+        }
+
+        updated_record = {
+            field1: None,
+            'usUnits': 1,
+        }
+
+        topic_dict = {
+            'unit_system': 1,
+            'fields': {
+                field1: {
+                    'ignore': False,
+                },
+                'usUnits': {
+                    'ignore': True,
+                },
+            },
+            'minimum_interval': 60,
+            'data_last_published': {},
+        }
+
+        with mock.patch.object(user.mqttpublish.weewx.units, 'to_std_system', return_value=updated_record):
+            with mock.patch('user.mqttpublish.time') as mock_time:
+                mock_time.time.return_value = now
+
+                final_record = SUT.update_record(topic_dict, now, record)
+
+        self.assertDictEqual(final_record, {})
+
 if __name__ == '__main__':
     helpers.run_tests()

@@ -1149,6 +1149,8 @@ class QueueProcessor(multiprocessing.Process):
         interval_end = None
         if topic_dict['minimum_interval']:
             interval_end = startOfInterval(time.time(), topic_dict['minimum_interval']) + topic_dict['minimum_interval']
+
+        publish_interval_end_ts = interval_end is None
         updated_record = weewx.units.to_std_system(record, topic_dict['unit_system'])
 
         for field in updated_record:
@@ -1172,8 +1174,10 @@ class QueueProcessor(multiprocessing.Process):
             last_published_timestamp = last_published.get('interval_end')
             last_published_value = last_published.get('value')
 
-            if (interval_end is None or last_published_timestamp is None or interval_end > last_published_timestamp) or \
-                (value < last_published_value - threshold or value > last_published_value + threshold):
+            new_interval = interval_end is None or last_published_timestamp is None or interval_end > last_published_timestamp
+            publish_interval_end_ts = publish_interval_end_ts or new_interval
+
+            if new_interval or (value < last_published_value - threshold or value > last_published_value + threshold):
                 format_string = fieldinfo.get('format_string', topic_dict.get('format_string'))
                 if format_string is not None:
                     formatted_value = format_string % value
@@ -1186,11 +1190,10 @@ class QueueProcessor(multiprocessing.Process):
                     'interval_end': interval_end,
                 }
 
-            if (interval_end is None or last_published_timestamp is None or interval_end > last_published_timestamp) and \
-                (name not in final_record):
+            if new_interval and (name not in final_record):
                 final_record[name] = topic_dict['data_last_published'][name]['value']
 
-        if (interval_end is None or last_published_timestamp is None or interval_end > last_published_timestamp):
+        if final_record and publish_interval_end_ts:
             final_record['interval_end_ts'] = interval_end
 
         return final_record
