@@ -1281,27 +1281,7 @@ class QueueProcessor(multiprocessing.Process):
             delay_time += run_time
 
             start_time = time.time()
-            if updated_record:
-                if topics[topic]['type'] == 'json':
-                    self.publisher.publish_message(time_stamp,
-                                                   topics[topic]['qos'],
-                                                   topics[topic]['retain'],
-                                                   topic,
-                                                   json.dumps(updated_record))
-                if topics[topic]['type'] == 'keyword':
-                    data_keyword = ', '.join(f"{key}={val}" for (key, val) in updated_record.items())
-                    self.publisher.publish_message(time_stamp,
-                                                   topics[topic]['qos'],
-                                                   topics[topic]['retain'],
-                                                   topic,
-                                                   data_keyword)
-                if topics[topic]['type'] == 'individual':
-                    for key, value in updated_record.items():
-                        self.publisher.publish_message(time_stamp,
-                                                       topics[topic]['qos'],
-                                                       topics[topic]['retain'],
-                                                       topic + '/' + key,
-                                                       value)
+            self.publish_record(time_stamp, topic, topics[topic], updated_record)
             self.logger_queue.put({'name': self.name,
                                    'log_type': self.monitor_record_update,
                                    'log_message': (f"monitor: {(time.time() - start_time):<12.10f} "
@@ -1318,6 +1298,32 @@ class QueueProcessor(multiprocessing.Process):
                                'log_type': self.monitor_record_update,
                                'log_message': (f"monitor: {(time.time() - process_time):<12.10f} "
                                                f"update_record (publish_row total)")})
+
+    def publish_record(self, time_stamp, topic, topic_dict, updated_record):
+        """ Publish an updated record, using the topic's configured type. """
+        if not updated_record:
+            return
+
+        if topic_dict['type'] == 'json':
+            self.publisher.publish_message(time_stamp,
+                                           topic_dict['qos'],
+                                           topic_dict['retain'],
+                                           topic,
+                                           json.dumps(updated_record))
+        if topic_dict['type'] == 'keyword':
+            data_keyword = ', '.join(f"{key}={val}" for (key, val) in updated_record.items())
+            self.publisher.publish_message(time_stamp,
+                                           topic_dict['qos'],
+                                           topic_dict['retain'],
+                                           topic,
+                                           data_keyword)
+        if topic_dict['type'] == 'individual':
+            for key, value in updated_record.items():
+                self.publisher.publish_message(time_stamp,
+                                               topic_dict['qos'],
+                                               topic_dict['retain'],
+                                               topic + '/' + key,
+                                               value)
 
     def run(self):
         """ Process the queue. """
