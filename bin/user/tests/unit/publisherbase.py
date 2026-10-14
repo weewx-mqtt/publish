@@ -917,7 +917,7 @@ class PublisherBase(unittest.TestCase):
                         self.assertEqual(mock_reconnect.call_count, config_dict['max_retries'] + 1)
                         log_messages = [call[0][0]['log_message'] for call in mock_logger_queue.put.call_args_list]
                         self.assertIn(f"Attempting to reconnect to host: {config_dict['host']} port: {config_dict['port']}.", log_messages)
-                        self.assertIn(f"Waiting {config_dict['wait_between_retries']} seconds to (re)connect.", log_messages)
+                        self.assertIn(f"Waiting {config_dict['wait_between_retries']} seconds to reconnect.", log_messages)
 
 
 class TLSBase(unittest.TestCase):
