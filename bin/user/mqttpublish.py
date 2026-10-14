@@ -1479,9 +1479,6 @@ if __name__ == "__main__":
 
         options = parser.parse_args()
 
-        message_file = options.message_file
-        max_loops = options.max_loops
-
         config_path = os.path.abspath(options.config_file)
         config = configobj.ConfigObj(config_path, file_error=True)
 
@@ -1504,7 +1501,7 @@ if __name__ == "__main__":
         setup_logging(True, config)
         mqtt_publish = MQTTPublish(engine, config)
 
-        with open(message_file, encoding='UTF-8') as file_object:
+        with open(options.message_file, encoding='UTF-8') as file_object:
             packets = json.load(file_object)
 
         for packet in packets:
@@ -1516,7 +1513,7 @@ if __name__ == "__main__":
             engine.dispatchEvent(new_loop_packet_event)
 
         loop_count = 0
-        while loop_count < max_loops:
+        while loop_count < options.max_loops:
             print("sleeping")
             time.sleep(1)
             loop_count += 1
