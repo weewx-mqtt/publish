@@ -654,20 +654,7 @@ class MQTTPublish(StdService):
         self.logger.loginf(self.name, f"MQTTPublish version: {VERSION}.")
 
         service_dict = config_dict.get('MQTTPublish', {})
-        plugins = service_dict.get('plugins', [])
-        if isinstance(plugins, dict):
-            self.logger.logerr(self.name,
-                               ("'[[plugins]]' is deprecated. "
-                                "To configure see, https://weewx-mqtt.github.io/publish/plugins/"))
-            self.plugins = plugins
-        else:
-            self.logger.loginf(self.name, f"The plugins are: {plugins}")
-            self.plugins = configobj.ConfigObj({})
-            for plugin in to_list(plugins):
-                if plugin not in config_dict:
-                    self.logger.logerr(self.name, f"{plugin} is missing its configuration section.")
-                else:
-                    self.plugins[plugin] = config_dict[plugin]
+        self.plugins = self._configure_plugins(config_dict, service_dict)
 
         exclude_keys = ['password']
         sanitized_service_dict = {k: service_dict[k] for k in set(service_dict.keys()) - set(exclude_keys)}
@@ -780,6 +767,24 @@ class MQTTPublish(StdService):
 
         if 'loop' in binding:
             self.bind(weewx.NEW_LOOP_PACKET, self.new_loop_packet)
+
+    def _configure_plugins(self, config_dict, service_dict):
+        """ Configure the plugins. """
+        plugins = service_dict.get('plugins', [])
+        if isinstance(plugins, dict):
+            self.logger.logerr(self.name,
+                               ("'[[plugins]]' is deprecated. "
+                                "To configure see, https://weewx-mqtt.github.io/publish/plugins/"))
+            return plugins
+
+        self.logger.loginf(self.name, f"The plugins are: {plugins}")
+        configured_plugins = configobj.ConfigObj({})
+        for plugin in to_list(plugins):
+            if plugin not in config_dict:
+                self.logger.logerr(self.name, f"{plugin} is missing its configuration section.")
+            else:
+                configured_plugins[plugin] = config_dict[plugin]
+        return configured_plugins
 
     def configure_fields(self, fields_dict, field_defaults):
         """ Configure the fields. """
