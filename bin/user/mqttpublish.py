@@ -806,132 +806,125 @@ class MQTTPublish(StdService):
         if 'topics' not in service_dict:
             raise ValueError("[[topics]] is required.")
 
-        # These are field level options that have default options above the topic level
-        default_append_label = service_dict.get('append_unit_label', True)
-        default_conversion_type = service_dict.get('conversion_type', 'string')
-        default_round = service_dict.get('round', None)
-        default_format_string = service_dict.get('format_string', None)
-
-        # These are topic level options that can have default options
-        default_qos = to_int(service_dict.get('qos', 0))
-        default_minimum_interval = to_int(service_dict.get('minimum_interval', 0))
-        default_suppression_threshold = to_float(service_dict.get('suppression_threshold', 0))
-        default_retain = to_bool(service_dict.get('retain', False))
-        default_type = service_dict.get('type', 'json')
-
         topics_loop = {}
         topics_archive = {}
         event_binding = {}
         for topic in service_dict['topics'].sections:
             topic_dict = service_dict['topics'].get(topic, {})
-            # These are field level options that can have default options at the topic level
-            ignore = to_bool(topic_dict.get('ignore', False))
-            publish_none_value = to_bool(topic_dict.get('publish_none_value', False))
+            field_options = self._resolve_field_options(service_dict, topic_dict)
+            topic_options = self._resolve_topic_options(service_dict, topic_dict)
 
-            # These are field level options that have default options above the topic level
-            append_unit_label = to_bool(topic_dict.get('append_unit_label', default_append_label))
-            conversion_type = topic_dict.get('conversion_type', default_conversion_type)
-            round_amount = to_int(topic_dict.get('round', default_round))
-            format_string = topic_dict.get('format_string', default_format_string)
-
-            # These are topic level options that can have default options
-            qos = to_int(topic_dict.get('qos', default_qos))
-            minimum_interval = to_int(topic_dict.get('minimum_interval', default_minimum_interval)) * 60
-            suppression_threshold = to_float(topic_dict.get('suppression_threshold', default_suppression_threshold))
-            retain = to_bool(topic_dict.get('retain', default_retain))
-            data_type = topic_dict.get('type', default_type)
-
-            # And finally the topic options
-            publish = to_bool(topic_dict.get('publish', True))
-            binding = weeutil.weeutil.option_as_list(topic_dict.get('binding', ['archive', 'loop']))
-            unit_system_name = topic_dict.get('unit_system', service_dict.get('unit_system', 'US'))
-            unit_system = weewx.units.unit_constants[unit_system_name]
-
-            fields_dict = topic_dict.get('fields', None)
-            fields = {}
-            if fields_dict is not None:
-                field_defaults = {
-                    'ignore': ignore,
-                    'publish_none_value': publish_none_value,
-                    'append_unit_label': append_unit_label,
-                    'conversion_type': conversion_type,
-                    'round': round_amount,
-                    'format_string': format_string
-                }
-                fields = self.configure_fields(fields_dict, field_defaults)
-
-            aggregates = topic_dict.get('aggregates', {})
-            if aggregates:
-                # Temporarily build the MQTTAggregateValues plugin configuration
-                self.logger.logerr(self.name,
-                                   ("'[aggregates]' is deprecated and has moved to a plugin. "
-                                    "To configure see, https://weewx-mqtt.github.io/publish/plugins/aggregatevalues/"))
-                if 'MQTTAggregateValues' not in self.plugins:
-                    self.plugins['MQTTAggregateValues'] = {}
-                    self.plugins['MQTTAggregateValues']['module'] = 'user.mqttaggregatevalues'
-                if 'topics' not in self.plugins['MQTTAggregateValues']:
-                    self.plugins['MQTTAggregateValues']['topics'] = {}
-                if topic not in self.plugins['MQTTAggregateValues']['topics']:
-                    self.plugins['MQTTAggregateValues']['topics'][topic] = {}
-                for aggregate in topic_dict['aggregates']:
-                    self.plugins['MQTTAggregateValues']['topics'][topic][aggregate] = topic_dict['aggregates'][aggregate]
+            fields = self._configure_topic_fields(field_options, topic_dict.get('fields', None))
+            self._apply_field_list_overrides(topic_dict, fields)
+            self._configure_deprecated_aggregates(topic, topic_dict.get('aggregates', {}))
 
             # ToDo: add a check that ignore_field and publish_field are mutually exclusive
             # ToDo: Could go as far making sure there are no fully configured fields...
 
-            for ignore_field in to_list(topic_dict.get('ignore_fields', [])):
-                fields[ignore_field] = {
-                    'ignore': True
-                }
-
-            for publish_field in to_list(topic_dict.get('publish_fields', [])):
-                fields[publish_field] = {
-                    'ignore': False
-                }
-
-            if 'loop' in binding:
-                if not publish:
-                    continue
+            if not topic_options['publish']:
+                continue
+            if 'loop' in topic_options['binding']:
                 self.logger.loginf(self.name, f"Publishing to {topic} for loop data.")
-                topics_loop[topic] = {}
-                topics_loop[topic]['qos'] = qos
-                topics_loop[topic]['minimum_interval'] = minimum_interval
-                topics_loop[topic]['suppression_threshold'] = suppression_threshold
-                topics_loop[topic]['retain'] = retain
-                topics_loop[topic]['type'] = data_type
-                topics_loop[topic]['unit_system'] = unit_system
-                topics_loop[topic]['ignore'] = ignore
-                topics_loop[topic]['append_unit_label'] = append_unit_label
-                topics_loop[topic]['conversion_type'] = conversion_type
-                topics_loop[topic]['round'] = round_amount
-                topics_loop[topic]['format_string'] = format_string
-                topics_loop[topic]['fields'] = dict(fields)
-                topics_loop[topic]['data_last_published'] = {}
+                topics_loop[topic] = self._build_topic_config(topic_options, field_options, fields)
                 event_binding['loop'] = True
 
-            if 'archive' in binding:
-                if not publish:
-                    continue
+            if 'archive' in topic_options['binding']:
                 self.logger.loginf(self.name, f"Publishing to {topic} for archive data.")
-                topics_archive[topic] = {}
-                topics_archive[topic]['qos'] = qos
-                topics_archive[topic]['minimum_interval'] = minimum_interval
-                topics_archive[topic]['suppression_threshold'] = suppression_threshold
-                topics_archive[topic]['retain'] = retain
-                topics_archive[topic]['type'] = data_type
-                topics_archive[topic]['unit_system'] = unit_system
-                topics_archive[topic]['ignore'] = ignore
-                topics_archive[topic]['append_unit_label'] = append_unit_label
-                topics_archive[topic]['conversion_type'] = conversion_type
-                topics_archive[topic]['round'] = round_amount
-                topics_archive[topic]['format_string'] = format_string
-                topics_archive[topic]['fields'] = dict(fields)
-                topics_archive[topic]['data_last_published'] = {}
+                topics_archive[topic] = self._build_topic_config(topic_options, field_options, fields)
                 event_binding['archive'] = True
 
         self.logger.logdbg(self.name, f"Loop topics: {topics_loop}")
         self.logger.logdbg(self.name, f"Archive topics: {topics_archive}")
         return topics_loop, topics_archive, event_binding.keys()
+
+    @staticmethod
+    def _resolve_field_options(service_dict, topic_dict):
+        """ Resolve the field level options, applying the service level defaults. """
+        return {
+            # These are field level options that can have default options at the topic level
+            'ignore': to_bool(topic_dict.get('ignore', False)),
+            'publish_none_value': to_bool(topic_dict.get('publish_none_value', False)),
+            # These are field level options that have default options above the topic level
+            'append_unit_label': to_bool(topic_dict.get('append_unit_label', service_dict.get('append_unit_label', True))),
+            'conversion_type': topic_dict.get('conversion_type', service_dict.get('conversion_type', 'string')),
+            'round': to_int(topic_dict.get('round', service_dict.get('round', None))),
+            'format_string': topic_dict.get('format_string', service_dict.get('format_string', None)),
+        }
+
+    @staticmethod
+    def _resolve_topic_options(service_dict, topic_dict):
+        """ Resolve the topic level options, applying the service level defaults. """
+        minimum_interval = to_int(topic_dict.get('minimum_interval', service_dict.get('minimum_interval', 0)))
+        return {
+            'publish': to_bool(topic_dict.get('publish', True)),
+            'binding': weeutil.weeutil.option_as_list(topic_dict.get('binding', ['archive', 'loop'])),
+            'unit_system': weewx.units.unit_constants[topic_dict.get('unit_system',
+                                                                     service_dict.get('unit_system', 'US'))],
+            # These are topic level options that can have default options
+            'qos': to_int(topic_dict.get('qos', service_dict.get('qos', 0))),
+            'minimum_interval': minimum_interval * 60,
+            'suppression_threshold': to_float(
+                topic_dict.get('suppression_threshold', service_dict.get('suppression_threshold', 0))),
+            'retain': to_bool(topic_dict.get('retain', service_dict.get('retain', False))),
+            'type': topic_dict.get('type', service_dict.get('type', 'json')),
+        }
+
+    def _configure_topic_fields(self, field_options, fields_dict):
+        """ Configure the topic fields. """
+        if fields_dict is None:
+            return {}
+        return self.configure_fields(fields_dict, field_options)
+
+    @staticmethod
+    def _build_topic_config(topic_options, field_options, fields):
+        """ Build the topic configuration. """
+        return {
+            'qos': topic_options['qos'],
+            'minimum_interval': topic_options['minimum_interval'],
+            'suppression_threshold': topic_options['suppression_threshold'],
+            'retain': topic_options['retain'],
+            'type': topic_options['type'],
+            'unit_system': topic_options['unit_system'],
+            'ignore': field_options['ignore'],
+            'append_unit_label': field_options['append_unit_label'],
+            'conversion_type': field_options['conversion_type'],
+            'round': field_options['round'],
+            'format_string': field_options['format_string'],
+            'fields': dict(fields),
+            'data_last_published': {},
+        }
+
+    @staticmethod
+    def _apply_field_list_overrides(topic_dict, fields):
+        """ Apply the deprecated ignore_fields and publish_fields options. """
+        for ignore_field in to_list(topic_dict.get('ignore_fields', [])):
+            fields[ignore_field] = {
+                'ignore': True
+            }
+
+        for publish_field in to_list(topic_dict.get('publish_fields', [])):
+            fields[publish_field] = {
+                'ignore': False
+            }
+
+    def _configure_deprecated_aggregates(self, topic, aggregates):
+        """ Convert a deprecated '[aggregates]' stanza to the MQTTAggregateValues plugin configuration. """
+        if not aggregates:
+            return
+
+        # Temporarily build the MQTTAggregateValues plugin configuration
+        self.logger.logerr(self.name,
+                           ("'[aggregates]' is deprecated and has moved to a plugin. "
+                            "To configure see, https://weewx-mqtt.github.io/publish/plugins/aggregatevalues/"))
+        if 'MQTTAggregateValues' not in self.plugins:
+            self.plugins['MQTTAggregateValues'] = {}
+            self.plugins['MQTTAggregateValues']['module'] = 'user.mqttaggregatevalues'
+        if 'topics' not in self.plugins['MQTTAggregateValues']:
+            self.plugins['MQTTAggregateValues']['topics'] = {}
+        if topic not in self.plugins['MQTTAggregateValues']['topics']:
+            self.plugins['MQTTAggregateValues']['topics'][topic] = {}
+        for aggregate in aggregates:
+            self.plugins['MQTTAggregateValues']['topics'][topic][aggregate] = aggregates[aggregate]
 
     def thread_start(self):
         """Start the publishing thread."""
