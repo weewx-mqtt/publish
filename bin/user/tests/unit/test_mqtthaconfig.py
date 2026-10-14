@@ -486,5 +486,78 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
 
             mock_client.publish.assert_called_once_with(topic, payload, qos=0, retain=False)
 
+    def test_init_device_enable_true(self):
+        mock_logger_queue = mock.Mock()
+        name = helpers.random_string()
+        device_id = helpers.random_string()
+        topic = helpers.random_string()
+        topics = {
+            topic: {
+                'type': helpers.random_string(),
+            },
+        }
+        plugin_dict = {
+            'devices': {
+                device_id: {
+                    'enable': 'true',
+                    'topics': topics,
+                },
+            },
+        }
+        weewx_dict = {
+            'defaults': {}
+        }
+
+        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger_queue,
+                                                        None,
+                                                        name,
+                                                        configobj.ConfigObj(plugin_dict),
+                                                        {},
+                                                        topics,
+                                                        weewx_dict)
+
+        expected_result = {
+            device_id: {
+                topic: {
+                    'type': topics[topic]['type'],
+                },
+            },
+        }
+
+        self.assertDictEqual(SUT.state_topics, expected_result)
+        self.assertIn(device_id, SUT.configuration['devices'])
+
+    def test_init_device_enable_false(self):
+        mock_logger_queue = mock.Mock()
+        name = helpers.random_string()
+        device_id = helpers.random_string()
+        topics = {
+            helpers.random_string(): {
+                'type': helpers.random_string(),
+            },
+        }
+        plugin_dict = {
+            'devices': {
+                device_id: {
+                    'enable': 'false',
+                    'topics': topics,
+                },
+            },
+        }
+        weewx_dict = {
+            'defaults': {}
+        }
+
+        SUT = user.mqtthaconfig.MQTTHomeAssistantConfig(mock_logger_queue,
+                                                        None,
+                                                        name,
+                                                        configobj.ConfigObj(plugin_dict),
+                                                        {},
+                                                        topics,
+                                                        weewx_dict)
+
+        self.assertDictEqual(SUT.state_topics, {})
+        self.assertDictEqual(SUT.configuration['devices'], {})
+
 if __name__ == '__main__':
     helpers.run_tests()

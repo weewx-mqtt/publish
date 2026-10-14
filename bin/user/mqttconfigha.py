@@ -391,10 +391,10 @@ class MQTTConfigHA:
         self.configuration['devices'] = {}
 
         for device_id in plugin_dict['devices']:
-            if plugin_dict['devices'][device_id].get('enable', False):
+            if not to_bool(plugin_dict['devices'][device_id].get('enable', True)):
                 self.logger_queue.put({'name': self.name,
                                        'log_type': 'INFO',
-                                       'log_message': "Device, {device_id}, is not enabled - skipping."})
+                                       'log_message': f"Device, {device_id}, is not enabled - skipping."})
                 continue
             self.logger_queue.put({'name': self.name,
                                    'log_type': 'INFO',
