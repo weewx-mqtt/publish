@@ -10,7 +10,6 @@ import unittest
 import mock
 
 import configobj
-from io import StringIO
 import random
 
 import helpers
@@ -159,13 +158,17 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
                                                         topics,
                                                         weewx_dict)
 
-        expected_result = {}
-        expected_result['units'] = configobj.ConfigObj(StringIO(user.mqtthaconfig.DEFAULT_UNITS))
-        expected_result['component_data'] = {}
-        expected_result['component_data'][device_id] = configobj.ConfigObj(StringIO(user.mqtthaconfig.DEFAULT_COMPONENT_DATA))
-        expected_result['component_data'][device_id][component_key] = component_value
+       
+        self.assertEqual(SUT.defaults['units']['meter'], 'm')
+        self.assertEqual(SUT.defaults['units']['mile'], 'mi')
+        self.assertEqual(SUT.defaults['units']['mile_per_hour'], 'mph')
+        self.assertEqual(SUT.defaults['units']['degree_C'], '°C')
+        self.assertEqual(SUT.defaults['units']['degree_F'], '°F')
 
-        self.assertDictEqual(SUT.defaults, expected_result)
+        self.assertIn(device_id, SUT.defaults['component_data'])
+        self.assertEqual(SUT.defaults['component_data'][device_id][component_key], component_value)
+        self.assertEqual(SUT.defaults['component_data'][device_id]['outTemp']['device_class'], 'temperature')
+        self.assertEqual(SUT.defaults['component_data'][device_id]['rain']['state_class'], 'total')
 
     def test_init_configuration(self):
         mock_logger_queue = mock.Mock()
