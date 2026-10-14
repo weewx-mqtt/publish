@@ -588,57 +588,13 @@ class MQTTPublish(StdService):
         data_binding = service_dict.get('data_binding', 'wx_binding')
         self.manager_dict = weewx.manager.get_manager_dict_from_config(config_dict, data_binding)
 
-        self.weewx_dict = {}
-        # ToDo: Fix this hack to get more information to certain plugins
-        self.weewx_dict['engine'] = engine
-        self.weewx_dict['config_dict'] = config_dict
-        self.weewx_dict['stn_info'] = engine.stn_info
-        self.weewx_dict['manager_dict'] = self.manager_dict
-        self.weewx_dict['defaults'] = weeutil.config.deep_copy(weewx.defaults.defaults)
-        self.weewx_dict['defaults'].interpolation = False
-        if 'Defaults' in config_dict.get('StdReport', {}):
-            weeutil.config.merge_config(self.weewx_dict['defaults'], config_dict['StdReport']['Defaults'])
+        self.weewx_dict = self._configure_weewx_dict(engine, config_dict)
 
         self.topics_loop, self.topics_archive, binding = self.configure_topics(service_dict)
         self.logger.logdbg(self.name, f"archive topic configuration is: {self.topics_archive}")
         self.logger.logdbg(self.name, f"loop topic configuration is: {self.topics_loop}")
 
-        self.mqtt_config = {}
-        self.mqtt_config['keepalive'] = to_int(service_dict.get('keepalive', 60))
-        self.mqtt_config['wait_for_queue_element'] = to_int(service_dict.get('wait_for_queue_element', 5))
-        self.mqtt_config['max_retries'] = to_int(service_dict.get('max_retries', 5))
-        self.mqtt_config['wait_for_connection'] = to_int(service_dict.get('wait_for_connection', 1))
-
-        self.mqtt_config['wait_between_retries'] = to_int(service_dict.get('wait_between_retries', 5))
-        self.mqtt_config['log_mqtt'] = to_bool(service_dict.get('log_mqtt', False))
-        self.mqtt_config['host'] = service_dict.get('host', 'localhost')
-        self.mqtt_config['port'] = to_int(service_dict.get('port', 1883))
-        self.mqtt_config['username'] = service_dict.get('username', None)
-        self.mqtt_config['password'] = service_dict.get('password', None)
-        self.mqtt_config['clientid'] = service_dict.get('clientid', 'MQTTPublish-' +
-                                                        str(random.randint(1000, 9999)))  # NOSONAR - just need a unique id
-
-        protocol_string = service_dict.get('protocol', 'MQTTv311')
-        self.mqtt_config['protocol'] = getattr(mqtt, protocol_string, 0)
-
-        self.mqtt_config['tls'] = service_dict.get('tls')
-        self.mqtt_config['lwt'] = service_dict.get('lwt')
-        if self.mqtt_config['lwt'] is not None:
-            self.logger.logerr(self.name, "'[[lwt]]' is deprecated.  use [[availability_topic]].")
-        else:
-            self.mqtt_config['lwt'] = service_dict.get('availability_topic', {})
-
-        sanitized_mqtt_config = {k: self.mqtt_config[k] for k in set(self.mqtt_config.keys()) - set(exclude_keys)}
-        self.logger.logdbg(self.name, f"sanitized mqtt_config removed {exclude_keys}")
-        self.logger.logdbg(self.name, f"sanitized_mqtt_config is {sanitized_mqtt_config}")
-
-        self.monitor_config = {
-            'monitor_queue': service_dict.get('monitor_queue'),
-            'monitor_record_update': service_dict.get('monitor_record_update'),
-            'monitor_on_weewx_data': service_dict.get('monitor_on_weewx_data'),
-            'monitor_on_message': service_dict.get('monitor_on_message'),
-            'monitor_on_connect': service_dict.get('monitor_on_connect'),
-        }
+        self.mqtt_config, self.monitor_config = self._configure_mqtt(service_dict)
 
         self.max_thread_restarts = to_int(service_dict.get('max_thread_restarts', 2))
         self.thread_restarts = 0
@@ -699,6 +655,61 @@ class MQTTPublish(StdService):
             else:
                 configured_plugins[plugin] = config_dict[plugin]
         return configured_plugins
+
+    def _configure_weewx_dict(self, engine, config_dict):
+        """ Configure the weewx dictionary that is handed to the plugins. """
+        weewx_dict = {}
+        # ToDo: Fix this hack to get more information to certain plugins
+        weewx_dict['engine'] = engine
+        weewx_dict['config_dict'] = config_dict
+        weewx_dict['stn_info'] = engine.stn_info
+        weewx_dict['manager_dict'] = self.manager_dict
+        weewx_dict['defaults'] = weeutil.config.deep_copy(weewx.defaults.defaults)
+        weewx_dict['defaults'].interpolation = False
+        if 'Defaults' in config_dict.get('StdReport', {}):
+            weeutil.config.merge_config(weewx_dict['defaults'], config_dict['StdReport']['Defaults'])
+        return weewx_dict
+
+    def _configure_mqtt(self, service_dict):
+        """ Configure the mqtt connection and monitoring options. """
+        mqtt_config = {}
+        mqtt_config['keepalive'] = to_int(service_dict.get('keepalive', 60))
+        mqtt_config['wait_for_queue_element'] = to_int(service_dict.get('wait_for_queue_element', 5))
+        mqtt_config['max_retries'] = to_int(service_dict.get('max_retries', 5))
+        mqtt_config['wait_for_connection'] = to_int(service_dict.get('wait_for_connection', 1))
+
+        mqtt_config['wait_between_retries'] = to_int(service_dict.get('wait_between_retries', 5))
+        mqtt_config['log_mqtt'] = to_bool(service_dict.get('log_mqtt', False))
+        mqtt_config['host'] = service_dict.get('host', 'localhost')
+        mqtt_config['port'] = to_int(service_dict.get('port', 1883))
+        mqtt_config['username'] = service_dict.get('username', None)
+        mqtt_config['password'] = service_dict.get('password', None)
+        mqtt_config['clientid'] = service_dict.get('clientid', 'MQTTPublish-' +
+                                                          str(random.randint(1000, 9999)))  # NOSONAR - just need a unique id
+
+        protocol_string = service_dict.get('protocol', 'MQTTv311')
+        mqtt_config['protocol'] = getattr(mqtt, protocol_string, 0)
+
+        mqtt_config['tls'] = service_dict.get('tls')
+        mqtt_config['lwt'] = service_dict.get('lwt')
+        if mqtt_config['lwt'] is not None:
+            self.logger.logerr(self.name, "'[[lwt]]' is deprecated.  use [[availability_topic]].")
+        else:
+            mqtt_config['lwt'] = service_dict.get('availability_topic', {})
+
+        exclude_keys = ['password']
+        sanitized_mqtt_config = {k: mqtt_config[k] for k in set(mqtt_config.keys()) - set(exclude_keys)}
+        self.logger.logdbg(self.name, f"sanitized mqtt_config removed {exclude_keys}")
+        self.logger.logdbg(self.name, f"sanitized_mqtt_config is {sanitized_mqtt_config}")
+
+        monitor_config = {
+            'monitor_queue': service_dict.get('monitor_queue'),
+            'monitor_record_update': service_dict.get('monitor_record_update'),
+            'monitor_on_weewx_data': service_dict.get('monitor_on_weewx_data'),
+            'monitor_on_message': service_dict.get('monitor_on_message'),
+            'monitor_on_connect': service_dict.get('monitor_on_connect'),
+        }
+        return mqtt_config, monitor_config
 
     def configure_fields(self, fields_dict, field_defaults):
         """ Configure the fields. """
