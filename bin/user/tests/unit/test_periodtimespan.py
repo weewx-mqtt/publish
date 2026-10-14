@@ -380,5 +380,18 @@ class TestGetTimeSpan(unittest.TestCase):
             day_start_timestamp = 1771304400.0
             mock_TimeSpan.assert_called_once_with(day_start_timestamp, now)
 
+    def test_get_timespan_archive_interval(self):
+        self.setup_timezone()
+
+        week_start = random.randint(0, 6)
+        timespan_provider = user.mqttaggregatevalues.TimeSpanProvider(None, week_start)
+
+        now = 1771939800
+        offset = random.randint(0, 23)
+
+        timespan = timespan_provider.get_timespan('archive_interval', now, offset)
+
+        self.assertIsNone(timespan)
+
 if __name__ == '__main__':
     helpers.run_tests()

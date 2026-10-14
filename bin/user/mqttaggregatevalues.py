@@ -80,7 +80,7 @@ class TimeSpanProvider:
         ''' Get a the calculation_interval for an interval. '''
         return self.period_timespans[interval]['calculation_interval']
 
-    def archive_interval(self, _timestamp):
+    def archive_interval(self, _timestamp, _offset):
         ''' Handle 'aggregating' over an archive interval. '''
         return None
 
