@@ -1170,9 +1170,6 @@ class QueueProcessor(multiprocessing.Process):
                 'interval_end': interval_end,
             }
 
-        if new_interval and (name not in updates):
-            updates[name] = last_published.get('value')
-
         return new_interval, updates
 
     @staticmethod
