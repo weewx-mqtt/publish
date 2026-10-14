@@ -357,11 +357,56 @@ class AbstractPublisher(abc.ABC):
             So, in V1 the additional parameters are made as 'optional'."""
         raise NotImplementedError("Method 'on_disconnect' is not implemented")
 
-    def on_publish(self, client, userdata, mid, reason_codes, properties):
+    def on_publish(self, _client, _userdata, mid, _reason_codes=None, _properties=None):
         """ The on_publish callback.
             The signature differs between V1 and V2 of paho.mqtt, with more added in V2.
             So, in V1 the additional parameters are made as 'optional'."""
-        raise NotImplementedError("Method 'on_publish' is not implemented")
+        time_stamp = "          "
+        qos = ""
+        self.logger_queue.put({'name': self.name,
+                               'log_type': 'DEBUG',
+                               'log_message': f"At {int(time.time())} published: {time_stamp} {mid} {qos}"})
+
+    def _publish_lwt_online(self):
+        """ Publish the LWT 'online' message, when lwt is configured. """
+        if self.lwt_dict is not None and to_bool(self.lwt_dict.get('enable', True)):
+            self.client.publish(topic=self.lwt_dict.get('topic', 'status'),
+                                payload=self.lwt_dict.get('online_payload', 'online'),
+                                qos=to_int(self.lwt_dict.get('qos', 0)),
+                                retain=to_bool(self.lwt_dict.get('retain', True)))
+
+    def _run_connect_callbacks(self, client, userdata, flags, reason_code, properties, timing):
+        """ Run the on_mqtt_connect plugin callbacks for one timing group. """
+        run_time = 0
+        for plugin_name in self.plugin_manager.callbacks['on_mqtt_connect'][timing]:
+            start_time = time.time()
+            self.plugin_manager.callbacks['on_mqtt_connect'][timing][plugin_name](client,
+                                                                                   userdata,
+                                                                                   flags,
+                                                                                   reason_code,
+                                                                                   properties)
+            delta_time = time.time() - start_time
+            run_time += delta_time
+            self.logger_queue.put({'name': self.name,
+                                   'log_type': self.monitor_on_connect,
+                                   'log_message': (f"monitor: {delta_time:<12.10f} on_connect ({timing}) {plugin_name}")})
+        self.logger_queue.put({'name': self.name,
+                               'log_type': self.monitor_on_connect,
+                               'log_message': (f"monitor: {run_time:<12.10f} on_connect ({timing})")})
+
+    def _handle_connect_success(self, client, userdata, flags, reason_code, properties):
+        """ The connection succeeded. Run the common processing. """
+        self.logger_queue.put({'name': self.name,
+                               'log_type': 'INFO',
+                               'log_message': f"Connected flags {str(flags)}"})
+
+        self._run_connect_callbacks(client, userdata, flags, reason_code, properties, 'immediate')
+
+        self._publish_lwt_online()
+
+        self._run_connect_callbacks(client, userdata, flags, reason_code, properties, 'delay')
+
+        self.connected = True
 
     def on_message(self, client, userdata, msg):
         """ The on_message callback. """
@@ -447,36 +492,8 @@ class PublisherV1(AbstractPublisher):
         self.logger_queue.put({'name': self.name,
                                'log_type': 'INFO',
                                'log_message': f"Connected with result code {int(reason_code)}, {mqtt.error_string(reason_code)}"})
-        self.logger_queue.put({'name': self.name,
-                               'log_type': 'INFO',
-                               'log_message': f"Connected flags {str(flags)}"})
 
-        for plugin_name in self.plugin_manager.callbacks['on_mqtt_connect']['immediate']:
-            start_time = time.time()
-            self.plugin_manager.callbacks['on_mqtt_connect']['immediate'][plugin_name](client,
-                                                                                       userdata,
-                                                                                       flags,
-                                                                                       reason_code,
-                                                                                       properties)
-            self.logger_queue.put({'name': self.name,
-                                   'log_type': self.monitor_on_connect,
-                                   'log_message': (f"monitor: {(time.time() - start_time):<12.10f} "
-                                                   f"on_connect (immediate) {plugin_name}")})
-
-        if self.lwt_dict is not None and to_bool(self.lwt_dict.get('enable', True)):
-            self.client.publish(topic=self.lwt_dict.get('topic', 'status'),
-                                payload=self.lwt_dict.get('online_payload', 'online'),
-                                qos=to_int(self.lwt_dict.get('qos', 0)),
-                                retain=to_bool(self.lwt_dict.get('retain', True)))
-
-        for plugin_name in self.plugin_manager.callbacks['on_mqtt_connect']['delay']:
-            start_time = time.time()
-            self.plugin_manager.callbacks['on_mqtt_connect']['delay'][plugin_name](client, userdata, flags, reason_code, properties)
-            self.logger_queue.put({'name': self.name,
-                                   'log_type': self.monitor_on_connect,
-                                   'log_message': (f"monitor: {(time.time() - start_time):<12.10f} on_connect (delay) "
-                                                   f"{plugin_name}")})
-        self.connected = True
+        self._handle_connect_success(client, userdata, flags, reason_code, properties)
 
     def on_disconnect(self, _client, _userdata, flags_rc, reason_code=None, properties=None):
         # https://pypi.org/project/paho-mqtt/#on-disconnect
@@ -498,13 +515,6 @@ class PublisherV1(AbstractPublisher):
         # Because that would cause the on_connect callback to be called. Instead we will just mark as not connected.
         # And check the flag before attempting to publish.
         self.connected = False
-
-    def on_publish(self, _client, _userdata, mid, reason_codes=None, properties=None):
-        time_stamp = "          "
-        qos = ""
-        self.logger_queue.put({'name': self.name,
-                               'log_type': 'DEBUG',
-                               'log_message': f"At {int(time.time())} published: {time_stamp} {mid} {qos}"})
 
 class PublisherV2(AbstractPublisher):
     ''' MQTTPublish that communicates with paho mqtt v2. '''
@@ -541,46 +551,8 @@ class PublisherV2(AbstractPublisher):
         self.logger_queue.put({'name': self.name,
                                'log_type': 'INFO',
                                'log_message': f"Connected with result code {int(int(reason_code.value))}"})
-        self.logger_queue.put({'name': self.name,
-                               'log_type': 'INFO',
-                               'log_message': f"Connected flags {str(flags)}"})
 
-        run_time = 0
-        for plugin_name in self.plugin_manager.callbacks['on_mqtt_connect']['immediate']:
-            start_time = time.time()
-            self.plugin_manager.callbacks['on_mqtt_connect']['immediate'][plugin_name](client,
-                                                                                       userdata,
-                                                                                       flags,
-                                                                                       reason_code,
-                                                                                       properties)
-            delta_time = time.time() - start_time
-            run_time += delta_time
-            self.logger_queue.put({'name': self.name,
-                                   'log_type': self.monitor_on_connect,
-                                   'log_message': (f"monitor: {delta_time:<12.10f} on_connect (immediate) {plugin_name}")})
-        self.logger_queue.put({'name': self.name,
-                               'log_type': self.monitor_on_connect,
-                               'log_message': (f"monitor: {run_time:<12.10f} on_connect (immediate)")})
-
-        if self.lwt_dict is not None and to_bool(self.lwt_dict.get('enable', True)):
-            self.client.publish(topic=self.lwt_dict.get('topic', 'status'),
-                                payload=self.lwt_dict.get('online_payload', 'online'),
-                                qos=to_int(self.lwt_dict.get('qos', 0)),
-                                retain=to_bool(self.lwt_dict.get('retain', True)))
-
-        run_time = 0
-        for plugin_name in self.plugin_manager.callbacks['on_mqtt_connect']['delay']:
-            start_time = time.time()
-            self.plugin_manager.callbacks['on_mqtt_connect']['delay'][plugin_name](client, userdata, flags, reason_code, properties)
-            delta_time = time.time() - start_time
-            run_time += delta_time
-            self.logger_queue.put({'name': self.name,
-                                   'log_type': self.monitor_on_connect,
-                                   'log_message': (f"monitor: {delta_time:<12.10f} on_connect (delay) {plugin_name}")})
-        self.logger_queue.put({'name': self.name,
-                               'log_type': self.monitor_on_connect,
-                               'log_message': (f"monitor: {run_time:<12.10f} on_connect (delay)")})
-        self.connected = True
+        self._handle_connect_success(client, userdata, flags, reason_code, properties)
 
     def on_disconnect(self, _client, _userdata, _flags, reason_code, _properties):
         # https://pypi.org/project/paho-mqtt/#on-disconnect
@@ -602,13 +574,6 @@ class PublisherV2(AbstractPublisher):
         # Because that would cause the on_connect callback to be called. Instead we will just mark as not connected.
         # And check the flag before attempting to publish.
         self.connected = False
-
-    def on_publish(self, _client, _userdata, mid, _reason_codes, _properties):
-        time_stamp = "          "
-        qos = ""
-        self.logger_queue.put({'name': self.name,
-                               'log_type': 'DEBUG',
-                               'log_message': f"At {int(time.time())} published: {time_stamp} {mid} {qos}"})
 
 class PublisherV2MQTT3(PublisherV2):
     ''' MQTTPublish that communicates with paho mqtt v2. '''
