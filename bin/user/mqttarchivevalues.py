@@ -62,7 +62,6 @@ class MQTTArchiveValues:
         """ Run code when MQTT record is updated. """
         if data['type'] == 'archive':
             self.archive_data = data['data']
-            print(self.archive_data)
 
     def update_record(self, _mqtt_client, topic, data, units, _qos, _retain):
         """ Run code when MQTT record is updated. """
