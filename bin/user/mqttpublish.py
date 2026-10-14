@@ -259,38 +259,25 @@ class AbstractPublisher(abc.ABC):
             'required': ssl.CERT_REQUIRED
         }
 
-        # Some versions are dependent on the OpenSSL install
-        valid_tls_versions = {}
-        try:
-            valid_tls_versions['tls'] = ssl.PROTOCOL_TLS
-        except AttributeError:
-            pass
+        # Some versions of these constants are dependent on the OpenSSL install,
+        # so only add the ones that are available.
         # The legacy protocols below are only used when a user explicitly configures
         # 'tls_version' for an old broker. The default is 'tlsv12'.
-        try:
-            valid_tls_versions['tlsv1'] = ssl.PROTOCOL_TLSv1  # NOSONAR - legacy compatibility only
-        except AttributeError:
-            pass
-        try:
-            valid_tls_versions['tlsv11'] = ssl.PROTOCOL_TLSv1_1  # NOSONAR - legacy compatibility only
-        except AttributeError:
-            pass
-        try:
-            valid_tls_versions['tlsv12'] = ssl.PROTOCOL_TLSv1_2
-        except AttributeError:
-            pass
-        try:
-            valid_tls_versions['sslv2'] = ssl.PROTOCOL_SSLv2  # NOSONAR - legacy compatibility only
-        except AttributeError:
-            pass
-        try:
-            valid_tls_versions['sslv23'] = ssl.PROTOCOL_SSLv23  # NOSONAR - legacy compatibility only
-        except AttributeError:
-            pass
-        try:
-            valid_tls_versions['sslv3'] = ssl.PROTOCOL_SSLv3  # NOSONAR - legacy compatibility only
-        except AttributeError:
-            pass
+        ssl_protocols = (
+            ('tls', 'PROTOCOL_TLS'),
+            ('tlsv1', 'PROTOCOL_TLSv1'),
+            ('tlsv11', 'PROTOCOL_TLSv1_1'),
+            ('tlsv12', 'PROTOCOL_TLSv1_2'),
+            ('sslv2', 'PROTOCOL_SSLv2'),
+            ('sslv23', 'PROTOCOL_SSLv23'),
+            ('sslv3', 'PROTOCOL_SSLv3'),
+        )
+        valid_tls_versions = {}
+        for key, constant in ssl_protocols:
+            try:
+                valid_tls_versions[key] = getattr(ssl, constant)  # NOSONAR - legacy compatibility only
+            except AttributeError:
+                pass
 
         ca_certs = tls_dict.get('ca_certs')
         if ca_certs == '':
