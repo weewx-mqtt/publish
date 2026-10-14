@@ -323,13 +323,13 @@ class AbstractPublisher(abc.ABC):
         """ The on_log callback. """
         raise NotImplementedError("Method 'on_log' is not implemented")
 
-    def on_connect(self, client, userdata, flags, reason_code, properties):
+    def on_connect(self, client, userdata, flags, reason_code, properties):  # pylint: disable=too-many-arguments
         """ The on_connect callback.
             The signature differs between V1 and V2 of paho.mqtt, with more added in V2.
             So, in V1 the additional parameters are made as 'optional'."""
         raise NotImplementedError("Method 'on_connect' is not implemented")
 
-    def on_disconnect(self, client, userdata, flags_rc, reason_code, properties):
+    def on_disconnect(self, client, userdata, flags_rc, reason_code, properties):  # pylint: disable=too-many-arguments
         """ The on_disconnect callback.
             The signature differs between V1 and V2 of paho.mqtt, with more added in V2.
             So, in V1 the additional parameters are made as 'optional'."""
@@ -459,7 +459,7 @@ class PublisherV1(AbstractPublisher):
                                'log_type': self.mqtt_logger.get(level, None),
                                'log_message': f"MQTT log: {msg}"})
 
-    def on_connect(self, client, userdata, flags, reason_code, properties=None):
+    def on_connect(self, client, userdata, flags, reason_code, properties=None):  # pylint: disable=too-many-arguments
         # https://pypi.org/project/paho-mqtt/#on-connect
         # reason_code:
         # 0: Connection successful
@@ -514,7 +514,7 @@ class PublisherV2(AbstractPublisher):
                                'log_type': self.mqtt_logger.get(level, None),
                                'log_message': f"MQTT log: {msg}"})
 
-    def on_connect(self, client, userdata, flags, reason_code, properties):
+    def on_connect(self, client, userdata, flags, reason_code, properties):  # pylint: disable=too-many-arguments
         if reason_code.is_failure:
             self.logger_queue.put({'name': self.name,
                                    'log_type': 'ERROR',
