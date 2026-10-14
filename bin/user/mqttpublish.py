@@ -381,10 +381,10 @@ class AbstractPublisher(abc.ABC):
         for plugin_name in self.plugin_manager.callbacks['on_mqtt_connect'][timing]:
             start_time = time.time()
             self.plugin_manager.callbacks['on_mqtt_connect'][timing][plugin_name](client,
-                                                                                   userdata,
-                                                                                   flags,
-                                                                                   reason_code,
-                                                                                   properties)
+                                                                                  userdata,
+                                                                                  flags,
+                                                                                  reason_code,
+                                                                                  properties)
             delta_time = time.time() - start_time
             run_time += delta_time
             self.logger_queue.put({'name': self.name,
