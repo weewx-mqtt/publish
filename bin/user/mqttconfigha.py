@@ -192,7 +192,7 @@ DEFAULT_COMPONENT_DATA = """
         [nh3]
             state_class = measurement
         [no2]
-            device_class =  nitogen_dioxide
+            device_class =  nitrogen_dioxide
             state_class = measurement
         [noise]
             device_class =  sound_pressure
@@ -311,7 +311,8 @@ DEFAULT_COMPONENT_DATA = """
 DEFAULT_UNITS = """
         cm = cm
         cm_per_hour = cm/h
-        cm_per_hour2 = cm/h
+        # ToDo: Investigate: cm_per_hour2 is not a valid weewx unit.
+        # cm_per_hour2 = cm/h
         degree_C = °C
         degree_F = °F
         degree_K = K
@@ -344,9 +345,11 @@ DEFAULT_UNITS = """
         mm = mm
         mmHg = mmHg
         mm_per_hour = mm/h
-        mm_per_hour2 = mm/h
+        # ToDo: Investigate: mm_per_hour2 is not a valid weewx unit. 
+        # mm_per_hour2 = mm/h
         percent = %
-        percent_battery = %
+        # ToDo: Investigate: percent_battery is not a valid weewx unit.
+        # percent_battery = %
         ppm = ppm
         second = s
         volt = V

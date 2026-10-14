@@ -18,6 +18,8 @@ import mqttstubs
 
 import user.mqtthaconfig
 
+import weewx.units
+
 class test_MQTTHomeAssistantConfig(unittest.TestCase):
     def test_init(self):
         mock_logger_queue = mock.Mock()
@@ -166,6 +168,18 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
         expected_result['component_data'][device_id][component_key] = component_value
 
         self.assertDictEqual(SUT.defaults, expected_result)
+
+    def test_default_units_are_valid_weewx_units(self):
+        weewx_units = set(weewx.units.USUnits.values())
+        weewx_units.update(weewx.units.MetricUnits.values())
+        weewx_units.update(weewx.units.MetricWXUnits.values())
+        weewx_units.update(weewx.units.conversionDict)
+        for conversions in weewx.units.conversionDict.values():
+            weewx_units.update(conversions)
+
+        units = configobj.ConfigObj(StringIO(user.mqtthaconfig.DEFAULT_UNITS))
+        for unit in units.keys():
+            self.assertIn(unit, weewx_units, f"{unit} is not a valid weewx unit")
 
     def test_init_configuration(self):
         mock_logger_queue = mock.Mock()
