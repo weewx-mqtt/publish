@@ -73,7 +73,7 @@ class Logger:
 
 class PluginManager():
     """ Manage the plugin callbacks. """
-    def __init__(self, logger, monitor_config, mqtt_dict, topics, weewx_dict):
+    def __init__(self, logger, monitor_config, mqtt_dict, topics, weewx_dict):  # pylint: disable=too-many-arguments
         self.logger = logger
         self.monitor_config = monitor_config
         self.mqtt_dict = mqtt_dict
@@ -114,7 +114,7 @@ class PluginManager():
 
 class AbstractPublisher(abc.ABC):
     """ Managing publishing to MQTT. """
-    def __init__(self, logger_queue, plugin_manager, publisher, mqtt_config, monitor_config):
+    def __init__(self, logger_queue, plugin_manager, publisher, mqtt_config, monitor_config):  # pylint: disable=too-many-arguments
         self.logger_queue = logger_queue
         self.plugin_manager = plugin_manager
         self.connected = False
@@ -157,7 +157,7 @@ class AbstractPublisher(abc.ABC):
         self._connect()
 
     @classmethod
-    def get_publisher(cls, logger, plugin_manager, publisher, mqtt_config, monitor_config):
+    def get_publisher(cls, logger, plugin_manager, publisher, mqtt_config, monitor_config):  # pylint: disable=R0913
         ''' Factory method to get appropriate MQTTPublish for paho mqtt version. '''
         if hasattr(mqtt, 'CallbackAPIVersion'):
             protocol = mqtt_config['protocol']
@@ -288,7 +288,7 @@ class AbstractPublisher(abc.ABC):
                             tls_version=tls_version,
                             ciphers=ciphers)
 
-    def publish_message(self, time_stamp, qos, retain, topic, data):
+    def publish_message(self, time_stamp, qos, retain, topic, data):  # pylint: disable=too-many-arguments
         """ Publish the message. """
         if not self.connected:
             self._reconnect()
@@ -430,7 +430,7 @@ class AbstractPublisher(abc.ABC):
 
 class PublisherV1(AbstractPublisher):
     ''' MQTTPublish that communicates with paho mqtt v1.'''
-    def __init__(self, logger_queue, plugin_manager, publisher, mqtt_config, monitor_config):
+    def __init__(self, logger_queue, plugin_manager, publisher, mqtt_config, monitor_config):  # pylint: disable=too-many-arguments
         protocol = mqtt_config['protocol']
         if protocol not in [mqtt.MQTTv31, mqtt.MQTTv311]:
             raise ValueError(f"Invalid protocol, {protocol}.")
