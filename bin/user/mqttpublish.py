@@ -266,12 +266,14 @@ class AbstractPublisher(abc.ABC):
             valid_tls_versions['tls'] = ssl.PROTOCOL_TLS
         except AttributeError:
             pass
+        # The legacy protocols below are only used when a user explicitly configures
+        # 'tls_version' for an old broker. The default is 'tlsv12'.
         try:
-            valid_tls_versions['tlsv1'] = ssl.PROTOCOL_TLSv1
+            valid_tls_versions['tlsv1'] = ssl.PROTOCOL_TLSv1  # NOSONAR - legacy compatibility only
         except AttributeError:
             pass
         try:
-            valid_tls_versions['tlsv11'] = ssl.PROTOCOL_TLSv1_1
+            valid_tls_versions['tlsv11'] = ssl.PROTOCOL_TLSv1_1  # NOSONAR - legacy compatibility only
         except AttributeError:
             pass
         try:
@@ -279,15 +281,15 @@ class AbstractPublisher(abc.ABC):
         except AttributeError:
             pass
         try:
-            valid_tls_versions['sslv2'] = ssl.PROTOCOL_SSLv2
+            valid_tls_versions['sslv2'] = ssl.PROTOCOL_SSLv2  # NOSONAR - legacy compatibility only
         except AttributeError:
             pass
         try:
-            valid_tls_versions['sslv23'] = ssl.PROTOCOL_SSLv23
+            valid_tls_versions['sslv23'] = ssl.PROTOCOL_SSLv23  # NOSONAR - legacy compatibility only
         except AttributeError:
             pass
         try:
-            valid_tls_versions['sslv3'] = ssl.PROTOCOL_SSLv3
+            valid_tls_versions['sslv3'] = ssl.PROTOCOL_SSLv3  # NOSONAR - legacy compatibility only
         except AttributeError:
             pass
 
@@ -669,7 +671,7 @@ class MQTTPublish(StdService):
                     self.plugins[plugin] = config_dict[plugin]
 
         exclude_keys = ['password']
-        sanitized_service_dict = {k: service_dict[k] for k in set(list(service_dict.keys())) - set(exclude_keys)}
+        sanitized_service_dict = {k: service_dict[k] for k in set(service_dict.keys()) - set(exclude_keys)}
         self.logger.logdbg(self.name, f"sanitized configuration removed {exclude_keys}")
         self.logger.logdbg(self.name, f"sanitized_service_dict is {sanitized_service_dict}")
 
@@ -725,7 +727,7 @@ class MQTTPublish(StdService):
         else:
             self.mqtt_config['lwt'] = service_dict.get('availability_topic', {})
 
-        sanitized_mqtt_config = {k: self.mqtt_config[k] for k in set(list(self.mqtt_config.keys())) - set(exclude_keys)}
+        sanitized_mqtt_config = {k: self.mqtt_config[k] for k in set(self.mqtt_config.keys()) - set(exclude_keys)}
         self.logger.logdbg(self.name, f"sanitized mqtt_config removed {exclude_keys}")
         self.logger.logdbg(self.name, f"sanitized_mqtt_config is {sanitized_mqtt_config}")
 
