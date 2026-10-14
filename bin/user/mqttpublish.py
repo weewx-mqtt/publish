@@ -353,16 +353,12 @@ class AbstractPublisher(abc.ABC):
                                 qos=to_int(self.lwt_dict.get('qos', 0)),
                                 retain=to_bool(self.lwt_dict.get('retain', True)))
 
-    def _run_connect_callbacks(self, client, userdata, flags, reason_code, properties, timing):
+    def _run_connect_callbacks(self, callback_args, timing):
         """ Run the on_mqtt_connect plugin callbacks for one timing group. """
         run_time = 0
         for plugin_name in self.plugin_manager.callbacks['on_mqtt_connect'][timing]:
             start_time = time.time()
-            self.plugin_manager.callbacks['on_mqtt_connect'][timing][plugin_name](client,
-                                                                                  userdata,
-                                                                                  flags,
-                                                                                  reason_code,
-                                                                                  properties)
+            self.plugin_manager.callbacks['on_mqtt_connect'][timing][plugin_name](*callback_args)
             delta_time = time.time() - start_time
             run_time += delta_time
             self.logger_queue.put({'name': self.name,
@@ -372,17 +368,19 @@ class AbstractPublisher(abc.ABC):
                                'log_type': self.monitor_on_connect,
                                'log_message': (f"monitor: {run_time:<12.10f} on_connect ({timing})")})
 
-    def _handle_connect_success(self, client, userdata, flags, reason_code, properties):
-        """ The connection succeeded. Run the common processing. """
+    def _handle_connect_success(self, callback_args):
+        """ The connection succeeded. Run the common processing.
+            callback_args is the paho callback tuple: (client, userdata, flags, reason_code, properties). """
+        flags = callback_args[2]
         self.logger_queue.put({'name': self.name,
                                'log_type': 'INFO',
                                'log_message': f"Connected flags {str(flags)}"})
 
-        self._run_connect_callbacks(client, userdata, flags, reason_code, properties, 'immediate')
+        self._run_connect_callbacks(callback_args, 'immediate')
 
         self._publish_lwt_online()
 
-        self._run_connect_callbacks(client, userdata, flags, reason_code, properties, 'delay')
+        self._run_connect_callbacks(callback_args, 'delay')
 
         self.connected = True
 
@@ -482,7 +480,7 @@ class PublisherV1(AbstractPublisher):
                                'log_type': 'INFO',
                                'log_message': f"Connected with result code {int(reason_code)}, {mqtt.error_string(reason_code)}"})
 
-        self._handle_connect_success(client, userdata, flags, reason_code, properties)
+        self._handle_connect_success((client, userdata, flags, reason_code, properties))
 
     def on_disconnect(self, _client, _userdata, flags_rc, reason_code=None, properties=None):
         # https://pypi.org/project/paho-mqtt/#on-disconnect
@@ -528,7 +526,7 @@ class PublisherV2(AbstractPublisher):
                                'log_type': 'INFO',
                                'log_message': f"Connected with result code {int(int(reason_code.value))}"})
 
-        self._handle_connect_success(client, userdata, flags, reason_code, properties)
+        self._handle_connect_success((client, userdata, flags, reason_code, properties))
 
     def on_disconnect(self, _client, _userdata, _flags, reason_code, _properties):
         # https://pypi.org/project/paho-mqtt/#on-disconnect
