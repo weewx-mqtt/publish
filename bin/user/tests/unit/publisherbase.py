@@ -351,6 +351,11 @@ class PublisherBase(unittest.TestCase):
                     self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
 
                     self.assertEqual(mock_connect.call_count, config_dict['max_retries'] + 1)
+                    # Exhausting the retries must mark the publisher thread for shutdown, not raise.
+                    self.assertFalse(mock_publisher.process)
+                    log_messages = [call[0][0]['log_message'] for call in mock_logger_queue.put.call_args_list]
+                    self.assertIn(f"Connecting to host: {config_dict['host']} port: {config_dict['port']}.", log_messages)
+                    self.assertIn(f"Waiting {config_dict['wait_between_retries']} seconds to connect.", log_messages)
 
     def test_connect_first_call_exception(self):
         mock_logger_queue = mock.Mock()
@@ -903,11 +908,16 @@ class PublisherBase(unittest.TestCase):
                                            side_effect=mqttstubs.ClientStub.reconnect_without_connection,
                                            autospec=True) as mock_reconnect:
 
+                        SUT = self.class_under_test(mock_logger_queue, mock_plugin_manager, mock_publisher, config, monitor_dict)
+
                         with self.assertRaises(user.mqttpublish.CannotConnectError):
-                            SUT = self.class_under_test(mock_logger_queue, mock_plugin_manager, mock_publisher, config, monitor_dict)
                             SUT._reconnect()
 
-                            self.assertEqual(mock_reconnect.call_count, config_dict['max_retries'] + 1)
+                        # Exhausting the retries must raise, so the caller can handle it.
+                        self.assertEqual(mock_reconnect.call_count, config_dict['max_retries'] + 1)
+                        log_messages = [call[0][0]['log_message'] for call in mock_logger_queue.put.call_args_list]
+                        self.assertIn(f"Attempting to reconnect to host: {config_dict['host']} port: {config_dict['port']}.", log_messages)
+                        self.assertIn(f"Waiting {config_dict['wait_between_retries']} seconds to (re)connect.", log_messages)
 
 
 class TLSBase(unittest.TestCase):
