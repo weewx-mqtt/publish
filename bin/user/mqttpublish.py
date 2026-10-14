@@ -172,14 +172,8 @@ class AbstractPublisher(abc.ABC):
         self.logger_queue.put({'name': self.name,
                                'log_type': 'INFO',
                                'log_message': f"Connecting to host: {self.mqtt_config['host']} port: {self.mqtt_config['port']}."})
-        try:
-            self.connect(self.mqtt_config['host'], self.mqtt_config['port'], self.mqtt_config['keepalive'])
-        except Exception as exception:  # want to catch all pylint: disable=broad-exception-caught
-            self.logger_queue.put({'name': self.name,
-                                   'log_type': 'ERROR',
-                                   'log_message': f"MQTT connect failed with {type(exception)} and reason {exception}."})
 
-        if not self._wait_for_connection(
+        if not self._connect_with_retries(
                 lambda: self.connect(self.mqtt_config['host'], self.mqtt_config['port'], self.mqtt_config['keepalive']),
                 'connect'):
             # Shut thread down, a bit of a hack
@@ -190,22 +184,20 @@ class AbstractPublisher(abc.ABC):
                                'log_type': 'INFO',
                                'log_message': (f"Attempting to reconnect to host: {self.mqtt_config['host']} "
                                                f"port: {self.mqtt_config['port']}.")})
+
+        if not self._connect_with_retries(self.client.reconnect, 'reconnect'):
+            raise CannotConnectError
+
+    def _connect_with_retries(self, attempt, label):
+        """ Wait for the connection to be established, retrying the 'attempt' callable as needed.
+            Returns False when out of retries, True otherwise. """
         try:
-            self.client.reconnect()
+            attempt()
         except Exception as exception:  # want to catch all pylint: disable=broad-exception-caught
             self.logger_queue.put({'name': self.name,
                                    'log_type': 'ERROR',
-                                   'log_message': f"MQTT reconnect failed with {type(exception)} and reason {exception}."})
-        self.logger_queue.put({'name': self.name,
-                               'log_type': 'DEBUG',
-                               'log_message': "After reconnect call."})
+                                   'log_message': f"MQTT {label} failed with {type(exception)} and reason {exception}."})
 
-        if not self._wait_for_connection(self.client.reconnect, 'reconnect'):
-            raise CannotConnectError
-
-    def _wait_for_connection(self, attempt, label):
-        """ Wait for the connection to be established, retrying the 'attempt' callable as needed.
-            Returns False when out of retries, True otherwise. """
         retries = 0
         # Give the connection logic some time to execute
         time.sleep(self.mqtt_config['wait_for_connection'])
