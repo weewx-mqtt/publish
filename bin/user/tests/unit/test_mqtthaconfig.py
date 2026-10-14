@@ -14,11 +14,29 @@ from io import StringIO
 import random
 
 import helpers
+import havalid
 import mqttstubs
 
 import user.mqtthaconfig
 
 import weewx.units
+
+def invalid_component_classes(component_data):
+    """ Return a list of error strings, one per component entry with a
+        device_class or state_class that Home Assistant does not accept.
+        An empty list means every entry is valid. """
+    errors = []
+    for component in component_data.sections:
+        device_class = component_data[component].get('device_class')
+        if device_class is not None and device_class not in havalid.VALID_DEVICE_CLASSES:
+            errors.append(f"[{component}] device_class '{device_class}' is not a valid "
+                          f"Home Assistant device class")
+
+        state_class = component_data[component].get('state_class')
+        if state_class is not None and state_class not in havalid.VALID_STATE_CLASSES:
+            errors.append(f"[{component}] state_class '{state_class}' is not a valid "
+                          f"Home Assistant state class")
+    return errors
 
 class test_MQTTHomeAssistantConfig(unittest.TestCase):
     def test_init(self):
@@ -180,6 +198,11 @@ class test_MQTTHomeAssistantConfig(unittest.TestCase):
         units = configobj.ConfigObj(StringIO(user.mqtthaconfig.DEFAULT_UNITS))
         for unit in units.keys():
             self.assertIn(unit, weewx_units, f"{unit} is not a valid weewx unit")
+
+    def test_default_component_data_classes(self):
+        component_data = configobj.ConfigObj(StringIO(user.mqtthaconfig.DEFAULT_COMPONENT_DATA))
+
+        self.assertEqual(invalid_component_classes(component_data), [])
 
     def test_init_configuration(self):
         mock_logger_queue = mock.Mock()
