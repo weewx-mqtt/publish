@@ -592,6 +592,58 @@ class PublisherBase(unittest.TestCase):
                     mock_publish.assert_not_called()
                     self.assertIn('ERROR', [call[0][0]['log_type'] for call in mock_logger_queue.put.call_args_list])
 
+    def _call_on_disconnect(self, SUT, value):
+        # paho mqtt v1 calls on_disconnect with (client, userdata, rc),
+        # v2 with (client, userdata, flags, reason_code, properties).
+        if issubclass(self.class_under_test, user.mqttpublish.PublisherV2):
+            SUT.on_disconnect(SUT.client, None, {}, self._reason_code(value), None)
+        else:
+            SUT.on_disconnect(SUT.client, None, value)
+
+    def test_on_disconnect(self):
+        mock_logger_queue = mock.Mock()
+        mock_plugin_manager = mock.Mock()
+        mock_publisher = mock.Mock()
+
+        config_dict = {
+            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
+            'clientid': helpers.random_string(),
+            'log_mqtt': random.choice([True, False]),
+            'username': None,
+            'password': None,
+            'host': helpers.random_string(),
+            'port': random.randint(1, 65535),
+            'keepalive': random.randint(1, 30),
+            'max_retries': 0,
+        }
+        config = configobj.ConfigObj(config_dict)
+
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+        }
+
+        with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
+            with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
+
+                SUT = self.class_under_test(mock_logger_queue, mock_plugin_manager, mock_publisher, config, monitor_dict)
+
+                # A disconnect requested by the client is a clean disconnect, so it is logged as INFO.
+                SUT.connected = True
+                self._call_on_disconnect(SUT, 0)
+                self.assertFalse(SUT.connected)
+                self.assertIn('INFO', [call[0][0]['log_type'] for call in mock_logger_queue.put.call_args_list])
+
+                # An unexpected disconnect is logged as ERROR.
+                mock_logger_queue.reset_mock()
+                SUT.connected = True
+                self._call_on_disconnect(SUT, 5)
+                self.assertFalse(SUT.connected)
+                self.assertIn('ERROR', [call[0][0]['log_type'] for call in mock_logger_queue.put.call_args_list])
+
     def test_will_set_with_defaults(self):
         mock_logger_queue = mock.Mock()
         mock_publisher = mock.Mock()

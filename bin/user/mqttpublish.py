@@ -408,6 +408,17 @@ class AbstractPublisher(abc.ABC):
 
         self.connected = True
 
+    def _handle_disconnect(self, rc, suffix=''):
+        """ The connection was lost, or a disconnect was requested. Mark as not connected. """
+        self.logger_queue.put({'name': self.name,
+                               'log_type': 'INFO' if int(rc) == 0 else 'ERROR',
+                               'log_message': f"Disconnected with result code {int(rc)}{suffix}"})
+
+        # As of 1.6.1, Paho MQTT cannot have a callback invoke a second callback. So we won't attempt to reconnect here.
+        # Because that would cause the on_connect callback to be called. Instead we will just mark as not connected.
+        # And check the flag before attempting to publish.
+        self.connected = False
+
     def on_message(self, client, userdata, msg):
         """ The on_message callback. """
         self.logger_queue.put({'name': self.name,
@@ -501,20 +512,7 @@ class PublisherV1(AbstractPublisher):
         # If MQTT_ERR_SUCCESS (0), the callback was called in response to a disconnect() call.
         # If any other value the disconnection was unexpected,
         # such as might be caused by a network error.
-        rc = flags_rc
-        if rc == 0:
-            self.logger_queue.put({'name': self.name,
-                                   'log_type': 'INFO',
-                                   'log_message': f"Disconnected with result code {int(rc)}, {mqtt.error_string(rc)}"})
-        else:
-            self.logger_queue.put({'name': self.name,
-                                   'log_type': 'ERROR',
-                                   'log_message': f"Disconnected with result code {int(rc)}, {mqtt.error_string(rc)}"})
-
-        # As of 1.6.1, Paho MQTT cannot have a callback invoke a second callback. So we won't attempt to reconnect here.
-        # Because that would cause the on_connect callback to be called. Instead we will just mark as not connected.
-        # And check the flag before attempting to publish.
-        self.connected = False
+        self._handle_disconnect(flags_rc, f", {mqtt.error_string(flags_rc)}")
 
 class PublisherV2(AbstractPublisher):
     ''' MQTTPublish that communicates with paho mqtt v2. '''
@@ -560,20 +558,8 @@ class PublisherV2(AbstractPublisher):
         # If MQTT_ERR_SUCCESS (0), the callback was called in response to a disconnect() call.
         # If any other value the disconnection was unexpected,
         # such as might be caused by a network error.
-        if int(reason_code.value) == 0:
-            self.logger_queue.put({'name': self.name,
-                                   'log_type': 'INFO',
-                                   'log_message': f"Disconnected with result code {int(int(reason_code.value))}"})
-        else:
-            self.logger_queue.put({'name': self.name,
-                                   'log_type': 'ERROR',
-                                   'log_message': f"Disconnected with result code {int(int(reason_code.value))}"})
-
         # ToDo: research how it works with v2
-        # As of 1.6.1, Paho MQTT cannot have a callback invoke a second callback. So we won't attempt to reconnect here.
-        # Because that would cause the on_connect callback to be called. Instead we will just mark as not connected.
-        # And check the flag before attempting to publish.
-        self.connected = False
+        self._handle_disconnect(reason_code.value)
 
 class PublisherV2MQTT3(PublisherV2):
     ''' MQTTPublish that communicates with paho mqtt v2. '''
