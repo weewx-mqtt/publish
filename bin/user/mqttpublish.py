@@ -47,7 +47,6 @@ VERSION = "1.3.0-rc02a"
 class CannotConnectError(ConnectionError):
     """" Cannot connect to broker. """
 
-# log = logging.getLogger(__name__)
 def setup_logging(logging_level, config_dict):
     """ Setup logging for running in standalone mode."""
     if logging_level:
@@ -641,7 +640,7 @@ class PublishWeeWX():
     def __init__(self, engine, config_dict):
         self.mqtt_publish = MQTTPublish(engine, config_dict)
 
-    def shutDown(self):  # Needed for backward compatibility pylint: disable=invalid-name
+    def shutDown(self):  # NOSONAR - Needed for backward compatibility pylint: disable=invalid-name
         """Run when an engine shutdown is requested."""
         self.mqtt_publish.shutDown()
 
@@ -715,7 +714,8 @@ class MQTTPublish(StdService):
         self.mqtt_config['port'] = to_int(service_dict.get('port', 1883))
         self.mqtt_config['username'] = service_dict.get('username', None)
         self.mqtt_config['password'] = service_dict.get('password', None)
-        self.mqtt_config['clientid'] = service_dict.get('clientid', 'MQTTPublish-' + str(random.randint(1000, 9999)))
+        self.mqtt_config['clientid'] = service_dict.get('clientid', 'MQTTPublish-' +
+                                                        str(random.randint(1000, 9999)))  # NOSONAR - just need a unique id
 
         protocol_string = service_dict.get('protocol', 'MQTTv311')
         self.mqtt_config['protocol'] = getattr(mqtt, protocol_string, 0)
