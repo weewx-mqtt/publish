@@ -1126,64 +1126,88 @@ class QueueProcessor(multiprocessing.Process):
     def update_record(self, topic_dict, _time_stamp, record):
         """ Update the record. """
         final_record = {}
-        interval_end = None
-        if topic_dict['minimum_interval']:
-            interval_end = startOfInterval(time.time(), topic_dict['minimum_interval']) + topic_dict['minimum_interval']
-
-        publish_interval_end_ts = False
+        interval_end = self._minimum_interval_end(topic_dict)
         updated_record = weewx.units.to_std_system(record, topic_dict['unit_system'])
 
+        publish_interval_end_ts = False
         for field in updated_record:
-            fieldinfo = topic_dict['fields'].get(field, {})
-            ignore = fieldinfo.get('ignore', topic_dict.get('ignore'))
-            publish_none_value = fieldinfo.get('publish_none_value', topic_dict.get('publish_none_value'))
-            threshold = fieldinfo.get('suppression_threshold', topic_dict.get('suppression_threshold'))
-
-            if ignore:
-                continue
-            if updated_record[field] is None and not publish_none_value:
-                continue
-
-            (name, value) = self.update_field(topic_dict,
-                                              fieldinfo,
-                                              field,
-                                              updated_record[field],
-                                              updated_record['usUnits'])
-
-            last_published = topic_dict['data_last_published'].get(name, {})
-            last_published_timestamp = last_published.get('interval_end')
-            last_published_value = last_published.get('value')
-
-            new_interval = interval_end is None or last_published_timestamp is None or interval_end > last_published_timestamp
+            (new_interval, updates) = self._update_field(topic_dict, updated_record, field, interval_end)
+            final_record.update(updates)
             publish_interval_end_ts = publish_interval_end_ts or new_interval
-
-            # Either value or last_published_value is None, but not both nor neither
-            is_none = (value is None) != (last_published_value is None)
-            # A None value has no magnitude to compare against the suppression threshold.
-            # So publish it when it appears or disappears, but not on every record.
-            if new_interval or \
-                is_none or \
-                (value is not None and last_published_value is not None and
-                    (value < last_published_value - threshold or value > last_published_value + threshold)):
-                format_string = fieldinfo.get('format_string', topic_dict.get('format_string'))
-                if format_string is not None and value is not None:
-                    formatted_value = format_string % value
-                else:
-                    formatted_value = value
-
-                final_record[name] = formatted_value
-                topic_dict['data_last_published'][name] = {
-                    'value': value,
-                    'interval_end': interval_end,
-                }
-
-            if new_interval and (name not in final_record):
-                final_record[name] = topic_dict['data_last_published'][name]['value']
 
         if final_record and interval_end is not None and publish_interval_end_ts:
             final_record['interval_end_ts'] = interval_end
 
         return final_record
+
+    @staticmethod
+    def _minimum_interval_end(topic_dict):
+        """ Get the end of the current minimum interval, if there is one. """
+        if topic_dict['minimum_interval']:
+            return startOfInterval(time.time(), topic_dict['minimum_interval']) + topic_dict['minimum_interval']
+        return None
+
+    def _update_field(self, topic_dict, updated_record, field, interval_end):
+        """ Update one field of the record.
+
+        Returns a (new_interval, updates) tuple, where updates holds the
+        fields to publish and new_interval is True when the field advanced
+        to a new minimum interval.
+        """
+        fieldinfo = topic_dict['fields'].get(field, {})
+        if fieldinfo.get('ignore', topic_dict.get('ignore')):
+            return False, {}
+
+        value = updated_record[field]
+        publish_none_value = fieldinfo.get('publish_none_value', topic_dict.get('publish_none_value'))
+        if value is None and not publish_none_value:
+            return False, {}
+
+        (name, updated_value) = self.update_field(topic_dict,
+                                                  fieldinfo,
+                                                  field,
+                                                  value,
+                                                  updated_record['usUnits'])
+        threshold = fieldinfo.get('suppression_threshold', topic_dict.get('suppression_threshold'))
+
+        last_published = topic_dict['data_last_published'].get(name, {})
+        last_published_timestamp = last_published.get('interval_end')
+
+        new_interval = interval_end is None or last_published_timestamp is None or interval_end > last_published_timestamp
+
+        updates = {}
+        if self._should_publish_value(new_interval, updated_value, last_published.get('value'), threshold):
+            updates[name] = self._format_value(topic_dict, fieldinfo, updated_value)
+            topic_dict['data_last_published'][name] = {
+                'value': updated_value,
+                'interval_end': interval_end,
+            }
+
+        if new_interval and (name not in updates):
+            updates[name] = last_published.get('value')
+
+        return new_interval, updates
+
+    @staticmethod
+    def _should_publish_value(new_interval, value, last_published_value, threshold):
+        """ Decide whether the value should be published. """
+        # Either value or last_published_value is None, but not both nor neither.
+        is_none = (value is None) != (last_published_value is None)
+        # A None value has no magnitude to compare against the suppression threshold.
+        # So publish it when it appears or disappears, but not on every record.
+        if new_interval or is_none:
+            return True
+        if value is None or last_published_value is None:
+            return False
+        return value < last_published_value - threshold or value > last_published_value + threshold
+
+    @staticmethod
+    def _format_value(topic_dict, fieldinfo, value):
+        """ Format the value, if a format string is configured. """
+        format_string = fieldinfo.get('format_string', topic_dict.get('format_string'))
+        if format_string is not None and value is not None:
+            return format_string % value
+        return value
 
     @staticmethod
     def update_field(topic_dict, fieldinfo, field, value, unit_system):
