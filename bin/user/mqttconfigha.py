@@ -432,6 +432,15 @@ class MQTTConfigHA:  # pylint: disable=too-many-instance-attributes
 
         self.configuration['devices'][device_id] = device_data
 
+        self._configure_state_topics(device_id, device_config)
+
+        self.mqtt_config[device_id] = {}
+        self.mqtt_config[device_id]['ignore_fields'] = to_list(device_config.get('ignore_fields', []))
+        self.mqtt_config[device_id]['qos'] = to_int(device_config.get('qos', 0))
+        self.mqtt_config[device_id]['retain'] = to_bool(device_config.get('retain', False))
+
+    def _configure_state_topics(self, device_id, device_config):
+        """ Validate the device topics and build the state topics map. """
         if 'state_topic' in device_config:
             raise ValueError("'state_topic' has been removed.")
         if 'topics' not in device_config:
@@ -445,11 +454,6 @@ class MQTTConfigHA:  # pylint: disable=too-many-instance-attributes
                 raise ValueError(f"{state_topic} not found in topics being published.")
             self.state_topics[device_id][state_topic] = {}
             self.state_topics[device_id][state_topic]['type'] = self.topics[state_topic]['type']
-
-        self.mqtt_config[device_id] = {}
-        self.mqtt_config[device_id]['ignore_fields'] = to_list(device_config.get('ignore_fields', []))
-        self.mqtt_config[device_id]['qos'] = to_int(device_config.get('qos', 0))
-        self.mqtt_config[device_id]['retain'] = to_bool(device_config.get('retain', False))
 
     def get_callbacks(self):
         """ The callbacks. """
