@@ -788,6 +788,122 @@ class TestHandleQueueItem(unittest.TestCase):
         self.assertIn("Unknown data type, bogus", log_messages)
 
 
+class TestOnWeewxData(unittest.TestCase):
+    @staticmethod
+    def _make_processor():
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': 'MONITOR',
+        }
+
+        SUT = user.mqttpublish.QueueProcessor(mock.Mock(),
+                                              None,
+                                              {'plugins': {},
+                                               'weewx_dict': {},
+                                               'manager_dict': None,
+                                               'mqtt_config': {},
+                                               'monitor_config': monitor_dict,
+                                               'topics_loop': {},
+                                               'topics_archive': {}})
+        SUT.publisher = mock.Mock()
+        # Drop the "Initializing queue processor." entry logged by __init__ so the
+        # assertions below see only what the method under test emits.
+        SUT.logger_queue.reset_mock()
+        # The on_weewx_data callbacks hang off the processor's own plugin manager.
+        SUT.plugin_manager = mock.Mock()
+        SUT.plugin_manager.callbacks = {
+            'on_weewx_data': {'immediate': {}, 'delay': {}},
+        }
+        return SUT
+
+    @staticmethod
+    def _log_messages(SUT):
+        return [call[0][0] for call in SUT.logger_queue.put.call_args_list]
+
+    @staticmethod
+    def _register(SUT, timing, calls, names):
+        """ Register one mock plugin per name; each records its own name in calls. """
+        registered = {}
+        for name in names:
+            registered[name] = mock.Mock(side_effect=lambda _data2, _name=name: calls.append(_name))
+        SUT.plugin_manager.callbacks['on_weewx_data'][timing] = registered
+        return registered
+
+    def test_immediate_runs_plugins_in_order_and_logs_timings(self):
+        SUT = self._make_processor()
+        calls = []
+        plugin_a, plugin_b = helpers.random_string(), helpers.random_string()
+        registered = self._register(SUT, 'immediate', calls, [plugin_a, plugin_b])
+
+        data2 = {'type': 'loop', helpers.random_string(): helpers.random_string()}
+        SUT.on_weewx_data_immediate(data2)
+
+        # Every plugin sees the queue item, in registration order.
+        self.assertEqual(calls, [plugin_a, plugin_b])
+        registered[plugin_a].assert_called_once_with(data2)
+        registered[plugin_b].assert_called_once_with(data2)
+
+        # One timing line per plugin plus a summary line, all under the monitor flag.
+        messages = self._log_messages(SUT)
+        self.assertEqual(len(messages), 3)
+        for message in messages:
+            self.assertEqual(message['log_type'], 'MONITOR')
+        self.assertIn(plugin_a, messages[0]['log_message'])
+        self.assertIn("on_weewx_data (immediate)", messages[0]['log_message'])
+        self.assertIn(plugin_b, messages[1]['log_message'])
+        # The summary reports the total, so it names no individual plugin.
+        self.assertIn("on_weewx_data (immediate)", messages[2]['log_message'])
+        self.assertNotIn(plugin_a, messages[2]['log_message'])
+        self.assertNotIn(plugin_b, messages[2]['log_message'])
+
+    def test_immediate_with_no_plugins_still_logs_summary(self):
+        SUT = self._make_processor()
+
+        SUT.on_weewx_data_immediate({'type': 'loop'})
+
+        messages = self._log_messages(SUT)
+        self.assertEqual(len(messages), 1)
+        self.assertEqual(messages[0]['log_type'], 'MONITOR')
+        self.assertIn("on_weewx_data (immediate)", messages[0]['log_message'])
+
+    def test_delay_runs_plugins_in_order_and_logs_timings(self):
+        SUT = self._make_processor()
+        calls = []
+        plugin_a, plugin_b = helpers.random_string(), helpers.random_string()
+        registered = self._register(SUT, 'delay', calls, [plugin_a, plugin_b])
+
+        data2 = {'type': 'archive', helpers.random_string(): helpers.random_string()}
+        SUT.on_weewx_data_delay(data2)
+
+        self.assertEqual(calls, [plugin_a, plugin_b])
+        registered[plugin_a].assert_called_once_with(data2)
+        registered[plugin_b].assert_called_once_with(data2)
+
+        messages = self._log_messages(SUT)
+        self.assertEqual(len(messages), 3)
+        for message in messages:
+            self.assertEqual(message['log_type'], 'MONITOR')
+        self.assertIn(plugin_a, messages[0]['log_message'])
+        self.assertIn("on_weewx_data (delay)", messages[0]['log_message'])
+        self.assertIn(plugin_b, messages[1]['log_message'])
+        self.assertIn("on_weewx_data (delay)", messages[2]['log_message'])
+        self.assertNotIn(plugin_a, messages[2]['log_message'])
+        self.assertNotIn(plugin_b, messages[2]['log_message'])
+
+    def test_delay_with_no_plugins_still_logs_summary(self):
+        SUT = self._make_processor()
+
+        SUT.on_weewx_data_delay({'type': 'archive'})
+
+        messages = self._log_messages(SUT)
+        self.assertEqual(len(messages), 1)
+        self.assertEqual(messages[0]['log_type'], 'MONITOR')
+        self.assertIn("on_weewx_data (delay)", messages[0]['log_message'])
+
+
 class TestPublishWeeWXProcess(unittest.TestCase):
     def test_run_logs_error_when_processor_does_not_shutdown(self):
         mock_logger_queue = mock.Mock()
