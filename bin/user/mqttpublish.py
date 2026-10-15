@@ -1167,37 +1167,49 @@ class QueueProcessor(multiprocessing.Process):  # pylint: disable=too-many-insta
     def update_field(topic_dict, fieldinfo, field, value, unit_system):
         """ Update field. """
         name = fieldinfo.get('name', field)
-        unit = fieldinfo.get('unit', None)
-        append_unit_label = fieldinfo.get('append_unit_label', topic_dict.get('append_unit_label'))
+        if fieldinfo.get('append_unit_label', topic_dict.get('append_unit_label')):
+            name = QueueProcessor._append_unit_label(name, fieldinfo.get('unit'), unit_system)
 
-        if append_unit_label:
-            if unit is None:
-                (unit_type, _) = weewx.units.getStandardUnitType(unit_system, name)
-            else:
-                unit_type = unit
-            unit_type = QueueProcessor.UNIT_REDUCTIONS.get(unit_type, unit_type)
-            if unit_type is not None:
-                name = f"{name}_{unit_type}"
-
-        unit = fieldinfo.get('unit', None)
-        if unit is not None:
-            (from_unit, from_group) = weewx.units.getStandardUnitType(unit_system, field)
-            from_tuple = (value, from_unit, from_group)
-            converted_value = weewx.units.convert(from_tuple, unit)[0]
-        else:
-            converted_value = value
+        converted_value = QueueProcessor._convert_unit(fieldinfo, field, value, unit_system)
 
         conversion_type = fieldinfo.get('conversion_type', topic_dict.get('conversion_type'))
         round_amount = fieldinfo.get('round', topic_dict.get('round'))
-        if conversion_type == 'integer':
-            converted_value = to_int(converted_value)
-        elif conversion_type == 'float':
-            converted_value = to_float(converted_value)
-
-        if round_amount and isinstance(converted_value, float):
-            converted_value = round(converted_value, round_amount)
+        converted_value = QueueProcessor._coerce_value(converted_value, conversion_type, round_amount)
 
         return name, converted_value
+
+    @staticmethod
+    def _append_unit_label(name, unit, unit_system):
+        """ Return the name with the field's unit label appended, when it has one. """
+        if unit is None:
+            (unit_type, _) = weewx.units.getStandardUnitType(unit_system, name)
+        else:
+            unit_type = unit
+        unit_type = QueueProcessor.UNIT_REDUCTIONS.get(unit_type, unit_type)
+        if unit_type is None:
+            return name
+        return f"{name}_{unit_type}"
+
+    @staticmethod
+    def _convert_unit(fieldinfo, field, value, unit_system):
+        """ Convert the value to the configured unit, or pass it through untouched. """
+        unit = fieldinfo.get('unit')
+        if unit is None:
+            return value
+        (from_unit, from_group) = weewx.units.getStandardUnitType(unit_system, field)
+        return weewx.units.convert((value, from_unit, from_group), unit)[0]
+
+    @staticmethod
+    def _coerce_value(value, conversion_type, round_amount):
+        """ Apply the configured type conversion, then the configured rounding. """
+        if conversion_type == 'integer':
+            value = to_int(value)
+        elif conversion_type == 'float':
+            value = to_float(value)
+
+        if round_amount and isinstance(value, float):
+            value = round(value, round_amount)
+        return value
 
     def publish_row(self, time_stamp, data, topics):
         """ Publish the data. """
@@ -1507,7 +1519,7 @@ class PublishWeeWXProcess(threading.Thread):
 if __name__ == "__main__":
     import argparse
 
-    def main():  # pragma: no cover
+    def main():  # pragma: no cover  # noqa: CCR001
         """ Run it. """
         parser = argparse.ArgumentParser()
         parser.add_argument('--version', action='version', version=f'%(prog)s {VERSION}')

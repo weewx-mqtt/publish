@@ -467,6 +467,110 @@ class TestQueueProcessor(unittest.TestCase):
 
         self.assertFalse(run_thread.is_alive())
 
+class TestUpdateField(unittest.TestCase):
+    def test_unconfigured_field_passes_through(self):
+        topic_dict = {}
+        fieldinfo = {}
+        field = helpers.random_string()
+        value = 70.5
+
+        name, converted = user.mqttpublish.QueueProcessor.update_field(topic_dict, fieldinfo, field, value, 1)
+
+        self.assertEqual(name, field)
+        self.assertEqual(converted, value)
+
+    def test_name_override_is_used(self):
+        topic_dict = {}
+        fieldinfo = {'name': helpers.random_string()}
+        field = helpers.random_string()
+        value = 70.5
+
+        name, _ = user.mqttpublish.QueueProcessor.update_field(topic_dict, fieldinfo, field, value, 1)
+
+        self.assertEqual(name, fieldinfo['name'])
+
+    def test_append_unit_label_resolves_standard_type_when_unit_is_absent(self):
+        topic_dict = {}
+        fieldinfo = {'append_unit_label': True}
+        field = helpers.random_string()
+        value = 70.5
+
+        with mock.patch.object(user.mqttpublish.weewx.units,
+                               'getStandardUnitType',
+                               return_value=('degree_F', 'group_temperature')):
+            name, converted = user.mqttpublish.QueueProcessor.update_field(topic_dict, fieldinfo, field, value, 1)
+
+        # degree_F reduces to F, so the label carries the reduced form.
+        self.assertEqual(name, f"{field}_F")
+        self.assertEqual(converted, value)
+
+    def test_append_unit_label_skipped_when_unit_type_reduces_to_none(self):
+        topic_dict = {}
+        fieldinfo = {'append_unit_label': True}
+        field = helpers.random_string()
+        value = 45.0
+
+        with mock.patch.object(user.mqttpublish.weewx.units,
+                               'getStandardUnitType',
+                               return_value=('degree_compass', 'group_direction')):
+            name, _ = user.mqttpublish.QueueProcessor.update_field(topic_dict, fieldinfo, field, value, 1)
+
+        # degree_compass has no short label, so the name is left untouched.
+        self.assertEqual(name, field)
+
+    def test_integer_conversion_type_truncates_value(self):
+        topic_dict = {}
+        fieldinfo = {'conversion_type': 'integer'}
+        field = helpers.random_string()
+        value = 42.7
+
+        _, converted = user.mqttpublish.QueueProcessor.update_field(topic_dict, fieldinfo, field, value, 1)
+
+        self.assertEqual(converted, 42)
+
+    def test_float_conversion_type_preserves_fraction(self):
+        topic_dict = {}
+        fieldinfo = {'conversion_type': 'float'}
+        field = helpers.random_string()
+        value = 42
+
+        _, converted = user.mqttpublish.QueueProcessor.update_field(topic_dict, fieldinfo, field, value, 1)
+
+        self.assertIsInstance(converted, float)
+        self.assertEqual(converted, 42.0)
+
+    def test_round_is_applied_to_float_value(self):
+        topic_dict = {}
+        fieldinfo = {'round': 2}
+        field = helpers.random_string()
+        value = 3.14159
+
+        _, converted = user.mqttpublish.QueueProcessor.update_field(topic_dict, fieldinfo, field, value, 1)
+
+        self.assertEqual(converted, 3.14)
+
+    def test_round_leaves_non_float_value_alone(self):
+        # The round setting only applies to floats; an integer is not re-rounded.
+        topic_dict = {}
+        fieldinfo = {'round': 2}
+        field = helpers.random_string()
+        value = 42
+
+        _, converted = user.mqttpublish.QueueProcessor.update_field(topic_dict, fieldinfo, field, value, 1)
+
+        self.assertEqual(converted, value)
+
+    def test_topic_level_options_are_used_when_field_does_not_override(self):
+        topic_dict = {'round': 1, 'conversion_type': 'float'}
+        fieldinfo = {}
+        field = helpers.random_string()
+        value = 42
+
+        name, converted = user.mqttpublish.QueueProcessor.update_field(topic_dict, fieldinfo, field, value, 1)
+
+        self.assertEqual(name, field)
+        self.assertEqual(converted, 42.0)
+
 class TestPublishRecord(unittest.TestCase):
     @staticmethod
     def _make_processor():
