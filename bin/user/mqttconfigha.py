@@ -514,17 +514,20 @@ class MQTTConfigHA:  # pylint: disable=too-many-instance-attributes
     def update_record(self, mqtt_client, topic, data, unit_system, _qos, _retain):
         """ Run code when MQTT message is published. """
         for device_id in self.configuration['devices']:
-            new_component = False
             if topic in self.state_topics[device_id]:
-                for field in data:
-                    if 'ignore_fields' in self.mqtt_config[device_id] and field in self.mqtt_config[device_id]['ignore_fields']:
-                        continue
-                    if field not in self.configuration['devices'][device_id]['components']:
-                        new_component = True
-                        self._build_component(device_id, topic, field, unit_system)
-
-                if new_component:
+                if self._update_device_components(device_id, topic, data, unit_system):
                     self.publish_record(mqtt_client, device_id)
+
+    def _update_device_components(self, device_id, topic, data, unit_system):
+        """ Build any new components for the device's fields. Returns True if any were built. """
+        new_component = False
+        for field in data:
+            if field in self.mqtt_config[device_id].get('ignore_fields', []):
+                continue
+            if field not in self.configuration['devices'][device_id]['components']:
+                new_component = True
+                self._build_component(device_id, topic, field, unit_system)
+        return new_component
 
     def _build_component(self, device_id, topic, field, unit_system):
         """ Build the Home Assistant discovery configuration for a single field. """
