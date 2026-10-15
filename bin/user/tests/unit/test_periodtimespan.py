@@ -381,5 +381,38 @@ class TestGetTimeSpan(unittest.TestCase):
 
         self.assertIsNone(timespan)
 
+    def test_get_calculation_interval(self):
+        timespan_provider = user.mqttaggregatevalues.TimeSpanProvider(None, 0)
+
+        self.assertEqual(timespan_provider.get_calculation_interval('hour'), 5)
+        self.assertEqual(timespan_provider.get_calculation_interval('yesterday'), 60 * 24)
+
+    def test_last7days(self):
+        timespan_provider = user.mqttaggregatevalues.TimeSpanProvider(None, 0)
+
+        now = 1771939800
+        timespan = timespan_provider.get_timespan('last7days', now, None)
+
+        self.assertEqual(timespan.start, 1771304400.0)
+        self.assertEqual(timespan.stop, now)
+
+    def test_last31days(self):
+        timespan_provider = user.mqttaggregatevalues.TimeSpanProvider(None, 0)
+
+        now = 1771939800
+        timespan = timespan_provider.get_timespan('last31days', now, None)
+
+        self.assertEqual(timespan.start, 1769230800.0)
+        self.assertEqual(timespan.stop, now)
+
+    def test_last366days(self):
+        timespan_provider = user.mqttaggregatevalues.TimeSpanProvider(None, 0)
+
+        now = 1771939800
+        timespan = timespan_provider.get_timespan('last366days', now, None)
+
+        self.assertEqual(timespan.start, 1740286800.0)
+        self.assertEqual(timespan.stop, now)
+
 if __name__ == '__main__':
     helpers.run_tests()
