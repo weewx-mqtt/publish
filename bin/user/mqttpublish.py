@@ -275,11 +275,11 @@ class AbstractPublisher(abc.ABC):  # pylint: disable=too-many-instance-attribute
 
         valid_cert_reqs = valid_cert_reqs.get(tls_dict.get('certs_required', 'required'))
         if valid_cert_reqs is None:
-            raise ValueError(f"Invalid 'certs_required'., {tls_dict['certs_required']}")
+            raise ValueError(f"Invalid 'certs_required', {tls_dict['certs_required']}")
 
         tls_version = valid_tls_versions.get(tls_dict.get('tls_version', 'tlsv12'))
         if tls_version is None:
-            raise ValueError(f"Invalid 'tls_version'., {tls_dict['tls_version']}")
+            raise ValueError(f"Invalid 'tls_version', {tls_dict['tls_version']}")
 
         self.client.tls_set(ca_certs=ca_certs,
                             certfile=certfile,
@@ -1398,8 +1398,8 @@ class QueueProcessor(multiprocessing.Process):  # pylint: disable=too-many-insta
             run_time += delta_time
             self.logger_queue.put({'name': self.name,
                                    'log_type': self.monitor_on_weewx_data,
-                                   'log_message': (f" {delta_time:<12.10f} on_weewx_data (delay) {plugin_name}  "
-                                                   f"")})
+                                   'log_message': f"monitor: {delta_time:<12.10f} on_weewx_data (delay) {plugin_name}"
+                                   })
         self.logger_queue.put({'name': self.name,
                                'log_type': self.monitor_on_weewx_data,
                                'log_message': (f"monitor: {run_time:<12.10f} on_weewx_data (delay) "

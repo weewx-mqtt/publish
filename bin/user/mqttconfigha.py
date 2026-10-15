@@ -345,7 +345,7 @@ DEFAULT_UNITS = """
         mm = mm
         mmHg = mmHg
         mm_per_hour = mm/h
-        # ToDo: Investigate: mm_per_hour2 is not a valid weewx unit. 
+        # ToDo: Investigate: mm_per_hour2 is not a valid weewx unit.
         # mm_per_hour2 = mm/h
         percent = %
         # ToDo: Investigate: percent_battery is not a valid weewx unit.
@@ -359,7 +359,7 @@ DEFAULT_UNITS = """
 """
 
 class MQTTConfigHA:
-    """ Publish Home Assistant MQTT devicde configuration data. """
+    """ Publish Home Assistant MQTT device configuration data. """
     def __init__(self, logger_queue, _monitor_config, name, plugin_dict, mqtt_dict, topics, weewx_dict):
         self.logger_queue = logger_queue
 
