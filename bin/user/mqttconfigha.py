@@ -545,15 +545,7 @@ class MQTTConfigHA:  # pylint: disable=too-many-instance-attributes
             'unique_id': f'{device_id}_{field}',
             'name': self.weewx_defaults['Labels']['Generic'].get(field, field),
         }
-        unit_of_measurement = self.defaults['component_data'][device_id].get('unit_of_measurement', None)
-        if unit_of_measurement is None:
-            # Need to 'lookup' the field and see if it has been converted to a different unit
-            fieldinfo = self.topics[topic]['fields'].get(field, {})
-            unit = fieldinfo.get('unit', None)
-            if unit is None:
-                (unit, _) = weewx.units.getStandardUnitType(unit_system, field)
-            if unit:
-                unit_of_measurement = self.defaults['units'].get(unit)
+        unit_of_measurement = self._resolve_unit_of_measurement(device_id, topic, field, unit_system)
         if unit_of_measurement:
             self.configuration['devices'][device_id]['components'][field]['unit_of_measurement'] = unit_of_measurement
         device_class = self.defaults['component_data'][device_id].get(field, {}).get('device_class')
@@ -571,6 +563,19 @@ class MQTTConfigHA:  # pylint: disable=too-many-instance-attributes
                                'log_type': 'INFO',
                                'log_message': (f"New device configuration {field}: "
                                                f"{self.configuration['devices'][device_id]['components'][field]}")})
+
+    def _resolve_unit_of_measurement(self, device_id, topic, field, unit_system):
+        """ Determine the unit of measurement for a field. """
+        unit_of_measurement = self.defaults['component_data'][device_id].get('unit_of_measurement', None)
+        if unit_of_measurement is None:
+            # Need to 'lookup' the field and see if it has been converted to a different unit
+            fieldinfo = self.topics[topic]['fields'].get(field, {})
+            unit = fieldinfo.get('unit', None)
+            if unit is None:
+                (unit, _) = weewx.units.getStandardUnitType(unit_system, field)
+            if unit:
+                unit_of_measurement = self.defaults['units'].get(unit)
+        return unit_of_measurement
 
     def publish_record(self, mqtt_client, device_id):
         """ Publish the HA device discovery configuration data. """
