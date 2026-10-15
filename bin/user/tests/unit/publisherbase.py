@@ -649,6 +649,111 @@ class PublisherBase(unittest.TestCase):
                 self.assertFalse(SUT.connected)
                 self.assertIn('ERROR', [call[0][0]['log_type'] for call in mock_logger_queue.put.call_args_list])
 
+    def test_on_message(self):
+        mock_logger_queue = mock.Mock()
+        mock_plugin_manager = mock.Mock()
+        mock_publisher = mock.Mock()
+
+        mock_immediate_callback = mock.Mock()
+        mock_delay_callback = mock.Mock()
+        mock_plugin_manager.callbacks = {
+            'on_mqtt_message': {
+                'immediate': {
+                    helpers.random_string(): mock_immediate_callback,
+                },
+                'delay': {
+                    helpers.random_string(): mock_delay_callback,
+                }
+            },
+        }
+
+        config_dict = {
+            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
+            'clientid': helpers.random_string(),
+            'log_mqtt': random.choice([True, False]),
+            'username': None,
+            'password': None,
+            'host': helpers.random_string(),
+            'port': random.randint(1, 65535),
+            'keepalive': random.randint(1, 30),
+            'max_retries': 0,
+        }
+        config = configobj.ConfigObj(config_dict)
+
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+        }
+
+        # Note: 'user.mqttpublish.time' is deliberately not mocked here. The monitor logging
+        # does arithmetic and numeric formatting on time.time(), which a MagicMock does not support.
+        with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
+            with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
+
+                SUT = self.class_under_test(mock_logger_queue, mock_plugin_manager, mock_publisher, config, monitor_dict)
+
+                userdata = helpers.random_string()
+                msg = mqttstubs.Msg(helpers.random_string(), helpers.random_string(), 0, False)
+
+                SUT.on_message(SUT.client, userdata, msg)
+
+                mock_immediate_callback.assert_called_once_with(SUT.client, userdata, msg)
+                mock_delay_callback.assert_called_once_with(SUT.client, userdata, msg)
+
+    def test_on_message_with_no_callbacks(self):
+        mock_logger_queue = mock.Mock()
+        mock_plugin_manager = mock.Mock()
+        mock_publisher = mock.Mock()
+
+        mock_plugin_manager.callbacks = {
+            'on_mqtt_message': {
+                'immediate': {},
+                'delay': {}
+            },
+        }
+
+        config_dict = {
+            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
+            'clientid': helpers.random_string(),
+            'log_mqtt': random.choice([True, False]),
+            'username': None,
+            'password': None,
+            'host': helpers.random_string(),
+            'port': random.randint(1, 65535),
+            'keepalive': random.randint(1, 30),
+            'max_retries': 0,
+        }
+        config = configobj.ConfigObj(config_dict)
+
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+        }
+
+        with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
+            with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
+
+                SUT = self.class_under_test(mock_logger_queue, mock_plugin_manager, mock_publisher, config, monitor_dict)
+
+                SUT.on_message(SUT.client, None, mqttstubs.Msg(helpers.random_string(),
+                                                               helpers.random_string(),
+                                                               0,
+                                                               False))
+
+                # The DEBUG 'Received' log plus the two empty loop summaries are always logged,
+                # even when no plugins are registered for on_mqtt_message.
+                log_messages = [call[0][0] for call in mock_logger_queue.put.call_args_list]
+                self.assertTrue(any(entry['log_type'] == 'DEBUG' and 'Received:' in entry['log_message']
+                                    for entry in log_messages))
+                self.assertTrue(any('on_message (immediate)' in entry['log_message'] for entry in log_messages))
+                self.assertTrue(any('on_message (delay)' in entry['log_message'] for entry in log_messages))
+
     def test_will_set_with_defaults(self):
         mock_logger_queue = mock.Mock()
         mock_publisher = mock.Mock()
@@ -961,6 +1066,51 @@ class TLSBase(unittest.TestCase):
 
                         self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
                         mock_tls_set.assert_called_once_with(ca_certs=config_dict['tls']['ca_certs'],
+                                                             certfile=None,
+                                                             keyfile=None,
+                                                             cert_reqs=ssl.CERT_REQUIRED,
+                                                             tls_version=ssl.PROTOCOL_TLSv1_2,
+                                                             ciphers=None)
+
+    def test_tls_configuration_normalizes_unset_options_to_none(self):
+        mock_logger_queue = mock.Mock()
+        mock_publisher = mock.Mock()
+
+        config_dict = {
+            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
+            'clientid': helpers.random_string(),
+            'log_mqtt': random.choice([True, False]),
+            'username': helpers.random_string(),
+            'password': helpers.random_string(),
+            'host': helpers.random_string(),
+            'port': random.randint(1, 65535),
+            'keepalive': random.randint(1, 30),
+            'max_retries': random.randint(0, 10),
+            'tls': {
+                'enable': True,
+                'ca_certs': '',
+                'certfile': 'none',
+                'keyfile': 'None',
+                'ciphers': 'NONE',
+            }
+        }
+        config = configobj.ConfigObj(config_dict)
+
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+        }
+
+        with mock.patch('user.mqttpublish.time'):
+            with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
+                with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
+                    with mock.patch.object(user.mqttpublish.mqtt.Client, 'tls_set') as mock_tls_set:
+
+                        self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
+                        mock_tls_set.assert_called_once_with(ca_certs=None,
                                                              certfile=None,
                                                              keyfile=None,
                                                              cert_reqs=ssl.CERT_REQUIRED,

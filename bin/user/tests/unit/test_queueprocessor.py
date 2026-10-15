@@ -12,6 +12,7 @@ import mock
 import helpers
 
 import configobj
+import json
 import queue
 import random
 import threading
@@ -465,6 +466,102 @@ class TestQueueProcessor(unittest.TestCase):
                         run_thread.join(timeout=5)
 
         self.assertFalse(run_thread.is_alive())
+
+class TestPublishRecord(unittest.TestCase):
+    @staticmethod
+    def _make_processor():
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+        }
+
+        SUT = user.mqttpublish.QueueProcessor(mock.Mock(),
+                                              None,
+                                              {'plugins': {},
+                                               'weewx_dict': {},
+                                               'manager_dict': None,
+                                               'mqtt_config': {},
+                                               'monitor_config': monitor_dict,
+                                               'topics_loop': {},
+                                               'topics_archive': {}})
+        SUT.publisher = mock.Mock()
+        return SUT
+
+    @staticmethod
+    def _topic_dict(topic_type):
+        return {
+            'type': topic_type,
+            'qos': random.randint(0, 2),
+            'retain': random.choice([True, False]),
+        }
+
+    def test_publish_record_empty_record_is_not_published(self):
+        SUT = self._make_processor()
+
+        SUT.publish_record(time.time(), helpers.random_string(), self._topic_dict('json'), {})
+
+        # pylint: disable=no-member
+        SUT.publisher.publish_message.assert_not_called()
+
+    def test_publish_record_json(self):
+        SUT = self._make_processor()
+        time_stamp = time.time()
+        topic = helpers.random_string()
+        topic_dict = self._topic_dict('json')
+        updated_record = {
+            helpers.random_string(): random.random(),
+            helpers.random_string(): helpers.random_string(),
+        }
+
+        SUT.publish_record(time_stamp, topic, topic_dict, updated_record)
+
+        SUT.publisher.publish_message.assert_called_once_with(time_stamp,
+                                                              topic_dict['qos'],
+                                                              topic_dict['retain'],
+                                                              topic,
+                                                              json.dumps(updated_record))
+
+    def test_publish_record_keyword(self):
+        SUT = self._make_processor()
+        time_stamp = time.time()
+        topic = helpers.random_string()
+        topic_dict = self._topic_dict('keyword')
+        updated_record = {
+            helpers.random_string(): random.random(),
+            helpers.random_string(): helpers.random_string(),
+        }
+
+        SUT.publish_record(time_stamp, topic, topic_dict, updated_record)
+
+        expected_data = ', '.join(f"{key}={val}" for (key, val) in updated_record.items())
+        SUT.publisher.publish_message.assert_called_once_with(time_stamp,
+                                                              topic_dict['qos'],
+                                                              topic_dict['retain'],
+                                                              topic,
+                                                              expected_data)
+
+    def test_publish_record_individual(self):
+        SUT = self._make_processor()
+        time_stamp = time.time()
+        topic = helpers.random_string()
+        topic_dict = self._topic_dict('individual')
+        updated_record = {
+            helpers.random_string(): random.random(),
+            helpers.random_string(): helpers.random_string(),
+        }
+
+        SUT.publish_record(time_stamp, topic, topic_dict, updated_record)
+
+        self.assertEqual(SUT.publisher.publish_message.call_count, len(updated_record))
+        for key, value in updated_record.items():
+            SUT.publisher.publish_message.assert_any_call(time_stamp,
+                                                          topic_dict['qos'],
+                                                          topic_dict['retain'],
+                                                          topic + '/' + key,
+                                                          value)
 
 class TestPublishWeeWXProcess(unittest.TestCase):
     def test_run_logs_error_when_processor_does_not_shutdown(self):

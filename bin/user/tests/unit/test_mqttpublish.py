@@ -227,5 +227,107 @@ class TestConfigureTopics(unittest.TestCase):
                 self.assertDictEqual(topics_loop[topic1]['fields'], expected_fields)
                 self.assertDictEqual(topics_archive[topic1]['fields'], expected_fields)
 
+    def test_config_topics_requires_topics_stanza(self):
+        mock_engine = mock.Mock()
+        config = configobj.ConfigObj({'MQTTPublish': {'enable': False}})
+
+        service_config = configobj.ConfigObj({})
+
+        with mock.patch('user.mqttpublish.PublishWeeWXThread'):
+            with mock.patch('user.mqttpublish.Logger'):
+                SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
+
+                with self.assertRaises(ValueError) as context:
+                    SUT.configure_topics(service_config)
+
+        self.assertEqual(str(context.exception), "[[topics]] is required.")
+
+    def test_config_topics_not_published(self):
+        mock_engine = mock.Mock()
+        config = configobj.ConfigObj({'MQTTPublish': {'enable': False}})
+
+        topic1 = helpers.random_string()
+        service_dict = {
+            'topics': {
+                topic1: {
+                    'publish': False,
+                },
+            },
+        }
+        service_config = configobj.ConfigObj(service_dict)
+
+        with mock.patch('user.mqttpublish.PublishWeeWXThread'):
+            with mock.patch('user.mqttpublish.Logger'):
+                SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
+
+                topics_loop, topics_archive, binding = SUT.configure_topics(service_config)
+
+        self.assertDictEqual(topics_loop, {})
+        self.assertDictEqual(topics_archive, {})
+        self.assertEqual(list(binding), [])
+
+    def test_config_topics_with_field_list_overrides(self):
+        mock_engine = mock.Mock()
+        config = configobj.ConfigObj({'MQTTPublish': {'enable': False}})
+
+        topic1 = helpers.random_string()
+        ignore_field = helpers.random_string()
+        publish_field = helpers.random_string()
+        service_dict = {
+            'topics': {
+                topic1: {
+                    'ignore_fields': ignore_field,
+                    'publish_fields': publish_field,
+                },
+            },
+        }
+        service_config = configobj.ConfigObj(service_dict)
+
+        with mock.patch('user.mqttpublish.PublishWeeWXThread'):
+            with mock.patch('user.mqttpublish.Logger'):
+                SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
+
+                topics_loop, _, _ = SUT.configure_topics(service_config)
+
+        expected_fields = {
+            ignore_field: {'ignore': True},
+            publish_field: {'ignore': False},
+        }
+        self.assertDictEqual(topics_loop[topic1]['fields'], expected_fields)
+
+    def test_config_topics_with_deprecated_aggregates(self):
+        mock_engine = mock.Mock()
+        config = configobj.ConfigObj({'MQTTPublish': {'enable': False}})
+
+        topic1 = helpers.random_string()
+        aggregate1 = helpers.random_string()
+        observation1 = helpers.random_string()
+        service_dict = {
+            'topics': {
+                topic1: {
+                    'aggregates': {
+                        aggregate1: {
+                            'observation': observation1,
+                            'aggregation': 'avg',
+                        },
+                    },
+                },
+            },
+        }
+        service_config = configobj.ConfigObj(service_dict)
+
+        with mock.patch('user.mqttpublish.PublishWeeWXThread'):
+            with mock.patch('user.mqttpublish.Logger'):
+                SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
+
+                SUT.configure_topics(service_config)
+
+        # pylint: disable=no-member
+        self.assertEqual(SUT.logger.logerr.call_count, 1)
+        self.assertEqual(SUT.plugins['MQTTAggregateValues']['module'], 'user.mqttaggregatevalues')
+        self.assertEqual(SUT.plugins['MQTTAggregateValues']['topics'][topic1][aggregate1]['observation'],
+                         observation1)
+        self.assertEqual(SUT.plugins['MQTTAggregateValues']['topics'][topic1][aggregate1]['aggregation'], 'avg')
+
 if __name__ == '__main__':
     helpers.run_tests()
