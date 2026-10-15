@@ -678,6 +678,116 @@ class TestPublishRow(unittest.TestCase):
         update_record_arg = SUT.update_record.call_args[0][2]
         self.assertIs(immediate_record, update_record_arg)
 
+class TestHandleQueueItem(unittest.TestCase):
+    @staticmethod
+    def _make_processor(topics_loop=None, topics_archive=None):
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+        }
+
+        data_queue = mock.Mock()
+        data_queue.qsize.return_value = 0
+
+        SUT = user.mqttpublish.QueueProcessor(mock.Mock(),
+                                              data_queue,
+                                              {'plugins': {},
+                                               'weewx_dict': {},
+                                               'manager_dict': None,
+                                               'mqtt_config': {},
+                                               'monitor_config': monitor_dict,
+                                               'topics_loop': topics_loop or {},
+                                               'topics_archive': topics_archive or {}})
+        SUT.publisher = mock.Mock()
+        return SUT
+
+    @staticmethod
+    def _topic_dict():
+        return {'qos': 0, 'retain': False, 'unit_system': 1}
+
+    @staticmethod
+    def _instrument(SUT):
+        """ Replace the collaborating methods with recorders that note call order.
+
+        Returns (order, immediate, publish, delay); assert on the returned mocks
+        rather than on SUT attributes so the test's intent is explicit.
+        """
+        order = []
+        immediate = mock.Mock(side_effect=lambda _data2: order.append('immediate'))
+        publish = mock.Mock(side_effect=lambda *_args: order.append('publish'))
+        delay = mock.Mock(side_effect=lambda _data2: order.append('delay'))
+        SUT.on_weewx_data_immediate = immediate
+        SUT.publish_row = publish
+        SUT.on_weewx_data_delay = delay
+        return order, immediate, publish, delay
+
+    def test_shutdown_item_stops_processor(self):
+        SUT = self._make_processor()
+        order, immediate, publish, _delay = self._instrument(SUT)
+
+        result = SUT.handle_queue_item({'type': 'shutdown'}, time.time())
+
+        # The processor stops and nothing is published for a shutdown item.
+        self.assertIsNone(result)
+        self.assertFalse(SUT.process)
+        self.assertEqual(order, [])
+        immediate.assert_not_called()
+        publish.assert_not_called()
+        log_messages = [call[0][0]['log_message'] for call in SUT.logger_queue.put.call_args_list]
+        self.assertIn("Shutting down queue processor.", log_messages)
+
+    def test_loop_item_publishes_to_loop_topics(self):
+        loop_topics = {helpers.random_string(): self._topic_dict()}
+        archive_topics = {helpers.random_string(): self._topic_dict()}
+        SUT = self._make_processor(topics_loop=loop_topics, topics_archive=archive_topics)
+        order, immediate, publish, delay = self._instrument(SUT)
+
+        data2 = {'type': 'loop', 'time_stamp': time.time(), 'data': {'usUnits': 1}}
+        prev_time = time.time() - 1
+        result = SUT.handle_queue_item(data2, prev_time)
+
+        # The queue size is recorded on the item handed to the plugins.
+        self.assertEqual(data2['queue_size'], 0)
+        publish.assert_called_once_with(data2['time_stamp'], data2['data'], loop_topics)
+        # Immediate plugins run first, then publishing, then the delay plugins.
+        self.assertEqual(order, ['immediate', 'publish', 'delay'])
+        immediate.assert_called_once_with(data2)
+        delay.assert_called_once_with(data2)
+        # The returned time advances so the next queue item logs an accurate duration.
+        self.assertGreaterEqual(result, prev_time)
+
+    def test_archive_item_publishes_to_archive_topics(self):
+        loop_topics = {helpers.random_string(): self._topic_dict()}
+        archive_topics = {helpers.random_string(): self._topic_dict()}
+        SUT = self._make_processor(topics_loop=loop_topics, topics_archive=archive_topics)
+        order, _immediate, publish, _delay = self._instrument(SUT)
+
+        data2 = {'type': 'archive', 'time_stamp': time.time(), 'data': {'usUnits': 1}}
+        SUT.handle_queue_item(data2, time.time())
+
+        publish.assert_called_once_with(data2['time_stamp'], data2['data'], archive_topics)
+        self.assertEqual(order, ['immediate', 'publish', 'delay'])
+
+    def test_unknown_type_publishes_nothing_and_logs_error(self):
+        loop_topics = {helpers.random_string(): self._topic_dict()}
+        archive_topics = {helpers.random_string(): self._topic_dict()}
+        SUT = self._make_processor(topics_loop=loop_topics, topics_archive=archive_topics)
+        order, _immediate, publish, _delay = self._instrument(SUT)
+
+        data2 = {'type': 'bogus', 'time_stamp': time.time(), 'data': {'usUnits': 1}}
+        result = SUT.handle_queue_item(data2, time.time())
+
+        # Nothing is published, but the plugins still run and the time advances.
+        publish.assert_not_called()
+        self.assertEqual(order, ['immediate', 'delay'])
+        self.assertIsNotNone(result)
+        log_messages = [call[0][0]['log_message'] for call in SUT.logger_queue.put.call_args_list]
+        self.assertIn("Unknown data type, bogus", log_messages)
+
+
 class TestPublishWeeWXProcess(unittest.TestCase):
     def test_run_logs_error_when_processor_does_not_shutdown(self):
         mock_logger_queue = mock.Mock()
