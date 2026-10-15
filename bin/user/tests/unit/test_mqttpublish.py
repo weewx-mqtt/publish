@@ -9,6 +9,7 @@
 
 import configobj
 import contextlib
+import queue as Queue
 import time
 
 import unittest
@@ -449,14 +450,14 @@ class TestConfigureTopics(unittest.TestCase):
                          observation1)
         self.assertEqual(SUT.plugins['MQTTAggregateValues']['topics'][topic1][aggregate1]['aggregation'], 'avg')
 
-class TestHandleRecord(unittest.TestCase):
+class ServiceBase(unittest.TestCase):
+    """ Common fixture: an enabled MQTTPublish service with its collaborators mocked. """
+    # Subclasses exercise protected members, hence the blanket disable.
     # pylint: disable=protected-access
-    # The patches have to stay in force while the service is exercised. Exiting
-    # mock.patch restores the real PublishWeeWXThread, and the restart branch would
-    # then build - and start - a genuine thread.
+
     @contextlib.contextmanager
     def _service(self, **kwargs):
-        """ Yield an enabled MQTTPublish service, keeping a handle on its collaborators. """
+        """ Yield the service, the thread/process/logger mocks, and the logger. """
         engine = mock.Mock()
         config = configobj.ConfigObj(self._service_config(**kwargs))
 
@@ -477,10 +478,15 @@ class TestHandleRecord(unittest.TestCase):
     @staticmethod
     def _kill_thread(SUT, replacement):
         """ Report the current publishing thread as dead; the next start yields replacement. """
-        # pylint: disable=protected-access
         SUT._thread.is_alive.return_value = False
         replacement.is_alive.return_value = True
         return replacement
+
+class TestHandleRecord(ServiceBase):
+    # pylint: disable=protected-access
+    # The patches have to stay in force while the service is exercised. Exiting
+    # mock.patch restores the real PublishWeeWXThread, and the restart branch would
+    # then build - and start - a genuine thread.
 
     def test_alive_thread_queues_record_and_logs_queue_size(self):
         with self._service(monitor_queue='MONITOR') as (SUT, _, _, _):
@@ -632,6 +638,132 @@ class TestHandleRecord(unittest.TestCase):
             self.assertEqual(args[0], 'archive')
             self.assertIsNot(args[1], record)
             self.assertDictEqual(args[1], record)
+
+class _RacingQueue:
+    """ A data queue that reproduces the CPython 'Empty while items remain' race.
+
+    get() raises Empty on the first call even though the queue holds items, which
+    is the case the drain loop must survive:
+    https://github.com/python/cpython/issues/87302#issuecomment-3659919391
+    """
+
+    def __init__(self, *items):
+        self._queue = Queue.Queue()
+        for item in items:
+            self._queue.put(item)
+        self.gets = 0
+
+    def get(self, timeout=None):
+        self.gets += 1
+        if self.gets == 1:
+            raise Queue.Empty
+        return self._queue.get(timeout=timeout)
+
+    def get_nowait(self):
+        return self._queue.get_nowait()
+
+    def qsize(self):
+        return self._queue.qsize()
+
+    def put(self, item):
+        self._queue.put(item)
+
+
+class TestShutDown(ServiceBase):
+    # pylint: disable=protected-access
+
+    def test_drains_queue_then_signals_shutdown_and_stops_thread(self):
+        with self._service() as (SUT, _, _, _):
+            thread = SUT._thread
+            thread.is_alive.return_value = False
+            SUT.logger_thread.is_alive.return_value = False
+            for index in range(3):
+                SUT.data_queue.put({'time_stamp': index, 'type': 'loop', 'data': {}})
+
+            SUT.shutDown()
+
+            # Everything pending is consumed, and the shutdown marker is the only item left.
+            self.assertEqual(SUT.data_queue.qsize(), 1)
+            marker = SUT.data_queue.get_nowait()
+            self.assertEqual(marker['type'], 'shutdown')
+            self.assertEqual(marker['data'], {})
+            # The thread is joined with the configured wait, then released.
+            thread.join.assert_called_once_with(SUT.wait_for_thread_shutdown)
+            self.assertIsNone(SUT._thread)
+            SUT.logger.logerr.assert_not_called()
+
+    def test_drain_retries_when_empty_is_raised_but_items_remain(self):
+        with self._service() as (SUT, _, _, _):
+            SUT._thread.is_alive.return_value = False
+            SUT.logger_thread.is_alive.return_value = False
+            pending = {'time_stamp': 1, 'type': 'loop', 'data': {}}
+            SUT.data_queue = _RacingQueue(pending)
+
+            SUT.shutDown()
+
+            # The false Empty did not end the drain: the pending item was still taken.
+            self.assertEqual(SUT.data_queue.gets, 3)
+            self.assertEqual(SUT.data_queue.qsize(), 1)
+            self.assertEqual(SUT.data_queue.get_nowait()['type'], 'shutdown')
+            SUT.logger.logerr.assert_not_called()
+
+    def test_warns_when_thread_does_not_shut_down(self):
+        with self._service() as (SUT, _, _, _):
+            thread = SUT._thread
+            thread.name = helpers.random_string()
+            thread.is_alive.return_value = True
+            SUT.logger_thread.is_alive.return_value = False
+
+            SUT.shutDown()
+
+            SUT.logger.logerr.assert_called_once_with(SUT.name,
+                                                      f"Unable to shut down {thread.name}")
+            # The reference is dropped even when the thread is still running.
+            self.assertIsNone(SUT._thread)
+
+    def test_warns_when_logger_thread_does_not_shut_down(self):
+        with self._service() as (SUT, _, _, _):
+            SUT._thread.is_alive.return_value = False
+            SUT.logger_thread.name = helpers.random_string()
+            SUT.logger_thread.is_alive.return_value = True
+
+            SUT.shutDown()
+
+            SUT.logger.logerr.assert_called_once_with(
+                SUT.name, f"Unable to shut down {SUT.logger_thread.name} thread")
+            # The logger thread is signalled by queueing None.
+            self.assertIsNone(SUT.logger_queue.get_nowait())
+
+    def test_still_stops_logger_thread_when_no_publishing_thread(self):
+        with self._service() as (SUT, _, _, _):
+            SUT._thread = None
+            SUT.logger_thread.is_alive.return_value = False
+
+            SUT.shutDown()
+
+            # The publishing half is skipped entirely.
+            self.assertEqual(SUT.data_queue.qsize(), 0)
+            SUT.logger_thread.join.assert_called_once_with(SUT.wait_for_thread_shutdown)
+            self.assertIsNone(SUT.logger_queue.get_nowait())
+            SUT.logger.logerr.assert_not_called()
+
+    def test_logs_shutdown_progress_in_order(self):
+        with self._service() as (SUT, _, _, _):
+            SUT._thread.is_alive.return_value = False
+            SUT.logger_thread.is_alive.return_value = False
+            for index in range(2):
+                SUT.data_queue.put({'time_stamp': index, 'type': 'loop', 'data': {}})
+            # Drop the version banner logged by __init__.
+            SUT.logger.loginf.reset_mock()
+
+            SUT.shutDown()
+
+            messages = [call[0][1] for call in SUT.logger.loginf.call_args_list]
+            self.assertEqual(messages[0], "Shutdown initiated")
+            self.assertEqual(messages[1], "Emptying data queue with size of 2.")
+            self.assertEqual(messages[2], "Data queue has size of 0.")
+            self.assertEqual(messages[3], "Shutdown of queue processor initiated")
+            self.assertEqual(messages[4], f"Shutdown of logger thread, {SUT.logger_thread.name} initiated")
 
 if __name__ == '__main__':
     helpers.run_tests()

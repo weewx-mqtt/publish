@@ -925,34 +925,54 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
     def shutDown(self):
         """Run when an engine shutdown is requested."""
         self.logger.loginf(self.name, "Shutdown initiated")
-        if self._thread:
+        self._shut_down_publishing()
+        self._shut_down_logger()
 
-            self.logger.loginf(self.name, f"Emptying data queue with size of {self.data_queue.qsize()}.")
-            # If another process is already performing the get operation,
-            # and this process does not have time to acquire the lock to ensure exclusive access,
-            # queue.Empty is raised - even though the queue is not empty.
-            # https://github.com/python/cpython/issues/87302#issuecomment-3659919391
-            while True:
-                try:
-                    self.data_queue.get(timeout=0.05)
-                except Queue.Empty:
-                    if not self.data_queue.qsize():
-                        break
+    def _shut_down_publishing(self):
+        """Stop the publishing thread, if one is running."""
+        if not self._thread:
+            return
 
-            self.logger.loginf(self.name, f"Data queue has size of {self.data_queue.qsize()}.")
-            self.logger.loginf(self.name, "Shutdown of queue processor initiated")
-            self.data_queue.put({'time_stamp': time.time(), 'type': 'shutdown', 'data': {}})
-            self._thread.join(self.wait_for_thread_shutdown)
-            if self._thread.is_alive():
-                self.logger.logerr(self.name, f"Unable to shut down {self._thread.name}")
+        self.logger.loginf(self.name, f"Emptying data queue with size of {self.data_queue.qsize()}.")
+        self._drain_data_queue()
+        self.logger.loginf(self.name, f"Data queue has size of {self.data_queue.qsize()}.")
+        self.logger.loginf(self.name, "Shutdown of queue processor initiated")
+        self.data_queue.put({'time_stamp': time.time(), 'type': 'shutdown', 'data': {}})
 
-            self._thread = None
+        self._wait_for_thread(self._thread)
+        self._thread = None
 
+    def _shut_down_logger(self):
+        """Stop the thread that hands log records over to the WeeWX logger."""
         self.logger.loginf(self.name, f"Shutdown of logger thread, {self.logger_thread.name} initiated")
         self.logger_queue.put(None)
-        self.logger_thread.join(self.wait_for_thread_shutdown)
-        if self.logger_thread.is_alive():
-            self.logger.logerr(self.name, f"Unable to shut down {self.logger_thread.name} thread")
+        self._wait_for_thread(self.logger_thread, " thread")
+
+    def _drain_data_queue(self):
+        """Take items off the data queue until a get times out on an empty queue."""
+        while self._drain_one_item():
+            pass
+
+    def _drain_one_item(self):
+        """Take one item. Returns False once the queue is empty.
+
+        Another process may already be performing the get operation and, without
+        time to acquire the lock for exclusive access, Queue.Empty is raised even
+        though the queue is not empty. So an Empty is only conclusive when the
+        queue also reports itself empty.
+        https://github.com/python/cpython/issues/87302#issuecomment-3659919391
+        """
+        try:
+            self.data_queue.get(timeout=0.05)
+        except Queue.Empty:
+            return bool(self.data_queue.qsize())
+        return True
+
+    def _wait_for_thread(self, thread, message_suffix=""):
+        """Wait for a thread to stop, warning when it does not."""
+        thread.join(self.wait_for_thread_shutdown)
+        if thread.is_alive():
+            self.logger.logerr(self.name, f"Unable to shut down {thread.name}{message_suffix}")
 
 class LoggerThread(threading.Thread):
     """ Thread to manage logging.
