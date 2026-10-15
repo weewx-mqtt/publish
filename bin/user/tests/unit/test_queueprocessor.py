@@ -563,6 +563,121 @@ class TestPublishRecord(unittest.TestCase):
                                                           topic + '/' + key,
                                                           value)
 
+class TestPublishRow(unittest.TestCase):
+    @staticmethod
+    def _make_processor():
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+        }
+
+        SUT = user.mqttpublish.QueueProcessor(mock.Mock(),
+                                              None,
+                                              {'plugins': {},
+                                               'weewx_dict': {},
+                                               'manager_dict': None,
+                                               'mqtt_config': {},
+                                               'monitor_config': monitor_dict,
+                                               'topics_loop': {},
+                                               'topics_archive': {}})
+        SUT.publisher = mock.Mock()
+        return SUT
+
+    def test_publish_row(self):
+        SUT = self._make_processor()
+
+        mock_immediate_callback = mock.Mock()
+        mock_delay_callback = mock.Mock()
+        SUT.publisher.plugin_manager.callbacks = {
+            'update_record': {
+                'immediate': {helpers.random_string(): mock_immediate_callback},
+                'delay': {helpers.random_string(): mock_delay_callback},
+            },
+        }
+
+        qos = random.randint(0, 2)
+        retain = random.choice([True, False])
+        unit_system = random.randint(0, 2)
+        topics = {
+            helpers.random_string(): {'qos': qos, 'retain': retain, 'unit_system': unit_system},
+            helpers.random_string(): {'qos': qos, 'retain': retain, 'unit_system': unit_system},
+        }
+
+        data = {'usUnits': random.randint(1, 3), helpers.random_string(): random.random()}
+
+        updated_record = {helpers.random_string(): helpers.random_string()}
+        SUT.update_record = mock.Mock(return_value=updated_record)
+        SUT.publish_record = mock.Mock()
+
+        time_stamp = time.time()
+        SUT.publish_row(time_stamp, data, topics)
+
+        # The immediate callbacks run once per topic with a deep copy of the data.
+        self.assertEqual(mock_immediate_callback.call_count, len(topics))
+        for call in mock_immediate_callback.call_args_list:
+            args = call[0]
+            self.assertIs(args[0], SUT.publisher.client)
+            self.assertEqual(args[3], data['usUnits'])
+            self.assertEqual(args[4], qos)
+            self.assertEqual(args[5], retain)
+            # A copy, not the original object, so a plugin cannot mutate the source data.
+            self.assertIsNot(args[2], data)
+            self.assertDictEqual(args[2], data)
+        self.assertEqual({call[0][1] for call in mock_immediate_callback.call_args_list}, set(topics))
+
+        # update_record runs once per topic.
+        self.assertEqual(SUT.update_record.call_count, len(topics))
+
+        # The delay callbacks run once per topic against the update_record output.
+        self.assertEqual(mock_delay_callback.call_count, len(topics))
+        for call in mock_delay_callback.call_args_list:
+            args = call[0]
+            self.assertIs(args[0], SUT.publisher.client)
+            self.assertIs(args[2], updated_record)
+            self.assertEqual(args[3], unit_system)
+            self.assertEqual(args[4], qos)
+            self.assertEqual(args[5], retain)
+        self.assertEqual({call[0][1] for call in mock_delay_callback.call_args_list}, set(topics))
+
+        # publish_record runs once per topic with the updated record.
+        self.assertEqual(SUT.publish_record.call_count, len(topics))
+        for call in SUT.publish_record.call_args_list:
+            args = call[0]
+            self.assertEqual(args[0], time_stamp)
+            self.assertIs(args[2], topics[args[1]])
+            self.assertIs(args[3], updated_record)
+        self.assertEqual({call[0][1] for call in SUT.publish_record.call_args_list}, set(topics))
+
+    def test_publish_row_immediate_callback_receives_same_record_as_update_record(self):
+        SUT = self._make_processor()
+
+        mock_immediate_callback = mock.Mock()
+        SUT.publisher.plugin_manager.callbacks = {
+            'update_record': {
+                'immediate': {helpers.random_string(): mock_immediate_callback},
+                'delay': {},
+            },
+        }
+
+        topic1 = helpers.random_string()
+        topics = {
+            topic1: {'qos': 0, 'retain': False, 'unit_system': 1},
+        }
+        data = {'usUnits': 1, 'outTemp': 70.0}
+
+        SUT.update_record = mock.Mock(return_value={})
+        SUT.publish_record = mock.Mock()
+
+        SUT.publish_row(time.time(), data, topics)
+
+        # The record handed to the immediate plugins is the same object passed to update_record.
+        immediate_record = mock_immediate_callback.call_args[0][2]
+        update_record_arg = SUT.update_record.call_args[0][2]
+        self.assertIs(immediate_record, update_record_arg)
+
 class TestPublishWeeWXProcess(unittest.TestCase):
     def test_run_logs_error_when_processor_does_not_shutdown(self):
         mock_logger_queue = mock.Mock()
