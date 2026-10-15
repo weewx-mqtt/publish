@@ -8,6 +8,8 @@
 # pylint: disable=invalid-name
 
 import configobj
+import contextlib
+import time
 
 import unittest
 import mock
@@ -446,6 +448,190 @@ class TestConfigureTopics(unittest.TestCase):
         self.assertEqual(SUT.plugins['MQTTAggregateValues']['topics'][topic1][aggregate1]['observation'],
                          observation1)
         self.assertEqual(SUT.plugins['MQTTAggregateValues']['topics'][topic1][aggregate1]['aggregation'], 'avg')
+
+class TestHandleRecord(unittest.TestCase):
+    # pylint: disable=protected-access
+    # The patches have to stay in force while the service is exercised. Exiting
+    # mock.patch restores the real PublishWeeWXThread, and the restart branch would
+    # then build - and start - a genuine thread.
+    @contextlib.contextmanager
+    def _service(self, **kwargs):
+        """ Yield an enabled MQTTPublish service, keeping a handle on its collaborators. """
+        engine = mock.Mock()
+        config = configobj.ConfigObj(self._service_config(**kwargs))
+
+        with mock.patch('user.mqttpublish.weewx.manager'):
+            with mock.patch('user.mqttpublish.PublishWeeWXThread') as mock_thread:
+                with mock.patch('user.mqttpublish.PublishWeeWXProcess') as mock_process:
+                    with mock.patch('user.mqttpublish.LoggerThread'):
+                        with mock.patch('user.mqttpublish.Logger') as mock_logger:
+                            SUT = user.mqttpublish.MQTTPublish(engine, config)
+                            yield SUT, mock_thread, mock_process, mock_logger.return_value
+
+    @staticmethod
+    def _service_config(**kwargs):
+        service_dict = {'topics': {}}
+        service_dict.update(kwargs)
+        return {'MQTTPublish': service_dict}
+
+    @staticmethod
+    def _kill_thread(SUT, replacement):
+        """ Report the current publishing thread as dead; the next start yields replacement. """
+        # pylint: disable=protected-access
+        SUT._thread.is_alive.return_value = False
+        replacement.is_alive.return_value = True
+        return replacement
+
+    def test_alive_thread_queues_record_and_logs_queue_size(self):
+        with self._service(monitor_queue='MONITOR') as (SUT, _, _, _):
+            data = {'dateTime': 1234567890, 'outTemp': 70.0}
+            SUT._handle_record('loop', data)
+
+            self.assertEqual(SUT.data_queue.qsize(), 1)
+            item = SUT.data_queue.get_nowait()
+            self.assertEqual(item, {'time_stamp': 1234567890, 'type': 'loop', 'data': data})
+            log_item = SUT.logger_queue.get_nowait()
+            self.assertEqual(log_item['log_type'], 'MONITOR')
+            self.assertIn("Input queue size: 1", log_item['log_message'])
+            # A live thread is not restarted.
+            self.assertEqual(SUT.thread_restarts, 0)
+
+    def test_alive_thread_record_without_dateTime_stamps_itself(self):
+        with self._service() as (SUT, _, _, _):
+            before = time.time()
+            SUT._handle_record('archive', {'outTemp': 70.0})
+            after = time.time()
+
+            item = SUT.data_queue.get_nowait()
+            self.assertGreaterEqual(item['time_stamp'], before)
+            self.assertLessEqual(item['time_stamp'], after)
+
+    def test_connected_publisher_resets_restart_count(self):
+        with self._service() as (SUT, _, _, _):
+            SUT.thread_restarts = 2
+            SUT._thread.processor.publisher.connected = True
+
+            SUT._handle_record('loop', {'dateTime': 1234567890})
+
+            self.assertEqual(SUT.thread_restarts, 0)
+
+    def test_unconnected_publisher_keeps_restart_count(self):
+        with self._service() as (SUT, _, _, _):
+            SUT.thread_restarts = 2
+            SUT._thread.processor.publisher.connected = False
+
+            SUT._handle_record('loop', {'dateTime': 1234567890})
+
+            self.assertEqual(SUT.thread_restarts, 2)
+
+    def test_absent_publisher_keeps_restart_count(self):
+        with self._service() as (SUT, _, _, _):
+            SUT.thread_restarts = 2
+            SUT._thread.processor.publisher = None
+
+            SUT._handle_record('loop', {'dateTime': 1234567890})
+
+            self.assertEqual(SUT.thread_restarts, 2)
+
+    def test_dead_thread_is_restarted_and_record_queued(self):
+        with self._service(monitor_queue='MONITOR') as (SUT, mock_thread, _, _):
+            dead_thread = SUT._thread
+            replacement = self._kill_thread(SUT, mock.Mock())
+            mock_thread.side_effect = lambda *_args: replacement
+            builds_before = mock_thread.call_count
+            starts_before = dead_thread.start.call_count
+
+            data = {'dateTime': 1234567890, 'outTemp': 70.0}
+            SUT._handle_record('loop', data)
+
+            # A replacement publishing thread is built, marked a daemon, and started.
+            self.assertEqual(mock_thread.call_count, builds_before + 1)
+            self.assertIs(SUT._thread, replacement)
+            self.assertTrue(replacement.daemon)
+            self.assertEqual(replacement.start.call_count, 1)
+            # The restart is counted, and the record is still queued.
+            self.assertEqual(SUT.thread_restarts, 1)
+            self.assertEqual(SUT.data_queue.get_nowait(),
+                             {'time_stamp': 1234567890, 'type': 'loop', 'data': data})
+            # The dead thread is not the one that got started by this call.
+            self.assertEqual(dead_thread.start.call_count, starts_before)
+
+    def test_dead_thread_restarted_with_process_when_multiprocess(self):
+        with self._service(multiprocess=True) as (SUT, _, mock_process, _):
+            replacement = self._kill_thread(SUT, mock.Mock())
+            mock_process.side_effect = lambda *_args: replacement
+            builds_before = mock_process.call_count
+
+            SUT._handle_record('archive', {'dateTime': 1234567890})
+
+            self.assertEqual(mock_process.call_count, builds_before + 1)
+            self.assertIs(SUT._thread, replacement)
+            self.assertEqual(SUT.thread_restarts, 1)
+
+    def test_exhausted_restarts_raise_stop_now(self):
+        with self._service() as (SUT, mock_thread, _, _):
+            self._kill_thread(SUT, mock.Mock())
+            builds_before = mock_thread.call_count
+            SUT.thread_restarts = SUT.max_thread_restarts
+
+            with self.assertRaises(weewx.StopNow):
+                SUT._handle_record('loop', {'dateTime': 1234567890})
+
+            # No replacement is built, nothing is queued, and the count is left as it was.
+            self.assertEqual(mock_thread.call_count, builds_before)
+            self.assertEqual(SUT.data_queue.qsize(), 0)
+            self.assertEqual(SUT.thread_restarts, SUT.max_thread_restarts)
+
+    def test_restart_path_requires_dateTime_while_live_path_defaults_it(self):
+        with self._service() as (SUT, mock_thread, _, _):
+            replacement = self._kill_thread(SUT, mock.Mock())
+            mock_thread.side_effect = lambda *_args: replacement
+
+            # The restarted-thread branch indexes the time stamp, so this raises.
+            with self.assertRaises(KeyError):
+                SUT._handle_record('loop', {'outTemp': 70.0})
+
+            # With the thread alive the same record is accepted.
+            SUT._thread = mock.Mock()
+            SUT._thread.is_alive.return_value = True
+            SUT._handle_record('loop', {'outTemp': 70.0})
+            self.assertEqual(SUT.data_queue.qsize(), 1)
+
+    def test_queue_backlog_is_logged_at_multiples_of_ten(self):
+        with self._service() as (SUT, _, _, mock_logger):
+            SUT._thread.is_alive.return_value = True
+            for _ in range(9):
+                SUT.data_queue.put({'dateTime': 1234567890})
+
+            SUT._handle_record('loop', {'dateTime': 1234567890})
+            mock_logger.logerr.assert_not_called()
+
+            SUT._handle_record('loop', {'dateTime': 1234567890})
+            mock_logger.logerr.assert_any_call(SUT.name, "Data queue has size of 10.")
+
+    def test_new_loop_packet_hands_a_deep_copy_to_handle_record(self):
+        with self._service() as (SUT, _, _, _):
+            SUT._handle_record = mock.Mock()
+            packet = {'dateTime': 1234567890, 'outTemp': 70.0}
+
+            SUT.new_loop_packet(mock.Mock(packet=packet))
+
+            args = SUT._handle_record.call_args[0]
+            self.assertEqual(args[0], 'loop')
+            self.assertIsNot(args[1], packet)
+            self.assertDictEqual(args[1], packet)
+
+    def test_new_archive_record_hands_a_deep_copy_to_handle_record(self):
+        with self._service() as (SUT, _, _, _):
+            SUT._handle_record = mock.Mock()
+            record = {'dateTime': 1234567890, 'outTemp': 70.0}
+
+            SUT.new_archive_record(mock.Mock(record=record))
+
+            args = SUT._handle_record.call_args[0]
+            self.assertEqual(args[0], 'archive')
+            self.assertIsNot(args[1], record)
+            self.assertDictEqual(args[1], record)
 
 if __name__ == '__main__':
     helpers.run_tests()

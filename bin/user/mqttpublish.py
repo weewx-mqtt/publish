@@ -875,40 +875,52 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
         self._handle_record('archive', copy.deepcopy(event.record))
 
     def _handle_record(self, data_type, data):
+        """ Queue a record for publishing, restarting the thread if it has died. """
+        self._check_queue_backlog()
+
+        if not self._thread.is_alive():
+            self._restart_thread(data_type, data)
+            return
+
+        self.data_queue.put({'time_stamp': data.get('dateTime', time.time()),
+                             'type': data_type,
+                             'data': data})
+        self._log_input_queue_size()
+
+        # A bit of a hack. The thread is running and the MQTT client is connected.
+        # So, we will reset the restart count.
+        if self._thread.processor.publisher and self._thread.processor.publisher.connected:
+            self.thread_restarts = 0
+
+    def _check_queue_backlog(self):
+        """ Log an error when the input queue is filling up. """
         queue_size = self.data_queue.qsize()
         if queue_size > 0 and queue_size % 10 == 0:
             self.logger.logerr(self.name, f"Data queue has size of {self.data_queue.qsize()}.")
 
-        if not self._thread.is_alive():
-            if self.thread_restarts < self.max_thread_restarts:
-                self.thread_restarts += 1
-                if self.multiprocess:
-                    self._thread = PublishWeeWXProcess(self.logger_queue,
-                                                       self.data_queue,
-                                                       self.processor_config)
-                else:
-                    self._thread = PublishWeeWXThread(self.logger_queue,
-                                                      self.data_queue,
-                                                      self.processor_config)
-                self._thread.daemon = True
+    def _restart_thread(self, data_type, data):
+        """ Replace a dead publishing thread, or give up when the restart budget is spent. """
+        if self.thread_restarts >= self.max_thread_restarts:
+            raise weewx.StopNow("MQTT publishing thread has stopped.")
 
-                self.thread_start()
-
-                self.data_queue.put({'time_stamp': data['dateTime'], 'type': data_type, 'data': data})
-                self.logger_queue.put({'name': self.name,
-                                       'log_type': self.monitor_config['monitor_queue'],
-                                       'log_message': f"monitor: Input queue size: {self.data_queue.qsize()}"})
-            else:
-                raise weewx.StopNow("MQTT publishing thread has stopped.")
+        self.thread_restarts += 1
+        if self.multiprocess:
+            self._thread = PublishWeeWXProcess(self.logger_queue, self.data_queue, self.processor_config)
         else:
-            self.data_queue.put({'time_stamp': data.get('dateTime', time.time()), 'type': data_type, 'data': data})
-            self.logger_queue.put({'name': self.name,
-                                   'log_type': self.monitor_config['monitor_queue'],
-                                   'log_message': f"monitor: Input queue size: {self.data_queue.qsize()}"})
-            # A bit of a hack. The thread is running and the MQTT client is connected.
-            # So, we will reset the restart count.
-            if self._thread.processor.publisher and self._thread.processor.publisher.connected:
-                self.thread_restarts = 0
+            self._thread = PublishWeeWXThread(self.logger_queue, self.data_queue, self.processor_config)
+        self._thread.daemon = True
+
+        self.thread_start()
+
+        # A time stamp is required here: the replacement thread has not seen this record yet.
+        self.data_queue.put({'time_stamp': data['dateTime'], 'type': data_type, 'data': data})
+        self._log_input_queue_size()
+
+    def _log_input_queue_size(self):
+        """ Log the input queue size under the queue monitor flag. """
+        self.logger_queue.put({'name': self.name,
+                               'log_type': self.monitor_config['monitor_queue'],
+                               'log_message': f"monitor: Input queue size: {self.data_queue.qsize()}"})
 
     def shutDown(self):
         """Run when an engine shutdown is requested."""
