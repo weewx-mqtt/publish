@@ -685,7 +685,7 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
         mqtt_config['username'] = service_dict.get('username', None)
         mqtt_config['password'] = service_dict.get('password', None)
         mqtt_config['clientid'] = service_dict.get('clientid', 'MQTTPublish-' +
-                                                          str(random.randint(1000, 9999)))  # NOSONAR - just need a unique id
+                                                   str(random.randint(1000, 9999)))  # NOSONAR - just need a unique id
 
         protocol_string = service_dict.get('protocol', 'MQTTv311')
         mqtt_config['protocol'] = getattr(mqtt, protocol_string, 0)
