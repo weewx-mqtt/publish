@@ -358,9 +358,9 @@ DEFAULT_UNITS = """
         watt_per_meter_squared = W/m²
 """
 
-class MQTTConfigHA:
+class MQTTConfigHA:  # pylint: disable=too-many-instance-attributes
     """ Publish Home Assistant MQTT device configuration data. """
-    def __init__(self, logger_queue, _monitor_config, name, plugin_dict, mqtt_dict, topics, weewx_dict):
+    def __init__(self, logger_queue, _monitor_config, name, plugin_dict, mqtt_dict, topics, weewx_dict):  # pylint: disable=R0913
         self.logger_queue = logger_queue
 
         self.weewx_defaults = weewx_dict.get('defaults', {})
