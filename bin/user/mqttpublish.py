@@ -71,7 +71,7 @@ class Logger:
         """ log error messages """
         self.log.error("%s %s", name, msg)
 
-class PluginManager():
+class PluginManager():  # pylint: disable=too-few-public-methods
     """ Manage the plugin callbacks. """
     def __init__(self, logger, monitor_config, mqtt_dict, topics, weewx_dict):  # pylint: disable=too-many-arguments
         self.logger = logger
@@ -112,7 +112,7 @@ class PluginManager():
                 timing = callback[callback_name]['timing']
                 self.callbacks[callback_name][timing][name] = callback[callback_name]['callback']
 
-class AbstractPublisher(abc.ABC):
+class AbstractPublisher(abc.ABC):  # pylint: disable=too-many-instance-attributes
     """ Managing publishing to MQTT. """
     def __init__(self, logger_queue, plugin_manager, publisher, mqtt_config, monitor_config):  # pylint: disable=too-many-arguments
         self.logger_queue = logger_queue
@@ -549,7 +549,7 @@ class PublisherV2MQTT3(PublisherV2):
     def connect(self, host, port, keepalive):
         self.client.connect(host=host, port=port, keepalive=keepalive)
 
-class PublishWeeWX():
+class PublishWeeWX():  # pylint: disable=too-few-public-methods
     """ Backwards compatibility class."""
     def __init__(self, engine, config_dict):
         self.mqtt_publish = MQTTPublish(engine, config_dict)
@@ -558,7 +558,7 @@ class PublishWeeWX():
         """Run when an engine shutdown is requested."""
         self.mqtt_publish.shutDown()
 
-class MQTTPublish(StdService):
+class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
     """ A service to publish WeeWX loop and/or archive data to MQTT. """
     def __init__(self, engine, config_dict):
         super().__init__(engine, config_dict)
@@ -974,7 +974,7 @@ class LoggerThread(threading.Thread):
 
         self.logger.loginf(self.name, f"Exited logger thread, {self.name}.")
 
-class QueueProcessor(multiprocessing.Process):
+class QueueProcessor(multiprocessing.Process):  # pylint: disable=too-many-instance-attributes
     """Publish WeeWX data to MQTT. """
     # For some reason, when PublishWeeWXProcess was a process, getting data from the Queue would lock.
     # The locks seemed to random. I tried all types of multiprocessing queues and Pipe (send/recv).
