@@ -403,50 +403,53 @@ class MQTTConfigHA:
                                    'log_type': 'INFO',
                                    'log_message': f"Device, {device_id}, will be configured in Home Assistant"})
 
-            self.defaults['component_data'][device_id] = configobj.ConfigObj(StringIO(DEFAULT_COMPONENT_DATA))
-            # ToDo: Remove? Backwards compatibility of old location
-            weeutil.config.merge_config(self.defaults['component_data'][device_id], plugin_dict.get('component_data', {}))
-            # Now, get the correct location and override any other data
-            weeutil.config.merge_config(self.defaults['component_data'][device_id],
-                                        plugin_dict['devices'][device_id].get('component_data', {}))
-            self.state_topics[device_id] = {}
-            self.configuration['devices'][device_id] = {}
-            device_config = plugin_dict['devices'][device_id]
+            self._configure_device(device_id, plugin_dict['devices'][device_id], plugin_dict)
 
-            device_data = {}
-            if self.lwt_dict is not None and to_bool(self.lwt_dict.get('enable', True)):
-                device_data['availability_topic'] = self.lwt_dict.get('topic', 'status')
-            device_data['components'] = {}
+    def _configure_device(self, device_id, device_config, plugin_dict):
+        """ Configure a single Home Assistant device. """
+        self.defaults['component_data'][device_id] = configobj.ConfigObj(StringIO(DEFAULT_COMPONENT_DATA))
+        # ToDo: Remove? Backwards compatibility of old location
+        weeutil.config.merge_config(self.defaults['component_data'][device_id], plugin_dict.get('component_data', {}))
+        # Now, get the correct location and override any other data
+        weeutil.config.merge_config(self.defaults['component_data'][device_id],
+                                    device_config.get('component_data', {}))
+        self.state_topics[device_id] = {}
+        self.configuration['devices'][device_id] = {}
 
-            device_data['origin'] = weeutil.config.deep_copy(device_config.get('origin', configobj.ConfigObj({})))
-            if 'name' not in device_data['origin']:
-                device_data['origin']['name'] = 'WeeWX'
+        device_data = {}
+        if self.lwt_dict is not None and to_bool(self.lwt_dict.get('enable', True)):
+            device_data['availability_topic'] = self.lwt_dict.get('topic', 'status')
+        device_data['components'] = {}
 
-            device_data['device'] = weeutil.config.deep_copy(device_config.get('device', configobj.ConfigObj({})))
-            device_data['device']['identifiers'] = device_id
-            if 'name' not in device_data['device']:
-                device_data['device']['name'] = device_id
+        device_data['origin'] = weeutil.config.deep_copy(device_config.get('origin', configobj.ConfigObj({})))
+        if 'name' not in device_data['origin']:
+            device_data['origin']['name'] = 'WeeWX'
 
-            self.configuration['devices'][device_id] = device_data
+        device_data['device'] = weeutil.config.deep_copy(device_config.get('device', configobj.ConfigObj({})))
+        device_data['device']['identifiers'] = device_id
+        if 'name' not in device_data['device']:
+            device_data['device']['name'] = device_id
 
-            if 'state_topic' in device_config:
-                raise ValueError("'state_topic' has been removed.")
-            if 'topics' not in device_config:
-                raise ValueError("'topics' is required.")
-            if len(device_config['topics'].sections) == 0:
-                raise ValueError("one 'topic' is required.")
+        self.configuration['devices'][device_id] = device_data
 
-            self.state_topics[device_id] = {}
-            for state_topic in device_config['topics']:
-                if state_topic not in self.topics:
-                    raise ValueError(f"{state_topic} not found in topics being published.")
-                self.state_topics[device_id][state_topic] = {}
-                self.state_topics[device_id][state_topic]['type'] = self.topics[state_topic]['type']
+        if 'state_topic' in device_config:
+            raise ValueError("'state_topic' has been removed.")
+        if 'topics' not in device_config:
+            raise ValueError("'topics' is required.")
+        if len(device_config['topics'].sections) == 0:
+            raise ValueError("one 'topic' is required.")
 
-            self.mqtt_config[device_id] = {}
-            self.mqtt_config[device_id]['ignore_fields'] = to_list(device_config.get('ignore_fields', []))
-            self.mqtt_config[device_id]['qos'] = to_int(device_config.get('qos', 0))
-            self.mqtt_config[device_id]['retain'] = to_bool(device_config.get('retain', False))
+        self.state_topics[device_id] = {}
+        for state_topic in device_config['topics']:
+            if state_topic not in self.topics:
+                raise ValueError(f"{state_topic} not found in topics being published.")
+            self.state_topics[device_id][state_topic] = {}
+            self.state_topics[device_id][state_topic]['type'] = self.topics[state_topic]['type']
+
+        self.mqtt_config[device_id] = {}
+        self.mqtt_config[device_id]['ignore_fields'] = to_list(device_config.get('ignore_fields', []))
+        self.mqtt_config[device_id]['qos'] = to_int(device_config.get('qos', 0))
+        self.mqtt_config[device_id]['retain'] = to_bool(device_config.get('retain', False))
 
     def get_callbacks(self):
         """ The callbacks. """
