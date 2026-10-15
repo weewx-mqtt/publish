@@ -3,3 +3,6 @@ exclude_paths:
   - ".github/**"
   - ".vscode/**"
   - "docs/**"
+  - ".codacy/"
+  - ".env/"
+  - "bin/user/tests/**"
