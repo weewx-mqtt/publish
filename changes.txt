@@ -30,6 +30,15 @@ Enhancements
 1.3.0 (draft)
 Fixes
   - MQTTConfigHA no longer 'advertises' an availability topic when MQTTPublish is not publishing to it.
+  - Fix random locks/ stalls when reading from the multiprocessing data queue (#39).
+    The publishing sub-process is now wrapped in a feeder thread that shuffles data from a
+    simple queue to the multiprocessing queue.
+  - Ensure the queue 'loop' method is called even when no data is waiting, by giving the
+    data queue get() a configurable timeout.
+  - Check the return code in the on_connect callback so failed connections are handled.
+  - Compare the redundant/duplicate suppression threshold against the unformatted value.
+  - Handle None values when applying the redundant/duplicate suppression threshold.
+  - MQTTConfigHA now ensures published values use WeeWX units.
 
 Enhancements:
   - Support additional data types when publishing ‘individual' topics.
@@ -39,6 +48,9 @@ Enhancements:
   - Ability to configure a default value for all components belonging to a device (#33).
   - Renamed the [[lwt]] section of MQTTPublish to [[availability_topic]]
   - Options to monitor queue processing, see https://weewx-mqtt.github.io/publish/common-options/#monitor_queue
+  - Improved shutdown logic flow, with timeouts when stopping threads/processes.
+  - A plugin can be loaded multiple times with different configurations.
+  - The data queue size is passed into plugin callbacks.
 
 Notes:
 The following have been deprecated and are scheduled to be removed in V2.
