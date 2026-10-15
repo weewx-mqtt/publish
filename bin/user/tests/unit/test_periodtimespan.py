@@ -21,17 +21,21 @@ import weeutil
 import user.mqttaggregatevalues
 
 class TestGetTimeSpan(unittest.TestCase):
-    def setup_timezone(self):
+    def setUp(self):
+        self._original_tz = os.environ.get('TZ')
         os.environ['TZ'] = 'America/New_York'
         time.tzset()
-        local_dt = datetime.datetime.now().astimezone()
-        return local_dt
+        self.addCleanup(self._restore_timezone)
+
+    def _restore_timezone(self):
+        if self._original_tz is None:
+            os.environ.pop('TZ', None)
+        else:
+            os.environ['TZ'] = self._original_tz
+        time.tzset()
 
     def test_hour(self):
         with mock.patch('weeutil.weeutil.archiveHoursAgoSpan')as mock_archive_hours_ago_span:
-            os.environ['TZ'] = 'America/New_York'
-            time.tzset()
-
             week_start = random.randint(0, 6)
             timespan_provider = user.mqttaggregatevalues.TimeSpanProvider(None, week_start)
 
@@ -42,8 +46,6 @@ class TestGetTimeSpan(unittest.TestCase):
 
     def test_day(self):
         with mock.patch('weeutil.weeutil.archiveDaySpan')as mock_archive_day_span:
-            self.setup_timezone()
-
             week_start = random.randint(0, 6)
             timespan_provider = user.mqttaggregatevalues.TimeSpanProvider(None, week_start)
 
@@ -56,7 +58,7 @@ class TestGetTimeSpan(unittest.TestCase):
         with mock.patch('weeutil.weeutil.archiveDaySpan')as mock_archive_day_span:
             mock_archive_day_span.return_value = weeutil.weeutil.TimeSpan(0, 0)
 
-            local_dt = self.setup_timezone()
+            local_dt = datetime.datetime.now().astimezone()
             utc_offset = int(local_dt.utcoffset().total_seconds() / 3600)
 
             now = 1771939800
@@ -77,7 +79,7 @@ class TestGetTimeSpan(unittest.TestCase):
             stop_timestamp = start_timestamp + random.randint(3600, 7200)
             mock_archive_day_span.return_value = weeutil.weeutil.TimeSpan(start_timestamp, stop_timestamp)
 
-            local_dt = self.setup_timezone()
+            local_dt = datetime.datetime.now().astimezone()
             utc_offset = int(local_dt.utcoffset().total_seconds() / 3600)
 
             now = 1771939800
@@ -96,8 +98,6 @@ class TestGetTimeSpan(unittest.TestCase):
 
     def test_yesterday(self):
         with mock.patch('weeutil.weeutil.archiveDaySpan')as mock_archive_day_span:
-            self.setup_timezone()
-
             week_start = random.randint(0, 6)
             timespan_provider = user.mqttaggregatevalues.TimeSpanProvider(None, week_start)
 
@@ -110,7 +110,7 @@ class TestGetTimeSpan(unittest.TestCase):
         with mock.patch('weeutil.weeutil.archiveDaySpan')as mock_archive_day_span:
             mock_archive_day_span.return_value = weeutil.weeutil.TimeSpan(0, 0)
 
-            local_dt = self.setup_timezone()
+            local_dt = datetime.datetime.now().astimezone()
             utc_offset = int(local_dt.utcoffset().total_seconds() / 3600)
 
             now = 1771939800
@@ -131,7 +131,7 @@ class TestGetTimeSpan(unittest.TestCase):
             stop_timestamp = start_timestamp + random.randint(3600, 7200)
             mock_archive_day_span.return_value = weeutil.weeutil.TimeSpan(start_timestamp, stop_timestamp)
 
-            local_dt = self.setup_timezone()
+            local_dt = datetime.datetime.now().astimezone()
             utc_offset = int(local_dt.utcoffset().total_seconds() / 3600)
 
             now = 1771939800
@@ -150,8 +150,6 @@ class TestGetTimeSpan(unittest.TestCase):
 
     def test_week(self):
         with mock.patch('weeutil.weeutil.archiveWeekSpan')as mock_archive_week_span:
-            self.setup_timezone()
-
             week_start = random.randint(0, 6)
             timespan_provider = user.mqttaggregatevalues.TimeSpanProvider(None, week_start)
 
@@ -164,7 +162,7 @@ class TestGetTimeSpan(unittest.TestCase):
         with mock.patch('weeutil.weeutil.archiveWeekSpan')as mock_archive_week_span:
             mock_archive_week_span.return_value = weeutil.weeutil.TimeSpan(0, 0)
 
-            local_dt = self.setup_timezone()
+            local_dt = datetime.datetime.now().astimezone()
             utc_offset = int(local_dt.utcoffset().total_seconds() / 3600)
 
             now = 1771939800
@@ -185,7 +183,7 @@ class TestGetTimeSpan(unittest.TestCase):
             stop_timestamp = start_timestamp + random.randint(3600, 7200)
             mock_archive_week_span.return_value = weeutil.weeutil.TimeSpan(start_timestamp, stop_timestamp)
 
-            local_dt = self.setup_timezone()
+            local_dt = datetime.datetime.now().astimezone()
             utc_offset = int(local_dt.utcoffset().total_seconds() / 3600)
 
             now = 1771939800
@@ -204,8 +202,6 @@ class TestGetTimeSpan(unittest.TestCase):
 
     def test_month(self):
         with mock.patch('weeutil.weeutil.archiveMonthSpan')as mock_archive_month_span:
-            self.setup_timezone()
-
             week_start = random.randint(0, 6)
             timespan_provider = user.mqttaggregatevalues.TimeSpanProvider(None, week_start)
 
@@ -218,7 +214,7 @@ class TestGetTimeSpan(unittest.TestCase):
         with mock.patch('weeutil.weeutil.archiveMonthSpan')as mock_archive_month_span:
             mock_archive_month_span.return_value = weeutil.weeutil.TimeSpan(0, 0)
 
-            local_dt = self.setup_timezone()
+            local_dt = datetime.datetime.now().astimezone()
             utc_offset = int(local_dt.utcoffset().total_seconds() / 3600)
 
             now = 1771939800
@@ -239,7 +235,7 @@ class TestGetTimeSpan(unittest.TestCase):
             stop_timestamp = start_timestamp + random.randint(3600, 7200)
             mock_archive_month_span.return_value = weeutil.weeutil.TimeSpan(start_timestamp, stop_timestamp)
 
-            local_dt = self.setup_timezone()
+            local_dt = datetime.datetime.now().astimezone()
             utc_offset = int(local_dt.utcoffset().total_seconds() / 3600)
 
             now = 1771939800
@@ -258,8 +254,6 @@ class TestGetTimeSpan(unittest.TestCase):
 
     def test_year(self):
         with mock.patch('weeutil.weeutil.archiveYearSpan')as mock_archive_year_span:
-            self.setup_timezone()
-
             week_start = random.randint(0, 6)
             timespan_provider = user.mqttaggregatevalues.TimeSpanProvider(None, week_start)
 
@@ -272,7 +266,7 @@ class TestGetTimeSpan(unittest.TestCase):
         with mock.patch('weeutil.weeutil.archiveYearSpan')as mock_archive_year_span:
             mock_archive_year_span.return_value = weeutil.weeutil.TimeSpan(0, 0)
 
-            local_dt = self.setup_timezone()
+            local_dt = datetime.datetime.now().astimezone()
             utc_offset = int(local_dt.utcoffset().total_seconds() / 3600)
 
             now = 1771939800
@@ -293,7 +287,7 @@ class TestGetTimeSpan(unittest.TestCase):
             stop_timestamp = start_timestamp + random.randint(3600, 7200)
             mock_archive_year_span.return_value = weeutil.weeutil.TimeSpan(start_timestamp, stop_timestamp)
 
-            local_dt = self.setup_timezone()
+            local_dt = datetime.datetime.now().astimezone()
             utc_offset = int(local_dt.utcoffset().total_seconds() / 3600)
 
             now = 1771939800
@@ -312,8 +306,6 @@ class TestGetTimeSpan(unittest.TestCase):
 
     def test_last24hours(self):
         with mock.patch('user.mqttaggregatevalues.TimeSpan')as mock_TimeSpan:
-            self.setup_timezone()
-
             week_start = random.randint(0, 6)
             timespan_provider = user.mqttaggregatevalues.TimeSpanProvider(None, week_start)
 
@@ -327,7 +319,7 @@ class TestGetTimeSpan(unittest.TestCase):
         with mock.patch('user.mqttaggregatevalues.TimeSpan')as mock_TimeSpan:
             mock_TimeSpan.return_value = weeutil.weeutil.TimeSpan(0, 0)
 
-            local_dt = self.setup_timezone()
+            local_dt = datetime.datetime.now().astimezone()
             utc_offset = int(local_dt.utcoffset().total_seconds() / 3600)
 
             now = 1771939800
@@ -349,7 +341,7 @@ class TestGetTimeSpan(unittest.TestCase):
             stop_timestamp = start_timestamp + random.randint(3600, 7200)
             mock_TimeSpan.return_value = weeutil.weeutil.TimeSpan(start_timestamp, stop_timestamp)
 
-            local_dt = self.setup_timezone()
+            local_dt = datetime.datetime.now().astimezone()
             utc_offset = int(local_dt.utcoffset().total_seconds() / 3600)
 
             now = 1771939800
@@ -368,8 +360,6 @@ class TestGetTimeSpan(unittest.TestCase):
 
     def test_last_n_days(self):
         with mock.patch('user.mqttaggregatevalues.TimeSpan')as mock_TimeSpan:
-            self.setup_timezone()
-
             week_start = random.randint(0, 6)
             timespan_provider = user.mqttaggregatevalues.TimeSpanProvider(None, week_start)
 
@@ -381,8 +371,6 @@ class TestGetTimeSpan(unittest.TestCase):
             mock_TimeSpan.assert_called_once_with(day_start_timestamp, now)
 
     def test_get_timespan_archive_interval(self):
-        self.setup_timezone()
-
         week_start = random.randint(0, 6)
         timespan_provider = user.mqttaggregatevalues.TimeSpanProvider(None, week_start)
 
