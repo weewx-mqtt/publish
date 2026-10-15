@@ -12,6 +12,8 @@ import configobj
 import unittest
 import mock
 
+import weewx
+
 import helpers
 import user.mqttpublish
 
@@ -55,6 +57,122 @@ class TestInit(unittest.TestCase):
                         SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
 
         self.assertTrue(SUT.mqtt_config['log_mqtt'])
+
+    @staticmethod
+    def _build_service(config_dict):
+        """ Construct an enabled MQTTPublish service with its collaborators mocked. """
+        engine = mock.Mock()
+        config = configobj.ConfigObj(config_dict)
+
+        with mock.patch('user.mqttpublish.weewx.manager'):
+            with mock.patch('user.mqttpublish.PublishWeeWXThread'):
+                with mock.patch('user.mqttpublish.PublishWeeWXProcess') as mock_process:
+                    with mock.patch('user.mqttpublish.LoggerThread'):
+                        with mock.patch('user.mqttpublish.Logger') as mock_logger:
+                            SUT = user.mqttpublish.MQTTPublish(engine, config)
+
+        return SUT, engine, mock_logger.return_value, mock_process
+
+    def test_deprecated_binding_option(self):
+        SUT, _, mock_logger, _ = self._build_service({
+            'MQTTPublish': {
+                'binding': 'archive',
+                'topics': {},
+            }
+        })
+
+        mock_logger.loginf.assert_any_call(SUT.name, "'binding' is deprecated and no longer used.")
+
+    def test_multiprocess_uses_process_thread(self):
+        SUT, _, _, mock_process = self._build_service({
+            'MQTTPublish': {
+                'multiprocess': True,
+                'topics': {},
+            }
+        })
+
+        mock_process.assert_called_once()
+        # pylint: disable=protected-access
+        self.assertIs(SUT._thread, mock_process.return_value)
+
+    def test_binds_archive_and_loop_events(self):
+        _, engine, _, _ = self._build_service({
+            'MQTTPublish': {
+                'topics': {
+                    helpers.random_string(): {},
+                },
+            }
+        })
+
+        bindings = [call[0][0] for call in engine.bind.call_args_list]
+        self.assertIn(weewx.NEW_ARCHIVE_RECORD, bindings)
+        self.assertIn(weewx.NEW_LOOP_PACKET, bindings)
+
+    def test_report_defaults_are_merged(self):
+        SUT, _, _, _ = self._build_service({
+            'MQTTPublish': {
+                'topics': {},
+            },
+            'StdReport': {
+                'Defaults': {
+                    'Station': {
+                        'altitude': '111, foot',
+                    },
+                },
+            },
+        })
+
+        self.assertEqual(SUT.weewx_dict['defaults']['Station']['altitude'], '111, foot')
+
+    def test_deprecated_lwt_option(self):
+        SUT, _, mock_logger, _ = self._build_service({
+            'MQTTPublish': {
+                'lwt': {
+                    'topic': 'status',
+                },
+                'topics': {},
+            }
+        })
+
+        mock_logger.logerr.assert_any_call(SUT.name,
+                                           "'[[lwt]]' is deprecated.  use [[availability_topic]].")
+
+class TestConfigurePlugins(unittest.TestCase):
+    @staticmethod
+    def _build_service(config_dict):
+        """ Construct an MQTTPublish service and return it with its mock logger. """
+        with mock.patch('user.mqttpublish.Logger') as mock_logger:
+            SUT = user.mqttpublish.MQTTPublish(mock.Mock(), configobj.ConfigObj(config_dict))
+
+        return SUT, mock_logger.return_value
+
+    def test_plugins_stanza_is_deprecated(self):
+        SUT, mock_logger = self._build_service({
+            'MQTTPublish': {
+                'enable': False,
+                'plugins': {
+                    'PluginA': {'key': 'value'},
+                },
+            },
+        })
+
+        mock_logger.logerr.assert_any_call(
+            SUT.name,
+            "'[[plugins]]' is deprecated. To configure see, https://weewx-mqtt.github.io/publish/plugins/")
+        self.assertIn('PluginA', SUT.plugins)
+
+    def test_plugins_list_reports_missing_configuration(self):
+        SUT, mock_logger = self._build_service({
+            'MQTTPublish': {
+                'enable': False,
+                'plugins': ['PluginA', 'PluginB'],
+            },
+            'PluginA': {'key': 'value'},
+        })
+
+        self.assertIn('PluginA', SUT.plugins)
+        self.assertNotIn('PluginB', SUT.plugins)
+        mock_logger.logerr.assert_any_call(SUT.name, 'PluginB is missing its configuration section.')
 
 class TestConfigureTopics(unittest.TestCase):
     def test_config_topics(self):
