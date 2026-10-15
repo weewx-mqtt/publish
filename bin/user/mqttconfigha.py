@@ -521,51 +521,53 @@ class MQTTConfigHA:
                         continue
                     if field not in self.configuration['devices'][device_id]['components']:
                         new_component = True
-
-                        if self.state_topics[device_id][topic]['type'] == 'individual':
-                            state_topic = f'{topic}/{field}'
-                            value_template = '{{ value }}'
-                        else:
-                            state_topic = topic
-                            value_template = '{{ value_json.' + field + ' | default(this.state) }}'
-
-                        self.configuration['devices'][device_id]['components'][field] = {
-                            'state_topic': state_topic,
-                            'platform': 'sensor',
-                            'value_template': value_template,
-                            'unique_id': f'{device_id}_{field}',
-                            'name': self.weewx_defaults['Labels']['Generic'].get(field, field),
-                        }
-                        unit_of_measurement = self.defaults['component_data'][device_id].get('unit_of_measurement', None)
-                        if unit_of_measurement is None:
-                            # Need to 'lookup' the field and see if it has been converted to a different unit
-                            fieldinfo = self.topics[topic]['fields'].get(field, {})
-                            unit = fieldinfo.get('unit', None)
-                            if unit is None:
-                                (unit, _) = weewx.units.getStandardUnitType(unit_system, field)
-                            if unit:
-                                unit_of_measurement = self.defaults['units'].get(unit)
-                        if unit_of_measurement:
-                            self.configuration['devices'][device_id]['components'][field]['unit_of_measurement'] = \
-                                unit_of_measurement
-                        device_class = self.defaults['component_data'][device_id].get(field, {}).get('device_class')
-                        if device_class and unit_of_measurement is not None:
-                            self.configuration['devices'][device_id]['components'][field]['device_class'] = device_class
-                        state_class = self.defaults['component_data'][device_id].get(field, {}).get('state_class')
-                        if state_class:
-                            self.configuration['devices'][device_id]['components'][field]['state_class'] = state_class
-
-                        weeutil.config.merge_config(self.configuration['devices'][device_id]['components'][field],
-                                                    self.defaults['component_data'][device_id].get('defaults', {}))
-                        weeutil.config.merge_config(self.configuration['devices'][device_id]['components'][field],
-                                                    self.defaults['component_data'][device_id].get(field, {}))
-                        self.logger_queue.put({'name': self.name,
-                                               'log_type': 'INFO',
-                                               'log_message': (f"New device configuration {field}: "
-                                                               f"{self.configuration['devices'][device_id]['components'][field]}")})
+                        self._build_component(device_id, topic, field, unit_system)
 
                 if new_component:
                     self.publish_record(mqtt_client, device_id)
+
+    def _build_component(self, device_id, topic, field, unit_system):
+        """ Build the Home Assistant discovery configuration for a single field. """
+        if self.state_topics[device_id][topic]['type'] == 'individual':
+            state_topic = f'{topic}/{field}'
+            value_template = '{{ value }}'
+        else:
+            state_topic = topic
+            value_template = '{{ value_json.' + field + ' | default(this.state) }}'
+
+        self.configuration['devices'][device_id]['components'][field] = {
+            'state_topic': state_topic,
+            'platform': 'sensor',
+            'value_template': value_template,
+            'unique_id': f'{device_id}_{field}',
+            'name': self.weewx_defaults['Labels']['Generic'].get(field, field),
+        }
+        unit_of_measurement = self.defaults['component_data'][device_id].get('unit_of_measurement', None)
+        if unit_of_measurement is None:
+            # Need to 'lookup' the field and see if it has been converted to a different unit
+            fieldinfo = self.topics[topic]['fields'].get(field, {})
+            unit = fieldinfo.get('unit', None)
+            if unit is None:
+                (unit, _) = weewx.units.getStandardUnitType(unit_system, field)
+            if unit:
+                unit_of_measurement = self.defaults['units'].get(unit)
+        if unit_of_measurement:
+            self.configuration['devices'][device_id]['components'][field]['unit_of_measurement'] = unit_of_measurement
+        device_class = self.defaults['component_data'][device_id].get(field, {}).get('device_class')
+        if device_class and unit_of_measurement is not None:
+            self.configuration['devices'][device_id]['components'][field]['device_class'] = device_class
+        state_class = self.defaults['component_data'][device_id].get(field, {}).get('state_class')
+        if state_class:
+            self.configuration['devices'][device_id]['components'][field]['state_class'] = state_class
+
+        weeutil.config.merge_config(self.configuration['devices'][device_id]['components'][field],
+                                    self.defaults['component_data'][device_id].get('defaults', {}))
+        weeutil.config.merge_config(self.configuration['devices'][device_id]['components'][field],
+                                    self.defaults['component_data'][device_id].get(field, {}))
+        self.logger_queue.put({'name': self.name,
+                               'log_type': 'INFO',
+                               'log_message': (f"New device configuration {field}: "
+                                               f"{self.configuration['devices'][device_id]['components'][field]}")})
 
     def publish_record(self, mqtt_client, device_id):
         """ Publish the HA device discovery configuration data. """
