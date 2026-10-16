@@ -229,6 +229,49 @@ class AbstractPublisher(abc.ABC):  # pylint: disable=too-many-instance-attribute
                                                        f"and reason {exception}.")})
         return True
 
+    # Some versions of these constants are dependent on the OpenSSL install,
+    # so only the ones that are available can be used. The legacy protocols are
+    # only reached when a user explicitly configures 'tls_version' for an old
+    # broker. The default is 'tlsv12'.
+    SSL_PROTOCOLS = (
+        ('tls', 'PROTOCOL_TLS'),
+        ('tlsv1', 'PROTOCOL_TLSv1'),
+        ('tlsv11', 'PROTOCOL_TLSv1_1'),
+        ('tlsv12', 'PROTOCOL_TLSv1_2'),
+        ('sslv2', 'PROTOCOL_SSLv2'),
+        ('sslv23', 'PROTOCOL_SSLv23'),
+        ('sslv3', 'PROTOCOL_SSLv3'),
+    )
+
+    @staticmethod
+    def _available_tls_versions():
+        """ Map every tls_version name this OpenSSL build actually provides. """
+        valid_tls_versions = {}
+        for key, constant in AbstractPublisher.SSL_PROTOCOLS:
+            try:
+                valid_tls_versions[key] = getattr(ssl, constant)  # NOSONAR - legacy compatibility only
+            except AttributeError:
+                pass
+        return valid_tls_versions
+
+    @staticmethod
+    def _none_as_unset(value):
+        """ Treat the literal 'none', in any case, as an unset option. """
+        if value and value.lower() == 'none':
+            return None
+        return value
+
+    @staticmethod
+    def _empty_as_unset(value):
+        """ Treat an empty string as an unset option.
+
+        ca_certs is read this way, while certfile, keyfile and ciphers use the
+        literal 'none', so the two normalizations are deliberately distinct.
+        """
+        if value == '':
+            return None
+        return value
+
     def _config_tls(self, tls_dict):
         """ Configure TLS."""
         valid_cert_reqs = {
@@ -237,56 +280,20 @@ class AbstractPublisher(abc.ABC):  # pylint: disable=too-many-instance-attribute
             'required': ssl.CERT_REQUIRED
         }
 
-        # Some versions of these constants are dependent on the OpenSSL install,
-        # so only add the ones that are available.
-        # The legacy protocols below are only used when a user explicitly configures
-        # 'tls_version' for an old broker. The default is 'tlsv12'.
-        ssl_protocols = (
-            ('tls', 'PROTOCOL_TLS'),
-            ('tlsv1', 'PROTOCOL_TLSv1'),
-            ('tlsv11', 'PROTOCOL_TLSv1_1'),
-            ('tlsv12', 'PROTOCOL_TLSv1_2'),
-            ('sslv2', 'PROTOCOL_SSLv2'),
-            ('sslv23', 'PROTOCOL_SSLv23'),
-            ('sslv3', 'PROTOCOL_SSLv3'),
-        )
-        valid_tls_versions = {}
-        for key, constant in ssl_protocols:
-            try:
-                valid_tls_versions[key] = getattr(ssl, constant)  # NOSONAR - legacy compatibility only
-            except AttributeError:
-                pass
-
-        ca_certs = tls_dict.get('ca_certs')
-        if ca_certs == '':
-            ca_certs = None
-
-        certfile = tls_dict.get('certfile')
-        if certfile and certfile.lower() == 'none':
-            certfile = None
-
-        keyfile = tls_dict.get('keyfile')
-        if keyfile and keyfile.lower() == 'none':
-            keyfile = None
-
-        ciphers = tls_dict.get('ciphers')
-        if ciphers and ciphers.lower() == 'none':
-            ciphers = None
-
-        valid_cert_reqs = valid_cert_reqs.get(tls_dict.get('certs_required', 'required'))
-        if valid_cert_reqs is None:
+        cert_reqs = valid_cert_reqs.get(tls_dict.get('certs_required', 'required'))
+        if cert_reqs is None:
             raise ValueError(f"Invalid 'certs_required', {tls_dict['certs_required']}")
 
-        tls_version = valid_tls_versions.get(tls_dict.get('tls_version', 'tlsv12'))
+        tls_version = self._available_tls_versions().get(tls_dict.get('tls_version', 'tlsv12'))
         if tls_version is None:
             raise ValueError(f"Invalid 'tls_version', {tls_dict['tls_version']}")
 
-        self.client.tls_set(ca_certs=ca_certs,
-                            certfile=certfile,
-                            keyfile=keyfile,
-                            cert_reqs=valid_cert_reqs,
+        self.client.tls_set(ca_certs=self._empty_as_unset(tls_dict.get('ca_certs')),
+                            certfile=self._none_as_unset(tls_dict.get('certfile')),
+                            keyfile=self._none_as_unset(tls_dict.get('keyfile')),
+                            cert_reqs=cert_reqs,
                             tls_version=tls_version,
-                            ciphers=ciphers)
+                            ciphers=self._none_as_unset(tls_dict.get('ciphers')))
 
     def publish_message(self, time_stamp, qos, retain, topic, data):  # pylint: disable=too-many-arguments
         """ Publish the message. """
