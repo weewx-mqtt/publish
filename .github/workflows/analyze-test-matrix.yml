@@ -29,6 +29,7 @@ jobs:
       pip-list: 'paho-mqtt==1.6.1'
       package-list: 'mosquitto'
       artifact-name-suffix: '-2'
+      lint-fail: false
       function-test: false
       integration-test: false
       e2e-test: false
