@@ -4,7 +4,7 @@ on:
   push:
     branches: [ "master" ]
   workflow_dispatch:
-
+ 
 jobs:
   analyze-test:
     uses: weewx-extensions/development-tools/.github/workflows/analyze-test-matrix.yml@v6
