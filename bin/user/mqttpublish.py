@@ -749,32 +749,46 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
         topics_archive = {}
         event_binding = {}
         for topic in service_dict['topics'].sections:
-            topic_dict = service_dict['topics'].get(topic, {})
-            field_options = self._resolve_field_options(service_dict, topic_dict)
-            topic_options = self._resolve_topic_options(service_dict, topic_dict)
-
-            fields = self._configure_topic_fields(field_options, topic_dict.get('fields', None))
-            self._apply_field_list_overrides(topic_dict, fields)
-            self._configure_deprecated_aggregates(topic, topic_dict.get('aggregates', {}))
-
-            # ToDo: add a check that ignore_field and publish_field are mutually exclusive
-            # ToDo: Could go as far making sure there are no fully configured fields...
-
-            if not topic_options['publish']:
-                continue
-            if 'loop' in topic_options['binding']:
-                self.logger.loginf(self.name, f"Publishing to {topic} for loop data.")
-                topics_loop[topic] = self._build_topic_config(topic_options, field_options, fields)
+            loop_config, archive_config = self._configure_topic(service_dict, topic)
+            if loop_config is not None:
+                topics_loop[topic] = loop_config
                 event_binding['loop'] = True
 
-            if 'archive' in topic_options['binding']:
-                self.logger.loginf(self.name, f"Publishing to {topic} for archive data.")
-                topics_archive[topic] = self._build_topic_config(topic_options, field_options, fields)
+            if archive_config is not None:
+                topics_archive[topic] = archive_config
                 event_binding['archive'] = True
 
         self.logger.logdbg(self.name, f"Loop topics: {topics_loop}")
         self.logger.logdbg(self.name, f"Archive topics: {topics_archive}")
         return topics_loop, topics_archive, event_binding.keys()
+
+    def _configure_topic(self, service_dict, topic):
+        """ Resolve one topic, returning its (loop, archive) configs, or (None, None) when unpublished. """
+        topic_dict = service_dict['topics'].get(topic, {})
+        field_options = self._resolve_field_options(service_dict, topic_dict)
+        topic_options = self._resolve_topic_options(service_dict, topic_dict)
+
+        fields = self._configure_topic_fields(field_options, topic_dict.get('fields', None))
+        self._apply_field_list_overrides(topic_dict, fields)
+        self._configure_deprecated_aggregates(topic, topic_dict.get('aggregates', {}))
+
+        # ToDo: add a check that ignore_field and publish_field are mutually exclusive
+        # ToDo: Could go as far making sure there are no fully configured fields...
+
+        if not topic_options['publish']:
+            return None, None
+
+        loop_config = None
+        archive_config = None
+        if 'loop' in topic_options['binding']:
+            self.logger.loginf(self.name, f"Publishing to {topic} for loop data.")
+            loop_config = self._build_topic_config(topic_options, field_options, fields)
+
+        if 'archive' in topic_options['binding']:
+            self.logger.loginf(self.name, f"Publishing to {topic} for archive data.")
+            archive_config = self._build_topic_config(topic_options, field_options, fields)
+
+        return loop_config, archive_config
 
     @staticmethod
     def _resolve_field_options(service_dict, topic_dict):

@@ -387,6 +387,54 @@ class TestConfigureTopics(unittest.TestCase):
         self.assertDictEqual(topics_archive, {})
         self.assertEqual(list(binding), [])
 
+    def test_config_topics_binding_excludes_archive(self):
+        mock_engine = mock.Mock()
+        config = configobj.ConfigObj({'MQTTPublish': {'enable': False}})
+
+        topic1 = helpers.random_string()
+        service_dict = {
+            'topics': {
+                topic1: {
+                    'binding': 'loop',
+                },
+            },
+        }
+        service_config = configobj.ConfigObj(service_dict)
+
+        with mock.patch('user.mqttpublish.PublishWeeWXThread'):
+            with mock.patch('user.mqttpublish.Logger'):
+                SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
+
+                topics_loop, topics_archive, binding = SUT.configure_topics(service_config)
+
+        self.assertIn(topic1, topics_loop)
+        self.assertNotIn(topic1, topics_archive)
+        self.assertEqual(list(binding), ['loop'])
+
+    def test_config_topics_binding_excludes_loop(self):
+        mock_engine = mock.Mock()
+        config = configobj.ConfigObj({'MQTTPublish': {'enable': False}})
+
+        topic1 = helpers.random_string()
+        service_dict = {
+            'topics': {
+                topic1: {
+                    'binding': 'archive',
+                },
+            },
+        }
+        service_config = configobj.ConfigObj(service_dict)
+
+        with mock.patch('user.mqttpublish.PublishWeeWXThread'):
+            with mock.patch('user.mqttpublish.Logger'):
+                SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
+
+                topics_loop, topics_archive, binding = SUT.configure_topics(service_config)
+
+        self.assertNotIn(topic1, topics_loop)
+        self.assertIn(topic1, topics_archive)
+        self.assertEqual(list(binding), ['archive'])
+
     def test_config_topics_with_field_list_overrides(self):
         mock_engine = mock.Mock()
         config = configobj.ConfigObj({'MQTTPublish': {'enable': False}})
