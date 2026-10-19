@@ -12,10 +12,10 @@ jobs:
       module-name: 'mqttpublish'
       pip-list: 'paho-mqtt'
       package-list: 'mosquitto'
+      latest-weewx-version: '5.5.2'
       function-test: false
       integration-test: false
       e2e-test: false
-      #flake-extra-parms: '--exclude tests'
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       CODACY_API_TOKEN: ${{ secrets.CODACY_API_TOKEN }}
