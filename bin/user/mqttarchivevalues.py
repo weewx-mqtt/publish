@@ -59,16 +59,22 @@ class MQTTArchiveValues(user.mqttpublish.MQTTPlugin):
 
     def update_record(self, _mqtt_client, topic, data, units, _qos, _retain):
         """ Run code when MQTT record is updated. """
-        if topic in self.plugin_dict['topics']:
-            for fieldname in self.archive_data:
-                if self.add_fields and fieldname not in self.add_fields:
-                    continue
-                if fieldname in self.ignore_fields:
-                    continue
+        if topic not in self.plugin_dict['topics']:
+            return
 
-                if fieldname not in data and self.archive_data[fieldname] is not None:
-                    (to_unit, _) = weewx.units.getStandardUnitType(units, fieldname)
-                    (from_unit, from_group) = weewx.units.getStandardUnitType(self.archive_data['usUnits'], fieldname)
-                    from_tuple = (self.archive_data[fieldname], from_unit, from_group)
-                    converted_value = weewx.units.convert(from_tuple, to_unit)[0]
-                    data[fieldname] = converted_value
+        for fieldname in self.archive_data:
+            self._copy_archive_value(fieldname, data, units)
+
+    def _copy_archive_value(self, fieldname, data, units):
+        """ Copy one archive value into the record, converting its unit if needed. """
+        if self.add_fields and fieldname not in self.add_fields:
+            return
+        if fieldname in self.ignore_fields:
+            return
+        if fieldname in data or self.archive_data[fieldname] is None:
+            return
+
+        (to_unit, _) = weewx.units.getStandardUnitType(units, fieldname)
+        (from_unit, from_group) = weewx.units.getStandardUnitType(self.archive_data['usUnits'], fieldname)
+        from_tuple = (self.archive_data[fieldname], from_unit, from_group)
+        data[fieldname] = weewx.units.convert(from_tuple, to_unit)[0]

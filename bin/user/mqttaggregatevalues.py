@@ -207,26 +207,31 @@ class MQTTAggregateValues(user.mqttpublish.MQTTPlugin):
         for topic in self.plugin_dict['topics']:
             self.last_calculated[topic] = {}
             for (aggregate_observation, aggregate) in self.plugin_dict['topics'][topic].items():
-                if to_bool(aggregate.get('enable', True)) \
-                    and aggregate['period'] not in self.timespan_provider.period_timespans:
-                    self.logger_queue.put({'name': self.name,
-                                           'log_type': 'ERROR',
-                                           'log_message': f"Invalid 'period', {aggregate['period']}"})
-                    raise ValueError(f"Invalid 'period', {aggregate['period']}")
-                if 'calculation_interval' not in aggregate:
-                    aggregate['calculation_interval'] = self.timespan_provider.get_calculation_interval(aggregate['period'])
-                aggregate['calculation_interval'] = to_int(aggregate['calculation_interval']) * 60
+                self.last_calculated[topic][aggregate_observation] = self._init_aggregate(aggregate, utc_offset)
 
-                if aggregate['calculation_interval'] == 60 * 60 * 24:
-                    adjustment = utc_offset
-                else:
-                    adjustment = 0
+    def _init_aggregate(self, aggregate, utc_offset):
+        """ Validate an aggregate config and return its initial state. """
+        if to_bool(aggregate.get('enable', True)) \
+            and aggregate['period'] not in self.timespan_provider.period_timespans:
+            self.logger_queue.put({'name': self.name,
+                                   'log_type': 'ERROR',
+                                   'log_message': f"Invalid 'period', {aggregate['period']}"})
+            raise ValueError(f"Invalid 'period', {aggregate['period']}")
 
-                self.last_calculated[topic][aggregate_observation] = {
-                    'value': None,
-                    'interval_end': None,
-                    'adjustment': adjustment,
-                }
+        if 'calculation_interval' not in aggregate:
+            aggregate['calculation_interval'] = self.timespan_provider.get_calculation_interval(aggregate['period'])
+        aggregate['calculation_interval'] = to_int(aggregate['calculation_interval']) * 60
+
+        if aggregate['calculation_interval'] == 60 * 60 * 24:
+            adjustment = utc_offset
+        else:
+            adjustment = 0
+
+        return {
+            'value': None,
+            'interval_end': None,
+            'adjustment': adjustment,
+        }
 
     def get_callbacks(self):
         """ The callbacks. """
@@ -249,44 +254,49 @@ class MQTTAggregateValues(user.mqttpublish.MQTTPlugin):
 
         if topic not in self.plugin_dict['topics']:
             return
+
         aggregate_dict = self.plugin_dict['topics'][topic]
 
         for aggregate_observation in aggregate_dict:
             if not to_bool(aggregate_dict[aggregate_observation].get('enable', True)):
                 continue
 
-            now_adjusted = now + self.last_calculated[topic][aggregate_observation]['adjustment']
-
-            time_span = self.timespan_provider.get_timespan(aggregate_dict[aggregate_observation]['period'],
-                                                            data.get('dateTime', now),
-                                                            self.offset)
-            interval_end = startOfInterval(now_adjusted, aggregate_dict[aggregate_observation]['calculation_interval']) + \
-                aggregate_dict[aggregate_observation]['calculation_interval']
-
-            if self.last_calculated[topic][aggregate_observation]['interval_end'] is None or \
-                interval_end > self.last_calculated[topic][aggregate_observation]['interval_end']:
-                try:
-                    aggregate_value_tuple = \
-                        weewx.xtypes.get_aggregate(aggregate_dict[aggregate_observation]['observation'],
-                                                   time_span, aggregate_dict[aggregate_observation]['aggregation'],
-                                                   self.db_manager)
-                    # ToDo: only do once?
-                    #  unit_type, group = weewx.units.getStandardUnitType(db_manager.std_unit_system, obs_type, aggregate_type)
-                    weewx.units.obs_group_dict[aggregate_observation] = aggregate_value_tuple[2]
-
-                    aggregates[aggregate_observation] = aggregate_value_tuple[0]
-
-                    self.last_calculated[topic][aggregate_observation]['value'] = aggregates[aggregate_observation]
-                    self.last_calculated[topic][aggregate_observation]['interval_end'] = interval_end
-
-                except (weewx.CannotCalculate, weewx.UnknownAggregation, weewx.UnknownType) as exception:
-                    self.logger_queue.put({'name': self.name,
-                                           'log_type': 'ERROR',
-                                           'log_message': f"Aggregation failed: {exception}"})
-                    self.logger_queue.put({'name': self.name,
-                                           'log_type': 'ERROR',
-                                           'log_message': traceback.format_exc()})
-
-            aggregates[aggregate_observation] = self.last_calculated[topic][aggregate_observation]['value']
+            aggregates[aggregate_observation] = self._calculate_aggregate(
+                topic, aggregate_observation, aggregate_dict[aggregate_observation], now, data)
 
         data.update(aggregates)
+
+    def _calculate_aggregate(self, topic, aggregate_observation, aggregate, now, data):
+        """ Recalculate the aggregate if it is due, and return its current value. """
+        last_calculated = self.last_calculated[topic][aggregate_observation]
+
+        now_adjusted = now + last_calculated['adjustment']
+
+        time_span = self.timespan_provider.get_timespan(aggregate['period'],
+                                                        data.get('dateTime', now),
+                                                        self.offset)
+        interval_end = startOfInterval(now_adjusted, aggregate['calculation_interval']) + \
+            aggregate['calculation_interval']
+
+        if last_calculated['interval_end'] is None or interval_end > last_calculated['interval_end']:
+            try:
+                aggregate_value_tuple = \
+                    weewx.xtypes.get_aggregate(aggregate['observation'],
+                                               time_span, aggregate['aggregation'],
+                                               self.db_manager)
+                # ToDo: only do once?
+                #  unit_type, group = weewx.units.getStandardUnitType(db_manager.std_unit_system, obs_type, aggregate_type)
+                weewx.units.obs_group_dict[aggregate_observation] = aggregate_value_tuple[2]
+
+                last_calculated['value'] = aggregate_value_tuple[0]
+                last_calculated['interval_end'] = interval_end
+
+            except (weewx.CannotCalculate, weewx.UnknownAggregation, weewx.UnknownType) as exception:
+                self.logger_queue.put({'name': self.name,
+                                       'log_type': 'ERROR',
+                                       'log_message': f"Aggregation failed: {exception}"})
+                self.logger_queue.put({'name': self.name,
+                                       'log_type': 'ERROR',
+                                       'log_message': traceback.format_exc()})
+
+        return last_calculated['value']
