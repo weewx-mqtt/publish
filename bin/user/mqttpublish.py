@@ -71,6 +71,19 @@ class Logger:
         """ log error messages """
         self.log.error("%s %s", name, msg)
 
+class MQTTPlugin():  # pylint: disable=too-few-public-methods
+    """ Common plugin initialization. """
+    def __init__(self, logger_queue, name, plugin_dict):
+        self.logger_queue = logger_queue
+        self.plugin_dict = weeutil.config.deep_copy(plugin_dict)
+        self.enabled = to_bool(self.plugin_dict.get('enable', True))
+        self.name = f"{self.__class__.__name__}-{threading.get_native_id()}"
+
+        if not self.enabled:
+            self.logger_queue.put({'name': self.name,
+                                   'log_type': 'INFO',
+                                   'log_message': f"Plugin {name} is not enabled."})
+
 class PluginManager():  # pylint: disable=too-few-public-methods
     """ Manage the plugin callbacks. """
     def __init__(self, logger, monitor_config, mqtt_dict, topics, weewx_dict):  # pylint: disable=too-many-arguments

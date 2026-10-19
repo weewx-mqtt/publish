@@ -8,7 +8,6 @@
 
 from io import StringIO
 import json
-import threading
 
 import configobj
 
@@ -16,6 +15,8 @@ import weewx.units
 import weeutil
 
 from weeutil.weeutil import to_bool, to_int, to_list
+
+import user.mqttpublish
 
 # hDevice class and unit of measure: https://developers.home-assistant.io/docs/core/entity/sensor/#available-device-classes
 DEFAULT_COMPONENT_DATA = """
@@ -358,19 +359,15 @@ DEFAULT_UNITS = """
         watt_per_meter_squared = W/m²
 """
 
-class MQTTConfigHA:  # pylint: disable=too-many-instance-attributes
+class MQTTConfigHA(user.mqttpublish.MQTTPlugin):  # pylint: disable=too-many-instance-attributes
     """ Publish Home Assistant MQTT device configuration data. """
     def __init__(self, logger_queue, _monitor_config, name, plugin_dict, mqtt_dict, topics, weewx_dict):  # pylint: disable=R0913
-        self.logger_queue = logger_queue
-
+        # pylint: disable=R0917
         self.weewx_defaults = weewx_dict.get('defaults', {})
-        self.enabled = to_bool(plugin_dict.get('enable', True))
-        self.name = f"{self.__class__.__name__}-{threading.get_native_id()}"
+
+        super().__init__(logger_queue, name, plugin_dict)
 
         if not self.enabled:
-            self.logger_queue.put({'name': self.name,
-                                   'log_type': 'INFO',
-                                   'log_message': f"Plugin {name} is not enabled."})
             return
 
         if 'devices' not in plugin_dict or len(plugin_dict['devices'].sections) == 0:

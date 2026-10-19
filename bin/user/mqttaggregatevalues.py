@@ -7,7 +7,6 @@
 """ Plugin to calculate aggregate values. """
 
 import datetime
-import threading
 import time
 import traceback
 
@@ -16,6 +15,8 @@ import weewx.manager
 import weeutil
 
 from weeutil.weeutil import to_bool, to_int, startOfInterval, TimeSpan
+
+import user.mqttpublish
 
 class TimeSpanProvider:
     ''' Manage the timespans. '''
@@ -187,18 +188,12 @@ class TimeSpanProvider:
         # And now adjust it with the offset
         return weeutil.weeutil.TimeSpan(adjusted_timespan.start + offset_seconds, adjusted_timespan.stop + offset_seconds)
 
-class MQTTAggregateValues:
+class MQTTAggregateValues(user.mqttpublish.MQTTPlugin):
     """ Calculate aggregate values. """
     def __init__(self, logger_queue, _monitor_config, name, plugin_dict, _mqtt_dict, _topics, weewx_dict):
-        self.logger_queue = logger_queue
-        self.plugin_dict = weeutil.config.deep_copy(plugin_dict)
-        self.enabled = to_bool(self.plugin_dict.get('enable', True))
-        self.name = f"{self.__class__.__name__}-{threading.get_native_id()}"
+        super().__init__(logger_queue, name, plugin_dict)
 
         if not self.enabled:
-            self.logger_queue.put({'name': self.name,
-                                   'log_type': 'INFO',
-                                   'log_message': f"Plugin {name} is not enabled."})
             return
 
         self.offset = to_int(plugin_dict.get('offset'))
