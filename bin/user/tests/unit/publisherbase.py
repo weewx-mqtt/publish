@@ -6,6 +6,7 @@
 # pylint: disable=wrong-import-order
 # pylint: disable=missing-module-docstring, missing-class-docstring, missing-function-docstring
 # pylint: disable=invalid-name
+# pylint: disable=too-many-public-methods
 
 import configobj
 import paho.mqtt
@@ -23,6 +24,8 @@ import user.mqttpublish
 
 class PublisherBase(unittest.TestCase):
     class_under_test = user.mqttpublish.Publisher
+    # The paho api variant to test; the concrete subclasses set it.
+    api = None
     protocol_string = None
 
     def test_get_client(self):
@@ -158,7 +161,6 @@ class PublisherBase(unittest.TestCase):
                     mock_logger_queue.put.assert_called_once_with({'name': SUT.name,
                                                                    'log_type': log_type,
                                                                    'log_message': f"MQTT log: {msg}"})
-
 
                 msg = helpers.random_string()
                 mock_logger_queue.reset_mock()
@@ -321,7 +323,8 @@ class PublisherBase(unittest.TestCase):
                                                'loop_start',
                                                autospec=True) as mock_loop_start:
 
-                            self.class_under_test(mock_logger_queue, mock_plugin_manager, mock_publisher, config, monitor_dict, api=self.api)
+                            self.class_under_test(mock_logger_queue, mock_plugin_manager, mock_publisher, config,
+                                                  monitor_dict, api=self.api)
 
                             self.assertEqual(mock_connect.call_count, 1)
                             mock_reconnect_delay.assert_called_once_with(mock.ANY,
@@ -867,6 +870,7 @@ class PublisherBase(unittest.TestCase):
                 with mock.patch.object(user.mqttpublish.Publisher, '_connect'):
                     with mock.patch.object(user.mqttpublish.mqtt.Client, 'publish') as mock_publish:
                         with mock.patch.object(user.mqttpublish.mqtt.Client, 'loop', autospec=True) as mock_loop:
+                            mock_publish.return_value.rc = paho.mqtt.client.MQTT_ERR_SUCCESS
 
                             SUT = self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
 
@@ -913,6 +917,7 @@ class PublisherBase(unittest.TestCase):
                 with mock.patch.object(user.mqttpublish.Publisher, '_connect'):
                     with mock.patch.object(user.mqttpublish.mqtt.Client, 'publish') as mock_publish:
                         with mock.patch.object(user.mqttpublish.mqtt.Client, 'loop', autospec=True) as mock_loop:
+                            mock_publish.return_value.rc = paho.mqtt.client.MQTT_ERR_SUCCESS
 
                             SUT = self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
 
@@ -929,8 +934,57 @@ class PublisherBase(unittest.TestCase):
                             mock_publish.assert_called_once_with(topic, data, qos=qos, retain=retain)
                             mock_loop.assert_not_called()
 
+    def test_publish_when_not_accepted(self):
+        mock_logger_queue = mock.Mock()
+        mock_publisher = mock.Mock()
+
+        config_dict = {
+            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
+            'clientid': helpers.random_string(),
+            'log_mqtt': random.choice([True, False]),
+            'username': helpers.random_string(),
+            'password': helpers.random_string(),
+            'host': helpers.random_string(),
+            'port': random.randint(1, 65535),
+            'keepalive': random.randint(1, 30),
+            'min_delay': 1,
+            'max_delay': 120,
+        }
+        config = configobj.ConfigObj(config_dict)
+
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+        }
+
+        with mock.patch('user.mqttpublish.time'):
+            with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
+                with mock.patch.object(user.mqttpublish.Publisher, '_connect'):
+                    with mock.patch.object(user.mqttpublish.mqtt.Client, 'publish') as mock_publish:
+                        mock_publish.return_value.rc = paho.mqtt.client.MQTT_ERR_NO_CONN
+
+                        SUT = self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
+
+                        SUT.connected = False
+                        time_stamp = random.randint(10, 10000)
+                        qos = random.randint(0, 10)
+                        retain = random.choice([True, False])
+                        topic = helpers.random_string()
+                        data = helpers.random_string()
+                        SUT.publish_message(time_stamp, qos, retain, topic, data)
+
+                        # A publish paho refuses, such as when the broker is down, must be logged, not raised.
+                        log_messages = [call[0][0] for call in mock_logger_queue.put.call_args_list]
+                        self.assertTrue(any(entry['log_type'] == 'ERROR' and topic in entry['log_message']
+                                            for entry in log_messages))
+
 class TLSBase(unittest.TestCase):
     class_under_test = user.mqttpublish.Publisher
+    # The paho api variant to test; the concrete subclasses set it.
+    api = None
     protocol_string = None
 
     def test_tls_configuration_good(self):

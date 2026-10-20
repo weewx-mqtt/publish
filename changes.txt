@@ -54,6 +54,7 @@ Enhancements:
   - MQTT reconnects are handled by the paho mqtt network loop, which keeps reconnecting until
     the broker is available again. The reconnect backoff is configured with min_delay and max_delay.
   - A connect failure at startup no longer retries, it shuts the publishing thread down so it can be restarted.
+  - A publish that paho refuses, such as when the broker is down, is logged as an error and the message is dropped.
 
 Notes:
 The following have been deprecated and are scheduled to be removed in V2.

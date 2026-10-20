@@ -216,6 +216,14 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
                                'log_message': (f"At {int(time.time())}  publishing: {int(time_stamp)} "
                                                f" {mqtt_message_info.mid} {qos} {topic} took {time.time() - start_time}")})
 
+        # Paho drops the message and returns an error when it is not connected (MQTT_ERR_NO_CONN)
+        # or its outbound queue is full (MQTT_ERR_QUEUE_SIZE). Log it; there is nothing to retry.
+        if mqtt_message_info.rc != mqtt.MQTT_ERR_SUCCESS:
+            self.logger_queue.put({'name': self.name,
+                                   'log_type': 'ERROR',
+                                   'log_message': (f"The publish of {topic} is not accepted with "
+                                                   f"{mqtt.error_string(mqtt_message_info.rc)}, the message is dropped.")})
+
     def get_client(self, client_id, protocol):
         ''' Get the MQTT client. '''
         return mqttcommon.create_client(self.api,
