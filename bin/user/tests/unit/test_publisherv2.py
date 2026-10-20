@@ -58,7 +58,8 @@ class TestPublisherV2(PublisherBase):
 
                     mock_client.assert_called_once_with(callback_api_version=paho.mqtt.client.CallbackAPIVersion.VERSION2,
                                                         client_id=config_dict['clientid'],
-                                                        protocol=config_dict['protocol'])
+                                                        protocol=config_dict['protocol'],
+                                                        userdata=None)
 
 @unittest.skipIf(not hasattr(paho.mqtt.client, 'CallbackAPIVersion'), "paho-mqtt is v1, skipping tests.")
 class TestTLS(TLSBase):

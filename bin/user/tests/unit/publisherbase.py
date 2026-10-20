@@ -24,12 +24,6 @@ class PublisherBase(unittest.TestCase):
     class_under_test = object
     protocol_string = None
 
-    def _reason_code(self, value):
-        # paho mqtt v1 passes 'reason_code' as an int, v2 as a ReasonCode object.
-        if issubclass(self.class_under_test, user.mqttpublish.PublisherV2):
-            return mqttstubs.ReasonCodeStub(value)
-        return value
-
     def test_get_client(self):
         raise NotImplementedError("test 'test_get_client' is not implemented")
 
@@ -67,9 +61,13 @@ class PublisherBase(unittest.TestCase):
                     SUT = self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
 
                     self.assertNotEqual(SUT.client.on_log, SUT.on_log)
-                    self.assertEqual(SUT.client.on_connect, SUT.on_connect)
-                    self.assertEqual(SUT.client.on_disconnect, SUT.on_disconnect)
-                    self.assertEqual(SUT.client.on_publish, SUT.on_publish)
+                    self.assertNotEqual(SUT.client.on_connect, SUT.on_connect)
+                    self.assertNotEqual(SUT.client.on_disconnect, SUT.on_disconnect)
+                    self.assertNotEqual(SUT.client.on_publish, SUT.on_publish)
+
+                    # The assigned callbacks must accept the calling convention of the api variant.
+                    self._call_on_connect(SUT, 5)
+                    self.assertIn('ERROR', [call[0][0]['log_type'] for call in mock_logger_queue.put.call_args_list])
 
     def test_set_on_log_callback(self):
         # pylint: disable=no-member
@@ -105,9 +103,9 @@ class PublisherBase(unittest.TestCase):
                     SUT = self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
 
                     self.assertEqual(SUT.client.on_log, SUT.on_log)
-                    self.assertEqual(SUT.client.on_connect, SUT.on_connect)
-                    self.assertEqual(SUT.client.on_disconnect, SUT.on_disconnect)
-                    self.assertEqual(SUT.client.on_publish, SUT.on_publish)
+                    self.assertNotEqual(SUT.client.on_connect, SUT.on_connect)
+                    self.assertNotEqual(SUT.client.on_disconnect, SUT.on_disconnect)
+                    self.assertNotEqual(SUT.client.on_publish, SUT.on_publish)
 
     def test_on_log(self):
         mock_logger_queue = mock.Mock()
@@ -537,7 +535,7 @@ class PublisherBase(unittest.TestCase):
 
                     SUT = self.class_under_test(mock_logger_queue, mock_plugin_manager, mock_publisher, config, monitor_dict)
 
-                    SUT.on_connect(SUT.client, None, {}, self._reason_code(0), None)
+                    SUT.on_connect(SUT.client, None, {}, 0, None)
 
                     self.assertTrue(SUT.connected)
                     mock_on_connect_callback.assert_called_once()
@@ -590,20 +588,24 @@ class PublisherBase(unittest.TestCase):
 
                     SUT = self.class_under_test(mock_logger_queue, mock_plugin_manager, mock_publisher, config, monitor_dict)
 
-                    SUT.on_connect(SUT.client, None, {}, self._reason_code(5), None)
+                    SUT.on_connect(SUT.client, None, {}, 5, None)
 
                     self.assertFalse(SUT.connected)
                     mock_on_connect_callback.assert_not_called()
                     mock_publish.assert_not_called()
                     self.assertIn('ERROR', [call[0][0]['log_type'] for call in mock_logger_queue.put.call_args_list])
 
-    def _call_on_disconnect(self, SUT, value):
-        # paho mqtt v1 calls on_disconnect with (client, userdata, rc),
+    def _call_on_connect(self, SUT, value):
+        # The assigned callback is adapted to the calling convention of the api variant:
+        # paho mqtt v1 calls on_connect with (client, userdata, flags, rc),
         # v2 with (client, userdata, flags, reason_code, properties).
         if issubclass(self.class_under_test, user.mqttpublish.PublisherV2):
-            SUT.on_disconnect(SUT.client, None, {}, self._reason_code(value), None)
+            SUT.client.on_connect(SUT.client, None, 0, mqttstubs.ReasonCodeStub(value), None)
         else:
-            SUT.on_disconnect(SUT.client, None, value)
+            SUT.client.on_connect(SUT.client, None, 0, value)
+
+    def _call_on_disconnect(self, SUT, value):
+        SUT.on_disconnect(SUT.client, None, value, None)
 
     def test_on_disconnect(self):
         mock_logger_queue = mock.Mock()

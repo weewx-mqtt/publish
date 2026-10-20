@@ -24,7 +24,9 @@ class TestAbstractPublisher(unittest.TestCase):
         mock_logger_queue = mock.Mock()
         mock_publisher = mock.Mock()
 
-        config_dict = {}
+        config_dict = {
+            'protocol': getattr(paho.mqtt.client, 'MQTTv311', 0),
+        }
         config = configobj.ConfigObj(config_dict)
 
         with mock.patch('user.mqttpublish.PublisherV1') as mock_client:

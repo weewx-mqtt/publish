@@ -16,7 +16,6 @@ import logging
 import multiprocessing
 import os
 import random
-import ssl
 import sys
 import threading
 import time
@@ -40,6 +39,7 @@ from weeutil.weeutil import to_bool, to_float, to_int, to_list, startOfInterval
 import weewx
 import weewx.defaults
 from weewx.engine import StdService
+from user import mqttcommon
 # pylint: enable=wrong-import-position
 
 VERSION = "1.3.0-rc02a"
@@ -127,17 +127,14 @@ class PluginManager():  # pylint: disable=too-few-public-methods
 
 class AbstractPublisher(abc.ABC):  # pylint: disable=too-many-instance-attributes
     """ Managing publishing to MQTT. """
+    # The paho mqtt api variant to communicate with. It is set by the subclasses.
+    api = None
+
     def __init__(self, logger_queue, plugin_manager, publisher, mqtt_config, monitor_config):  # pylint: disable=too-many-arguments
         self.logger_queue = logger_queue
         self.plugin_manager = plugin_manager
         self.connected = False
-        self.mqtt_logger = {
-            mqtt.MQTT_LOG_INFO: 'INFO',
-            mqtt.MQTT_LOG_NOTICE: 'INFO',
-            mqtt.MQTT_LOG_WARNING: 'INFO',
-            mqtt.MQTT_LOG_ERR: 'ERROR',
-            mqtt.MQTT_LOG_DEBUG: 'DEBUG'
-        }
+        self.mqtt_logger = mqttcommon.PAHO_LOG_LEVELS
         self.name = f"{self.__class__.__name__}-{threading.get_native_id()}"
 
         self.publisher = publisher
@@ -172,14 +169,15 @@ class AbstractPublisher(abc.ABC):  # pylint: disable=too-many-instance-attribute
     @classmethod
     def get_publisher(cls, logger, plugin_manager, publisher, mqtt_config, monitor_config):  # pylint: disable=R0913
         ''' Factory method to get appropriate MQTTPublish for paho mqtt version. '''
-        if hasattr(mqtt, 'CallbackAPIVersion'):
-            protocol = mqtt_config['protocol']
-            if protocol in [mqtt.MQTTv31, mqtt.MQTTv311]:
-                return PublisherV2MQTT3(logger, plugin_manager, publisher, mqtt_config, monitor_config)
+        api = mqttcommon.select_api(mqtt_config['protocol'])
 
-            return PublisherV2(logger, plugin_manager, publisher, mqtt_config, monitor_config)
+        if api == mqttcommon.API_V1:
+            return PublisherV1(logger, plugin_manager, publisher, mqtt_config, monitor_config)
 
-        return PublisherV1(logger, plugin_manager, publisher, mqtt_config, monitor_config)
+        if api == mqttcommon.API_V2_MQTT3:
+            return PublisherV2MQTT3(logger, plugin_manager, publisher, mqtt_config, monitor_config)
+
+        return PublisherV2(logger, plugin_manager, publisher, mqtt_config, monitor_config)
 
     def _connect(self):
         self.logger_queue.put({'name': self.name,
@@ -242,71 +240,12 @@ class AbstractPublisher(abc.ABC):  # pylint: disable=too-many-instance-attribute
                                                        f"and reason {exception}.")})
         return True
 
-    # Some versions of these constants are dependent on the OpenSSL install,
-    # so only the ones that are available can be used. The legacy protocols are
-    # only reached when a user explicitly configures 'tls_version' for an old
-    # broker. The default is 'tlsv12'.
-    SSL_PROTOCOLS = (
-        ('tls', 'PROTOCOL_TLS'),
-        ('tlsv1', 'PROTOCOL_TLSv1'),
-        ('tlsv11', 'PROTOCOL_TLSv1_1'),
-        ('tlsv12', 'PROTOCOL_TLSv1_2'),
-        ('sslv2', 'PROTOCOL_SSLv2'),
-        ('sslv23', 'PROTOCOL_SSLv23'),
-        ('sslv3', 'PROTOCOL_SSLv3'),
-    )
-
-    @staticmethod
-    def _available_tls_versions():
-        """ Map every tls_version name this OpenSSL build actually provides. """
-        valid_tls_versions = {}
-        for key, constant in AbstractPublisher.SSL_PROTOCOLS:
-            try:
-                valid_tls_versions[key] = getattr(ssl, constant)  # NOSONAR - legacy compatibility only
-            except AttributeError:
-                pass
-        return valid_tls_versions
-
-    @staticmethod
-    def _none_as_unset(value):
-        """ Treat the literal 'none', in any case, as an unset option. """
-        if value and value.lower() == 'none':
-            return None
-        return value
-
-    @staticmethod
-    def _empty_as_unset(value):
-        """ Treat an empty string as an unset option.
-
-        ca_certs is read this way, while certfile, keyfile and ciphers use the
-        literal 'none', so the two normalizations are deliberately distinct.
-        """
-        if value == '':
-            return None
-        return value
-
     def _config_tls(self, tls_dict):
         """ Configure TLS."""
-        valid_cert_reqs = {
-            'none': ssl.CERT_NONE,
-            'optional': ssl.CERT_OPTIONAL,
-            'required': ssl.CERT_REQUIRED
-        }
+        def format_error(option, value):
+            return f"Invalid '{option}', {value}"
 
-        cert_reqs = valid_cert_reqs.get(tls_dict.get('certs_required', 'required'))
-        if cert_reqs is None:
-            raise ValueError(f"Invalid 'certs_required', {tls_dict['certs_required']}")
-
-        tls_version = self._available_tls_versions().get(tls_dict.get('tls_version', 'tlsv12'))
-        if tls_version is None:
-            raise ValueError(f"Invalid 'tls_version', {tls_dict['tls_version']}")
-
-        self.client.tls_set(ca_certs=self._empty_as_unset(tls_dict.get('ca_certs')),
-                            certfile=self._none_as_unset(tls_dict.get('certfile')),
-                            keyfile=self._none_as_unset(tls_dict.get('keyfile')),
-                            cert_reqs=cert_reqs,
-                            tls_version=tls_version,
-                            ciphers=self._none_as_unset(tls_dict.get('ciphers')))
+        mqttcommon.configure_tls(self.client, tls_dict, format_error=format_error)
 
     def publish_message(self, time_stamp, qos, retain, topic, data):  # pylint: disable=too-many-arguments
         """ Publish the message. """
@@ -329,36 +268,66 @@ class AbstractPublisher(abc.ABC):  # pylint: disable=too-many-instance-attribute
 
     def get_client(self, client_id, protocol):
         ''' Get the MQTT client. '''
-        raise NotImplementedError("Method 'get_client' is not implemented")
+        return mqttcommon.create_client(self.api,
+                                        client_id=client_id,
+                                        protocol=protocol,
+                                        clean_session=True)
 
     def set_callbacks(self, log_mqtt):
         ''' Setup the MQTT callbacks. '''
-        raise NotImplementedError("Method 'set_callbacks' is not implemented")
+        self.client.on_connect = mqttcommon.adapt_callback(self.api, 'on_connect', self.on_connect)
+        self.client.on_disconnect = mqttcommon.adapt_callback(self.api, 'on_disconnect', self.on_disconnect)
+        self.client.on_publish = mqttcommon.adapt_callback(self.api, 'on_publish', self.on_publish)
+        self.client.on_message = self.on_message
+
+        if log_mqtt:
+            self.client.on_log = self.on_log
 
     def connect(self, host, port, keepalive):
         ''' Connect to the MQTT server. '''
-        raise NotImplementedError("Method 'connect' is not implemented")
+        mqttcommon.connect(self.client, self.api, host=host, port=port, keepalive=keepalive, clean_start=True)
 
-    def on_log(self, client, userdata, level, msg):
+    def on_log(self, _client, _userdata, level, msg):
         """ The on_log callback. """
-        raise NotImplementedError("Method 'on_log' is not implemented")
+        self.logger_queue.put({'name': self.name,
+                               'log_type': self.mqtt_logger.get(level, None),
+                               'log_message': f"MQTT log: {msg}"})
 
-    def on_connect(self, client, userdata, flags, reason_code, properties):  # pylint: disable=too-many-arguments
-        """ The on_connect callback.
-            The signature differs between V1 and V2 of paho.mqtt, with more added in V2.
-            So, in V1 the additional parameters are made as 'optional'."""
-        raise NotImplementedError("Method 'on_connect' is not implemented")
+    def on_connect(self, client, userdata, flags, rc, properties):  # pylint: disable=too-many-arguments
+        """ The on_connect callback. """
+        # https://pypi.org/project/paho-mqtt/#on-connect
+        # rc:
+        # 0: Connection successful
+        # 1: Connection refused - incorrect protocol version
+        # 2: Connection refused - invalid client identifier
+        # 3: Connection refused - server unavailable
+        # 4: Connection refused - bad username or password
+        # 5: Connection refused - not authorised
+        # 6-255: Currently unused.
+        if int(rc) != 0:
+            self.logger_queue.put({'name': self.name,
+                                   'log_type': 'ERROR',
+                                   'log_message': (f"Connection refused with result code {int(rc)}, "
+                                                   f"{mqtt.error_string(rc)}, flags {str(flags)}.")})
+            return
 
-    def on_disconnect(self, client, userdata, flags_rc, reason_code, properties):  # pylint: disable=too-many-arguments
-        """ The on_disconnect callback.
-            The signature differs between V1 and V2 of paho.mqtt, with more added in V2.
-            So, in V1 the additional parameters are made as 'optional'."""
-        raise NotImplementedError("Method 'on_disconnect' is not implemented")
+        self.logger_queue.put({'name': self.name,
+                               'log_type': 'INFO',
+                               'log_message': f"Connected with result code {int(rc)}, {mqtt.error_string(rc)}"})
 
-    def on_publish(self, _client, _userdata, mid, _reason_codes=None, _properties=None):
-        """ The on_publish callback.
-            The signature differs between V1 and V2 of paho.mqtt, with more added in V2.
-            So, in V1 the additional parameters are made as 'optional'."""
+        self._handle_connect_success((client, userdata, flags, rc, properties))
+
+    def on_disconnect(self, _client, _userdata, rc, _properties):
+        """ The on_disconnect callback. """
+        # https://pypi.org/project/paho-mqtt/#on-disconnect
+        # The rc parameter indicates the disconnection state.
+        # If MQTT_ERR_SUCCESS (0), the callback was called in response to a disconnect() call.
+        # If any other value the disconnection was unexpected,
+        # such as might be caused by a network error.
+        self._handle_disconnect(rc)
+
+    def on_publish(self, _client, _userdata, mid, _properties):
+        """ The on_publish callback. """
         time_stamp = "          "
         qos = ""
         self.logger_queue.put({'name': self.name,
@@ -390,7 +359,7 @@ class AbstractPublisher(abc.ABC):  # pylint: disable=too-many-instance-attribute
 
     def _handle_connect_success(self, callback_args):
         """ The connection succeeded. Run the common processing.
-            callback_args is the paho callback tuple: (client, userdata, flags, reason_code, properties). """
+            callback_args is the paho callback tuple: (client, userdata, flags, rc, properties). """
         flags = callback_args[2]
         self.logger_queue.put({'name': self.name,
                                'log_type': 'INFO',
@@ -404,11 +373,11 @@ class AbstractPublisher(abc.ABC):  # pylint: disable=too-many-instance-attribute
 
         self.connected = True
 
-    def _handle_disconnect(self, rc, suffix=''):
+    def _handle_disconnect(self, rc):
         """ The connection was lost, or a disconnect was requested. Mark as not connected. """
         self.logger_queue.put({'name': self.name,
                                'log_type': 'INFO' if int(rc) == 0 else 'ERROR',
-                               'log_message': f"Disconnected with result code {int(rc)}{suffix}"})
+                               'log_message': f"Disconnected with result code {int(rc)}, {mqtt.error_string(rc)}"})
 
         # As of 1.6.1, Paho MQTT cannot have a callback invoke a second callback. So we won't attempt to reconnect here.
         # Because that would cause the on_connect callback to be called. Instead we will just mark as not connected.
@@ -450,6 +419,8 @@ class AbstractPublisher(abc.ABC):  # pylint: disable=too-many-instance-attribute
 
 class PublisherV1(AbstractPublisher):
     ''' MQTTPublish that communicates with paho mqtt v1.'''
+    api = mqttcommon.API_V1
+
     def __init__(self, logger_queue, plugin_manager, publisher, mqtt_config, monitor_config):  # pylint: disable=too-many-arguments
         protocol = mqtt_config['protocol']
         if protocol not in [mqtt.MQTTv31, mqtt.MQTTv311]:
@@ -457,117 +428,13 @@ class PublisherV1(AbstractPublisher):
 
         super().__init__(logger_queue, plugin_manager, publisher, mqtt_config, monitor_config)
 
-    def get_client(self, client_id, protocol):
-        return mqtt.Client(  # depends on version of paho.mqtt pylint: disable=no-value-for-parameter
-            client_id=client_id,
-            protocol=protocol)
-
-    def set_callbacks(self, log_mqtt):
-        if log_mqtt:
-            self.client.on_log = self.on_log
-
-        self.client.on_connect = self.on_connect
-        self.client.on_disconnect = self.on_disconnect
-        self.client.on_publish = self.on_publish
-        self.client.on_message = self.on_message
-
-    def connect(self, host, port, keepalive):
-        self.client.connect(host, port, keepalive)
-
-    def on_log(self, _client, _userdata, level, msg):
-        self.logger_queue.put({'name': self.name,
-                               'log_type': self.mqtt_logger.get(level, None),
-                               'log_message': f"MQTT log: {msg}"})
-
-    def on_connect(self, client, userdata, flags, reason_code, properties=None):  # pylint: disable=too-many-arguments
-        # https://pypi.org/project/paho-mqtt/#on-connect
-        # reason_code:
-        # 0: Connection successful
-        # 1: Connection refused - incorrect protocol version
-        # 2: Connection refused - invalid client identifier
-        # 3: Connection refused - server unavailable
-        # 4: Connection refused - bad username or password
-        # 5: Connection refused - not authorised
-        # 6-255: Currently unused.
-        if int(reason_code) != 0:
-            self.logger_queue.put({'name': self.name,
-                                   'log_type': 'ERROR',
-                                   'log_message': (f"Connection refused with result code {int(reason_code)}, "
-                                                   f"{mqtt.error_string(reason_code)}, flags {str(flags)}.")})
-            return
-
-        self.logger_queue.put({'name': self.name,
-                               'log_type': 'INFO',
-                               'log_message': f"Connected with result code {int(reason_code)}, {mqtt.error_string(reason_code)}"})
-
-        self._handle_connect_success((client, userdata, flags, reason_code, properties))
-
-    def on_disconnect(self, _client, _userdata, flags_rc, reason_code=None, properties=None):
-        # https://pypi.org/project/paho-mqtt/#on-disconnect
-        # The rc parameter indicates the disconnection state.
-        # If MQTT_ERR_SUCCESS (0), the callback was called in response to a disconnect() call.
-        # If any other value the disconnection was unexpected,
-        # such as might be caused by a network error.
-        self._handle_disconnect(flags_rc, f", {mqtt.error_string(flags_rc)}")
-
 class PublisherV2(AbstractPublisher):
     ''' MQTTPublish that communicates with paho mqtt v2. '''
-    def get_client(self, client_id, protocol):
-        return mqtt.Client(callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
-                           protocol=protocol,
-                           client_id=client_id)
-
-    def set_callbacks(self, log_mqtt):
-        if log_mqtt:
-            self.client.on_log = self.on_log
-
-        self.client.on_connect = self.on_connect
-        self.client.on_disconnect = self.on_disconnect
-        self.client.on_publish = self.on_publish
-        self.client.on_message = self.on_message
-
-    def connect(self, host, port, keepalive):
-        self.client.connect(host=host, port=port, keepalive=keepalive, clean_start=True)
-
-    def on_log(self, _client, _userdata, level, msg):
-        self.logger_queue.put({'name': self.name,
-                               'log_type': self.mqtt_logger.get(level, None),
-                               'log_message': f"MQTT log: {msg}"})
-
-    def on_connect(self, client, userdata, flags, reason_code, properties):  # pylint: disable=too-many-arguments
-        if reason_code.is_failure:
-            self.logger_queue.put({'name': self.name,
-                                   'log_type': 'ERROR',
-                                   'log_message': (f"Connection refused with result code {int(reason_code.value)}, "
-                                                   f"flags {str(flags)}.")})
-            return
-
-        self.logger_queue.put({'name': self.name,
-                               'log_type': 'INFO',
-                               'log_message': f"Connected with result code {int(int(reason_code.value))}"})
-
-        self._handle_connect_success((client, userdata, flags, reason_code, properties))
-
-    def on_disconnect(self, _client, _userdata, _flags, reason_code, _properties):
-        # https://pypi.org/project/paho-mqtt/#on-disconnect
-        # The rc parameter indicates the disconnection state.
-        # If MQTT_ERR_SUCCESS (0), the callback was called in response to a disconnect() call.
-        # If any other value the disconnection was unexpected,
-        # such as might be caused by a network error.
-        # ToDo: research how it works with v2
-        self._handle_disconnect(reason_code.value)
+    api = mqttcommon.API_V2_MQTT5
 
 class PublisherV2MQTT3(PublisherV2):
-    ''' MQTTPublish that communicates with paho mqtt v2. '''
-    def get_client(self, client_id, protocol):
-        return mqtt.Client(callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
-                           protocol=protocol,
-                           client_id=client_id,
-                           userdata=None,
-                           clean_session=True)
-
-    def connect(self, host, port, keepalive):
-        self.client.connect(host=host, port=port, keepalive=keepalive)
+    ''' MQTTPublish that communicates with paho mqtt v2 with a MQTT3 protocol. '''
+    api = mqttcommon.API_V2_MQTT3
 
 class PublishWeeWX():  # pylint: disable=too-few-public-methods
     """ Backwards compatibility class."""
