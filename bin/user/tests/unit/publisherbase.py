@@ -43,7 +43,8 @@ class PublisherBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': 0,
+            'min_delay': 1,
+            'max_delay': 120,
         }
         config = configobj.ConfigObj(config_dict)
 
@@ -85,7 +86,8 @@ class PublisherBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': 0,
+            'min_delay': 1,
+            'max_delay': 120,
         }
         config = configobj.ConfigObj(config_dict)
 
@@ -121,7 +123,8 @@ class PublisherBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': 0,
+            'min_delay': 1,
+            'max_delay': 120,
         }
         config = configobj.ConfigObj(config_dict)
 
@@ -179,7 +182,8 @@ class PublisherBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': 0,
+            'min_delay': 1,
+            'max_delay': 120,
         }
         config = configobj.ConfigObj(config_dict)
 
@@ -213,7 +217,8 @@ class PublisherBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': 0,
+            'min_delay': 1,
+            'max_delay': 120,
         }
         config = configobj.ConfigObj(config_dict)
 
@@ -247,7 +252,8 @@ class PublisherBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': 0,
+            'min_delay': 1,
+            'max_delay': 120,
         }
         config = configobj.ConfigObj(config_dict)
 
@@ -289,8 +295,8 @@ class PublisherBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': random.choice([0, 2]),
-            'wait_for_connection': random.randint(0, 10),
+            'min_delay': 1,
+            'max_delay': 120,
         }
         config = configobj.ConfigObj(config_dict)
 
@@ -308,10 +314,21 @@ class PublisherBase(unittest.TestCase):
                                        'connect',
                                        side_effect=mqttstubs.ClientStub.connect_with_connection,
                                        autospec=True) as mock_connect:
+                    with mock.patch.object(user.mqttpublish.mqtt.Client,
+                                           'reconnect_delay_set',
+                                           autospec=True) as mock_reconnect_delay:
+                        with mock.patch.object(user.mqttpublish.mqtt.Client,
+                                               'loop_start',
+                                               autospec=True) as mock_loop_start:
 
-                    self.class_under_test(mock_logger_queue, mock_plugin_manager, mock_publisher, config, monitor_dict, api=self.api)
+                            self.class_under_test(mock_logger_queue, mock_plugin_manager, mock_publisher, config, monitor_dict, api=self.api)
 
-                    self.assertEqual(mock_connect.call_count, 1)
+                            self.assertEqual(mock_connect.call_count, 1)
+                            mock_reconnect_delay.assert_called_once_with(mock.ANY,
+                                                                         min_delay=config_dict['min_delay'],
+                                                                         max_delay=config_dict['max_delay'])
+                            # The network loop is started once; paho handles the CONNACK processing and reconnects.
+                            mock_loop_start.assert_called_once_with(mock.ANY)
 
     def test_connect_no_connection(self):
         mock_logger_queue = mock.Mock()
@@ -326,9 +343,8 @@ class PublisherBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': random.choice([0, 2]),
-            'wait_between_retries': random.randint(0, 10),
-            'wait_for_connection': random.randint(0, 10),
+            'min_delay': 1,
+            'max_delay': 120,
         }
         config = configobj.ConfigObj(config_dict)
 
@@ -346,15 +362,17 @@ class PublisherBase(unittest.TestCase):
                                        'connect',
                                        side_effect=mqttstubs.ClientStub.connect_without_connection,
                                        autospec=True) as mock_connect:
+                    with mock.patch.object(user.mqttpublish.mqtt.Client,
+                                           'loop_start',
+                                           autospec=True) as mock_loop_start:
 
-                    self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
+                        self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
 
-                    self.assertEqual(mock_connect.call_count, config_dict['max_retries'] + 1)
-                    # Exhausting the retries must mark the publisher thread for shutdown, not raise.
-                    self.assertFalse(mock_publisher.process)
-                    log_messages = [call[0][0]['log_message'] for call in mock_logger_queue.put.call_args_list]
-                    self.assertIn(f"Connecting to host: {config_dict['host']} port: {config_dict['port']}.", log_messages)
-                    self.assertIn(f"Waiting {config_dict['wait_between_retries']} seconds to connect.", log_messages)
+                        # A connect that does not raise is attempted once; the network loop waits for the CONNACK.
+                        self.assertEqual(mock_connect.call_count, 1)
+                        mock_loop_start.assert_called_once_with(mock.ANY)
+                        log_messages = [call[0][0]['log_message'] for call in mock_logger_queue.put.call_args_list]
+                        self.assertIn(f"Connecting to host: {config_dict['host']} port: {config_dict['port']}.", log_messages)
 
     def test_connect_first_call_exception(self):
         mock_logger_queue = mock.Mock()
@@ -369,9 +387,8 @@ class PublisherBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': random.choice([0, 2]),
-            'wait_between_retries': random.randint(0, 10),
-            'wait_for_connection': random.randint(0, 10),
+            'min_delay': 1,
+            'max_delay': 120,
         }
         config = configobj.ConfigObj(config_dict)
 
@@ -389,50 +406,18 @@ class PublisherBase(unittest.TestCase):
                                        'connect',
                                        side_effect=mqttstubs.ClientStub.connect_exception_first_call,
                                        autospec=True) as mock_connect:
+                    with mock.patch.object(user.mqttpublish.mqtt.Client,
+                                           'loop_start',
+                                           autospec=True) as mock_loop_start:
 
-                    self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
+                        self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
 
-                    self.assertEqual(mock_connect.call_count, config_dict['max_retries'] + 1)
-                    self.assertEqual(mock_logger_queue.put.call_count, 3 + 2 * config_dict['max_retries'])
-
-    def test_connect_subsequent_call_exception(self):
-        mock_logger_queue = mock.Mock()
-        mock_publisher = mock.Mock()
-
-        config_dict = {
-            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
-            'clientid': helpers.random_string(),
-            'log_mqtt': random.choice([True, False]),
-            'username': None,
-            'password': None,
-            'host': helpers.random_string(),
-            'port': random.randint(1, 65535),
-            'keepalive': random.randint(1, 30),
-            'max_retries': random.choice([1, 2]),
-            'wait_between_retries': random.randint(0, 10),
-            'wait_for_connection': random.randint(0, 10),
-        }
-        config = configobj.ConfigObj(config_dict)
-
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
-
-        with mock.patch('user.mqttpublish.time'):
-            with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
-                with mock.patch.object(user.mqttpublish.mqtt.Client,
-                                       'connect',
-                                       side_effect=mqttstubs.ClientStub.connect_exception_subsequent_calls,
-                                       autospec=True) as mock_connect:
-
-                    self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
-
-                    self.assertEqual(mock_connect.call_count, config_dict['max_retries'] + 1)
-                    self.assertEqual(mock_logger_queue.put.call_count, 2 + 2 * config_dict['max_retries'])
+                        # A connect failure is not retried; it marks the publisher thread for shutdown, instead of raising.
+                        self.assertEqual(mock_connect.call_count, 1)
+                        mock_loop_start.assert_not_called()
+                        self.assertFalse(mock_publisher.process)
+                        log_messages = [call[0][0]['log_message'] for call in mock_logger_queue.put.call_args_list]
+                        self.assertTrue(any("MQTT connect failed with" in msg for msg in log_messages))
 
     def test_connect_refused_connection(self):
         mock_logger_queue = mock.Mock()
@@ -455,9 +440,8 @@ class PublisherBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': 2,
-            'wait_between_retries': random.randint(0, 10),
-            'wait_for_connection': random.randint(0, 10),
+            'min_delay': 1,
+            'max_delay': 120,
             'lwt': {
                 'enable': True,
             }
@@ -483,8 +467,9 @@ class PublisherBase(unittest.TestCase):
                         SUT = self.class_under_test(mock_logger_queue, mock_plugin_manager, mock_publisher, config,
                                                     monitor_dict, api=self.api)
 
-                        # A refused connection must not be treated as a connection, so the retry loop keeps retrying.
-                        self.assertEqual(mock_connect.call_count, config_dict['max_retries'] + 1)
+                        # A refused connection must not be treated as a connection. It is attempted once;
+                        # paho's network loop retries with the configured backoff.
+                        self.assertEqual(mock_connect.call_count, 1)
                         self.assertFalse(SUT.connected)
                         # The LWT 'online' payload must not be published for a refused connection.
                         mock_publish.assert_not_called()
@@ -514,7 +499,8 @@ class PublisherBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': 0,
+            'min_delay': 1,
+            'max_delay': 120,
             'lwt': {
                 'enable': True,
             }
@@ -568,7 +554,8 @@ class PublisherBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': 0,
+            'min_delay': 1,
+            'max_delay': 120,
             'lwt': {
                 'enable': True,
             }
@@ -625,7 +612,8 @@ class PublisherBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': 0,
+            'min_delay': 1,
+            'max_delay': 120,
         }
         config = configobj.ConfigObj(config_dict)
 
@@ -683,7 +671,8 @@ class PublisherBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': 0,
+            'min_delay': 1,
+            'max_delay': 120,
         }
         config = configobj.ConfigObj(config_dict)
 
@@ -732,7 +721,8 @@ class PublisherBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': 0,
+            'min_delay': 1,
+            'max_delay': 120,
         }
         config = configobj.ConfigObj(config_dict)
 
@@ -776,7 +766,8 @@ class PublisherBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': random.randint(0, 10),
+            'min_delay': 1,
+            'max_delay': 120,
             'lwt': {
                 'enable': True,
             }
@@ -813,7 +804,8 @@ class PublisherBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': random.randint(0, 10),
+            'min_delay': 1,
+            'max_delay': 120,
             'lwt': {
                 'enable': True,
                 'topic': helpers.random_string(),
@@ -857,7 +849,8 @@ class PublisherBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': random.randint(0, 10),
+            'min_delay': 1,
+            'max_delay': 120,
         }
         config = configobj.ConfigObj(config_dict)
 
@@ -872,8 +865,8 @@ class PublisherBase(unittest.TestCase):
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
                 with mock.patch.object(user.mqttpublish.Publisher, '_connect'):
-                    with mock.patch.object(user.mqttpublish.Publisher, '_reconnect') as mock_reconnect:
-                        with mock.patch.object(user.mqttpublish.mqtt.Client, 'publish') as mock_publish:
+                    with mock.patch.object(user.mqttpublish.mqtt.Client, 'publish') as mock_publish:
+                        with mock.patch.object(user.mqttpublish.mqtt.Client, 'loop', autospec=True) as mock_loop:
 
                             SUT = self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
 
@@ -885,8 +878,9 @@ class PublisherBase(unittest.TestCase):
                             data = helpers.random_string()
                             SUT.publish_message(time_stamp, qos, retain, topic, data)
 
-                            mock_reconnect.assert_not_called()
                             mock_publish.assert_called_once_with(topic, data, qos=qos, retain=retain)
+                            # paho's network loop thread owns the network loop; publishing must not pump it.
+                            mock_loop.assert_not_called()
 
     def test_publish_when_not_connected(self):
         mock_logger_queue = mock.Mock()
@@ -901,7 +895,8 @@ class PublisherBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': random.randint(0, 10),
+            'min_delay': 1,
+            'max_delay': 120,
         }
         config = configobj.ConfigObj(config_dict)
 
@@ -916,8 +911,8 @@ class PublisherBase(unittest.TestCase):
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
                 with mock.patch.object(user.mqttpublish.Publisher, '_connect'):
-                    with mock.patch.object(user.mqttpublish.Publisher, '_reconnect') as mock_reconnect:
-                        with mock.patch.object(user.mqttpublish.mqtt.Client, 'publish') as mock_publish:
+                    with mock.patch.object(user.mqttpublish.mqtt.Client, 'publish') as mock_publish:
+                        with mock.patch.object(user.mqttpublish.mqtt.Client, 'loop', autospec=True) as mock_loop:
 
                             SUT = self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
 
@@ -929,112 +924,10 @@ class PublisherBase(unittest.TestCase):
                             data = helpers.random_string()
                             SUT.publish_message(time_stamp, qos, retain, topic, data)
 
-                            mock_reconnect.assert_called_once_with()
+                            # Publishing while disconnected must not block on a reconnect. Paho queues the
+                            # QOS>0 messages and delivers them when its network loop has reconnected.
                             mock_publish.assert_called_once_with(topic, data, qos=qos, retain=retain)
-
-    def test_reconnect_connection(self):
-        mock_logger_queue = mock.Mock()
-        mock_plugin_manager = mock.Mock()
-        mock_publisher = mock.Mock()
-
-        mock_plugin_manager.callbacks = {
-            'on_mqtt_connect': {
-                'immediate': {},
-                'delay': {}
-            },
-        }
-
-        config_dict = {
-            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
-            'clientid': helpers.random_string(),
-            'log_mqtt': random.choice([True, False]),
-            'username': helpers.random_string(),
-            'password': helpers.random_string(),
-            'host': helpers.random_string(),
-            'port': random.randint(1, 65535),
-            'keepalive': random.randint(1, 30),
-            'max_retries': random.randint(0, 10),
-            'wait_for_connection': random.randint(0, 10),
-        }
-        config = configobj.ConfigObj(config_dict)
-
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
-
-        with mock.patch('user.mqttpublish.time'):
-            with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
-                with mock.patch.object(user.mqttpublish.Publisher, '_connect'):
-                    with mock.patch.object(user.mqttpublish.mqtt.Client,
-                                           'reconnect',
-                                           side_effect=mqttstubs.ClientStub.reconnect_with_connection,
-                                           autospec=True) as mock_reconnect:
-
-                        SUT = self.class_under_test(mock_logger_queue, mock_plugin_manager, mock_publisher, config,
-                                                    monitor_dict, api=self.api)
-                        SUT._reconnect()
-
-                        mock_reconnect.assert_called_once()
-
-    def test_reconnect_no_connection(self):
-        mock_logger_queue = mock.Mock()
-        mock_plugin_manager = mock.Mock()
-        mock_publisher = mock.Mock()
-
-        mock_plugin_manager.callbacks = {
-            'on_mqtt_connect': {
-                'immediate': {},
-                'delay': {}
-            },
-        }
-
-        config_dict = {
-            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
-            'clientid': helpers.random_string(),
-            'log_mqtt': random.choice([True, False]),
-            'username': helpers.random_string(),
-            'password': helpers.random_string(),
-            'host': helpers.random_string(),
-            'port': random.randint(1, 65535),
-            'keepalive': random.randint(1, 30),
-            'max_retries': random.randint(0, 10),
-            'wait_between_retries': random.randint(0, 10),
-            'wait_for_connection': random.randint(0, 10),
-        }
-        config = configobj.ConfigObj(config_dict)
-
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
-
-        with mock.patch('user.mqttpublish.time'):
-            with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
-                with mock.patch.object(user.mqttpublish.Publisher, '_connect'):
-                    with mock.patch.object(user.mqttpublish.mqtt.Client,
-                                           'reconnect',
-                                           side_effect=mqttstubs.ClientStub.reconnect_without_connection,
-                                           autospec=True) as mock_reconnect:
-
-                        SUT = self.class_under_test(mock_logger_queue, mock_plugin_manager, mock_publisher, config,
-                                                    monitor_dict, api=self.api)
-
-                        with self.assertRaises(user.mqttpublish.CannotConnectError):
-                            SUT._reconnect()
-
-                        # Exhausting the retries must raise, so the caller can handle it.
-                        self.assertEqual(mock_reconnect.call_count, config_dict['max_retries'] + 1)
-                        log_messages = [call[0][0]['log_message'] for call in mock_logger_queue.put.call_args_list]
-                        self.assertIn(f"Attempting to reconnect to host: {config_dict['host']} port: {config_dict['port']}.", log_messages)
-                        self.assertIn(f"Waiting {config_dict['wait_between_retries']} seconds to reconnect.", log_messages)
-
+                            mock_loop.assert_not_called()
 
 class TLSBase(unittest.TestCase):
     class_under_test = user.mqttpublish.Publisher
@@ -1053,7 +946,8 @@ class TLSBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': random.randint(0, 10),
+            'min_delay': 1,
+            'max_delay': 120,
             'tls': {
                 'enable': True,
                 'ca_certs': helpers.random_string()
@@ -1096,7 +990,8 @@ class TLSBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': random.randint(0, 10),
+            'min_delay': 1,
+            'max_delay': 120,
             'tls': {
                 'enable': True,
                 'ca_certs': '',
@@ -1142,7 +1037,8 @@ class TLSBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': random.randint(0, 10),
+            'min_delay': 1,
+            'max_delay': 120,
             'tls': {
                 'enable': True,
                 'ca_certs': helpers.random_string(),
@@ -1188,7 +1084,8 @@ class TLSBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': random.randint(0, 10),
+            'min_delay': 1,
+            'max_delay': 120,
             'tls': {
                 'enable': True,
                 'ca_certs': helpers.random_string(),
@@ -1234,7 +1131,8 @@ class TLSBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': random.randint(0, 10),
+            'min_delay': 1,
+            'max_delay': 120,
             'tls': {
                 'enable': True,
                 'ca_certs': helpers.random_string(),
@@ -1280,7 +1178,8 @@ class TLSBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': random.randint(0, 10),
+            'min_delay': 1,
+            'max_delay': 120,
             'tls': {
                 'enable': True,
                 'ca_certs': helpers.random_string(),
@@ -1326,7 +1225,8 @@ class TLSBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': random.randint(0, 10),
+            'min_delay': 1,
+            'max_delay': 120,
             'tls': {
                 'enable': True,
                 'ca_certs': helpers.random_string(),
@@ -1372,7 +1272,8 @@ class TLSBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': random.randint(0, 10),
+            'min_delay': 1,
+            'max_delay': 120,
             'tls': {
                 'enable': True,
                 'ca_certs': helpers.random_string(),
@@ -1418,7 +1319,8 @@ class TLSBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': random.randint(0, 10),
+            'min_delay': 1,
+            'max_delay': 120,
             'tls': {
                 'enable': True,
                 'ca_certs': helpers.random_string(),
@@ -1464,7 +1366,8 @@ class TLSBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': random.randint(0, 10),
+            'min_delay': 1,
+            'max_delay': 120,
             'tls': {
                 'enable': True,
                 'ca_certs': helpers.random_string(),

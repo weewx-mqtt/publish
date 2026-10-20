@@ -417,7 +417,7 @@ class TestQueueProcessor(unittest.TestCase):
 
                 self.assertDictEqual(final_record, {field1: None})
 
-    def test_run_services_client_while_idle(self):
+    def test_run_does_not_pump_client_loop_while_idle(self):
         mock_logger_queue = mock.Mock()
         weewx_dict = {
             'config_dict': {
@@ -459,7 +459,8 @@ class TestQueueProcessor(unittest.TestCase):
                     try:
                         real_sleep(0.5)
 
-                        self.assertGreaterEqual(mock_publisher.client.loop.call_count, 1)
+                        # paho's network loop thread services the client; the queue processor must not pump it.
+                        mock_publisher.client.loop.assert_not_called()
                         mock_sleep.assert_not_called()
                     finally:
                         data_queue.put({'time_stamp': time.time(), 'type': 'shutdown', 'data': {}})

@@ -51,10 +51,16 @@ Enhancements:
   - Improved shutdown logic flow, with timeouts when stopping threads/processes.
   - A plugin can be loaded multiple times with different configurations.
   - The data queue size is passed into plugin callbacks.
+  - MQTT reconnects are handled by the paho mqtt network loop, which keeps reconnecting until
+    the broker is available again. The reconnect backoff is configured with min_delay and max_delay.
+  - A connect failure at startup no longer retries, it shuts the publishing thread down so it can be restarted.
 
 Notes:
 The following have been deprecated and are scheduled to be removed in V2.
 - [PublishWeeWX] was replaced by [MQTTPublish] (prior to V1).
+- [MQTTPublish] max_retries, wait_between_retries, and wait_for_connection are deprecated and no longer used.
+  Reconnection is handled by the paho mqtt network loop, configured with min_delay and max_delay.
+  See, https://weewx-mqtt.github.io/publish/common-options/
 - [MQTTPublish] / [[lwt]] has changed to [MQTTPublish] / [[availability_topic]].
   See, https://weewx-mqtt.github.io/publish/common-options/availability-topic.html
 - [MQTTPublish] [[topics]] / [[[topic-name]]] / [[[[aggregates]]]] has been replaced witht plugin MQTTAggregateValues

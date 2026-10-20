@@ -40,7 +40,8 @@ class TestPublisherV2MQTT3(TestPublisherV2):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': 0,
+            'min_delay': 1,
+            'max_delay': 120,
         }
         config = configobj.ConfigObj(config_dict)
 

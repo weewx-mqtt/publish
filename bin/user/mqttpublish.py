@@ -43,9 +43,6 @@ from user import mqttcommon
 
 VERSION = "1.3.0-rc02a"
 
-class CannotConnectError(ConnectionError):
-    """" Cannot connect to broker. """
-
 def setup_logging(logging_level, config_dict):
     """ Setup logging for running in standalone mode."""
     if logging_level:
@@ -180,61 +177,23 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
                                'log_type': 'INFO',
                                'log_message': f"Connecting to host: {self.mqtt_config['host']} port: {self.mqtt_config['port']}."})
 
-        if not self._connect_with_retries(
-                lambda: self.connect(self.mqtt_config['host'], self.mqtt_config['port'], self.mqtt_config['keepalive']),
-                'connect'):
-            # Shut thread down, a bit of a hack
-            self.publisher.process = False
+        mqttcommon.configure_reconnect_delay(self.client,
+                                             min_delay=self.mqtt_config['min_delay'],
+                                             max_delay=self.mqtt_config['max_delay'])
 
-    def _reconnect(self):
-        self.logger_queue.put({'name': self.name,
-                               'log_type': 'INFO',
-                               'log_message': (f"Attempting to reconnect to host: {self.mqtt_config['host']} "
-                                               f"port: {self.mqtt_config['port']}.")})
-
-        if not self._connect_with_retries(self.client.reconnect, 'reconnect'):
-            raise CannotConnectError
-
-    def _connect_with_retries(self, attempt, label):
-        """ Wait for the connection to be established, retrying the 'attempt' callable as needed.
-            Returns False when out of retries, True otherwise. """
         try:
-            attempt()
+            self.connect(self.mqtt_config['host'], self.mqtt_config['port'], self.mqtt_config['keepalive'])
         except Exception as exception:  # want to catch all pylint: disable=broad-exception-caught
             self.logger_queue.put({'name': self.name,
                                    'log_type': 'ERROR',
-                                   'log_message': f"MQTT {label} failed with {type(exception)} and reason {exception}."})
+                                   'log_message': f"MQTT connect failed with {type(exception)} and reason {exception}."})
+            # Shut down the publishing thread, a bit of a hack.
+            # The service will restart it, and stops WeeWX when the restart budget is spent.
+            self.publisher.process = False
+            return
 
-        retries = 0
-        # Give the connection logic some time to execute
-        time.sleep(self.mqtt_config['wait_for_connection'])
-        # Allow the MQTT processing to happen, after allowing the connection processing to complete.
-        self.client.loop(timeout=0.1)
-        while not self.connected and self.publisher.process:
-            self.logger_queue.put({'name': self.name,
-                                   'log_type': 'INFO',
-                                   'log_message': f"Waiting {self.mqtt_config['wait_between_retries']} seconds to {label}."})
-            # loop seems to break before connect, perhaps due to logging
-            self.client.loop(timeout=0.1)
-            time.sleep(self.mqtt_config['wait_between_retries'])
-
-            retries += 1
-            if retries > self.mqtt_config['max_retries']:
-                return False
-
-            try:
-                attempt()
-                time.sleep(self.mqtt_config['wait_for_connection'])
-                self.client.loop(timeout=.1)
-                self.logger_queue.put({'name': self.name,
-                                       'log_type': 'DEBUG',
-                                       'log_message': f"After retrying {label} call."})
-            except Exception as exception:  # want to catch all pylint: disable=broad-exception-caught
-                self.logger_queue.put({'name': self.name,
-                                       'log_type': 'ERROR',
-                                       'log_message': (f"MQTT {label} retry {retries} failed with {type(exception)} "
-                                                       f"and reason {exception}.")})
-        return True
+        # Reconnection, and the CONNACK processing, is handled by paho's network loop thread.
+        self.client.loop_start()
 
     def _config_tls(self, tls_dict):
         """ Configure TLS."""
@@ -245,9 +204,6 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
 
     def publish_message(self, time_stamp, qos, retain, topic, data):  # pylint: disable=too-many-arguments
         """ Publish the message. """
-        if not self.connected:
-            self._reconnect()
-
         payload = data
         data_type = type(data)
         if data is not None and data_type not in (str, bytearray, int, float):
@@ -259,8 +215,6 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
                                'log_type': 'DEBUG',
                                'log_message': (f"At {int(time.time())}  publishing: {int(time_stamp)} "
                                                f" {mqtt_message_info.mid} {qos} {topic} took {time.time() - start_time}")})
-
-        self.client.loop(timeout=0.1)
 
     def get_client(self, client_id, protocol):
         ''' Get the MQTT client. '''
@@ -375,9 +329,9 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
                                'log_type': 'INFO' if int(rc) == 0 else 'ERROR',
                                'log_message': f"Disconnected with result code {int(rc)}, {mqtt.error_string(rc)}"})
 
-        # As of 1.6.1, Paho MQTT cannot have a callback invoke a second callback. So we won't attempt to reconnect here.
+        # As of 1.6.1, Paho MQTT cannot have a callback invoke a second callback. So we won't reconnect here.
         # Because that would cause the on_connect callback to be called. Instead we will just mark as not connected.
-        # And check the flag before attempting to publish.
+        # Paho's network loop thread handles the reconnection.
         self.connected = False
 
     def on_message(self, client, userdata, msg):
@@ -465,8 +419,7 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
 
         self.wait_for_thread_shutdown = to_int(service_dict.get('wait_for_thread_shutdown', 10))
 
-        if 'binding' in service_dict:
-            self.logger.loginf(self.name, "'binding' is deprecated and no longer used.")
+        self._log_deprecated_options(service_dict)
 
         self.multiprocess = to_bool(service_dict.get('multiprocess', False))
         self.data_queue = Queue.Queue()
@@ -534,15 +487,23 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
             weeutil.config.merge_config(weewx_dict['defaults'], config_dict['StdReport']['Defaults'])
         return weewx_dict
 
+    def _log_deprecated_options(self, service_dict):
+        """ Warn about options that are deprecated and no longer used. """
+        if 'binding' in service_dict:
+            self.logger.loginf(self.name, "'binding' is deprecated and no longer used.")
+
+        for option in ('max_retries', 'wait_between_retries', 'wait_for_connection'):
+            if option in service_dict:
+                self.logger.loginf(self.name, f"'{option}' is deprecated and no longer used.")
+
     def _configure_mqtt(self, service_dict):
         """ Configure the mqtt connection and monitoring options. """
         mqtt_config = {}
         mqtt_config['keepalive'] = to_int(service_dict.get('keepalive', 60))
         mqtt_config['wait_for_queue_element'] = to_int(service_dict.get('wait_for_queue_element', 5))
-        mqtt_config['max_retries'] = to_int(service_dict.get('max_retries', 5))
-        mqtt_config['wait_for_connection'] = to_int(service_dict.get('wait_for_connection', 1))
+        mqtt_config['min_delay'] = to_int(service_dict.get('min_delay', 1))
+        mqtt_config['max_delay'] = to_int(service_dict.get('max_delay', 120))
 
-        mqtt_config['wait_between_retries'] = to_int(service_dict.get('wait_between_retries', 5))
         mqtt_config['log_mqtt'] = to_bool(service_dict.get('log_mqtt', False))
         mqtt_config['host'] = service_dict.get('host', 'localhost')
         mqtt_config['port'] = to_int(service_dict.get('port', 1883))
@@ -1218,6 +1179,8 @@ class QueueProcessor(multiprocessing.Process):  # pylint: disable=too-many-insta
                                           retain=to_bool(self.lwt_dict.get('retain', True)))
 
         self.publisher.client.disconnect()
+        # Stop paho's network loop thread. It must outlive the disconnect, so the DISCONNECT gets sent.
+        self.publisher.client.loop_stop()
         self.logger_queue.put({'name': self.name,
                                'log_type': 'INFO',
                                'log_message': "Queue processor is shut down."})
@@ -1241,7 +1204,6 @@ class QueueProcessor(multiprocessing.Process):  # pylint: disable=too-many-insta
         prev_time = time.time()
         while self.process:
             try:
-                # Note: the get() has a timeout, so the Queue.Empty branch below can call the loop method.
                 data2 = self.data_queue.get(block=True, timeout=self.mqtt_config['wait_for_queue_element'])
                 prev_time = self.handle_queue_item(data2, prev_time)
                 if prev_time is None:
@@ -1251,9 +1213,6 @@ class QueueProcessor(multiprocessing.Process):  # pylint: disable=too-many-insta
                                        'log_type': self.monitor_queue,
                                        'log_message': (f"monitor: Queue is empty. "
                                                        f"Waiting {self.mqtt_config['wait_for_queue_element']}")})
-                self.publisher.client.loop(timeout=0.1)
-            except CannotConnectError:
-                self.process = False
 
     def handle_queue_item(self, data2, prev_time):
         """ Process one queue item.
