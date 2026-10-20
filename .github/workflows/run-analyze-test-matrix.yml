@@ -15,7 +15,7 @@ jobs:
       latest-weewx-version: '5.5.2'
       lint-paths: './bin/user/mqttpublish.py ./bin/user/mqttarchivevalues.py ./bin/user/mqttconfigha.py ./bin/user/mqttaggregatevalues.py ./bin/user/mqtthaconfig.py ./bin/user/mqttcommon.py'
       function-test: false
-      integration-test: false
+      integration-test: true
       e2e-test: false
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
@@ -36,7 +36,7 @@ jobs:
       lint-fail: false
       lint-paths: './bin/user/mqttpublish.py ./bin/user/mqttarchivevalues.py ./bin/user/mqttconfigha.py ./bin/user/mqttaggregatevalues.py ./bin/user/mqtthaconfig.py ./bin/user/mqttcommon.py'
       function-test: false
-      integration-test: false
+      integration-test: true
       e2e-test: false
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
