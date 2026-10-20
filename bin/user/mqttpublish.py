@@ -146,8 +146,7 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
         self.client = self.get_client(mqtt_config['clientid'], mqtt_config['protocol'])
         self.set_callbacks(mqtt_config['log_mqtt'])
 
-        if mqtt_config['username'] is not None and mqtt_config['password'] is not None:
-            self.client.username_pw_set(mqtt_config['username'], mqtt_config['password'])
+        mqttcommon.apply_credentials(self.client, mqtt_config['username'], mqtt_config['password'])
 
         tls_dict = mqtt_config.get('tls')
         if tls_dict and to_bool(tls_dict.get('enable', True)):
