@@ -9,7 +9,6 @@ Publish to MQTT on loop or archive creation.
 
 import queue as Queue
 
-import abc
 import copy
 import json
 import logging
@@ -125,12 +124,13 @@ class PluginManager():  # pylint: disable=too-few-public-methods
                 timing = callback[callback_name]['timing']
                 self.callbacks[callback_name][timing][name] = callback[callback_name]['callback']
 
-class AbstractPublisher(abc.ABC):  # pylint: disable=too-many-instance-attributes
+class Publisher:  # pylint: disable=too-many-instance-attributes
     """ Managing publishing to MQTT. """
-    # The paho mqtt api variant to communicate with. It is set by the subclasses.
-    api = None
 
-    def __init__(self, logger_queue, plugin_manager, publisher, mqtt_config, monitor_config):  # pylint: disable=too-many-arguments
+    def __init__(self, logger_queue, plugin_manager, publisher, mqtt_config, monitor_config, *, api=None):  # pylint: disable=R0913
+        # The paho mqtt api variant to communicate with. It defaults to the selection for the protocol.
+        self.api = self._resolve_api(mqtt_config['protocol'], api)
+
         self.logger_queue = logger_queue
         self.plugin_manager = plugin_manager
         self.connected = False
@@ -166,18 +166,15 @@ class AbstractPublisher(abc.ABC):  # pylint: disable=too-many-instance-attribute
 
         self._connect()
 
-    @classmethod
-    def get_publisher(cls, logger, plugin_manager, publisher, mqtt_config, monitor_config):  # pylint: disable=R0913
-        ''' Factory method to get appropriate MQTTPublish for paho mqtt version. '''
-        api = mqttcommon.select_api(mqtt_config['protocol'])
+    @staticmethod
+    def _resolve_api(protocol, api):
+        ''' Resolve the paho mqtt api variant to communicate with, defaulting to the selection for the protocol. '''
+        if api is None:
+            api = mqttcommon.select_api(protocol)
+        if api == mqttcommon.API_V1 and protocol not in mqttcommon.MQTT3_PROTOCOLS:
+            raise ValueError(f"Invalid protocol, {protocol}.")
 
-        if api == mqttcommon.API_V1:
-            return PublisherV1(logger, plugin_manager, publisher, mqtt_config, monitor_config)
-
-        if api == mqttcommon.API_V2_MQTT3:
-            return PublisherV2MQTT3(logger, plugin_manager, publisher, mqtt_config, monitor_config)
-
-        return PublisherV2(logger, plugin_manager, publisher, mqtt_config, monitor_config)
+        return api
 
     def _connect(self):
         self.logger_queue.put({'name': self.name,
@@ -416,25 +413,6 @@ class AbstractPublisher(abc.ABC):  # pylint: disable=too-many-instance-attribute
         self.logger_queue.put({'name': self.name,
                                'log_type': self.monitor_on_message,
                                'log_message': (f"monitor: {run_time:<12.10f} on_message (delay)")})
-
-class PublisherV1(AbstractPublisher):
-    ''' MQTTPublish that communicates with paho mqtt v1.'''
-    api = mqttcommon.API_V1
-
-    def __init__(self, logger_queue, plugin_manager, publisher, mqtt_config, monitor_config):  # pylint: disable=too-many-arguments
-        protocol = mqtt_config['protocol']
-        if protocol not in [mqtt.MQTTv31, mqtt.MQTTv311]:
-            raise ValueError(f"Invalid protocol, {protocol}.")
-
-        super().__init__(logger_queue, plugin_manager, publisher, mqtt_config, monitor_config)
-
-class PublisherV2(AbstractPublisher):
-    ''' MQTTPublish that communicates with paho mqtt v2. '''
-    api = mqttcommon.API_V2_MQTT5
-
-class PublisherV2MQTT3(PublisherV2):
-    ''' MQTTPublish that communicates with paho mqtt v2 with a MQTT3 protocol. '''
-    api = mqttcommon.API_V2_MQTT3
 
 class PublishWeeWX():  # pylint: disable=too-few-public-methods
     """ Backwards compatibility class."""
@@ -1223,10 +1201,10 @@ class QueueProcessor(multiprocessing.Process):  # pylint: disable=too-many-insta
         self.create_plugins()
 
         # need to instantiate inside thread
-        self.publisher = AbstractPublisher.get_publisher(self.logger_queue,
-                                                         self.plugin_manager,
-                                                         self, self.mqtt_config,
-                                                         self.monitor_config)
+        self.publisher = Publisher(self.logger_queue,
+                                   self.plugin_manager,
+                                   self, self.mqtt_config,
+                                   self.monitor_config)
 
         with weewx.manager.open_manager(self.manager_dict) as db_manager:
             self.db_manager = db_manager

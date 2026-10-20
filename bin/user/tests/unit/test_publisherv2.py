@@ -16,13 +16,14 @@ import helpers
 import random
 
 import configobj
+import user.mqttcommon
 import user.mqttpublish
 
 from user.tests.unit.publisherbase import PublisherBase, TLSBase
 
 @unittest.skipIf(not hasattr(paho.mqtt.client, 'CallbackAPIVersion'), "paho-mqtt is v1, skipping tests.")
 class TestPublisherV2(PublisherBase):
-    class_under_test = user.mqttpublish.PublisherV2
+    api = user.mqttcommon.API_V2_MQTT5
     protocol_string = 'MQTTv5'
 
     def test_get_client(self):
@@ -52,9 +53,9 @@ class TestPublisherV2(PublisherBase):
 
         with mock.patch('user.mqttpublish.time'):
             with mock.patch('user.mqttpublish.mqtt.Client') as mock_client:
-                with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
+                with mock.patch.object(user.mqttpublish.Publisher, '_connect'):
 
-                    self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
+                    self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
 
                     mock_client.assert_called_once_with(callback_api_version=paho.mqtt.client.CallbackAPIVersion.VERSION2,
                                                         client_id=config_dict['clientid'],
@@ -63,7 +64,7 @@ class TestPublisherV2(PublisherBase):
 
 @unittest.skipIf(not hasattr(paho.mqtt.client, 'CallbackAPIVersion'), "paho-mqtt is v1, skipping tests.")
 class TestTLS(TLSBase):
-    class_under_test = user.mqttpublish.PublisherV2
+    api = user.mqttcommon.API_V2_MQTT5
     protocol_string = 'MQTTv5'
 
 # The del is needed to prevent unittest from collecting and running tests in the base class.

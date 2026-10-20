@@ -452,7 +452,7 @@ class TestQueueProcessor(unittest.TestCase):
         real_sleep = time.sleep
 
         run_thread = threading.Thread(target=SUT.run, daemon=True)
-        with mock.patch.object(user.mqttpublish.AbstractPublisher, 'get_publisher', return_value=mock_publisher):
+        with mock.patch.object(user.mqttpublish, 'Publisher', return_value=mock_publisher):
             with mock.patch('user.mqttpublish.weewx.manager'):
                 with mock.patch('user.mqttpublish.time.sleep') as mock_sleep:
                     run_thread.start()
