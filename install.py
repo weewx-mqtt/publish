@@ -360,6 +360,7 @@ class MQTTPublishInstaller(ExtensionInstaller):
                                     'bin/user/mqttconfigha.py',
                                     'bin/user/mqttaggregatevalues.py',
                                     'bin/user/mqttarchivevalues.py',
+                                    'bin/user/mqttcommon.py',
                                     ])]
         }
 

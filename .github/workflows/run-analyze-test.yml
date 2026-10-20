@@ -13,7 +13,7 @@ jobs:
       pip-list: 'paho-mqtt'
       package-list: 'mosquitto'
       latest-weewx-version: '5.5.2'
-      lint-paths: './bin/user/mqttpublish.py ./bin/user/mqttarchivevalues.py ./bin/user/mqttconfigha.py ./bin/user/mqttaggregatevalues.py ./bin/user/mqtthaconfig.py'
+      lint-paths: './bin/user/mqttpublish.py ./bin/user/mqttarchivevalues.py ./bin/user/mqttconfigha.py ./bin/user/mqttaggregatevalues.py ./bin/user/mqtthaconfig.py ./bin/user/mqttcommon.py'
       function-test: false
       integration-test: false
       e2e-test: false

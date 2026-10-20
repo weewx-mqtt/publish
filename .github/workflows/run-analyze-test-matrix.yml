@@ -13,7 +13,7 @@ jobs:
       pip-list: 'paho-mqtt'
       package-list: 'mosquitto'
       latest-weewx-version: '5.5.2'
-      lint-paths: './bin/user/mqttpublish.py ./bin/user/mqttarchivevalues.py ./bin/user/mqttconfigha.py ./bin/user/mqttaggregatevalues.py ./bin/user/mqtthaconfig.py'
+      lint-paths: './bin/user/mqttpublish.py ./bin/user/mqttarchivevalues.py ./bin/user/mqttconfigha.py ./bin/user/mqttaggregatevalues.py ./bin/user/mqtthaconfig.py ./bin/user/mqttcommon.py'
       function-test: false
       integration-test: false
       e2e-test: false
@@ -34,7 +34,7 @@ jobs:
       # pylint cannot validate the v2 API code against paho-mqtt 1.6.1 (E1101/E1123 are false positives),
       # so this job reports lint findings without failing. The main job is the lint gate.
       lint-fail: false
-      lint-paths: './bin/user/mqttpublish.py ./bin/user/mqttarchivevalues.py ./bin/user/mqttconfigha.py ./bin/user/mqttaggregatevalues.py ./bin/user/mqtthaconfig.py'
+      lint-paths: './bin/user/mqttpublish.py ./bin/user/mqttarchivevalues.py ./bin/user/mqttconfigha.py ./bin/user/mqttaggregatevalues.py ./bin/user/mqtthaconfig.py ./bin/user/mqttcommon.py'
       function-test: false
       integration-test: false
       e2e-test: false
