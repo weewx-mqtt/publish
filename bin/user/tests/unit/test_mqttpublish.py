@@ -55,9 +55,8 @@ class TestInit(unittest.TestCase):
 
         with mock.patch('user.mqttpublish.weewx.manager'):
             with mock.patch('user.mqttpublish.PublishWeeWXThread'):
-                with mock.patch('user.mqttpublish.LoggerThread'):
-                    with mock.patch('user.mqttpublish.Logger'):
-                        SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
+                with mock.patch('user.mqttpublish.Logger'):
+                    SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
 
         self.assertTrue(SUT.mqtt_config['log_mqtt'])
 
@@ -70,9 +69,8 @@ class TestInit(unittest.TestCase):
         with mock.patch('user.mqttpublish.weewx.manager'):
             with mock.patch('user.mqttpublish.PublishWeeWXThread'):
                 with mock.patch('user.mqttpublish.PublishWeeWXProcess') as mock_process:
-                    with mock.patch('user.mqttpublish.LoggerThread'):
-                        with mock.patch('user.mqttpublish.Logger') as mock_logger:
-                            SUT = user.mqttpublish.MQTTPublish(engine, config)
+                    with mock.patch('user.mqttpublish.Logger') as mock_logger:
+                        SUT = user.mqttpublish.MQTTPublish(engine, config)
 
         return SUT, engine, mock_logger.return_value, mock_process
 
@@ -512,10 +510,9 @@ class ServiceBase(unittest.TestCase):
         with mock.patch('user.mqttpublish.weewx.manager'):
             with mock.patch('user.mqttpublish.PublishWeeWXThread') as mock_thread:
                 with mock.patch('user.mqttpublish.PublishWeeWXProcess') as mock_process:
-                    with mock.patch('user.mqttpublish.LoggerThread'):
-                        with mock.patch('user.mqttpublish.Logger') as mock_logger:
-                            SUT = user.mqttpublish.MQTTPublish(engine, config)
-                            yield SUT, mock_thread, mock_process, mock_logger.return_value
+                    with mock.patch('user.mqttpublish.Logger') as mock_logger:
+                        SUT = user.mqttpublish.MQTTPublish(engine, config)
+                        yield SUT, mock_thread, mock_process, mock_logger.return_value
 
     @staticmethod
     def _service_config(**kwargs):
@@ -724,7 +721,6 @@ class TestShutDown(ServiceBase):
         with self._service() as (SUT, _, _, _):
             thread = SUT._thread
             thread.is_alive.return_value = False
-            SUT.logger_thread.is_alive.return_value = False
             for index in range(3):
                 SUT.data_queue.put({'time_stamp': index, 'type': 'loop', 'data': {}})
 
@@ -738,12 +734,13 @@ class TestShutDown(ServiceBase):
             # The thread is joined with the configured wait, then released.
             thread.join.assert_called_once_with(SUT.wait_for_thread_shutdown)
             self.assertIsNone(SUT._thread)
+            # The logger thread is shut down by the logger itself, with the configured wait.
+            SUT.logger.shutdown.assert_called_once_with(SUT.wait_for_thread_shutdown)
             SUT.logger.logerr.assert_not_called()
 
     def test_drain_retries_when_empty_is_raised_but_items_remain(self):
         with self._service() as (SUT, _, _, _):
             SUT._thread.is_alive.return_value = False
-            SUT.logger_thread.is_alive.return_value = False
             pending = {'time_stamp': 1, 'type': 'loop', 'data': {}}
             SUT.data_queue = _RacingQueue(pending)
 
@@ -760,7 +757,6 @@ class TestShutDown(ServiceBase):
             thread = SUT._thread
             thread.name = helpers.random_string()
             thread.is_alive.return_value = True
-            SUT.logger_thread.is_alive.return_value = False
 
             SUT.shutDown()
 
@@ -769,36 +765,21 @@ class TestShutDown(ServiceBase):
             # The reference is dropped even when the thread is still running.
             self.assertIsNone(SUT._thread)
 
-    def test_warns_when_logger_thread_does_not_shut_down(self):
-        with self._service() as (SUT, _, _, _):
-            SUT._thread.is_alive.return_value = False
-            SUT.logger_thread.name = helpers.random_string()
-            SUT.logger_thread.is_alive.return_value = True
-
-            SUT.shutDown()
-
-            SUT.logger.logerr.assert_called_once_with(
-                SUT.name, f"Unable to shut down {SUT.logger_thread.name} thread")
-            # The logger thread is signalled by queueing None.
-            self.assertIsNone(SUT.logger_queue.get_nowait())
-
     def test_still_stops_logger_thread_when_no_publishing_thread(self):
         with self._service() as (SUT, _, _, _):
             SUT._thread = None
-            SUT.logger_thread.is_alive.return_value = False
 
             SUT.shutDown()
 
             # The publishing half is skipped entirely.
             self.assertEqual(SUT.data_queue.qsize(), 0)
-            SUT.logger_thread.join.assert_called_once_with(SUT.wait_for_thread_shutdown)
-            self.assertIsNone(SUT.logger_queue.get_nowait())
+            # The logger thread is still shut down, via the logger, with the configured wait.
+            SUT.logger.shutdown.assert_called_once_with(SUT.wait_for_thread_shutdown)
             SUT.logger.logerr.assert_not_called()
 
     def test_logs_shutdown_progress_in_order(self):
         with self._service() as (SUT, _, _, _):
             SUT._thread.is_alive.return_value = False
-            SUT.logger_thread.is_alive.return_value = False
             for index in range(2):
                 SUT.data_queue.put({'time_stamp': index, 'type': 'loop', 'data': {}})
             # Drop the version banner logged by __init__.
@@ -811,7 +792,7 @@ class TestShutDown(ServiceBase):
             self.assertEqual(messages[1], "Emptying data queue with size of 2.")
             self.assertEqual(messages[2], "Data queue has size of 0.")
             self.assertEqual(messages[3], "Shutdown of queue processor initiated")
-            self.assertEqual(messages[4], f"Shutdown of logger thread, {SUT.logger_thread.name} initiated")
+            self.assertEqual(messages[4], f"Shutdown of logger thread, {SUT.logger.log_thread.name} initiated")
 
 if __name__ == '__main__':
     helpers.run_tests()

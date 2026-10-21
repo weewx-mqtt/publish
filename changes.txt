@@ -41,6 +41,8 @@ Fixes
   - MQTTConfigHA now ensures published values use WeeWX units.
 
 Enhancements:
+  - The Logger now owns the log queue and the logging thread. Shutting down flushes queued log
+    messages, is safe to call more than once, and no longer stalls process exit if it was skipped.
   - Support additional data types when publishing ‘individual' topics.
   - Empty the data queue as part of shutting down. This speeds up shut down when the queue has grown.
   - Limit the publishing of redundant/duplicate data (#27).

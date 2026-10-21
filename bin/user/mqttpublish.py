@@ -51,9 +51,23 @@ def setup_logging(logging_level, config_dict):
     weeutil.logger.setup('wee_MQTTPublish', config_dict)
 
 class Logger:
-    ''' Manage the logging '''
-    def __init__(self):
+    ''' Manage the logging.
+        The log queue and the LoggerThread that drains it are owned here. '''
+    # The default time shutdown waits for the LoggerThread to flush queued messages.
+    SHUTDOWN_TIMEOUT = 10
+
+    def __init__(self, name, log_queue):
+        self.name = name
         self.log = logging.getLogger(__name__)
+        self.log_queue = log_queue
+        self.log_functions = {
+            'TRACE': self.logdbg,
+            'DEBUG': self.logdbg,
+            'INFO': self.loginf,
+            'ERROR': self.logerr,
+        }
+        self.log_thread = LoggerThread(self.log_queue, self)
+        self.log_thread.start()
 
     def logdbg(self, name, msg):
         """ log debug messages """
@@ -66,6 +80,22 @@ class Logger:
     def logerr(self, name, msg):
         """ log error messages """
         self.log.error("%s %s", name, msg)
+
+    def log_entry(self, entry):
+        """ Log a queued entry. This is called by the LoggerThread. """
+        log_type = entry['log_type']
+        if log_type is not None:
+            self.log_functions[log_type](entry['name'], entry['log_message'])
+
+    def shutdown(self, timeout=SHUTDOWN_TIMEOUT):
+        """ Stop the logger thread, flushing queued messages. """
+        if not self.log_thread.is_alive():
+            return
+
+        self.log_queue.put(None)
+        self.log_thread.join(timeout)
+        if self.log_thread.is_alive():
+            self.logerr(self.name, f"Unable to shut down {self.log_thread.name} thread")
 
 class MQTTPlugin():  # pylint: disable=too-few-public-methods
     """ Common plugin initialization. """
@@ -388,12 +418,18 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
     """ A service to publish WeeWX loop and/or archive data to MQTT. """
     def __init__(self, engine, config_dict):
         super().__init__(engine, config_dict)
-        self.logger = Logger()
         self.name = f"{self.__class__.__name__}-{threading.get_native_id()}"
+
+        service_dict = config_dict.get('MQTTPublish', {})
+
+        # The logger starts the thread that logs queued messages, so its queue has to exist first.
+        self.multiprocess = to_bool(service_dict.get('multiprocess', False))
+        self.logger_queue = self._create_logger_queue()
+
+        self.logger = Logger(self.name, self.logger_queue)
 
         self.logger.loginf(self.name, f"MQTTPublish version: {VERSION}.")
 
-        service_dict = config_dict.get('MQTTPublish', {})
         self.plugins = self._configure_plugins(config_dict, service_dict)
 
         exclude_keys = ['password']
@@ -429,7 +465,6 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
 
         self._log_deprecated_options(service_dict)
 
-        self.multiprocess = to_bool(service_dict.get('multiprocess', False))
         self.data_queue = Queue.Queue()
         # Everything the queue processor needs, other than the queues it reads from and logs to.
         self.processor_config = {
@@ -442,18 +477,13 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
             'topics_archive': self.topics_archive,
         }
         if self.multiprocess:
-            self.logger_queue = multiprocessing.Queue()
             self._thread = PublishWeeWXProcess(self.logger_queue,
                                                self.data_queue,
                                                self.processor_config)
         else:
-            self.logger_queue = Queue.Queue()
             self._thread = PublishWeeWXThread(self.logger_queue,
                                               self.data_queue,
                                               self.processor_config)
-
-        self.logger_thread = LoggerThread(self.logger, self.logger_queue)
-        self.logger_thread.start()
 
         self.thread_start()
 
@@ -462,6 +492,15 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
 
         if 'loop' in binding:
             self.bind(weewx.NEW_LOOP_PACKET, self.new_loop_packet)
+
+    def _create_logger_queue(self):
+        """ Create the queue the LoggerThread drains.
+            In multiprocess mode it has to be a multiprocessing.Queue, the queue processor
+            puts into it from a child process. """
+        if self.multiprocess:
+            return multiprocessing.Queue()
+
+        return Queue.Queue()
 
     def _configure_plugins(self, config_dict, service_dict):
         """ Configure the plugins. """
@@ -791,9 +830,8 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
 
     def _shut_down_logger(self):
         """Stop the thread that hands log records over to the WeeWX logger."""
-        self.logger.loginf(self.name, f"Shutdown of logger thread, {self.logger_thread.name} initiated")
-        self.logger_queue.put(None)
-        self._wait_for_thread(self.logger_thread, " thread")
+        self.logger.loginf(self.name, f"Shutdown of logger thread, {self.logger.log_thread.name} initiated")
+        self.logger.shutdown(self.wait_for_thread_shutdown)
 
     def _drain_data_queue(self):
         """Take items off the data queue until a get times out on an empty queue."""
@@ -826,32 +864,27 @@ class LoggerThread(threading.Thread):
         This has to be a thread because WeeWX 'owns' the logger.
         So logging has to happen in that process and not a subprocess. """
 
-    def __init__(self, logger, log_queue):
+    def __init__(self, log_queue, logger):
         threading.Thread.__init__(self)
-        self.logger = logger
-        self.log_types = {
-            'TRACE': self.logger.logdbg,
-            'DEBUG': self.logger.logdbg,
-            'INFO': self.logger.loginf,
-            'ERROR': self.logger.logerr
-        }
+        self.daemon = True
         self.log_queue = log_queue
+        self.logger = logger
 
     def run(self):
         threading.current_thread().name = f"{self.__class__.__name__}-{threading.get_native_id()}"
-        self.logger.loginf(self.name, "Starting logger thread")
+        self.logger.log_entry({'name': self.name, 'log_type': 'INFO', 'log_message': "Starting logger thread"})
 
         while True:
-            message = self.log_queue.get()
-            if message is None:
+            entry = self.log_queue.get()
+            if entry is None:
                 break
             try:
-                if message['log_type'] is not None:
-                    self.log_types[message['log_type']](message['name'], message['log_message'])
+                self.logger.log_entry(entry)
             except (TypeError, KeyError):
-                self.logger.logerr(self.name, message)
+                self.logger.log_entry({'name': self.name, 'log_type': 'ERROR', 'log_message': entry})
 
-        self.logger.loginf(self.name, f"Exited logger thread, {self.name}.")
+        self.logger.log_entry({'name': self.name, 'log_type': 'INFO',
+                               'log_message': f"Exited logger thread, {self.name}."})
 
 class QueueProcessor(multiprocessing.Process):  # pylint: disable=too-many-instance-attributes
     """Publish WeeWX data to MQTT. """
