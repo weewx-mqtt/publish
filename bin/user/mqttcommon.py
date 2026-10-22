@@ -126,7 +126,8 @@ class MessageThrottle:  # pylint: disable=too-few-public-methods
     SUMMARY_DURATION_ZERO = "{count} messages have been suppressed of {max}."
 
     # The notice logged when the throttle feature is configured.
-    NOTICE_EXPERIMENTAL = "Throttling messages is an experimental option. It has limited support and may cause one to miss important messages."
+    NOTICE_EXPERIMENTAL = ("Throttling messages is an experimental option. It has limited support "
+                           "and may cause one to miss important messages.")
 
     # The config parse/validate errors, raised as ValueError.
     ERROR_DUPLICATE_MESSAGE = "{message_id} has been configured multiple times"
