@@ -60,8 +60,9 @@ Enhancements:
   - A connect failure at startup no longer retries, it shuts the publishing thread down so it can be restarted.
   - A publish that paho refuses, such as when the broker is down, is logged as an error and the message is dropped.
   - Align the logging call style with the subscribe extension. Logger.trace/debug/info/error take a
-    message id (all current messages use the sentinel id 0), and every log queue entry is built by
-    Logger.create_entry, which adds msg_id and the emitting thread's thread_id. Log output is unchanged.
+    message id (publish has no message ids, so all current messages pass None), and every log queue
+    entry is built by Logger.create_entry, which adds msg_id and the emitting thread's thread_id.
+    Log output is unchanged.
 
 Notes:
 The following have been deprecated and are scheduled to be removed in V2.
