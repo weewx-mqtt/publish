@@ -40,7 +40,7 @@ class TestInit(unittest.TestCase):
                     SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
                     SUT.logger_queue.put(None)
                     self.assertEqual(SUT.logger.error.call_count, 1)
-                    #SUT.logger.error.assert_called_once_with(0,
+                    #SUT.logger.error.assert_called_once_with(None,
                     #                                        "'PublishWeeWX' is deprecated. Move options to top level, '[MQTTPublish]'.")
 
     def test_log_mqtt_option(self):
@@ -82,7 +82,7 @@ class TestInit(unittest.TestCase):
             }
         })
 
-        mock_logger.info.assert_any_call(0, "'binding' is deprecated and no longer used.")
+        mock_logger.info.assert_any_call(None, "'binding' is deprecated and no longer used.")
 
     def test_multiprocess_uses_process_thread(self):
         SUT, _, _, mock_process = self._build_service({
@@ -135,7 +135,7 @@ class TestInit(unittest.TestCase):
             }
         })
 
-        mock_logger.error.assert_any_call(0,
+        mock_logger.error.assert_any_call(None,
                                           "'[[lwt]]' is deprecated.  use [[availability_topic]].")
 
 class TestConfigurePlugins(unittest.TestCase):
@@ -158,7 +158,7 @@ class TestConfigurePlugins(unittest.TestCase):
         })
 
         mock_logger.error.assert_any_call(
-            0,
+            None,
             "'[[plugins]]' is deprecated. To configure see, https://weewx-mqtt.github.io/publish/plugins/")
         self.assertIn('PluginA', SUT.plugins)
 
@@ -173,7 +173,7 @@ class TestConfigurePlugins(unittest.TestCase):
 
         self.assertIn('PluginA', SUT.plugins)
         self.assertNotIn('PluginB', SUT.plugins)
-        mock_logger.error.assert_any_call(0, 'PluginB is missing its configuration section.')
+        mock_logger.error.assert_any_call(None, 'PluginB is missing its configuration section.')
 
 class TestConfigureTopics(unittest.TestCase):
     def test_config_topics(self):
@@ -661,7 +661,7 @@ class TestHandleRecord(ServiceBase):
             mock_logger.error.assert_not_called()
 
             SUT._handle_record('loop', {'dateTime': 1234567890})
-            mock_logger.error.assert_any_call(0, "Data queue has size of 10.")
+            mock_logger.error.assert_any_call(None, "Data queue has size of 10.")
 
     def test_new_loop_packet_hands_a_deep_copy_to_handle_record(self):
         with self._service() as (SUT, _, _, _):
@@ -763,7 +763,7 @@ class TestShutDown(ServiceBase):
 
             SUT.shutDown()
 
-            SUT.logger.error.assert_called_once_with(0,
+            SUT.logger.error.assert_called_once_with(None,
                                                      f"Unable to shut down {thread.name}")
             # The reference is dropped even when the thread is still running.
             self.assertIsNone(SUT._thread)

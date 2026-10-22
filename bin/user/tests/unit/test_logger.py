@@ -42,9 +42,9 @@ class TestCreateEntry(unittest.TestCase):
         name = helpers.random_string()
         text = helpers.random_string()
 
-        entry = user.mqttpublish.Logger.create_entry(name, 'INFO', 0, text)
+        entry = user.mqttpublish.Logger.create_entry(name, 'INFO', None, text)
 
-        self.assertEqual(entry, {'name': name, 'log_type': 'INFO', 'msg_id': 0, 'msg_text': text,
+        self.assertEqual(entry, {'name': name, 'log_type': 'INFO', 'msg_id': None, 'msg_text': text,
                                  'thread_id': threading.get_native_id()})
 
 class TestQueueMethods(unittest.TestCase):
