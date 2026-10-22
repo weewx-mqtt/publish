@@ -865,32 +865,23 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
         if thread.is_alive():
             self.logger.logerr(self.name, f"Unable to shut down {thread.name}{message_suffix}")
 
-class LoggerThread(threading.Thread):
+class LoggerThread(mqttcommon.QueueLoggerThread):
     """ Thread to manage logging.
         This has to be a thread because WeeWX 'owns' the logger.
-        So logging has to happen in that process and not a subprocess. """
+        So logging has to happen in that process and not a subprocess.
+        The queue loop is inherited from mqttcommon.QueueLoggerThread. """
 
-    def __init__(self, log_queue, logger):
-        threading.Thread.__init__(self)
-        self.daemon = True
-        self.log_queue = log_queue
-        self.logger = logger
+    def start_entry(self):
+        """ Return the entry logged when the thread starts. """
+        return {'name': self.name, 'log_type': 'INFO', 'log_message': "Starting logger thread"}
 
-    def run(self):
-        threading.current_thread().name = f"{self.__class__.__name__}-{threading.get_native_id()}"
-        self.logger.log_entry({'name': self.name, 'log_type': 'INFO', 'log_message': "Starting logger thread"})
+    def exit_entry(self):
+        """ Return the entry logged when the thread exits. """
+        return {'name': self.name, 'log_type': 'INFO', 'log_message': f"Exited logger thread, {self.name}."}
 
-        while True:
-            entry = self.log_queue.get()
-            if entry is None:
-                break
-            try:
-                self.logger.log_entry(entry)
-            except (TypeError, KeyError):
-                self.logger.log_entry({'name': self.name, 'log_type': 'ERROR', 'log_message': entry})
-
-        self.logger.log_entry({'name': self.name, 'log_type': 'INFO',
-                               'log_message': f"Exited logger thread, {self.name}."})
+    def invalid_entry(self, entry):
+        """ Return the error entry logged for an entry that could not be logged. """
+        return {'name': self.name, 'log_type': 'ERROR', 'log_message': entry}
 
 class QueueProcessor(multiprocessing.Process):  # pylint: disable=too-many-instance-attributes
     """Publish WeeWX data to MQTT. """
