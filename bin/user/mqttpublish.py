@@ -41,6 +41,12 @@ from weewx.engine import StdService
 from user import mqttcommon
 # pylint: enable=wrong-import-position
 
+# All the weewx-mqtt extensions ship their own copy of mqttcommon. Fail loudly when the
+# loaded copy is older than this extension needs, instead of with a mysterious error later.
+if getattr(mqttcommon, 'MQTTCOMMON_API', (0, 0)) < (1, 0):
+    raise ImportError("user.mqttcommon is too old. An older weewx-mqtt extension likely overwrote it during"
+                      " install; reinstall or upgrade all the weewx-mqtt extensions.")
+
 VERSION = "1.3.0-rc02a"
 
 def setup_logging(logging_level, config_dict):

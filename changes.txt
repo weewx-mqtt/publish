@@ -43,6 +43,8 @@ Fixes
 Enhancements:
   - The Logger now owns the log queue and the logging thread. Shutting down flushes queued log
     messages, is safe to call more than once, and no longer stalls process exit if it was skipped.
+  - Fail loudly at import when an older 'user.mqttcommon' copy is loaded (an install-order
+    overwrite by another weewx-mqtt extension).
   - Support additional data types when publishing ‘individual' topics.
   - Empty the data queue as part of shutting down. This speeds up shut down when the queue has grown.
   - Limit the publishing of redundant/duplicate data (#27).
