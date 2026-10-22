@@ -213,9 +213,8 @@ class MQTTAggregateValues(user.mqttpublish.MQTTPlugin):
         """ Validate an aggregate config and return its initial state. """
         if to_bool(aggregate.get('enable', True)) \
             and aggregate['period'] not in self.timespan_provider.period_timespans:
-            self.logger_queue.put({'name': self.name,
-                                   'log_type': 'ERROR',
-                                   'log_message': f"Invalid 'period', {aggregate['period']}"})
+            self.logger_queue.put(user.mqttpublish.Logger.create_entry(
+                self.name, 'ERROR', 0, f"Invalid 'period', {aggregate['period']}"))
             raise ValueError(f"Invalid 'period', {aggregate['period']}")
 
         if 'calculation_interval' not in aggregate:
@@ -292,11 +291,8 @@ class MQTTAggregateValues(user.mqttpublish.MQTTPlugin):
                 last_calculated['interval_end'] = interval_end
 
             except (weewx.CannotCalculate, weewx.UnknownAggregation, weewx.UnknownType) as exception:
-                self.logger_queue.put({'name': self.name,
-                                       'log_type': 'ERROR',
-                                       'log_message': f"Aggregation failed: {exception}"})
-                self.logger_queue.put({'name': self.name,
-                                       'log_type': 'ERROR',
-                                       'log_message': traceback.format_exc()})
+                self.logger_queue.put(user.mqttpublish.Logger.create_entry(
+                    self.name, 'ERROR', 0, f"Aggregation failed: {exception}"))
+                self.logger_queue.put(user.mqttpublish.Logger.create_entry(self.name, 'ERROR', 0, traceback.format_exc()))
 
         return last_calculated['value']

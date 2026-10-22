@@ -67,31 +67,46 @@ class Logger:
         self.log = logging.getLogger(__name__)
         self.log_queue = log_queue
         self.log_functions = {
-            'TRACE': self.logdbg,
-            'DEBUG': self.logdbg,
-            'INFO': self.loginf,
-            'ERROR': self.logerr,
+            'TRACE': self._log_trace,
+            'DEBUG': self._log_debug,
+            'INFO': self._log_info,
+            'ERROR': self._log_error,
         }
         self.log_thread = LoggerThread(self.log_queue, self)
         self.log_thread.start()
 
-    def logdbg(self, name, msg):
-        """ log debug messages """
-        self.log.debug("%s %s ", name, msg)
+    @staticmethod
+    def create_entry(name, log_type, msg_id, msg_text):
+        """ Create a log entry, capturing the emitting thread. """
+        return {
+            'name': name,
+            'log_type': log_type,
+            'msg_id': msg_id,
+            'msg_text': msg_text,
+            'thread_id': threading.get_native_id(),
+        }
 
-    def loginf(self, name, msg):
-        """ log informational messages """
-        self.log.info("%s %s ", name, msg)
+    def trace(self, msg_id, msg_text):
+        """ Queue a trace message. """
+        self.log_queue.put(Logger.create_entry(self.name, 'TRACE', msg_id, msg_text))
 
-    def logerr(self, name, msg):
-        """ log error messages """
-        self.log.error("%s %s", name, msg)
+    def debug(self, msg_id, msg_text):
+        """ Queue a debug message. """
+        self.log_queue.put(Logger.create_entry(self.name, 'DEBUG', msg_id, msg_text))
+
+    def info(self, msg_id, msg_text):
+        """ Queue an informational message. """
+        self.log_queue.put(Logger.create_entry(self.name, 'INFO', msg_id, msg_text))
+
+    def error(self, msg_id, msg_text):
+        """ Queue an error message. """
+        self.log_queue.put(Logger.create_entry(self.name, 'ERROR', msg_id, msg_text))
 
     def log_entry(self, entry):
         """ Log a queued entry. This is called by the LoggerThread. """
         log_type = entry['log_type']
         if log_type is not None:
-            self.log_functions[log_type](entry['name'], entry['log_message'])
+            self.log_functions[log_type](entry)
 
     def shutdown(self, timeout=SHUTDOWN_TIMEOUT):
         """ Stop the logger thread, flushing queued messages. """
@@ -101,7 +116,25 @@ class Logger:
         self.log_queue.put(None)
         self.log_thread.join(timeout)
         if self.log_thread.is_alive():
-            self.logerr(self.name, f"Unable to shut down {self.log_thread.name} thread")
+            # The thread is stuck, a queued message would not be logged so log it directly.
+            self._log_error(Logger.create_entry(self.name, 'ERROR', 0,
+                                                f"Unable to shut down {self.log_thread.name} thread"))
+
+    def _log_trace(self, entry):
+        """ Log a trace entry. This is called by the LoggerThread. """
+        self.log.debug("%s %s ", entry['name'], entry['msg_text'])
+
+    def _log_debug(self, entry):
+        """ Log a debug entry. This is called by the LoggerThread. """
+        self.log.debug("%s %s ", entry['name'], entry['msg_text'])
+
+    def _log_info(self, entry):
+        """ Log an informational entry. This is called by the LoggerThread. """
+        self.log.info("%s %s ", entry['name'], entry['msg_text'])
+
+    def _log_error(self, entry):
+        """ Log an error entry. This is called by the LoggerThread. """
+        self.log.error("%s %s", entry['name'], entry['msg_text'])
 
 class MQTTPlugin():  # pylint: disable=too-few-public-methods
     """ Common plugin initialization. """
@@ -112,9 +145,7 @@ class MQTTPlugin():  # pylint: disable=too-few-public-methods
         self.name = f"{self.__class__.__name__}-{threading.get_native_id()}"
 
         if not self.enabled:
-            self.logger_queue.put({'name': self.name,
-                                   'log_type': 'INFO',
-                                   'log_message': f"Plugin {name} is not enabled."})
+            self.logger_queue.put(Logger.create_entry(self.name, 'INFO', 0, f"Plugin {name} is not enabled."))
 
 class PluginManager():  # pylint: disable=too-few-public-methods
     """ Manage the plugin callbacks. """
@@ -191,9 +222,9 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
             payload = self.lwt_dict.get('offline_payload', 'offline')
             qos = to_int(self.lwt_dict.get('qos', 0))
             retain = to_bool(self.lwt_dict.get('retain', True))
-            self.logger_queue.put({'name': self.name,
-                                   'log_type': 'INFO',
-                                   'log_message': f"Enabling LWT: topic: {topic}, payload: {payload}, qos: {qos}, retain: {retain}"})
+            self.logger_queue.put(Logger.create_entry(self.name, 'INFO', 0,
+                                                      f"Enabling LWT: topic: {topic}, payload: {payload}, "
+                                                      f"qos: {qos}, retain: {retain}"))
             self.client.will_set(topic=topic, payload=payload, qos=qos, retain=retain)
 
         self._connect()
@@ -209,9 +240,9 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
         return api
 
     def _connect(self):
-        self.logger_queue.put({'name': self.name,
-                               'log_type': 'INFO',
-                               'log_message': f"Connecting to host: {self.mqtt_config['host']} port: {self.mqtt_config['port']}."})
+        self.logger_queue.put(Logger.create_entry(self.name, 'INFO', 0,
+                                                  f"Connecting to host: {self.mqtt_config['host']} "
+                                                  f"port: {self.mqtt_config['port']}."))
 
         mqttcommon.configure_reconnect_delay(self.client,
                                              min_delay=self.mqtt_config['min_delay'],
@@ -220,9 +251,8 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
         try:
             self.connect(self.mqtt_config['host'], self.mqtt_config['port'], self.mqtt_config['keepalive'])
         except Exception as exception:  # want to catch all pylint: disable=broad-exception-caught
-            self.logger_queue.put({'name': self.name,
-                                   'log_type': 'ERROR',
-                                   'log_message': f"MQTT connect failed with {type(exception)} and reason {exception}."})
+            self.logger_queue.put(Logger.create_entry(self.name, 'ERROR', 0,
+                                                      f"MQTT connect failed with {type(exception)} and reason {exception}."))
             # Shut down the publishing thread, a bit of a hack.
             # The service will restart it, and stops WeeWX when the restart budget is spent.
             self.publisher.process = False
@@ -247,18 +277,16 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
 
         start_time = time.time()
         mqtt_message_info = self.client.publish(topic, payload, qos=qos, retain=retain)
-        self.logger_queue.put({'name': self.name,
-                               'log_type': 'DEBUG',
-                               'log_message': (f"At {int(time.time())}  publishing: {int(time_stamp)} "
-                                               f" {mqtt_message_info.mid} {qos} {topic} took {time.time() - start_time}")})
+        self.logger_queue.put(Logger.create_entry(self.name, 'DEBUG', 0,
+                                                  (f"At {int(time.time())}  publishing: {int(time_stamp)} "
+                                                   f" {mqtt_message_info.mid} {qos} {topic} took {time.time() - start_time}")))
 
         # Paho drops the message and returns an error when it is not connected (MQTT_ERR_NO_CONN)
         # or its outbound queue is full (MQTT_ERR_QUEUE_SIZE). Log it; there is nothing to retry.
         if mqtt_message_info.rc != mqtt.MQTT_ERR_SUCCESS:
-            self.logger_queue.put({'name': self.name,
-                                   'log_type': 'ERROR',
-                                   'log_message': (f"The publish of {topic} is not accepted with "
-                                                   f"{mqtt.error_string(mqtt_message_info.rc)}, the message is dropped.")})
+            self.logger_queue.put(Logger.create_entry(self.name, 'ERROR', 0,
+                                                      (f"The publish of {topic} is not accepted with "
+                                                       f"{mqtt.error_string(mqtt_message_info.rc)}, the message is dropped.")))
 
     def get_client(self, client_id, protocol):
         ''' Get the MQTT client. '''
@@ -283,9 +311,7 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
 
     def on_log(self, _client, _userdata, level, msg):
         """ The on_log callback. """
-        self.logger_queue.put({'name': self.name,
-                               'log_type': self.mqtt_logger.get(level, None),
-                               'log_message': f"MQTT log: {msg}"})
+        self.logger_queue.put(Logger.create_entry(self.name, self.mqtt_logger.get(level, None), 0, f"MQTT log: {msg}"))
 
     def on_connect(self, client, userdata, flags, rc, properties):  # pylint: disable=too-many-arguments
         """ The on_connect callback. """
@@ -299,15 +325,13 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
         # 5: Connection refused - not authorised
         # 6-255: Currently unused.
         if int(rc) != 0:
-            self.logger_queue.put({'name': self.name,
-                                   'log_type': 'ERROR',
-                                   'log_message': (f"Connection refused with result code {int(rc)}, "
-                                                   f"{mqtt.error_string(rc)}, flags {str(flags)}.")})
+            self.logger_queue.put(Logger.create_entry(self.name, 'ERROR', 0,
+                                                      (f"Connection refused with result code {int(rc)}, "
+                                                       f"{mqtt.error_string(rc)}, flags {str(flags)}.")))
             return
 
-        self.logger_queue.put({'name': self.name,
-                               'log_type': 'INFO',
-                               'log_message': f"Connected with result code {int(rc)}, {mqtt.error_string(rc)}"})
+        self.logger_queue.put(Logger.create_entry(self.name, 'INFO', 0,
+                                                  f"Connected with result code {int(rc)}, {mqtt.error_string(rc)}"))
 
         self._handle_connect_success((client, userdata, flags, rc, properties))
 
@@ -324,9 +348,8 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
         """ The on_publish callback. """
         time_stamp = "          "
         qos = ""
-        self.logger_queue.put({'name': self.name,
-                               'log_type': 'DEBUG',
-                               'log_message': f"At {int(time.time())} published: {time_stamp} {mid} {qos}"})
+        self.logger_queue.put(Logger.create_entry(self.name, 'DEBUG', 0,
+                                                  f"At {int(time.time())} published: {time_stamp} {mid} {qos}"))
 
     def _publish_lwt_online(self):
         """ Publish the LWT 'online' message, when lwt is configured. """
@@ -344,20 +367,16 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
             self.plugin_manager.callbacks['on_mqtt_connect'][timing][plugin_name](*callback_args)
             delta_time = time.time() - start_time
             run_time += delta_time
-            self.logger_queue.put({'name': self.name,
-                                   'log_type': self.monitor_on_connect,
-                                   'log_message': (f"monitor: {delta_time:<12.10f} on_connect ({timing}) {plugin_name}")})
-        self.logger_queue.put({'name': self.name,
-                               'log_type': self.monitor_on_connect,
-                               'log_message': (f"monitor: {run_time:<12.10f} on_connect ({timing})")})
+            self.logger_queue.put(Logger.create_entry(self.name, self.monitor_on_connect, 0,
+                                                      (f"monitor: {delta_time:<12.10f} on_connect ({timing}) {plugin_name}")))
+        self.logger_queue.put(Logger.create_entry(self.name, self.monitor_on_connect, 0,
+                                                  (f"monitor: {run_time:<12.10f} on_connect ({timing})")))
 
     def _handle_connect_success(self, callback_args):
         """ The connection succeeded. Run the common processing.
             callback_args is the paho callback tuple: (client, userdata, flags, rc, properties). """
         flags = callback_args[2]
-        self.logger_queue.put({'name': self.name,
-                               'log_type': 'INFO',
-                               'log_message': f"Connected flags {str(flags)}"})
+        self.logger_queue.put(Logger.create_entry(self.name, 'INFO', 0, f"Connected flags {str(flags)}"))
 
         self._run_connect_callbacks(callback_args, 'immediate')
 
@@ -369,9 +388,8 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
 
     def _handle_disconnect(self, rc):
         """ The connection was lost, or a disconnect was requested. Mark as not connected. """
-        self.logger_queue.put({'name': self.name,
-                               'log_type': 'INFO' if int(rc) == 0 else 'ERROR',
-                               'log_message': f"Disconnected with result code {int(rc)}, {mqtt.error_string(rc)}"})
+        self.logger_queue.put(Logger.create_entry(self.name, 'INFO' if int(rc) == 0 else 'ERROR', 0,
+                                                  f"Disconnected with result code {int(rc)}, {mqtt.error_string(rc)}"))
 
         # As of 1.6.1, Paho MQTT cannot have a callback invoke a second callback. So we won't reconnect here.
         # Because that would cause the on_connect callback to be called. Instead we will just mark as not connected.
@@ -380,9 +398,7 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
 
     def on_message(self, client, userdata, msg):
         """ The on_message callback. """
-        self.logger_queue.put({'name': self.name,
-                               'log_type': 'DEBUG',
-                               'log_message': f"Received: {userdata} {msg}"})
+        self.logger_queue.put(Logger.create_entry(self.name, 'DEBUG', 0, f"Received: {userdata} {msg}"))
 
         run_time = 0
         for plugin_name in self.plugin_manager.callbacks['on_mqtt_message']['immediate']:
@@ -390,12 +406,11 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
             self.plugin_manager.callbacks['on_mqtt_message']['immediate'][plugin_name](client, userdata, msg)
             delta_time = time.time() - start_time
             run_time += delta_time
-            self.logger_queue.put({'name': self.name,
-                                   'log_type': self.monitor_on_message,
-                                   'log_message': (f"monitor: {delta_time:<12.10f} on_message (immediate) {plugin_name}  {msg}")})
-        self.logger_queue.put({'name': self.name,
-                               'log_type': self.monitor_on_message,
-                               'log_message': (f"monitor: {run_time:<12.10f} on_message (immediate)")})
+            self.logger_queue.put(Logger.create_entry(self.name, self.monitor_on_message, 0,
+                                                      (f"monitor: {delta_time:<12.10f} on_message (immediate) "
+                                                       f"{plugin_name}  {msg}")))
+        self.logger_queue.put(Logger.create_entry(self.name, self.monitor_on_message, 0,
+                                                  (f"monitor: {run_time:<12.10f} on_message (immediate)")))
 
         run_time = 0
         for plugin_name in self.plugin_manager.callbacks['on_mqtt_message']['delay']:
@@ -403,13 +418,11 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
             self.plugin_manager.callbacks['on_mqtt_message']['delay'][plugin_name](client, userdata, msg)
             delta_time = time.time() - start_time
             run_time += delta_time
-            self.logger_queue.put({'name': self.name,
-                                   'log_type': self.monitor_on_message,
-                                   'log_message': (f"monitor: {delta_time:<12.10f} on_message (delay) {plugin_name} {msg}")})
+            self.logger_queue.put(Logger.create_entry(self.name, self.monitor_on_message, 0,
+                                                      (f"monitor: {delta_time:<12.10f} on_message (delay) {plugin_name} {msg}")))
 
-        self.logger_queue.put({'name': self.name,
-                               'log_type': self.monitor_on_message,
-                               'log_message': (f"monitor: {run_time:<12.10f} on_message (delay)")})
+        self.logger_queue.put(Logger.create_entry(self.name, self.monitor_on_message, 0,
+                                                  (f"monitor: {run_time:<12.10f} on_message (delay)")))
 
 class PublishWeeWX():  # pylint: disable=too-few-public-methods
     """ Backwards compatibility class."""
@@ -434,23 +447,23 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
 
         self.logger = Logger(self.name, self.logger_queue)
 
-        self.logger.loginf(self.name, f"MQTTPublish version: {VERSION}.")
+        self.logger.info(0, f"MQTTPublish version: {VERSION}.")
 
         self.plugins = self._configure_plugins(config_dict, service_dict)
 
         exclude_keys = ['password']
         sanitized_service_dict = {k: service_dict[k] for k in set(service_dict.keys()) - set(exclude_keys)}
-        self.logger.logdbg(self.name, f"sanitized configuration removed {exclude_keys}")
-        self.logger.logdbg(self.name, f"sanitized_service_dict is {sanitized_service_dict}")
+        self.logger.debug(0, f"sanitized configuration removed {exclude_keys}")
+        self.logger.debug(0, f"sanitized_service_dict is {sanitized_service_dict}")
 
         #  backwards compatibility
         if 'PublishWeeWX' in service_dict.sections:
-            self.logger.logerr(self.name, "'PublishWeeWX' is deprecated. Move options to top level, '[MQTTPublish]'.")
+            self.logger.error(0, "'PublishWeeWX' is deprecated. Move options to top level, '[MQTTPublish]'.")
             service_dict = config_dict.get('MQTTPublish', {}).get('PublishWeeWX', {})
 
         self.enable = to_bool(service_dict.get('enable', True))
         if not self.enable:
-            self.logger.loginf(self.name, "Not enabled, exiting.")
+            self.logger.info(0, "Not enabled, exiting.")
             return
 
         data_binding = service_dict.get('data_binding', 'wx_binding')
@@ -459,8 +472,8 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
         self.weewx_dict = self._configure_weewx_dict(engine, config_dict)
 
         self.topics_loop, self.topics_archive, binding = self.configure_topics(service_dict)
-        self.logger.logdbg(self.name, f"archive topic configuration is: {self.topics_archive}")
-        self.logger.logdbg(self.name, f"loop topic configuration is: {self.topics_loop}")
+        self.logger.debug(0, f"archive topic configuration is: {self.topics_archive}")
+        self.logger.debug(0, f"loop topic configuration is: {self.topics_loop}")
 
         self.mqtt_config, self.monitor_config = self._configure_mqtt(service_dict)
 
@@ -512,16 +525,16 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
         """ Configure the plugins. """
         plugins = service_dict.get('plugins', [])
         if isinstance(plugins, dict):
-            self.logger.logerr(self.name,
-                               ("'[[plugins]]' is deprecated. "
-                                "To configure see, https://weewx-mqtt.github.io/publish/plugins/"))
+            self.logger.error(0,
+                              ("'[[plugins]]' is deprecated. "
+                               "To configure see, https://weewx-mqtt.github.io/publish/plugins/"))
             return plugins
 
-        self.logger.loginf(self.name, f"The plugins are: {plugins}")
+        self.logger.info(0, f"The plugins are: {plugins}")
         configured_plugins = configobj.ConfigObj({})
         for plugin in to_list(plugins):
             if plugin not in config_dict:
-                self.logger.logerr(self.name, f"{plugin} is missing its configuration section.")
+                self.logger.error(0, f"{plugin} is missing its configuration section.")
             else:
                 configured_plugins[plugin] = config_dict[plugin]
         return configured_plugins
@@ -543,11 +556,11 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
     def _log_deprecated_options(self, service_dict):
         """ Warn about options that are deprecated and no longer used. """
         if 'binding' in service_dict:
-            self.logger.loginf(self.name, "'binding' is deprecated and no longer used.")
+            self.logger.info(0, "'binding' is deprecated and no longer used.")
 
         for option in ('max_retries', 'wait_between_retries', 'wait_for_connection'):
             if option in service_dict:
-                self.logger.loginf(self.name, f"'{option}' is deprecated and no longer used.")
+                self.logger.info(0, f"'{option}' is deprecated and no longer used.")
 
     def _configure_mqtt(self, service_dict):
         """ Configure the mqtt connection and monitoring options. """
@@ -571,14 +584,14 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
         mqtt_config['tls'] = service_dict.get('tls')
         mqtt_config['lwt'] = service_dict.get('lwt')
         if mqtt_config['lwt'] is not None:
-            self.logger.logerr(self.name, "'[[lwt]]' is deprecated.  use [[availability_topic]].")
+            self.logger.error(0, "'[[lwt]]' is deprecated.  use [[availability_topic]].")
         else:
             mqtt_config['lwt'] = service_dict.get('availability_topic', {})
 
         exclude_keys = ['password']
         sanitized_mqtt_config = {k: mqtt_config[k] for k in set(mqtt_config.keys()) - set(exclude_keys)}
-        self.logger.logdbg(self.name, f"sanitized mqtt_config removed {exclude_keys}")
-        self.logger.logdbg(self.name, f"sanitized_mqtt_config is {sanitized_mqtt_config}")
+        self.logger.debug(0, f"sanitized mqtt_config removed {exclude_keys}")
+        self.logger.debug(0, f"sanitized_mqtt_config is {sanitized_mqtt_config}")
 
         monitor_config = {
             'monitor_queue': service_dict.get('monitor_queue'),
@@ -629,8 +642,8 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
                 topics_archive[topic] = archive_config
                 event_binding['archive'] = True
 
-        self.logger.logdbg(self.name, f"Loop topics: {topics_loop}")
-        self.logger.logdbg(self.name, f"Archive topics: {topics_archive}")
+        self.logger.debug(0, f"Loop topics: {topics_loop}")
+        self.logger.debug(0, f"Archive topics: {topics_archive}")
         return topics_loop, topics_archive, event_binding.keys()
 
     def _configure_topic(self, service_dict, topic):
@@ -652,11 +665,11 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
         loop_config = None
         archive_config = None
         if 'loop' in topic_options['binding']:
-            self.logger.loginf(self.name, f"Publishing to {topic} for loop data.")
+            self.logger.info(0, f"Publishing to {topic} for loop data.")
             loop_config = self._build_topic_config(topic_options, field_options, fields)
 
         if 'archive' in topic_options['binding']:
-            self.logger.loginf(self.name, f"Publishing to {topic} for archive data.")
+            self.logger.info(0, f"Publishing to {topic} for archive data.")
             archive_config = self._build_topic_config(topic_options, field_options, fields)
 
         return loop_config, archive_config
@@ -737,9 +750,9 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
             return
 
         # Temporarily build the MQTTAggregateValues plugin configuration
-        self.logger.logerr(self.name,
-                           ("'[aggregates]' is deprecated and has moved to a plugin. "
-                            "To configure see, https://weewx-mqtt.github.io/publish/plugins/aggregatevalues/"))
+        self.logger.error(0,
+                          ("'[aggregates]' is deprecated and has moved to a plugin. "
+                           "To configure see, https://weewx-mqtt.github.io/publish/plugins/aggregatevalues/"))
         if 'MQTTAggregateValues' not in self.plugins:
             self.plugins['MQTTAggregateValues'] = {}
             self.plugins['MQTTAggregateValues']['module'] = 'user.mqttaggregatevalues'
@@ -752,7 +765,7 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
 
     def thread_start(self):
         """Start the publishing thread."""
-        self.logger.loginf(self.name, "Starting up queue processor.")
+        self.logger.info(0, "Starting up queue processor.")
         self._thread.start()
 
         if not self._thread.is_alive():
@@ -788,7 +801,7 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
         """ Log an error when the input queue is filling up. """
         queue_size = self.data_queue.qsize()
         if queue_size > 0 and queue_size % 10 == 0:
-            self.logger.logerr(self.name, f"Data queue has size of {self.data_queue.qsize()}.")
+            self.logger.error(0, f"Data queue has size of {self.data_queue.qsize()}.")
 
     def _restart_thread(self, data_type, data):
         """ Replace a dead publishing thread, or give up when the restart budget is spent. """
@@ -810,13 +823,12 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
 
     def _log_input_queue_size(self):
         """ Log the input queue size under the queue monitor flag. """
-        self.logger_queue.put({'name': self.name,
-                               'log_type': self.monitor_config['monitor_queue'],
-                               'log_message': f"monitor: Input queue size: {self.data_queue.qsize()}"})
+        self.logger_queue.put(Logger.create_entry(self.name, self.monitor_config['monitor_queue'], 0,
+                                                  f"monitor: Input queue size: {self.data_queue.qsize()}"))
 
     def shutDown(self):
         """Run when an engine shutdown is requested."""
-        self.logger.loginf(self.name, "Shutdown initiated")
+        self.logger.info(0, "Shutdown initiated")
         self._shut_down_publishing()
         self._shut_down_logger()
 
@@ -825,10 +837,10 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
         if not self._thread:
             return
 
-        self.logger.loginf(self.name, f"Emptying data queue with size of {self.data_queue.qsize()}.")
+        self.logger.info(0, f"Emptying data queue with size of {self.data_queue.qsize()}.")
         self._drain_data_queue()
-        self.logger.loginf(self.name, f"Data queue has size of {self.data_queue.qsize()}.")
-        self.logger.loginf(self.name, "Shutdown of queue processor initiated")
+        self.logger.info(0, f"Data queue has size of {self.data_queue.qsize()}.")
+        self.logger.info(0, "Shutdown of queue processor initiated")
         self.data_queue.put({'time_stamp': time.time(), 'type': 'shutdown', 'data': {}})
 
         self._wait_for_thread(self._thread)
@@ -836,7 +848,7 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
 
     def _shut_down_logger(self):
         """Stop the thread that hands log records over to the WeeWX logger."""
-        self.logger.loginf(self.name, f"Shutdown of logger thread, {self.logger.log_thread.name} initiated")
+        self.logger.info(0, f"Shutdown of logger thread, {self.logger.log_thread.name} initiated")
         self.logger.shutdown(self.wait_for_thread_shutdown)
 
     def _drain_data_queue(self):
@@ -863,7 +875,7 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
         """Wait for a thread to stop, warning when it does not."""
         thread.join(self.wait_for_thread_shutdown)
         if thread.is_alive():
-            self.logger.logerr(self.name, f"Unable to shut down {thread.name}{message_suffix}")
+            self.logger.error(0, f"Unable to shut down {thread.name}{message_suffix}")
 
 class LoggerThread(mqttcommon.QueueLoggerThread):
     """ Thread to manage logging.
@@ -873,15 +885,15 @@ class LoggerThread(mqttcommon.QueueLoggerThread):
 
     def start_entry(self):
         """ Return the entry logged when the thread starts. """
-        return {'name': self.name, 'log_type': 'INFO', 'log_message': "Starting logger thread"}
+        return Logger.create_entry(self.name, 'INFO', 0, "Starting logger thread")
 
     def exit_entry(self):
         """ Return the entry logged when the thread exits. """
-        return {'name': self.name, 'log_type': 'INFO', 'log_message': f"Exited logger thread, {self.name}."}
+        return Logger.create_entry(self.name, 'INFO', 0, f"Exited logger thread, {self.name}.")
 
     def invalid_entry(self, entry):
         """ Return the error entry logged for an entry that could not be logged. """
-        return {'name': self.name, 'log_type': 'ERROR', 'log_message': entry}
+        return Logger.create_entry(self.name, 'ERROR', 0, entry)
 
 class QueueProcessor(multiprocessing.Process):  # pylint: disable=too-many-instance-attributes
     """Publish WeeWX data to MQTT. """
@@ -919,9 +931,7 @@ class QueueProcessor(multiprocessing.Process):  # pylint: disable=too-many-insta
         self.name = f"{self.__class__.__name__}-{threading.get_native_id()}"
 
         self.logger_queue = logger_queue
-        self.logger_queue.put({'name': self.name,
-                               'log_type': 'INFO',
-                               'log_message': "Initializing queue processor."})
+        self.logger_queue.put(Logger.create_entry(self.name, 'INFO', 0, "Initializing queue processor."))
 
         self.start_time = 0
 
@@ -953,9 +963,7 @@ class QueueProcessor(multiprocessing.Process):  # pylint: disable=too-many-insta
 
     def profile(self, msg):
         """ Log the profiling data. """
-        self.logger_queue.put({'name': self.name,
-                               'log_type': 'INFO',
-                               'log_message': msg})
+        self.logger_queue.put(Logger.create_entry(self.name, 'INFO', 0, msg))
 
     def update_record(self, topic_dict, _time_stamp, record):
         """ Update the record. """
@@ -1106,22 +1114,19 @@ class QueueProcessor(multiprocessing.Process):  # pylint: disable=too-many-insta
                                                                                                    topics[topic]['retain'])
                 delta_time = time.time() - start_time
                 run_time += delta_time
-                self.logger_queue.put({'name': self.name,
-                                       'log_type': self.monitor_record_update,
-                                       'log_message': (f"monitor: {delta_time:<12.10f} update_record (immediate) "
-                                                       f"{topic} for {plugin_name}")})
+                self.logger_queue.put(Logger.create_entry(self.name, self.monitor_record_update, 0,
+                                                          (f"monitor: {delta_time:<12.10f} update_record (immediate) "
+                                                           f"{topic} for {plugin_name}")))
 
-            self.logger_queue.put({'name': self.name,
-                                   'log_type': self.monitor_record_update,
-                                   'log_message': (f"monitor: {run_time:<12.10f} update_record (immediate) {topic}")})
+            self.logger_queue.put(Logger.create_entry(self.name, self.monitor_record_update, 0,
+                                                      (f"monitor: {run_time:<12.10f} update_record (immediate) {topic}")))
             immediate_time += run_time
 
             start_time = time.time()
             updated_record = self.update_record(topics[topic], time_stamp, record)
-            self.logger_queue.put({'name': self.name,
-                                   'log_type': self.monitor_record_update,
-                                   'log_message': (f"monitor: {(time.time() - start_time):<12.10f} "
-                                                   f"update_record (update_record) {topic}")})
+            self.logger_queue.put(Logger.create_entry(self.name, self.monitor_record_update, 0,
+                                                      (f"monitor: {(time.time() - start_time):<12.10f} "
+                                                       f"update_record (update_record) {topic}")))
 
             run_time = 0
             for plugin_name in self.publisher.plugin_manager.callbacks['update_record']['delay']:
@@ -1138,33 +1143,27 @@ class QueueProcessor(multiprocessing.Process):  # pylint: disable=too-many-insta
                                                                                                topics[topic]['retain'])
                 delta_time = time.time() - start_time
                 run_time += delta_time
-                self.logger_queue.put({'name': self.name,
-                                       'log_type': self.monitor_record_update,
-                                       'log_message': (f"monitor: {delta_time:<12.10f} update_record (delay) "
-                                                       f"{topic} for {plugin_name}")})
-            self.logger_queue.put({'name': self.name,
-                                   'log_type': self.monitor_record_update,
-                                   'log_message': (f"monitor: {run_time:<12.10f} update_record (delay) {topic}")})
+                self.logger_queue.put(Logger.create_entry(self.name, self.monitor_record_update, 0,
+                                                          (f"monitor: {delta_time:<12.10f} update_record (delay) "
+                                                           f"{topic} for {plugin_name}")))
+            self.logger_queue.put(Logger.create_entry(self.name, self.monitor_record_update, 0,
+                                                      (f"monitor: {run_time:<12.10f} update_record (delay) {topic}")))
             delay_time += run_time
 
             start_time = time.time()
             self.publish_record(time_stamp, topic, topics[topic], updated_record)
-            self.logger_queue.put({'name': self.name,
-                                   'log_type': self.monitor_record_update,
-                                   'log_message': (f"monitor: {(time.time() - start_time):<12.10f} "
-                                                   f"update_record (publish_message) {topic} ")})
+            self.logger_queue.put(Logger.create_entry(self.name, self.monitor_record_update, 0,
+                                                      (f"monitor: {(time.time() - start_time):<12.10f} "
+                                                       f"update_record (publish_message) {topic} ")))
 
-        self.logger_queue.put({'name': self.name,
-                               'log_type': self.monitor_record_update,
-                               'log_message': (f"monitor: {immediate_time:<12.10f} update_record (immediate)")})
-        self.logger_queue.put({'name': self.name,
-                               'log_type': self.monitor_record_update,
-                               'log_message': (f"monitor: {delay_time:<12.10f} update_record (delay)")})
+        self.logger_queue.put(Logger.create_entry(self.name, self.monitor_record_update, 0,
+                                                  (f"monitor: {immediate_time:<12.10f} update_record (immediate)")))
+        self.logger_queue.put(Logger.create_entry(self.name, self.monitor_record_update, 0,
+                                                  (f"monitor: {delay_time:<12.10f} update_record (delay)")))
 
-        self.logger_queue.put({'name': self.name,
-                               'log_type': self.monitor_record_update,
-                               'log_message': (f"monitor: {(time.time() - process_time):<12.10f} "
-                                               f"update_record (publish_row total)")})
+        self.logger_queue.put(Logger.create_entry(self.name, self.monitor_record_update, 0,
+                                                  (f"monitor: {(time.time() - process_time):<12.10f} "
+                                                   f"update_record (publish_row total)")))
 
     def publish_record(self, time_stamp, topic, topic_dict, updated_record):
         """ Publish an updated record, using the topic's configured type. """
@@ -1219,9 +1218,7 @@ class QueueProcessor(multiprocessing.Process):  # pylint: disable=too-many-insta
         self.publisher.client.disconnect()
         # Stop paho's network loop thread. It must outlive the disconnect, so the DISCONNECT gets sent.
         self.publisher.client.loop_stop()
-        self.logger_queue.put({'name': self.name,
-                               'log_type': 'INFO',
-                               'log_message': "Queue processor is shut down."})
+        self.logger_queue.put(Logger.create_entry(self.name, 'INFO', 0, "Queue processor is shut down."))
 
     def create_plugins(self):
         """ Create the plugin manager and instantiate each configured plugin. """
@@ -1247,10 +1244,9 @@ class QueueProcessor(multiprocessing.Process):  # pylint: disable=too-many-insta
                 if prev_time is None:
                     break
             except Queue.Empty:
-                self.logger_queue.put({'name': self.name,
-                                       'log_type': self.monitor_queue,
-                                       'log_message': (f"monitor: Queue is empty. "
-                                                       f"Waiting {self.mqtt_config['wait_for_queue_element']}")})
+                self.logger_queue.put(Logger.create_entry(self.name, self.monitor_queue, 0,
+                                                          (f"monitor: Queue is empty. "
+                                                           f"Waiting {self.mqtt_config['wait_for_queue_element']}")))
 
     def handle_queue_item(self, data2, prev_time):
         """ Process one queue item.
@@ -1259,20 +1255,16 @@ class QueueProcessor(multiprocessing.Process):  # pylint: disable=too-many-insta
         """
         data_type = data2['type']
         if data_type == 'shutdown':
-            self.logger_queue.put({'name': self.name,
-                                   'log_type': 'INFO',
-                                   'log_message': "Shutting down queue processor."})
+            self.logger_queue.put(Logger.create_entry(self.name, 'INFO', 0, "Shutting down queue processor."))
             self.process = False
             return None
 
         queue_size = self.data_queue.qsize()
         data2['queue_size'] = queue_size
         curr_time = time.time()
-        self.logger_queue.put({'name': self.name,
-                               'log_type': self.monitor_queue,
-                               'log_message': (f"monitor: Queue size: {queue_size} "
-                                               f"Process time: {curr_time - prev_time}")
-                               })
+        self.logger_queue.put(Logger.create_entry(self.name, self.monitor_queue, 0,
+                                                  (f"monitor: Queue size: {queue_size} "
+                                                   f"Process time: {curr_time - prev_time}")))
 
         self.on_weewx_data_immediate(data2)
 
@@ -1283,9 +1275,7 @@ class QueueProcessor(multiprocessing.Process):  # pylint: disable=too-many-insta
         elif data_type == 'archive':
             self.publish_row(time_stamp, data, self.topics_archive)
         else:
-            self.logger_queue.put({'name': self.name,
-                                   'log_type': 'ERROR',
-                                   'log_message': f"Unknown data type, {data_type}"})
+            self.logger_queue.put(Logger.create_entry(self.name, 'ERROR', 0, f"Unknown data type, {data_type}"))
 
         self.on_weewx_data_delay(data2)
 
@@ -1299,13 +1289,11 @@ class QueueProcessor(multiprocessing.Process):  # pylint: disable=too-many-insta
             self.plugin_manager.callbacks['on_weewx_data']['immediate'][plugin_name](data2)
             delta_time = time.time() - start_time
             run_time += delta_time
-            self.logger_queue.put({'name': self.name,
-                                   'log_type': self.monitor_on_weewx_data,
-                                   'log_message': (f"monitor: {delta_time:<12.10f} on_weewx_data (immediate) "
-                                                   f"{plugin_name}")})
-        self.logger_queue.put({'name': self.name,
-                               'log_type': self.monitor_on_weewx_data,
-                               'log_message': (f"monitor: {run_time:<12.10f} on_weewx_data (immediate)")})
+            self.logger_queue.put(Logger.create_entry(self.name, self.monitor_on_weewx_data, 0,
+                                                      (f"monitor: {delta_time:<12.10f} on_weewx_data (immediate) "
+                                                       f"{plugin_name}")))
+        self.logger_queue.put(Logger.create_entry(self.name, self.monitor_on_weewx_data, 0,
+                                                  (f"monitor: {run_time:<12.10f} on_weewx_data (immediate)")))
 
     def on_weewx_data_delay(self, data2):
         """ Run the 'delay' on_weewx_data plugin callbacks. """
@@ -1315,14 +1303,11 @@ class QueueProcessor(multiprocessing.Process):  # pylint: disable=too-many-insta
             self.plugin_manager.callbacks['on_weewx_data']['delay'][plugin_name](data2)
             delta_time = time.time() - start_time
             run_time += delta_time
-            self.logger_queue.put({'name': self.name,
-                                   'log_type': self.monitor_on_weewx_data,
-                                   'log_message': f"monitor: {delta_time:<12.10f} on_weewx_data (delay) {plugin_name}"
-                                   })
-        self.logger_queue.put({'name': self.name,
-                               'log_type': self.monitor_on_weewx_data,
-                               'log_message': (f"monitor: {run_time:<12.10f} on_weewx_data (delay) "
-                                               f"")})
+            self.logger_queue.put(Logger.create_entry(self.name, self.monitor_on_weewx_data, 0,
+                                                      f"monitor: {delta_time:<12.10f} on_weewx_data (delay) {plugin_name}"))
+        self.logger_queue.put(Logger.create_entry(self.name, self.monitor_on_weewx_data, 0,
+                                                  (f"monitor: {run_time:<12.10f} on_weewx_data (delay) "
+                                                   f"")))
 
 class PublishWeeWXThread(threading.Thread):
     """Publish WeeWX data to MQTT. """
@@ -1339,14 +1324,10 @@ class PublishWeeWXThread(threading.Thread):
                                         processor_config)
 
     def run(self):
-        self.logger_queue.put({'name': self.name,
-                               'log_type': 'INFO',
-                               'log_message': f"Starting queue thread,  {self.name}."})
+        self.logger_queue.put(Logger.create_entry(self.name, 'INFO', 0, f"Starting queue thread,  {self.name}."))
 
         self.processor.run()
-        self.logger_queue.put({'name': self.name,
-                               'log_type': 'INFO',
-                               'log_message': f"Exited queue thread, {self.name}."})
+        self.logger_queue.put(Logger.create_entry(self.name, 'INFO', 0, f"Exited queue thread, {self.name}."))
 
 class PublishWeeWXProcess(threading.Thread):
     """Publish WeeWX data to MQTT. """
@@ -1369,27 +1350,21 @@ class PublishWeeWXProcess(threading.Thread):
     def run(self):
         while True:
             data = self.data_queue.get(block=True, timeout=None)
-            self.logger_queue.put({'name': self.name,
-                                   'log_type': self.monitor_config['monitor_queue'],
-                                   'log_message': f"monitor: Input-2 queue size: {self.data_queue.qsize()}"})
+            self.logger_queue.put(Logger.create_entry(self.name, self.monitor_config['monitor_queue'], 0,
+                                                      f"monitor: Input-2 queue size: {self.data_queue.qsize()}"))
             self.out_queue.put(data)
             if data['type'] == 'shutdown':
-                self.logger_queue.put({'name': self.name,
-                                       'log_type': 'INFO',
-                                       'log_message': "Shutting down queue processor."})
+                self.logger_queue.put(Logger.create_entry(self.name, 'INFO', 0, "Shutting down queue processor."))
                 break
-            self.logger_queue.put({'name': self.name,
-                                   'log_type': self.monitor_config['monitor_queue'],
-                                   'log_message': f"monitor: Output queue size: {self.out_queue.qsize()}"})
+            self.logger_queue.put(Logger.create_entry(self.name, self.monitor_config['monitor_queue'], 0,
+                                                      f"monitor: Output queue size: {self.out_queue.qsize()}"))
 
         # Shutdown has been passed into queue processor
         # so wait for it to shut down
         if self.processor:
             self.processor.join(5)  # ToDo: make configurable
             if self.processor.is_alive():
-                self.logger_queue.put({'name': self.name,
-                                       'log_type': 'ERROR',
-                                       'log_message': f"Unable to shut down {self.processor.name}"})
+                self.logger_queue.put(Logger.create_entry(self.name, 'ERROR', 0, f"Unable to shut down {self.processor.name}"))
 
 if __name__ == "__main__":
     import argparse

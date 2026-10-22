@@ -392,13 +392,11 @@ class MQTTConfigHA(user.mqttpublish.MQTTPlugin):  # pylint: disable=too-many-ins
 
         for device_id in plugin_dict['devices']:
             if not to_bool(plugin_dict['devices'][device_id].get('enable', True)):
-                self.logger_queue.put({'name': self.name,
-                                       'log_type': 'INFO',
-                                       'log_message': f"Device, {device_id}, is not enabled - skipping."})
+                self.logger_queue.put(user.mqttpublish.Logger.create_entry(self.name, 'INFO', 0,
+                                                                           f"Device, {device_id}, is not enabled - skipping."))
                 continue
-            self.logger_queue.put({'name': self.name,
-                                   'log_type': 'INFO',
-                                   'log_message': f"Device, {device_id}, will be configured in Home Assistant"})
+            self.logger_queue.put(user.mqttpublish.Logger.create_entry(self.name, 'INFO', 0,
+                                                                       f"Device, {device_id}, will be configured in Home Assistant"))
 
             self._configure_device(device_id, plugin_dict['devices'][device_id], plugin_dict)
 
@@ -478,39 +476,33 @@ class MQTTConfigHA(user.mqttpublish.MQTTPlugin):  # pylint: disable=too-many-ins
 
     def on_mqtt_message(self, client, userdata, msg):
         """ Handle the MQTT on_message callback. """
-        self.logger_queue.put({'name': self.name,
-                               'log_type': 'DEBUG',
-                               'log_message': f"Received: {userdata} {msg}"})
+        self.logger_queue.put(user.mqttpublish.Logger.create_entry(self.name, 'DEBUG', 0, f"Received: {userdata} {msg}"))
         if msg.topic == self.birth_topic and msg.payload == self.birth_payload:
-            self.logger_queue.put({'name': self.name,
-                                   'log_type': 'INFO',
-                                   'log_message': f"Received 'birth message' {msg.payload} on topic: {msg.topic}."})
+            self.logger_queue.put(user.mqttpublish.Logger.create_entry(self.name, 'INFO', 0,
+                                                                       f"Received 'birth message' {msg.payload} "
+                                                                       f"on topic: {msg.topic}."))
             for device_id in self.configuration['devices']:
                 self.publish_record(client, device_id)
         elif msg.topic == self.lwt_topic and msg.payload == self.lwt_payload:
-            self.logger_queue.put({'name': self.name,
-                                   'log_type': 'INFO',
-                                   'log_message': f"Received LWT {msg.payload} on topic: {msg.topic}."})
+            self.logger_queue.put(user.mqttpublish.Logger.create_entry(self.name, 'INFO', 0,
+                                                                       f"Received LWT {msg.payload} on topic: {msg.topic}."))
         else:
-            self.logger_queue.put({'name': self.name,
-                                   'log_type': 'ERROR',
-                                   'log_message': f"Received invalid {msg.payload} on topic: {msg.topic}."})
+            self.logger_queue.put(user.mqttpublish.Logger.create_entry(self.name, 'ERROR', 0,
+                                                                       f"Received invalid {msg.payload} on topic: {msg.topic}."))
 
     def on_mqtt_connect(self, mqtt_client, _userdata, _flags, _reason_code, _properties):
         """ Handle the MQTT on_connect callback. """
         (result, mid) = mqtt_client.subscribe(self.birth_topic, self.qos)
-        self.logger_queue.put({'name': self.name,
-                               'log_type': 'INFO',
-                               'log_message': f"Subscribing to topic {self.birth_topic} "
-                                              f"returned mid {int(mid)} "
-                                              f"and result {int(result)}."})
+        self.logger_queue.put(user.mqttpublish.Logger.create_entry(self.name, 'INFO', 0,
+                                                                   f"Subscribing to topic {self.birth_topic} "
+                                                                   f"returned mid {int(mid)} "
+                                                                   f"and result {int(result)}."))
 
         (result, mid) = mqtt_client.subscribe(self.lwt_topic, self.qos)
-        self.logger_queue.put({'name': self.name,
-                               'log_type': 'INFO',
-                               'log_message': f"Subscribing to topic {self.lwt_topic} "
-                                              f"returned mid {int(mid)} "
-                                              f"and result {int(result)}."})
+        self.logger_queue.put(user.mqttpublish.Logger.create_entry(self.name, 'INFO', 0,
+                                                                   f"Subscribing to topic {self.lwt_topic} "
+                                                                   f"returned mid {int(mid)} "
+                                                                   f"and result {int(result)}."))
 
     def update_record(self, mqtt_client, topic, data, unit_system, _qos, _retain):
         """ Run code when MQTT message is published. """
@@ -560,10 +552,10 @@ class MQTTConfigHA(user.mqttpublish.MQTTPlugin):  # pylint: disable=too-many-ins
                                     self.defaults['component_data'][device_id].get('defaults', {}))
         weeutil.config.merge_config(self.configuration['devices'][device_id]['components'][field],
                                     self.defaults['component_data'][device_id].get(field, {}))
-        self.logger_queue.put({'name': self.name,
-                               'log_type': 'INFO',
-                               'log_message': (f"New device configuration {field}: "
-                                               f"{self.configuration['devices'][device_id]['components'][field]}")})
+        self.logger_queue.put(user.mqttpublish.Logger.create_entry(
+            self.name, 'INFO', 0,
+            (f"New device configuration {field}: "
+             f"{self.configuration['devices'][device_id]['components'][field]}")))
 
     def _resolve_unit_of_measurement(self, device_id, topic, field, unit_system):
         """ Determine the unit of measurement for a field. """
@@ -586,6 +578,5 @@ class MQTTConfigHA(user.mqttpublish.MQTTPlugin):  # pylint: disable=too-many-ins
                                                 payload,
                                                 qos=self.mqtt_config[device_id]['qos'],
                                                 retain=self.mqtt_config[device_id]['retain'])
-        self.logger_queue.put({'name': self.name,
-                               'log_type': 'DEBUG',
-                               'log_message': f"publishing: {mqtt_message_info.mid} {topic} {payload}"})
+        self.logger_queue.put(user.mqttpublish.Logger.create_entry(self.name, 'DEBUG', 0,
+                                                                   f"publishing: {mqtt_message_info.mid} {topic} {payload}"))

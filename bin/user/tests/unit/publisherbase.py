@@ -158,18 +158,16 @@ class PublisherBase(unittest.TestCase):
 
                     SUT.on_log(None, None, level, msg)
 
-                    mock_logger_queue.put.assert_called_once_with({'name': SUT.name,
-                                                                   'log_type': log_type,
-                                                                   'log_message': f"MQTT log: {msg}"})
+                    mock_logger_queue.put.assert_called_once_with(
+                        user.mqttpublish.Logger.create_entry(SUT.name, log_type, 0, f"MQTT log: {msg}"))
 
                 msg = helpers.random_string()
                 mock_logger_queue.reset_mock()
 
                 SUT.on_log(None, None, 0x20, msg)
 
-                mock_logger_queue.put.assert_called_once_with({'name': SUT.name,
-                                                               'log_type': None,
-                                                               'log_message': f"MQTT log: {msg}"})
+                mock_logger_queue.put.assert_called_once_with(
+                    user.mqttpublish.Logger.create_entry(SUT.name, None, 0, f"MQTT log: {msg}"))
 
     def test_username_set(self):
         mock_logger_queue = mock.Mock()
@@ -374,7 +372,7 @@ class PublisherBase(unittest.TestCase):
                         # A connect that does not raise is attempted once; the network loop waits for the CONNACK.
                         self.assertEqual(mock_connect.call_count, 1)
                         mock_loop_start.assert_called_once_with(mock.ANY)
-                        log_messages = [call[0][0]['log_message'] for call in mock_logger_queue.put.call_args_list]
+                        log_messages = [call[0][0]['msg_text'] for call in mock_logger_queue.put.call_args_list]
                         self.assertIn(f"Connecting to host: {config_dict['host']} port: {config_dict['port']}.", log_messages)
 
     def test_connect_first_call_exception(self):
@@ -419,7 +417,7 @@ class PublisherBase(unittest.TestCase):
                         self.assertEqual(mock_connect.call_count, 1)
                         mock_loop_start.assert_not_called()
                         self.assertFalse(mock_publisher.process)
-                        log_messages = [call[0][0]['log_message'] for call in mock_logger_queue.put.call_args_list]
+                        log_messages = [call[0][0]['msg_text'] for call in mock_logger_queue.put.call_args_list]
                         self.assertTrue(any("MQTT connect failed with" in msg for msg in log_messages))
 
     def test_connect_refused_connection(self):
@@ -751,10 +749,10 @@ class PublisherBase(unittest.TestCase):
                 # The DEBUG 'Received' log plus the two empty loop summaries are always logged,
                 # even when no plugins are registered for on_mqtt_message.
                 log_messages = [call[0][0] for call in mock_logger_queue.put.call_args_list]
-                self.assertTrue(any(entry['log_type'] == 'DEBUG' and 'Received:' in entry['log_message']
+                self.assertTrue(any(entry['log_type'] == 'DEBUG' and 'Received:' in entry['msg_text']
                                     for entry in log_messages))
-                self.assertTrue(any('on_message (immediate)' in entry['log_message'] for entry in log_messages))
-                self.assertTrue(any('on_message (delay)' in entry['log_message'] for entry in log_messages))
+                self.assertTrue(any('on_message (immediate)' in entry['msg_text'] for entry in log_messages))
+                self.assertTrue(any('on_message (delay)' in entry['msg_text'] for entry in log_messages))
 
     def test_will_set_with_defaults(self):
         mock_logger_queue = mock.Mock()
@@ -978,7 +976,7 @@ class PublisherBase(unittest.TestCase):
 
                         # A publish paho refuses, such as when the broker is down, must be logged, not raised.
                         log_messages = [call[0][0] for call in mock_logger_queue.put.call_args_list]
-                        self.assertTrue(any(entry['log_type'] == 'ERROR' and topic in entry['log_message']
+                        self.assertTrue(any(entry['log_type'] == 'ERROR' and topic in entry['msg_text']
                                             for entry in log_messages))
 
 class TLSBase(unittest.TestCase):
