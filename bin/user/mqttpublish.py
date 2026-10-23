@@ -60,7 +60,7 @@ class Logger(mqttcommon.Logger):
         The log queue and the LoggerThread that drains it are owned by mqttcommon.Logger;
         this subclass pins the context key: the emitting object's name. '''
     LOG_NAME = __name__
-    LOG_KEY = 'name'
+    LOG_KEYS = ('name',)
 
 class MQTTPlugin():  # pylint: disable=too-few-public-methods
     """ Common plugin initialization. """
