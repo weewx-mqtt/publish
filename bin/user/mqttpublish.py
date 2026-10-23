@@ -804,7 +804,6 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
             self.logger.error(None, f"Unable to shut down {thread.name}{message_suffix}")
 
 
-
 class QueueProcessor(multiprocessing.Process):  # pylint: disable=too-many-instance-attributes
     """Publish WeeWX data to MQTT. """
     # For some reason, when PublishWeeWXProcess was a process, getting data from the Queue would lock.
