@@ -101,10 +101,10 @@ class TestLogEntry(unittest.TestCase):
             SUT.log_entry({'name': error_name, 'log_type': 'ERROR', 'msg_text': error_message})
 
             self.assertEqual(mock_log.debug.call_count, 2)
-            mock_log.debug.assert_any_call("%s %s ", trace_name, trace_message)
-            mock_log.debug.assert_any_call("%s %s ", debug_name, debug_message)
-            mock_log.info.assert_called_once_with("%s %s ", info_name, info_message)
-            mock_log.error.assert_called_once_with("%s %s", error_name, error_message)
+            mock_log.debug.assert_any_call("(%s) %s", trace_name, trace_message)
+            mock_log.debug.assert_any_call("(%s) %s", debug_name, debug_message)
+            mock_log.info.assert_called_once_with("(%s) %s", info_name, info_message)
+            mock_log.error.assert_called_once_with("(%s) %s", error_name, error_message)
 
     def test_log_entry_with_no_log_type_is_skipped(self):
         with mock.patch('user.mqttcommon.logging') as mock_logging:
@@ -191,7 +191,7 @@ class TestShutdown(unittest.TestCase):
 
             SUT.shutdown(timeout=0.05)
 
-            mock_log.error.assert_called_once_with("%s %s", name, f"Unable to shut down {SUT.log_thread.name} thread")
+            mock_log.error.assert_called_once_with("(%s) %s", name, f"Unable to shut down {SUT.log_thread.name} thread")
             self.assertTrue(SUT.log_thread.is_alive())
 
             # Release the thread and wait for it to exit.

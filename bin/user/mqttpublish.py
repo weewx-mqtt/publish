@@ -58,10 +58,8 @@ def setup_logging(logging_level, config_dict):
 class Logger(mqttcommon.Logger):
     ''' Manage the logging.
         The log queue and the LoggerThread that drains it are owned by mqttcommon.Logger;
-        this subclass pins publish's message formats. '''
+        this subclass pins the context key: the emitting object's name. '''
     LOG_NAME = __name__
-    LOG_FORMAT = "%s %s "
-    ERROR_LOG_FORMAT = "%s %s"
     LOG_KEY = 'name'
 
 class MQTTPlugin():  # pylint: disable=too-few-public-methods
