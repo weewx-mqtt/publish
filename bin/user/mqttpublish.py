@@ -11,7 +11,6 @@ import queue as Queue
 
 import copy
 import json
-import logging
 import multiprocessing
 import os
 import random
@@ -56,85 +55,14 @@ def setup_logging(logging_level, config_dict):
 
     weeutil.logger.setup('wee_MQTTPublish', config_dict)
 
-class Logger:
+class Logger(mqttcommon.Logger):
     ''' Manage the logging.
-        The log queue and the LoggerThread that drains it are owned here. '''
-    # The default time shutdown waits for the LoggerThread to flush queued messages.
-    SHUTDOWN_TIMEOUT = 10
-
-    def __init__(self, name, log_queue):
-        self.name = name
-        self.log = logging.getLogger(__name__)
-        self.log_queue = log_queue
-        self.log_functions = {
-            'TRACE': self._log_trace,
-            'DEBUG': self._log_debug,
-            'INFO': self._log_info,
-            'ERROR': self._log_error,
-        }
-        self.log_thread = LoggerThread(self.log_queue, self)
-        self.log_thread.start()
-
-    @staticmethod
-    def create_entry(name, log_type, msg_id, msg_text):
-        """ Create a log entry, capturing the emitting thread. """
-        return {
-            'name': name,
-            'log_type': log_type,
-            'msg_id': msg_id,
-            'msg_text': msg_text,
-            'thread_id': threading.get_native_id(),
-        }
-
-    def trace(self, msg_id, msg_text):
-        """ Queue a trace message. """
-        self.log_queue.put(Logger.create_entry(self.name, 'TRACE', msg_id, msg_text))
-
-    def debug(self, msg_id, msg_text):
-        """ Queue a debug message. """
-        self.log_queue.put(Logger.create_entry(self.name, 'DEBUG', msg_id, msg_text))
-
-    def info(self, msg_id, msg_text):
-        """ Queue an informational message. """
-        self.log_queue.put(Logger.create_entry(self.name, 'INFO', msg_id, msg_text))
-
-    def error(self, msg_id, msg_text):
-        """ Queue an error message. """
-        self.log_queue.put(Logger.create_entry(self.name, 'ERROR', msg_id, msg_text))
-
-    def log_entry(self, entry):
-        """ Log a queued entry. This is called by the LoggerThread. """
-        log_type = entry['log_type']
-        if log_type is not None:
-            self.log_functions[log_type](entry)
-
-    def shutdown(self, timeout=SHUTDOWN_TIMEOUT):
-        """ Stop the logger thread, flushing queued messages. """
-        if not self.log_thread.is_alive():
-            return
-
-        self.log_queue.put(None)
-        self.log_thread.join(timeout)
-        if self.log_thread.is_alive():
-            # The thread is stuck, a queued message would not be logged so log it directly.
-            self._log_error(Logger.create_entry(self.name, 'ERROR', None,
-                                                f"Unable to shut down {self.log_thread.name} thread"))
-
-    def _log_trace(self, entry):
-        """ Log a trace entry. This is called by the LoggerThread. """
-        self.log.debug("%s %s ", entry['name'], entry['msg_text'])
-
-    def _log_debug(self, entry):
-        """ Log a debug entry. This is called by the LoggerThread. """
-        self.log.debug("%s %s ", entry['name'], entry['msg_text'])
-
-    def _log_info(self, entry):
-        """ Log an informational entry. This is called by the LoggerThread. """
-        self.log.info("%s %s ", entry['name'], entry['msg_text'])
-
-    def _log_error(self, entry):
-        """ Log an error entry. This is called by the LoggerThread. """
-        self.log.error("%s %s", entry['name'], entry['msg_text'])
+        The log queue and the LoggerThread that drains it are owned by mqttcommon.Logger;
+        this subclass pins publish's message formats. '''
+    LOG_NAME = __name__
+    LOG_FORMAT = "%s %s "
+    ERROR_LOG_FORMAT = "%s %s"
+    LOG_KEY = 'name'
 
 class MQTTPlugin():  # pylint: disable=too-few-public-methods
     """ Common plugin initialization. """
@@ -877,23 +805,7 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
         if thread.is_alive():
             self.logger.error(None, f"Unable to shut down {thread.name}{message_suffix}")
 
-class LoggerThread(mqttcommon.QueueLoggerThread):
-    """ Thread to manage logging.
-        This has to be a thread because WeeWX 'owns' the logger.
-        So logging has to happen in that process and not a subprocess.
-        The queue loop is inherited from mqttcommon.QueueLoggerThread. """
 
-    def start_entry(self):
-        """ Return the entry logged when the thread starts. """
-        return Logger.create_entry(self.name, 'INFO', None, "Starting logger thread")
-
-    def exit_entry(self):
-        """ Return the entry logged when the thread exits. """
-        return Logger.create_entry(self.name, 'INFO', None, f"Exited logger thread, {self.name}.")
-
-    def invalid_entry(self, entry):
-        """ Return the error entry logged for an entry that could not be logged. """
-        return Logger.create_entry(self.name, 'ERROR', None, entry)
 
 class QueueProcessor(multiprocessing.Process):  # pylint: disable=too-many-instance-attributes
     """Publish WeeWX data to MQTT. """
