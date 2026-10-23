@@ -1,5 +1,6 @@
 [flake8]
 max-line-length = 133
+max-cognitive-complexity = 10
 
 # E302, E305, https://peps.python.org/pep-0008/#blank-lines
 ignore = E302,E305,W504,E402,E125
