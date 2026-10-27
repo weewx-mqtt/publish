@@ -628,6 +628,25 @@ class TestLogger(unittest.TestCase):
             mock_logging.FileHandler.assert_called_once_with(filename, mode='w')
             SUT.log.addHandler.assert_called_once_with(mock_logging.FileHandler.return_value)
 
+    def test_is_suppressed_drops_entries_without_a_log_type(self):
+        SUT = LoggerStub(random_string(), queue.Queue())
+        SUT.shutdown(timeout=5)
+
+        self.assertTrue(SUT.is_suppressed(LoggerStub.create_entry(random_string(), None, None, random_string())))
+        self.assertFalse(SUT.is_suppressed(LoggerStub.create_entry(random_string(), 'INFO', None, random_string())))
+
+    def test_is_suppressed_delegates_to_the_throttle(self):
+        SUT = LoggerStub(random_string(), queue.Queue())
+        SUT.shutdown(timeout=5)
+
+        throttle = mock.Mock()
+        throttle.is_throttled.return_value = True
+        SUT.throttle = throttle
+        entry = LoggerStub.create_entry(random_string(), 'INFO', 1234, random_string())
+
+        self.assertTrue(SUT.is_suppressed(entry))
+        throttle.is_throttled.assert_called_once_with('INFO', 1234)
+
     def test_format_args_can_be_overridden(self):
         with mock.patch('user.mqttcommon.logging') as mock_logging:
             mock_log = mock_logging.getLogger.return_value
@@ -716,6 +735,21 @@ class TestLogger(unittest.TestCase):
             mock_log.debug.assert_any_call("test %s %s", debug_name, debug_message)
             mock_log.info.assert_called_once_with("test %s %s", info_name, info_message)
             mock_log.error.assert_called_once_with("test %s %s", error_name, error_message)
+
+    def test_log_entry_uses_the_trace_level_when_set(self):
+        with mock.patch('user.mqttcommon.logging') as mock_logging:
+            mock_log = mock_logging.getLogger.return_value
+            SUT = self._stopped_logger()
+            SUT.trace_level = 5
+            mock_log.reset_mock()
+
+            trace_name = random_string()
+            trace_message = random_string()
+
+            SUT.log_entry({'name': trace_name, 'log_type': 'TRACE', 'msg_text': trace_message})
+
+            mock_log.log.assert_called_once_with(5, "test %s %s", trace_name, trace_message)
+            mock_log.debug.assert_not_called()
 
     def test_log_entry_with_no_log_type_is_skipped(self):
         with mock.patch('user.mqttcommon.logging') as mock_logging:
