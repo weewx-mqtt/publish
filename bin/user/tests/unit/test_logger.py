@@ -35,7 +35,7 @@ class TestInitialization(unittest.TestCase):
             self.assertFalse(SUT.log_thread.is_alive())
             # The thread logs its start and its exit, and nothing else.
             messages = [call[0][2] for call in mock_log.info.call_args_list]
-            self.assertEqual(messages, ["Starting logger thread", f"Exited logger thread, {SUT.log_thread.name}."])
+            self.assertEqual(messages, ["Starting logger thread.", "Exited logger thread."])
 
 class TestCreateEntry(unittest.TestCase):
     def test_create_entry_captures_the_emitting_thread(self):
@@ -146,10 +146,10 @@ class TestShutdown(unittest.TestCase):
             # The start message, the queued messages, and the exit message are logged in queue order.
             self.assertFalse(SUT.log_thread.is_alive())
             logged = [(call[0], call[1][2]) for call in mock_log.method_calls if call[0] in ('info', 'error')]
-            self.assertEqual(logged, [('info', "Starting logger thread"),
+            self.assertEqual(logged, [('info', "Starting logger thread."),
                                       ('info', first['msg_text']),
                                       ('error', second['msg_text']),
-                                      ('info', f"Exited logger thread, {SUT.log_thread.name}.")])
+                                      ('info', "Exited logger thread.")])
 
     def test_shutdown_is_idempotent(self):
         with mock.patch('user.mqttcommon.logging') as mock_logging:
