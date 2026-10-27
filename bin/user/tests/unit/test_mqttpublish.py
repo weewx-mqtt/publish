@@ -36,7 +36,7 @@ class TestInit(unittest.TestCase):
         # with mock.patch('user.mqttpublish.mqtt'):
         with mock.patch('user.mqttpublish.weewx.manager'):
             with mock.patch('user.mqttpublish.PublishWeeWXThread'):
-                with mock.patch('user.mqttpublish.Logger'):
+                with mock.patch('user.mqttcommon.Logger'):
                     SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
                     SUT.logger_queue.put(None)
                     self.assertEqual(SUT.logger.error.call_count, 1)
@@ -55,7 +55,7 @@ class TestInit(unittest.TestCase):
 
         with mock.patch('user.mqttpublish.weewx.manager'):
             with mock.patch('user.mqttpublish.PublishWeeWXThread'):
-                with mock.patch('user.mqttpublish.Logger'):
+                with mock.patch('user.mqttcommon.Logger'):
                     SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
 
         self.assertTrue(SUT.mqtt_config['log_mqtt'])
@@ -69,7 +69,7 @@ class TestInit(unittest.TestCase):
         with mock.patch('user.mqttpublish.weewx.manager'):
             with mock.patch('user.mqttpublish.PublishWeeWXThread'):
                 with mock.patch('user.mqttpublish.PublishWeeWXProcess') as mock_process:
-                    with mock.patch('user.mqttpublish.Logger') as mock_logger:
+                    with mock.patch('user.mqttcommon.Logger') as mock_logger:
                         SUT = user.mqttpublish.MQTTPublish(engine, config)
 
         return SUT, engine, mock_logger.return_value, mock_process
@@ -142,7 +142,7 @@ class TestConfigurePlugins(unittest.TestCase):
     @staticmethod
     def _build_service(config_dict):
         """ Construct an MQTTPublish service and return it with its mock logger. """
-        with mock.patch('user.mqttpublish.Logger') as mock_logger:
+        with mock.patch('user.mqttcommon.Logger') as mock_logger:
             SUT = user.mqttpublish.MQTTPublish(mock.Mock(), configobj.ConfigObj(config_dict))
 
         return SUT, mock_logger.return_value
@@ -194,7 +194,7 @@ class TestConfigureTopics(unittest.TestCase):
         service_config = configobj.ConfigObj(service_dict)
 
         with mock.patch('user.mqttpublish.PublishWeeWXThread'):
-            with mock.patch('user.mqttpublish.Logger'):
+            with mock.patch('user.mqttcommon.Logger'):
                 SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
 
                 topics_loop, topics_archive, _ = SUT.configure_topics(service_config)
@@ -243,7 +243,7 @@ class TestConfigureTopics(unittest.TestCase):
         service_config = configobj.ConfigObj(service_dict)
 
         with mock.patch('user.mqttpublish.PublishWeeWXThread'):
-            with mock.patch('user.mqttpublish.Logger'):
+            with mock.patch('user.mqttcommon.Logger'):
                 SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
 
                 topics_loop, topics_archive, _ = SUT.configure_topics(service_config)
@@ -315,7 +315,7 @@ class TestConfigureTopics(unittest.TestCase):
         service_config = configobj.ConfigObj(service_dict)
 
         with mock.patch('user.mqttpublish.PublishWeeWXThread'):
-            with mock.patch('user.mqttpublish.Logger'):
+            with mock.patch('user.mqttcommon.Logger'):
                 SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
 
                 topics_loop, topics_archive, _ = SUT.configure_topics(service_config)
@@ -353,7 +353,7 @@ class TestConfigureTopics(unittest.TestCase):
         service_config = configobj.ConfigObj({})
 
         with mock.patch('user.mqttpublish.PublishWeeWXThread'):
-            with mock.patch('user.mqttpublish.Logger'):
+            with mock.patch('user.mqttcommon.Logger'):
                 SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
 
                 with self.assertRaises(ValueError) as context:
@@ -376,7 +376,7 @@ class TestConfigureTopics(unittest.TestCase):
         service_config = configobj.ConfigObj(service_dict)
 
         with mock.patch('user.mqttpublish.PublishWeeWXThread'):
-            with mock.patch('user.mqttpublish.Logger'):
+            with mock.patch('user.mqttcommon.Logger'):
                 SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
 
                 topics_loop, topics_archive, binding = SUT.configure_topics(service_config)
@@ -400,7 +400,7 @@ class TestConfigureTopics(unittest.TestCase):
         service_config = configobj.ConfigObj(service_dict)
 
         with mock.patch('user.mqttpublish.PublishWeeWXThread'):
-            with mock.patch('user.mqttpublish.Logger'):
+            with mock.patch('user.mqttcommon.Logger'):
                 SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
 
                 topics_loop, topics_archive, binding = SUT.configure_topics(service_config)
@@ -424,7 +424,7 @@ class TestConfigureTopics(unittest.TestCase):
         service_config = configobj.ConfigObj(service_dict)
 
         with mock.patch('user.mqttpublish.PublishWeeWXThread'):
-            with mock.patch('user.mqttpublish.Logger'):
+            with mock.patch('user.mqttcommon.Logger'):
                 SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
 
                 topics_loop, topics_archive, binding = SUT.configure_topics(service_config)
@@ -451,7 +451,7 @@ class TestConfigureTopics(unittest.TestCase):
         service_config = configobj.ConfigObj(service_dict)
 
         with mock.patch('user.mqttpublish.PublishWeeWXThread'):
-            with mock.patch('user.mqttpublish.Logger'):
+            with mock.patch('user.mqttcommon.Logger'):
                 SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
 
                 topics_loop, _, _ = SUT.configure_topics(service_config)
@@ -484,7 +484,7 @@ class TestConfigureTopics(unittest.TestCase):
         service_config = configobj.ConfigObj(service_dict)
 
         with mock.patch('user.mqttpublish.PublishWeeWXThread'):
-            with mock.patch('user.mqttpublish.Logger'):
+            with mock.patch('user.mqttcommon.Logger'):
                 SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
 
                 SUT.configure_topics(service_config)
@@ -507,12 +507,12 @@ class ServiceBase(unittest.TestCase):
         engine = mock.Mock()
         config = configobj.ConfigObj(self._service_config(**kwargs))
         # Entry construction stays real, so queue contents can be asserted on.
-        real_create_entry = user.mqttpublish.Logger.create_entry
+        real_create_entry = user.mqttcommon.Logger.create_entry
 
         with mock.patch('user.mqttpublish.weewx.manager'):
             with mock.patch('user.mqttpublish.PublishWeeWXThread') as mock_thread:
                 with mock.patch('user.mqttpublish.PublishWeeWXProcess') as mock_process:
-                    with mock.patch('user.mqttpublish.Logger') as mock_logger:
+                    with mock.patch('user.mqttcommon.Logger') as mock_logger:
                         mock_logger.create_entry.side_effect = real_create_entry
                         SUT = user.mqttpublish.MQTTPublish(engine, config)
                         yield SUT, mock_thread, mock_process, mock_logger.return_value

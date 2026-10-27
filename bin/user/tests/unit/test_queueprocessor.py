@@ -1043,7 +1043,7 @@ class TestPublishWeeWXProcess(unittest.TestCase):
 
         SUT.processor.join.assert_called_once_with(5)
         mock_logger_queue.put.assert_any_call(
-            user.mqttpublish.Logger.create_entry(SUT.name, 'ERROR', None, f"Unable to shut down {processor_name}"))
+            user.mqttcommon.Logger.create_entry(SUT.name, 'ERROR', None, f"Unable to shut down {processor_name}"))
 
 if __name__ == '__main__':
     helpers.run_tests()

@@ -159,7 +159,7 @@ class PublisherBase(unittest.TestCase):
                     SUT.on_log(None, None, level, msg)
 
                     mock_logger_queue.put.assert_called_once_with(
-                        user.mqttpublish.Logger.create_entry(SUT.name, log_type, None, f"MQTT log: {msg}"))
+                        user.mqttcommon.Logger.create_entry(SUT.name, log_type, None, f"MQTT log: {msg}"))
 
                 msg = helpers.random_string()
                 mock_logger_queue.reset_mock()
@@ -167,7 +167,7 @@ class PublisherBase(unittest.TestCase):
                 SUT.on_log(None, None, 0x20, msg)
 
                 mock_logger_queue.put.assert_called_once_with(
-                    user.mqttpublish.Logger.create_entry(SUT.name, None, None, f"MQTT log: {msg}"))
+                    user.mqttcommon.Logger.create_entry(SUT.name, None, None, f"MQTT log: {msg}"))
 
     def test_username_set(self):
         mock_logger_queue = mock.Mock()
