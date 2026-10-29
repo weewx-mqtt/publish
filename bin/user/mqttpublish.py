@@ -61,7 +61,7 @@ class MQTTPlugin():  # pylint: disable=too-few-public-methods
         self.logger_queue = logger_queue
         self.plugin_dict = weeutil.config.deep_copy(plugin_dict)
         self.enabled = to_bool(self.plugin_dict.get('enable', True))
-        self.name = f"{self.__class__.__name__}-{threading.get_native_id()}"
+        self.name = self.__class__.__name__
 
         if not self.enabled:
             self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, 'INFO', None, f"Plugin {name} is not enabled."))
@@ -118,7 +118,7 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
         self.plugin_manager = plugin_manager
         self.connected = False
         self.mqtt_logger = mqttcommon.PAHO_LOG_LEVELS
-        self.name = f"{self.__class__.__name__}-{threading.get_native_id()}"
+        self.name = self.__class__.__name__
 
         self.publisher = publisher
         self.mqtt_config = mqtt_config
@@ -361,7 +361,7 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
     """ A service to publish WeeWX loop and/or archive data to MQTT. """
     def __init__(self, engine, config_dict):
         super().__init__(engine, config_dict)
-        self.name = f"{self.__class__.__name__}-{threading.get_native_id()}"
+        self.name = self.__class__.__name__
 
         service_dict = config_dict.get('MQTTPublish', {})
 
@@ -835,7 +835,7 @@ class QueueProcessor(multiprocessing.Process):  # pylint: disable=too-many-insta
         # processor_config holds: plugins, weewx_dict, manager_dict,
         #                         mqtt_config, monitor_config, topics_loop, topics_archive
         multiprocessing.Process.__init__(self)
-        self.name = f"{self.__class__.__name__}-{threading.get_native_id()}"
+        self.name = self.__class__.__name__
 
         self.logger_queue = logger_queue
         self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, 'INFO', None, "Initializing queue processor."))
@@ -1224,7 +1224,7 @@ class PublishWeeWXThread(threading.Thread):
                  data_queue,
                  processor_config):
         threading.Thread.__init__(self)
-        self.name = f"{self.__class__.__name__}-{threading.get_native_id()}"
+        self.name = self.__class__.__name__
 
         self.logger_queue = logger_queue
         self.processor = QueueProcessor(self.logger_queue,
@@ -1244,7 +1244,7 @@ class PublishWeeWXProcess(threading.Thread):
                  data_queue,
                  processor_config):
         threading.Thread.__init__(self)
-        self.name = f"{self.__class__.__name__}-{threading.get_native_id()}"
+        self.name = self.__class__.__name__
 
         self.logger_queue = logger_queue
         self.data_queue = data_queue
