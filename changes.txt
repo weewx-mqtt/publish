@@ -45,6 +45,8 @@ Enhancements:
     messages, is safe to call more than once, and no longer stalls process exit if it was skipped.
   - Fail loudly at import when an older 'user.mqttcommon' copy is loaded (an install-order
     overwrite by another weewx-mqtt extension).
+  - Log line prefixes use the format converged across the weewx-mqtt extensions, defined by the
+    shared 'user.mqttcommon': (component-thread_id-archive_timestamp).
   - Support additional data types when publishing ‘individual' topics.
   - Empty the data queue as part of shutting down. This speeds up shut down when the queue has grown.
   - Limit the publishing of redundant/duplicate data (#27).
