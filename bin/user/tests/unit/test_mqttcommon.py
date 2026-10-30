@@ -567,16 +567,13 @@ class TestLogger(unittest.TestCase):
         self.assertEqual(entry, {'name': name, 'log_type': 'INFO', 'msg_id': None, 'msg_text': text,
                                  'thread_id': threading.get_native_id(), 'archive_timestamp': None})
 
-    def test_create_entry_stamps_the_class_archive_timestamp(self):
+    def test_create_entry_carries_the_supplied_archive_timestamp(self):
         archive_timestamp = random.randint(1, 1000000)
-        LoggerStub.archive_timestamp = archive_timestamp
 
-        try:
-            entry = LoggerStub.create_entry(random_string(), 'INFO', None, random_string())
+        entry = user.mqttcommon.Logger.create_entry(random_string(), 'INFO', None, random_string(),
+                                                    archive_timestamp)
 
-            self.assertEqual(entry['archive_timestamp'], archive_timestamp)
-        finally:
-            LoggerStub.archive_timestamp = None
+        self.assertEqual(entry['archive_timestamp'], archive_timestamp)
 
     def test_queue_methods_create_the_expected_entries(self):
         with mock.patch('user.mqttcommon.logging'):
@@ -802,7 +799,6 @@ class TestLoggerThread(unittest.TestCase):
         mock_logger.name = random_string()
         mock_logger.archive_timestamp = None
         mock_logger.create_entry.side_effect = user.mqttcommon.Logger.create_entry
-        mock_logger.stamp_entry.side_effect = lambda entry: entry
         log_queue = queue.Queue()
 
         SUT = user.mqttcommon.LoggerThread(log_queue, mock_logger)
@@ -840,7 +836,6 @@ class TestLoggerThread(unittest.TestCase):
         mock_logger.name = random_string()
         mock_logger.archive_timestamp = None
         mock_logger.create_entry.side_effect = user.mqttcommon.Logger.create_entry
-        mock_logger.stamp_entry.side_effect = lambda entry: entry
         log_queue = queue.Queue()
 
         invalid_entry = {'name': random_string(), 'log_type': random_string(),
