@@ -369,7 +369,7 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
         self.multiprocess = to_bool(service_dict.get('multiprocess', False))
         self.logger_queue = self._create_logger_queue()
 
-        self.logger = mqttcommon.Logger({'name': self.name, 'log_queue': self.logger_queue, 'log_name': __name__})
+        self.logger = mqttcommon.Logger(self.name, log_queue=self.logger_queue, log_name=__name__)
 
         self.logger.info(None, f"MQTTPublish version: {VERSION}.")
 
