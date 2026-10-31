@@ -417,7 +417,7 @@ class TestQueueProcessor(unittest.TestCase):
 
                 self.assertDictEqual(final_record, {field1: None})
 
-    def test_run_services_client_while_idle(self):
+    def test_run_does_not_pump_client_loop_while_idle(self):
         mock_logger_queue = mock.Mock()
         weewx_dict = {
             'config_dict': {
@@ -452,14 +452,15 @@ class TestQueueProcessor(unittest.TestCase):
         real_sleep = time.sleep
 
         run_thread = threading.Thread(target=SUT.run, daemon=True)
-        with mock.patch.object(user.mqttpublish.AbstractPublisher, 'get_publisher', return_value=mock_publisher):
+        with mock.patch.object(user.mqttpublish, 'Publisher', return_value=mock_publisher):
             with mock.patch('user.mqttpublish.weewx.manager'):
                 with mock.patch('user.mqttpublish.time.sleep') as mock_sleep:
                     run_thread.start()
                     try:
                         real_sleep(0.5)
 
-                        self.assertGreaterEqual(mock_publisher.client.loop.call_count, 1)
+                        # paho's network loop thread services the client; the queue processor must not pump it.
+                        mock_publisher.client.loop.assert_not_called()
                         mock_sleep.assert_not_called()
                     finally:
                         data_queue.put({'time_stamp': time.time(), 'type': 'shutdown', 'data': {}})
@@ -840,7 +841,7 @@ class TestHandleQueueItem(unittest.TestCase):
         self.assertEqual(order, [])
         immediate.assert_not_called()
         publish.assert_not_called()
-        log_messages = [call[0][0]['log_message'] for call in SUT.logger_queue.put.call_args_list]
+        log_messages = [call[0][0]['msg_text'] for call in SUT.logger_queue.put.call_args_list]
         self.assertIn("Shutting down queue processor.", log_messages)
 
     def test_loop_item_publishes_to_loop_topics(self):
@@ -888,7 +889,7 @@ class TestHandleQueueItem(unittest.TestCase):
         publish.assert_not_called()
         self.assertEqual(order, ['immediate', 'delay'])
         self.assertIsNotNone(result)
-        log_messages = [call[0][0]['log_message'] for call in SUT.logger_queue.put.call_args_list]
+        log_messages = [call[0][0]['msg_text'] for call in SUT.logger_queue.put.call_args_list]
         self.assertIn("Unknown data type, bogus", log_messages)
 
 
@@ -955,13 +956,13 @@ class TestOnWeewxData(unittest.TestCase):
         self.assertEqual(len(messages), 3)
         for message in messages:
             self.assertEqual(message['log_type'], 'MONITOR')
-        self.assertIn(plugin_a, messages[0]['log_message'])
-        self.assertIn("on_weewx_data (immediate)", messages[0]['log_message'])
-        self.assertIn(plugin_b, messages[1]['log_message'])
+        self.assertIn(plugin_a, messages[0]['msg_text'])
+        self.assertIn("on_weewx_data (immediate)", messages[0]['msg_text'])
+        self.assertIn(plugin_b, messages[1]['msg_text'])
         # The summary reports the total, so it names no individual plugin.
-        self.assertIn("on_weewx_data (immediate)", messages[2]['log_message'])
-        self.assertNotIn(plugin_a, messages[2]['log_message'])
-        self.assertNotIn(plugin_b, messages[2]['log_message'])
+        self.assertIn("on_weewx_data (immediate)", messages[2]['msg_text'])
+        self.assertNotIn(plugin_a, messages[2]['msg_text'])
+        self.assertNotIn(plugin_b, messages[2]['msg_text'])
 
     def test_immediate_with_no_plugins_still_logs_summary(self):
         SUT = self._make_processor()
@@ -971,7 +972,7 @@ class TestOnWeewxData(unittest.TestCase):
         messages = self._log_messages(SUT)
         self.assertEqual(len(messages), 1)
         self.assertEqual(messages[0]['log_type'], 'MONITOR')
-        self.assertIn("on_weewx_data (immediate)", messages[0]['log_message'])
+        self.assertIn("on_weewx_data (immediate)", messages[0]['msg_text'])
 
     def test_delay_runs_plugins_in_order_and_logs_timings(self):
         SUT = self._make_processor()
@@ -990,12 +991,12 @@ class TestOnWeewxData(unittest.TestCase):
         self.assertEqual(len(messages), 3)
         for message in messages:
             self.assertEqual(message['log_type'], 'MONITOR')
-        self.assertIn(plugin_a, messages[0]['log_message'])
-        self.assertIn("on_weewx_data (delay)", messages[0]['log_message'])
-        self.assertIn(plugin_b, messages[1]['log_message'])
-        self.assertIn("on_weewx_data (delay)", messages[2]['log_message'])
-        self.assertNotIn(plugin_a, messages[2]['log_message'])
-        self.assertNotIn(plugin_b, messages[2]['log_message'])
+        self.assertIn(plugin_a, messages[0]['msg_text'])
+        self.assertIn("on_weewx_data (delay)", messages[0]['msg_text'])
+        self.assertIn(plugin_b, messages[1]['msg_text'])
+        self.assertIn("on_weewx_data (delay)", messages[2]['msg_text'])
+        self.assertNotIn(plugin_a, messages[2]['msg_text'])
+        self.assertNotIn(plugin_b, messages[2]['msg_text'])
 
     def test_delay_with_no_plugins_still_logs_summary(self):
         SUT = self._make_processor()
@@ -1005,7 +1006,7 @@ class TestOnWeewxData(unittest.TestCase):
         messages = self._log_messages(SUT)
         self.assertEqual(len(messages), 1)
         self.assertEqual(messages[0]['log_type'], 'MONITOR')
-        self.assertIn("on_weewx_data (delay)", messages[0]['log_message'])
+        self.assertIn("on_weewx_data (delay)", messages[0]['msg_text'])
 
 
 class TestPublishWeeWXProcess(unittest.TestCase):
@@ -1041,9 +1042,8 @@ class TestPublishWeeWXProcess(unittest.TestCase):
         SUT.run()
 
         SUT.processor.join.assert_called_once_with(5)
-        mock_logger_queue.put.assert_any_call({'name': SUT.name,
-                                               'log_type': 'ERROR',
-                                               'log_message': f"Unable to shut down {processor_name}"})
+        mock_logger_queue.put.assert_any_call(
+            user.mqttcommon.Logger.create_entry(SUT.name, 'ERROR', None, f"Unable to shut down {processor_name}"))
 
 if __name__ == '__main__':
     helpers.run_tests()

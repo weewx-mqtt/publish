@@ -36,12 +36,10 @@ class TestInit(unittest.TestCase):
         # with mock.patch('user.mqttpublish.mqtt'):
         with mock.patch('user.mqttpublish.weewx.manager'):
             with mock.patch('user.mqttpublish.PublishWeeWXThread'):
-                with mock.patch('user.mqttpublish.Logger'):
+                with mock.patch('user.mqttcommon.Logger'):
                     SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
                     SUT.logger_queue.put(None)
-                    self.assertEqual(SUT.logger.logerr.call_count, 1)
-                    #SUT.logger.logerr.assert_called_once_with("",
-                    #                                        "'PublishWeeWX' is deprecated. Move options to top level, '[MQTTPublish]'.")
+                    self.assertEqual(SUT.logger.error.call_count, 1)
 
     def test_log_mqtt_option(self):
         mock_engine = mock.Mock()
@@ -55,9 +53,8 @@ class TestInit(unittest.TestCase):
 
         with mock.patch('user.mqttpublish.weewx.manager'):
             with mock.patch('user.mqttpublish.PublishWeeWXThread'):
-                with mock.patch('user.mqttpublish.LoggerThread'):
-                    with mock.patch('user.mqttpublish.Logger'):
-                        SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
+                with mock.patch('user.mqttcommon.Logger'):
+                    SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
 
         self.assertTrue(SUT.mqtt_config['log_mqtt'])
 
@@ -70,21 +67,20 @@ class TestInit(unittest.TestCase):
         with mock.patch('user.mqttpublish.weewx.manager'):
             with mock.patch('user.mqttpublish.PublishWeeWXThread'):
                 with mock.patch('user.mqttpublish.PublishWeeWXProcess') as mock_process:
-                    with mock.patch('user.mqttpublish.LoggerThread'):
-                        with mock.patch('user.mqttpublish.Logger') as mock_logger:
-                            SUT = user.mqttpublish.MQTTPublish(engine, config)
+                    with mock.patch('user.mqttcommon.Logger') as mock_logger:
+                        SUT = user.mqttpublish.MQTTPublish(engine, config)
 
         return SUT, engine, mock_logger.return_value, mock_process
 
     def test_deprecated_binding_option(self):
-        SUT, _, mock_logger, _ = self._build_service({
+        _SUT, _, mock_logger, _ = self._build_service({
             'MQTTPublish': {
                 'binding': 'archive',
                 'topics': {},
             }
         })
 
-        mock_logger.loginf.assert_any_call(SUT.name, "'binding' is deprecated and no longer used.")
+        mock_logger.info.assert_any_call(None, "'binding' is deprecated and no longer used.")
 
     def test_multiprocess_uses_process_thread(self):
         SUT, _, _, mock_process = self._build_service({
@@ -128,7 +124,7 @@ class TestInit(unittest.TestCase):
         self.assertEqual(SUT.weewx_dict['defaults']['Station']['altitude'], '111, foot')
 
     def test_deprecated_lwt_option(self):
-        SUT, _, mock_logger, _ = self._build_service({
+        _SUT, _, mock_logger, _ = self._build_service({
             'MQTTPublish': {
                 'lwt': {
                     'topic': 'status',
@@ -137,14 +133,14 @@ class TestInit(unittest.TestCase):
             }
         })
 
-        mock_logger.logerr.assert_any_call(SUT.name,
-                                           "'[[lwt]]' is deprecated.  use [[availability_topic]].")
+        mock_logger.error.assert_any_call(None,
+                                          "'[[lwt]]' is deprecated.  use [[availability_topic]].")
 
 class TestConfigurePlugins(unittest.TestCase):
     @staticmethod
     def _build_service(config_dict):
         """ Construct an MQTTPublish service and return it with its mock logger. """
-        with mock.patch('user.mqttpublish.Logger') as mock_logger:
+        with mock.patch('user.mqttcommon.Logger') as mock_logger:
             SUT = user.mqttpublish.MQTTPublish(mock.Mock(), configobj.ConfigObj(config_dict))
 
         return SUT, mock_logger.return_value
@@ -159,8 +155,8 @@ class TestConfigurePlugins(unittest.TestCase):
             },
         })
 
-        mock_logger.logerr.assert_any_call(
-            SUT.name,
+        mock_logger.error.assert_any_call(
+            None,
             "'[[plugins]]' is deprecated. To configure see, https://weewx-mqtt.github.io/publish/plugins/")
         self.assertIn('PluginA', SUT.plugins)
 
@@ -175,7 +171,7 @@ class TestConfigurePlugins(unittest.TestCase):
 
         self.assertIn('PluginA', SUT.plugins)
         self.assertNotIn('PluginB', SUT.plugins)
-        mock_logger.logerr.assert_any_call(SUT.name, 'PluginB is missing its configuration section.')
+        mock_logger.error.assert_any_call(None, 'PluginB is missing its configuration section.')
 
 class TestConfigureTopics(unittest.TestCase):
     def test_config_topics(self):
@@ -196,7 +192,7 @@ class TestConfigureTopics(unittest.TestCase):
         service_config = configobj.ConfigObj(service_dict)
 
         with mock.patch('user.mqttpublish.PublishWeeWXThread'):
-            with mock.patch('user.mqttpublish.Logger'):
+            with mock.patch('user.mqttcommon.Logger'):
                 SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
 
                 topics_loop, topics_archive, _ = SUT.configure_topics(service_config)
@@ -245,7 +241,7 @@ class TestConfigureTopics(unittest.TestCase):
         service_config = configobj.ConfigObj(service_dict)
 
         with mock.patch('user.mqttpublish.PublishWeeWXThread'):
-            with mock.patch('user.mqttpublish.Logger'):
+            with mock.patch('user.mqttcommon.Logger'):
                 SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
 
                 topics_loop, topics_archive, _ = SUT.configure_topics(service_config)
@@ -317,7 +313,7 @@ class TestConfigureTopics(unittest.TestCase):
         service_config = configobj.ConfigObj(service_dict)
 
         with mock.patch('user.mqttpublish.PublishWeeWXThread'):
-            with mock.patch('user.mqttpublish.Logger'):
+            with mock.patch('user.mqttcommon.Logger'):
                 SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
 
                 topics_loop, topics_archive, _ = SUT.configure_topics(service_config)
@@ -355,7 +351,7 @@ class TestConfigureTopics(unittest.TestCase):
         service_config = configobj.ConfigObj({})
 
         with mock.patch('user.mqttpublish.PublishWeeWXThread'):
-            with mock.patch('user.mqttpublish.Logger'):
+            with mock.patch('user.mqttcommon.Logger'):
                 SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
 
                 with self.assertRaises(ValueError) as context:
@@ -378,7 +374,7 @@ class TestConfigureTopics(unittest.TestCase):
         service_config = configobj.ConfigObj(service_dict)
 
         with mock.patch('user.mqttpublish.PublishWeeWXThread'):
-            with mock.patch('user.mqttpublish.Logger'):
+            with mock.patch('user.mqttcommon.Logger'):
                 SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
 
                 topics_loop, topics_archive, binding = SUT.configure_topics(service_config)
@@ -402,7 +398,7 @@ class TestConfigureTopics(unittest.TestCase):
         service_config = configobj.ConfigObj(service_dict)
 
         with mock.patch('user.mqttpublish.PublishWeeWXThread'):
-            with mock.patch('user.mqttpublish.Logger'):
+            with mock.patch('user.mqttcommon.Logger'):
                 SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
 
                 topics_loop, topics_archive, binding = SUT.configure_topics(service_config)
@@ -426,7 +422,7 @@ class TestConfigureTopics(unittest.TestCase):
         service_config = configobj.ConfigObj(service_dict)
 
         with mock.patch('user.mqttpublish.PublishWeeWXThread'):
-            with mock.patch('user.mqttpublish.Logger'):
+            with mock.patch('user.mqttcommon.Logger'):
                 SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
 
                 topics_loop, topics_archive, binding = SUT.configure_topics(service_config)
@@ -453,7 +449,7 @@ class TestConfigureTopics(unittest.TestCase):
         service_config = configobj.ConfigObj(service_dict)
 
         with mock.patch('user.mqttpublish.PublishWeeWXThread'):
-            with mock.patch('user.mqttpublish.Logger'):
+            with mock.patch('user.mqttcommon.Logger'):
                 SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
 
                 topics_loop, _, _ = SUT.configure_topics(service_config)
@@ -486,13 +482,13 @@ class TestConfigureTopics(unittest.TestCase):
         service_config = configobj.ConfigObj(service_dict)
 
         with mock.patch('user.mqttpublish.PublishWeeWXThread'):
-            with mock.patch('user.mqttpublish.Logger'):
+            with mock.patch('user.mqttcommon.Logger'):
                 SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
 
                 SUT.configure_topics(service_config)
 
         # pylint: disable=no-member
-        self.assertEqual(SUT.logger.logerr.call_count, 1)
+        self.assertEqual(SUT.logger.error.call_count, 1)
         self.assertEqual(SUT.plugins['MQTTAggregateValues']['module'], 'user.mqttaggregatevalues')
         self.assertEqual(SUT.plugins['MQTTAggregateValues']['topics'][topic1][aggregate1]['observation'],
                          observation1)
@@ -508,14 +504,16 @@ class ServiceBase(unittest.TestCase):
         """ Yield the service, the thread/process/logger mocks, and the logger. """
         engine = mock.Mock()
         config = configobj.ConfigObj(self._service_config(**kwargs))
+        # Entry construction stays real, so queue contents can be asserted on.
+        real_create_entry = user.mqttcommon.Logger.create_entry
 
         with mock.patch('user.mqttpublish.weewx.manager'):
             with mock.patch('user.mqttpublish.PublishWeeWXThread') as mock_thread:
                 with mock.patch('user.mqttpublish.PublishWeeWXProcess') as mock_process:
-                    with mock.patch('user.mqttpublish.LoggerThread'):
-                        with mock.patch('user.mqttpublish.Logger') as mock_logger:
-                            SUT = user.mqttpublish.MQTTPublish(engine, config)
-                            yield SUT, mock_thread, mock_process, mock_logger.return_value
+                    with mock.patch('user.mqttcommon.Logger') as mock_logger:
+                        mock_logger.create_entry.side_effect = real_create_entry
+                        SUT = user.mqttpublish.MQTTPublish(engine, config)
+                        yield SUT, mock_thread, mock_process, mock_logger.return_value
 
     @staticmethod
     def _service_config(**kwargs):
@@ -546,7 +544,7 @@ class TestHandleRecord(ServiceBase):
             self.assertEqual(item, {'time_stamp': 1234567890, 'type': 'loop', 'data': data})
             log_item = SUT.logger_queue.get_nowait()
             self.assertEqual(log_item['log_type'], 'MONITOR')
-            self.assertIn("Input queue size: 1", log_item['log_message'])
+            self.assertIn("Input queue size: 1", log_item['msg_text'])
             # A live thread is not restarted.
             self.assertEqual(SUT.thread_restarts, 0)
 
@@ -658,10 +656,10 @@ class TestHandleRecord(ServiceBase):
                 SUT.data_queue.put({'dateTime': 1234567890})
 
             SUT._handle_record('loop', {'dateTime': 1234567890})
-            mock_logger.logerr.assert_not_called()
+            mock_logger.error.assert_not_called()
 
             SUT._handle_record('loop', {'dateTime': 1234567890})
-            mock_logger.logerr.assert_any_call(SUT.name, "Data queue has size of 10.")
+            mock_logger.error.assert_any_call(None, "Data queue has size of 10.")
 
     def test_new_loop_packet_hands_a_deep_copy_to_handle_record(self):
         with self._service() as (SUT, _, _, _):
@@ -724,7 +722,6 @@ class TestShutDown(ServiceBase):
         with self._service() as (SUT, _, _, _):
             thread = SUT._thread
             thread.is_alive.return_value = False
-            SUT.logger_thread.is_alive.return_value = False
             for index in range(3):
                 SUT.data_queue.put({'time_stamp': index, 'type': 'loop', 'data': {}})
 
@@ -738,12 +735,13 @@ class TestShutDown(ServiceBase):
             # The thread is joined with the configured wait, then released.
             thread.join.assert_called_once_with(SUT.wait_for_thread_shutdown)
             self.assertIsNone(SUT._thread)
-            SUT.logger.logerr.assert_not_called()
+            # The logger thread is shut down by the logger itself, with the configured wait.
+            SUT.logger.shutdown.assert_called_once_with(SUT.wait_for_thread_shutdown)
+            SUT.logger.error.assert_not_called()
 
     def test_drain_retries_when_empty_is_raised_but_items_remain(self):
         with self._service() as (SUT, _, _, _):
             SUT._thread.is_alive.return_value = False
-            SUT.logger_thread.is_alive.return_value = False
             pending = {'time_stamp': 1, 'type': 'loop', 'data': {}}
             SUT.data_queue = _RacingQueue(pending)
 
@@ -753,65 +751,49 @@ class TestShutDown(ServiceBase):
             self.assertEqual(SUT.data_queue.gets, 3)
             self.assertEqual(SUT.data_queue.qsize(), 1)
             self.assertEqual(SUT.data_queue.get_nowait()['type'], 'shutdown')
-            SUT.logger.logerr.assert_not_called()
+            SUT.logger.error.assert_not_called()
 
     def test_warns_when_thread_does_not_shut_down(self):
         with self._service() as (SUT, _, _, _):
             thread = SUT._thread
             thread.name = helpers.random_string()
             thread.is_alive.return_value = True
-            SUT.logger_thread.is_alive.return_value = False
 
             SUT.shutDown()
 
-            SUT.logger.logerr.assert_called_once_with(SUT.name,
-                                                      f"Unable to shut down {thread.name}")
+            SUT.logger.error.assert_called_once_with(None,
+                                                     f"Unable to shut down {thread.name}")
             # The reference is dropped even when the thread is still running.
             self.assertIsNone(SUT._thread)
-
-    def test_warns_when_logger_thread_does_not_shut_down(self):
-        with self._service() as (SUT, _, _, _):
-            SUT._thread.is_alive.return_value = False
-            SUT.logger_thread.name = helpers.random_string()
-            SUT.logger_thread.is_alive.return_value = True
-
-            SUT.shutDown()
-
-            SUT.logger.logerr.assert_called_once_with(
-                SUT.name, f"Unable to shut down {SUT.logger_thread.name} thread")
-            # The logger thread is signalled by queueing None.
-            self.assertIsNone(SUT.logger_queue.get_nowait())
 
     def test_still_stops_logger_thread_when_no_publishing_thread(self):
         with self._service() as (SUT, _, _, _):
             SUT._thread = None
-            SUT.logger_thread.is_alive.return_value = False
 
             SUT.shutDown()
 
             # The publishing half is skipped entirely.
             self.assertEqual(SUT.data_queue.qsize(), 0)
-            SUT.logger_thread.join.assert_called_once_with(SUT.wait_for_thread_shutdown)
-            self.assertIsNone(SUT.logger_queue.get_nowait())
-            SUT.logger.logerr.assert_not_called()
+            # The logger thread is still shut down, via the logger, with the configured wait.
+            SUT.logger.shutdown.assert_called_once_with(SUT.wait_for_thread_shutdown)
+            SUT.logger.error.assert_not_called()
 
     def test_logs_shutdown_progress_in_order(self):
         with self._service() as (SUT, _, _, _):
             SUT._thread.is_alive.return_value = False
-            SUT.logger_thread.is_alive.return_value = False
             for index in range(2):
                 SUT.data_queue.put({'time_stamp': index, 'type': 'loop', 'data': {}})
             # Drop the version banner logged by __init__.
-            SUT.logger.loginf.reset_mock()
+            SUT.logger.info.reset_mock()
 
             SUT.shutDown()
 
-            messages = [call[0][1] for call in SUT.logger.loginf.call_args_list]
+            messages = [call[0][1] for call in SUT.logger.info.call_args_list]
             self.assertEqual(messages[0], "Shutdown initiated")
             self.assertEqual(messages[1], "Emptying data queue with size of 2.")
             self.assertEqual(messages[2], "Data queue has size of 0.")
             self.assertEqual(messages[3], "Shutdown of queue processor initiated")
-            self.assertEqual(messages[4], f"Shutdown of logger thread, {SUT.logger_thread.name} initiated")
+            self.assertEqual(messages[4], f"Shutdown of logger thread, {SUT.logger.log_thread.name} initiated")
 
 if __name__ == '__main__':
     helpers.run_tests()

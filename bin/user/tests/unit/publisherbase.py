@@ -6,6 +6,7 @@
 # pylint: disable=wrong-import-order
 # pylint: disable=missing-module-docstring, missing-class-docstring, missing-function-docstring
 # pylint: disable=invalid-name
+# pylint: disable=too-many-public-methods
 
 import configobj
 import paho.mqtt
@@ -18,17 +19,14 @@ import mock
 import helpers
 import mqttstubs
 
+import user.mqttcommon
 import user.mqttpublish
 
 class PublisherBase(unittest.TestCase):
-    class_under_test = object
+    class_under_test = user.mqttpublish.Publisher
+    # The paho api variant to test; the concrete subclasses set it.
+    api = None
     protocol_string = None
-
-    def _reason_code(self, value):
-        # paho mqtt v1 passes 'reason_code' as an int, v2 as a ReasonCode object.
-        if issubclass(self.class_under_test, user.mqttpublish.PublisherV2):
-            return mqttstubs.ReasonCodeStub(value)
-        return value
 
     def test_get_client(self):
         raise NotImplementedError("test 'test_get_client' is not implemented")
@@ -48,7 +46,8 @@ class PublisherBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': 0,
+            'min_delay': 1,
+            'max_delay': 120,
         }
         config = configobj.ConfigObj(config_dict)
 
@@ -62,14 +61,18 @@ class PublisherBase(unittest.TestCase):
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
-                with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
+                with mock.patch.object(user.mqttpublish.Publisher, '_connect'):
 
-                    SUT = self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
+                    SUT = self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
 
                     self.assertNotEqual(SUT.client.on_log, SUT.on_log)
-                    self.assertEqual(SUT.client.on_connect, SUT.on_connect)
-                    self.assertEqual(SUT.client.on_disconnect, SUT.on_disconnect)
-                    self.assertEqual(SUT.client.on_publish, SUT.on_publish)
+                    self.assertNotEqual(SUT.client.on_connect, SUT.on_connect)
+                    self.assertNotEqual(SUT.client.on_disconnect, SUT.on_disconnect)
+                    self.assertNotEqual(SUT.client.on_publish, SUT.on_publish)
+
+                    # The assigned callbacks must accept the calling convention of the api variant.
+                    self._call_on_connect(SUT, 5)
+                    self.assertIn('ERROR', [call[0][0]['log_type'] for call in mock_logger_queue.put.call_args_list])
 
     def test_set_on_log_callback(self):
         # pylint: disable=no-member
@@ -86,7 +89,8 @@ class PublisherBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': 0,
+            'min_delay': 1,
+            'max_delay': 120,
         }
         config = configobj.ConfigObj(config_dict)
 
@@ -100,14 +104,14 @@ class PublisherBase(unittest.TestCase):
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
-                with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
+                with mock.patch.object(user.mqttpublish.Publisher, '_connect'):
 
-                    SUT = self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
+                    SUT = self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
 
                     self.assertEqual(SUT.client.on_log, SUT.on_log)
-                    self.assertEqual(SUT.client.on_connect, SUT.on_connect)
-                    self.assertEqual(SUT.client.on_disconnect, SUT.on_disconnect)
-                    self.assertEqual(SUT.client.on_publish, SUT.on_publish)
+                    self.assertNotEqual(SUT.client.on_connect, SUT.on_connect)
+                    self.assertNotEqual(SUT.client.on_disconnect, SUT.on_disconnect)
+                    self.assertNotEqual(SUT.client.on_publish, SUT.on_publish)
 
     def test_on_log(self):
         mock_logger_queue = mock.Mock()
@@ -122,7 +126,8 @@ class PublisherBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': 0,
+            'min_delay': 1,
+            'max_delay': 120,
         }
         config = configobj.ConfigObj(config_dict)
 
@@ -135,9 +140,9 @@ class PublisherBase(unittest.TestCase):
         }
 
         with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
-            with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
+            with mock.patch.object(user.mqttpublish.Publisher, '_connect'):
 
-                SUT = self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
+                SUT = self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
 
                 level_dict = {
                     user.mqttpublish.mqtt.MQTT_LOG_INFO: 'INFO',
@@ -153,19 +158,16 @@ class PublisherBase(unittest.TestCase):
 
                     SUT.on_log(None, None, level, msg)
 
-                    mock_logger_queue.put.assert_called_once_with({'name': SUT.name,
-                                                                   'log_type': log_type,
-                                                                   'log_message': f"MQTT log: {msg}"})
-
+                    mock_logger_queue.put.assert_called_once_with(
+                        user.mqttcommon.Logger.create_entry(SUT.name, log_type, None, f"MQTT log: {msg}"))
 
                 msg = helpers.random_string()
                 mock_logger_queue.reset_mock()
 
                 SUT.on_log(None, None, 0x20, msg)
 
-                mock_logger_queue.put.assert_called_once_with({'name': SUT.name,
-                                                               'log_type': None,
-                                                               'log_message': f"MQTT log: {msg}"})
+                mock_logger_queue.put.assert_called_once_with(
+                    user.mqttcommon.Logger.create_entry(SUT.name, None, None, f"MQTT log: {msg}"))
 
     def test_username_set(self):
         mock_logger_queue = mock.Mock()
@@ -180,7 +182,8 @@ class PublisherBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': 0,
+            'min_delay': 1,
+            'max_delay': 120,
         }
         config = configobj.ConfigObj(config_dict)
 
@@ -194,10 +197,10 @@ class PublisherBase(unittest.TestCase):
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
-                with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
+                with mock.patch.object(user.mqttpublish.Publisher, '_connect'):
                     with mock.patch.object(user.mqttpublish.mqtt.Client, 'username_pw_set') as mock_username_pw_set:
 
-                        self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
+                        self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
 
                         mock_username_pw_set.assert_not_called()
 
@@ -214,7 +217,8 @@ class PublisherBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': 0,
+            'min_delay': 1,
+            'max_delay': 120,
         }
         config = configobj.ConfigObj(config_dict)
 
@@ -228,10 +232,10 @@ class PublisherBase(unittest.TestCase):
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
-                with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
+                with mock.patch.object(user.mqttpublish.Publisher, '_connect'):
                     with mock.patch.object(user.mqttpublish.mqtt.Client, 'username_pw_set') as mock_username_pw_set:
 
-                        self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
+                        self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
 
                         mock_username_pw_set.assert_not_called()
 
@@ -248,7 +252,8 @@ class PublisherBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': 0,
+            'min_delay': 1,
+            'max_delay': 120,
         }
         config = configobj.ConfigObj(config_dict)
 
@@ -262,10 +267,10 @@ class PublisherBase(unittest.TestCase):
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
-                with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
+                with mock.patch.object(user.mqttpublish.Publisher, '_connect'):
                     with mock.patch.object(user.mqttpublish.mqtt.Client, 'username_pw_set') as mock_username_pw_set:
 
-                        self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
+                        self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
 
                         mock_username_pw_set.assert_called_once_with(config_dict['username'], config_dict['password'])
 
@@ -290,8 +295,8 @@ class PublisherBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': random.choice([0, 2]),
-            'wait_for_connection': random.randint(0, 10),
+            'min_delay': 1,
+            'max_delay': 120,
         }
         config = configobj.ConfigObj(config_dict)
 
@@ -309,10 +314,22 @@ class PublisherBase(unittest.TestCase):
                                        'connect',
                                        side_effect=mqttstubs.ClientStub.connect_with_connection,
                                        autospec=True) as mock_connect:
+                    with mock.patch.object(user.mqttpublish.mqtt.Client,
+                                           'reconnect_delay_set',
+                                           autospec=True) as mock_reconnect_delay:
+                        with mock.patch.object(user.mqttpublish.mqtt.Client,
+                                               'loop_start',
+                                               autospec=True) as mock_loop_start:
 
-                    self.class_under_test(mock_logger_queue, mock_plugin_manager, mock_publisher, config, monitor_dict)
+                            self.class_under_test(mock_logger_queue, mock_plugin_manager, mock_publisher, config,
+                                                  monitor_dict, api=self.api)
 
-                    self.assertEqual(mock_connect.call_count, 1)
+                            self.assertEqual(mock_connect.call_count, 1)
+                            mock_reconnect_delay.assert_called_once_with(mock.ANY,
+                                                                         min_delay=config_dict['min_delay'],
+                                                                         max_delay=config_dict['max_delay'])
+                            # The network loop is started once; paho handles the CONNACK processing and reconnects.
+                            mock_loop_start.assert_called_once_with(mock.ANY)
 
     def test_connect_no_connection(self):
         mock_logger_queue = mock.Mock()
@@ -327,9 +344,8 @@ class PublisherBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': random.choice([0, 2]),
-            'wait_between_retries': random.randint(0, 10),
-            'wait_for_connection': random.randint(0, 10),
+            'min_delay': 1,
+            'max_delay': 120,
         }
         config = configobj.ConfigObj(config_dict)
 
@@ -347,15 +363,17 @@ class PublisherBase(unittest.TestCase):
                                        'connect',
                                        side_effect=mqttstubs.ClientStub.connect_without_connection,
                                        autospec=True) as mock_connect:
+                    with mock.patch.object(user.mqttpublish.mqtt.Client,
+                                           'loop_start',
+                                           autospec=True) as mock_loop_start:
 
-                    self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
+                        self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
 
-                    self.assertEqual(mock_connect.call_count, config_dict['max_retries'] + 1)
-                    # Exhausting the retries must mark the publisher thread for shutdown, not raise.
-                    self.assertFalse(mock_publisher.process)
-                    log_messages = [call[0][0]['log_message'] for call in mock_logger_queue.put.call_args_list]
-                    self.assertIn(f"Connecting to host: {config_dict['host']} port: {config_dict['port']}.", log_messages)
-                    self.assertIn(f"Waiting {config_dict['wait_between_retries']} seconds to connect.", log_messages)
+                        # A connect that does not raise is attempted once; the network loop waits for the CONNACK.
+                        self.assertEqual(mock_connect.call_count, 1)
+                        mock_loop_start.assert_called_once_with(mock.ANY)
+                        log_messages = [call[0][0]['msg_text'] for call in mock_logger_queue.put.call_args_list]
+                        self.assertIn(f"Connecting to host: {config_dict['host']} port: {config_dict['port']}.", log_messages)
 
     def test_connect_first_call_exception(self):
         mock_logger_queue = mock.Mock()
@@ -370,9 +388,8 @@ class PublisherBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': random.choice([0, 2]),
-            'wait_between_retries': random.randint(0, 10),
-            'wait_for_connection': random.randint(0, 10),
+            'min_delay': 1,
+            'max_delay': 120,
         }
         config = configobj.ConfigObj(config_dict)
 
@@ -390,50 +407,18 @@ class PublisherBase(unittest.TestCase):
                                        'connect',
                                        side_effect=mqttstubs.ClientStub.connect_exception_first_call,
                                        autospec=True) as mock_connect:
+                    with mock.patch.object(user.mqttpublish.mqtt.Client,
+                                           'loop_start',
+                                           autospec=True) as mock_loop_start:
 
-                    self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
+                        self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
 
-                    self.assertEqual(mock_connect.call_count, config_dict['max_retries'] + 1)
-                    self.assertEqual(mock_logger_queue.put.call_count, 3 + 2 * config_dict['max_retries'])
-
-    def test_connect_subsequent_call_exception(self):
-        mock_logger_queue = mock.Mock()
-        mock_publisher = mock.Mock()
-
-        config_dict = {
-            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
-            'clientid': helpers.random_string(),
-            'log_mqtt': random.choice([True, False]),
-            'username': None,
-            'password': None,
-            'host': helpers.random_string(),
-            'port': random.randint(1, 65535),
-            'keepalive': random.randint(1, 30),
-            'max_retries': random.choice([1, 2]),
-            'wait_between_retries': random.randint(0, 10),
-            'wait_for_connection': random.randint(0, 10),
-        }
-        config = configobj.ConfigObj(config_dict)
-
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
-
-        with mock.patch('user.mqttpublish.time'):
-            with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
-                with mock.patch.object(user.mqttpublish.mqtt.Client,
-                                       'connect',
-                                       side_effect=mqttstubs.ClientStub.connect_exception_subsequent_calls,
-                                       autospec=True) as mock_connect:
-
-                    self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
-
-                    self.assertEqual(mock_connect.call_count, config_dict['max_retries'] + 1)
-                    self.assertEqual(mock_logger_queue.put.call_count, 2 + 2 * config_dict['max_retries'])
+                        # A connect failure is not retried; it marks the publisher thread for shutdown, instead of raising.
+                        self.assertEqual(mock_connect.call_count, 1)
+                        mock_loop_start.assert_not_called()
+                        self.assertFalse(mock_publisher.process)
+                        log_messages = [call[0][0]['msg_text'] for call in mock_logger_queue.put.call_args_list]
+                        self.assertTrue(any("MQTT connect failed with" in msg for msg in log_messages))
 
     def test_connect_refused_connection(self):
         mock_logger_queue = mock.Mock()
@@ -456,9 +441,8 @@ class PublisherBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': 2,
-            'wait_between_retries': random.randint(0, 10),
-            'wait_for_connection': random.randint(0, 10),
+            'min_delay': 1,
+            'max_delay': 120,
             'lwt': {
                 'enable': True,
             }
@@ -481,10 +465,12 @@ class PublisherBase(unittest.TestCase):
                                        autospec=True) as mock_connect:
                     with mock.patch.object(user.mqttpublish.mqtt.Client, 'publish') as mock_publish:
 
-                        SUT = self.class_under_test(mock_logger_queue, mock_plugin_manager, mock_publisher, config, monitor_dict)
+                        SUT = self.class_under_test(mock_logger_queue, mock_plugin_manager, mock_publisher, config,
+                                                    monitor_dict, api=self.api)
 
-                        # A refused connection must not be treated as a connection, so the retry loop keeps retrying.
-                        self.assertEqual(mock_connect.call_count, config_dict['max_retries'] + 1)
+                        # A refused connection must not be treated as a connection. It is attempted once;
+                        # paho's network loop retries with the configured backoff.
+                        self.assertEqual(mock_connect.call_count, 1)
                         self.assertFalse(SUT.connected)
                         # The LWT 'online' payload must not be published for a refused connection.
                         mock_publish.assert_not_called()
@@ -514,7 +500,8 @@ class PublisherBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': 0,
+            'min_delay': 1,
+            'max_delay': 120,
             'lwt': {
                 'enable': True,
             }
@@ -529,15 +516,15 @@ class PublisherBase(unittest.TestCase):
             'monitor_on_weewx_data': None,
         }
 
-        # Note: 'user.mqttpublish.time' is deliberately not mocked here. The monitor logging below
-        # does arithmetic and numeric formatting on time.time(), which a MagicMock does not support.
+        # time.time() must stay real; the monitor logging does arithmetic on it.
         with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
-            with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
+            with mock.patch.object(user.mqttpublish.Publisher, '_connect'):
                 with mock.patch.object(user.mqttpublish.mqtt.Client, 'publish') as mock_publish:
 
-                    SUT = self.class_under_test(mock_logger_queue, mock_plugin_manager, mock_publisher, config, monitor_dict)
+                    SUT = self.class_under_test(mock_logger_queue, mock_plugin_manager, mock_publisher, config,
+                                                monitor_dict, api=self.api)
 
-                    SUT.on_connect(SUT.client, None, {}, self._reason_code(0), None)
+                    SUT.on_connect(SUT.client, None, {}, 0, None)
 
                     self.assertTrue(SUT.connected)
                     mock_on_connect_callback.assert_called_once()
@@ -567,7 +554,8 @@ class PublisherBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': 0,
+            'min_delay': 1,
+            'max_delay': 120,
             'lwt': {
                 'enable': True,
             }
@@ -582,28 +570,32 @@ class PublisherBase(unittest.TestCase):
             'monitor_on_weewx_data': None,
         }
 
-        # Note: 'user.mqttpublish.time' is deliberately not mocked here, so that time.time() returns
-        # real numbers if on_connect() gets far enough to do monitor logging.
+        # time.time() must stay real for on_connect's monitor logging.
         with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
-            with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
+            with mock.patch.object(user.mqttpublish.Publisher, '_connect'):
                 with mock.patch.object(user.mqttpublish.mqtt.Client, 'publish') as mock_publish:
 
-                    SUT = self.class_under_test(mock_logger_queue, mock_plugin_manager, mock_publisher, config, monitor_dict)
+                    SUT = self.class_under_test(mock_logger_queue, mock_plugin_manager, mock_publisher, config,
+                                                monitor_dict, api=self.api)
 
-                    SUT.on_connect(SUT.client, None, {}, self._reason_code(5), None)
+                    SUT.on_connect(SUT.client, None, {}, 5, None)
 
                     self.assertFalse(SUT.connected)
                     mock_on_connect_callback.assert_not_called()
                     mock_publish.assert_not_called()
                     self.assertIn('ERROR', [call[0][0]['log_type'] for call in mock_logger_queue.put.call_args_list])
 
-    def _call_on_disconnect(self, SUT, value):
-        # paho mqtt v1 calls on_disconnect with (client, userdata, rc),
+    def _call_on_connect(self, SUT, value):
+        # The assigned callback is adapted to the calling convention of the api variant:
+        # paho mqtt v1 calls on_connect with (client, userdata, flags, rc),
         # v2 with (client, userdata, flags, reason_code, properties).
-        if issubclass(self.class_under_test, user.mqttpublish.PublisherV2):
-            SUT.on_disconnect(SUT.client, None, {}, self._reason_code(value), None)
+        if self.api == user.mqttcommon.API_V1:
+            SUT.client.on_connect(SUT.client, None, 0, value)
         else:
-            SUT.on_disconnect(SUT.client, None, value)
+            SUT.client.on_connect(SUT.client, None, 0, mqttstubs.ReasonCodeStub(value), None)
+
+    def _call_on_disconnect(self, SUT, value):
+        SUT.on_disconnect(SUT.client, None, value, None)
 
     def test_on_disconnect(self):
         mock_logger_queue = mock.Mock()
@@ -619,7 +611,8 @@ class PublisherBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': 0,
+            'min_delay': 1,
+            'max_delay': 120,
         }
         config = configobj.ConfigObj(config_dict)
 
@@ -632,9 +625,10 @@ class PublisherBase(unittest.TestCase):
         }
 
         with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
-            with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
+            with mock.patch.object(user.mqttpublish.Publisher, '_connect'):
 
-                SUT = self.class_under_test(mock_logger_queue, mock_plugin_manager, mock_publisher, config, monitor_dict)
+                SUT = self.class_under_test(mock_logger_queue, mock_plugin_manager, mock_publisher, config,
+                                            monitor_dict, api=self.api)
 
                 # A disconnect requested by the client is a clean disconnect, so it is logged as INFO.
                 SUT.connected = True
@@ -676,7 +670,8 @@ class PublisherBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': 0,
+            'min_delay': 1,
+            'max_delay': 120,
         }
         config = configobj.ConfigObj(config_dict)
 
@@ -688,12 +683,12 @@ class PublisherBase(unittest.TestCase):
             'monitor_on_weewx_data': None,
         }
 
-        # Note: 'user.mqttpublish.time' is deliberately not mocked here. The monitor logging
-        # does arithmetic and numeric formatting on time.time(), which a MagicMock does not support.
+        # time.time() must stay real; the monitor logging does arithmetic on it.
         with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
-            with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
+            with mock.patch.object(user.mqttpublish.Publisher, '_connect'):
 
-                SUT = self.class_under_test(mock_logger_queue, mock_plugin_manager, mock_publisher, config, monitor_dict)
+                SUT = self.class_under_test(mock_logger_queue, mock_plugin_manager, mock_publisher, config,
+                                            monitor_dict, api=self.api)
 
                 userdata = helpers.random_string()
                 msg = mqttstubs.Msg(helpers.random_string(), helpers.random_string(), 0, False)
@@ -724,7 +719,8 @@ class PublisherBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': 0,
+            'min_delay': 1,
+            'max_delay': 120,
         }
         config = configobj.ConfigObj(config_dict)
 
@@ -737,9 +733,10 @@ class PublisherBase(unittest.TestCase):
         }
 
         with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
-            with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
+            with mock.patch.object(user.mqttpublish.Publisher, '_connect'):
 
-                SUT = self.class_under_test(mock_logger_queue, mock_plugin_manager, mock_publisher, config, monitor_dict)
+                SUT = self.class_under_test(mock_logger_queue, mock_plugin_manager, mock_publisher, config,
+                                            monitor_dict, api=self.api)
 
                 SUT.on_message(SUT.client, None, mqttstubs.Msg(helpers.random_string(),
                                                                helpers.random_string(),
@@ -749,10 +746,10 @@ class PublisherBase(unittest.TestCase):
                 # The DEBUG 'Received' log plus the two empty loop summaries are always logged,
                 # even when no plugins are registered for on_mqtt_message.
                 log_messages = [call[0][0] for call in mock_logger_queue.put.call_args_list]
-                self.assertTrue(any(entry['log_type'] == 'DEBUG' and 'Received:' in entry['log_message']
+                self.assertTrue(any(entry['log_type'] == 'DEBUG' and 'Received:' in entry['msg_text']
                                     for entry in log_messages))
-                self.assertTrue(any('on_message (immediate)' in entry['log_message'] for entry in log_messages))
-                self.assertTrue(any('on_message (delay)' in entry['log_message'] for entry in log_messages))
+                self.assertTrue(any('on_message (immediate)' in entry['msg_text'] for entry in log_messages))
+                self.assertTrue(any('on_message (delay)' in entry['msg_text'] for entry in log_messages))
 
     def test_will_set_with_defaults(self):
         mock_logger_queue = mock.Mock()
@@ -767,7 +764,8 @@ class PublisherBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': random.randint(0, 10),
+            'min_delay': 1,
+            'max_delay': 120,
             'lwt': {
                 'enable': True,
             }
@@ -784,10 +782,10 @@ class PublisherBase(unittest.TestCase):
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
-                with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
+                with mock.patch.object(user.mqttpublish.Publisher, '_connect'):
                     with mock.patch.object(user.mqttpublish.mqtt.Client, 'will_set') as mock_will_set:
 
-                        self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
+                        self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
 
                         mock_will_set.assert_called_once_with(topic='status', payload='offline', qos=0, retain=True)
 
@@ -804,7 +802,8 @@ class PublisherBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': random.randint(0, 10),
+            'min_delay': 1,
+            'max_delay': 120,
             'lwt': {
                 'enable': True,
                 'topic': helpers.random_string(),
@@ -825,10 +824,10 @@ class PublisherBase(unittest.TestCase):
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
-                with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
+                with mock.patch.object(user.mqttpublish.Publisher, '_connect'):
                     with mock.patch.object(user.mqttpublish.mqtt.Client, 'will_set') as mock_will_set:
 
-                        self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
+                        self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
 
                         mock_will_set.assert_called_once_with(topic=config_dict['lwt']['topic'],
                                                               payload=config_dict['lwt']['offline_payload'],
@@ -848,7 +847,8 @@ class PublisherBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': random.randint(0, 10),
+            'min_delay': 1,
+            'max_delay': 120,
         }
         config = configobj.ConfigObj(config_dict)
 
@@ -862,11 +862,12 @@ class PublisherBase(unittest.TestCase):
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
-                with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
-                    with mock.patch.object(user.mqttpublish.AbstractPublisher, '_reconnect') as mock_reconnect:
-                        with mock.patch.object(user.mqttpublish.mqtt.Client, 'publish') as mock_publish:
+                with mock.patch.object(user.mqttpublish.Publisher, '_connect'):
+                    with mock.patch.object(user.mqttpublish.mqtt.Client, 'publish') as mock_publish:
+                        with mock.patch.object(user.mqttpublish.mqtt.Client, 'loop', autospec=True) as mock_loop:
+                            mock_publish.return_value.rc = paho.mqtt.client.MQTT_ERR_SUCCESS
 
-                            SUT = self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
+                            SUT = self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
 
                             SUT.connected = True
                             time_stamp = random.randint(10, 10000)
@@ -876,8 +877,9 @@ class PublisherBase(unittest.TestCase):
                             data = helpers.random_string()
                             SUT.publish_message(time_stamp, qos, retain, topic, data)
 
-                            mock_reconnect.assert_not_called()
                             mock_publish.assert_called_once_with(topic, data, qos=qos, retain=retain)
+                            # paho's network loop thread owns the network loop; publishing must not pump it.
+                            mock_loop.assert_not_called()
 
     def test_publish_when_not_connected(self):
         mock_logger_queue = mock.Mock()
@@ -892,7 +894,8 @@ class PublisherBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': random.randint(0, 10),
+            'min_delay': 1,
+            'max_delay': 120,
         }
         config = configobj.ConfigObj(config_dict)
 
@@ -906,11 +909,12 @@ class PublisherBase(unittest.TestCase):
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
-                with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
-                    with mock.patch.object(user.mqttpublish.AbstractPublisher, '_reconnect') as mock_reconnect:
-                        with mock.patch.object(user.mqttpublish.mqtt.Client, 'publish') as mock_publish:
+                with mock.patch.object(user.mqttpublish.Publisher, '_connect'):
+                    with mock.patch.object(user.mqttpublish.mqtt.Client, 'publish') as mock_publish:
+                        with mock.patch.object(user.mqttpublish.mqtt.Client, 'loop', autospec=True) as mock_loop:
+                            mock_publish.return_value.rc = paho.mqtt.client.MQTT_ERR_SUCCESS
 
-                            SUT = self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
+                            SUT = self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
 
                             SUT.connected = False
                             time_stamp = random.randint(10, 10000)
@@ -920,20 +924,14 @@ class PublisherBase(unittest.TestCase):
                             data = helpers.random_string()
                             SUT.publish_message(time_stamp, qos, retain, topic, data)
 
-                            mock_reconnect.assert_called_once_with()
+                            # Publishing while disconnected must not block on a reconnect. Paho queues the
+                            # QOS>0 messages and delivers them when its network loop has reconnected.
                             mock_publish.assert_called_once_with(topic, data, qos=qos, retain=retain)
+                            mock_loop.assert_not_called()
 
-    def test_reconnect_connection(self):
+    def test_publish_when_not_accepted(self):
         mock_logger_queue = mock.Mock()
-        mock_plugin_manager = mock.Mock()
         mock_publisher = mock.Mock()
-
-        mock_plugin_manager.callbacks = {
-            'on_mqtt_connect': {
-                'immediate': {},
-                'delay': {}
-            },
-        }
 
         config_dict = {
             'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
@@ -944,8 +942,8 @@ class PublisherBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': random.randint(0, 10),
-            'wait_for_connection': random.randint(0, 10),
+            'min_delay': 1,
+            'max_delay': 120,
         }
         config = configobj.ConfigObj(config_dict)
 
@@ -959,74 +957,29 @@ class PublisherBase(unittest.TestCase):
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
-                with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
-                    with mock.patch.object(user.mqttpublish.mqtt.Client,
-                                           'reconnect',
-                                           side_effect=mqttstubs.ClientStub.reconnect_with_connection,
-                                           autospec=True) as mock_reconnect:
+                with mock.patch.object(user.mqttpublish.Publisher, '_connect'):
+                    with mock.patch.object(user.mqttpublish.mqtt.Client, 'publish') as mock_publish:
+                        mock_publish.return_value.rc = paho.mqtt.client.MQTT_ERR_NO_CONN
 
-                        SUT = self.class_under_test(mock_logger_queue, mock_plugin_manager, mock_publisher, config, monitor_dict)
-                        SUT._reconnect()
+                        SUT = self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
 
-                        mock_reconnect.assert_called_once()
+                        SUT.connected = False
+                        time_stamp = random.randint(10, 10000)
+                        qos = random.randint(0, 10)
+                        retain = random.choice([True, False])
+                        topic = helpers.random_string()
+                        data = helpers.random_string()
+                        SUT.publish_message(time_stamp, qos, retain, topic, data)
 
-    def test_reconnect_no_connection(self):
-        mock_logger_queue = mock.Mock()
-        mock_plugin_manager = mock.Mock()
-        mock_publisher = mock.Mock()
-
-        mock_plugin_manager.callbacks = {
-            'on_mqtt_connect': {
-                'immediate': {},
-                'delay': {}
-            },
-        }
-
-        config_dict = {
-            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
-            'clientid': helpers.random_string(),
-            'log_mqtt': random.choice([True, False]),
-            'username': helpers.random_string(),
-            'password': helpers.random_string(),
-            'host': helpers.random_string(),
-            'port': random.randint(1, 65535),
-            'keepalive': random.randint(1, 30),
-            'max_retries': random.randint(0, 10),
-            'wait_between_retries': random.randint(0, 10),
-            'wait_for_connection': random.randint(0, 10),
-        }
-        config = configobj.ConfigObj(config_dict)
-
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
-
-        with mock.patch('user.mqttpublish.time'):
-            with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
-                with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
-                    with mock.patch.object(user.mqttpublish.mqtt.Client,
-                                           'reconnect',
-                                           side_effect=mqttstubs.ClientStub.reconnect_without_connection,
-                                           autospec=True) as mock_reconnect:
-
-                        SUT = self.class_under_test(mock_logger_queue, mock_plugin_manager, mock_publisher, config, monitor_dict)
-
-                        with self.assertRaises(user.mqttpublish.CannotConnectError):
-                            SUT._reconnect()
-
-                        # Exhausting the retries must raise, so the caller can handle it.
-                        self.assertEqual(mock_reconnect.call_count, config_dict['max_retries'] + 1)
-                        log_messages = [call[0][0]['log_message'] for call in mock_logger_queue.put.call_args_list]
-                        self.assertIn(f"Attempting to reconnect to host: {config_dict['host']} port: {config_dict['port']}.", log_messages)
-                        self.assertIn(f"Waiting {config_dict['wait_between_retries']} seconds to reconnect.", log_messages)
-
+                        # A publish paho refuses, such as when the broker is down, must be logged, not raised.
+                        log_messages = [call[0][0] for call in mock_logger_queue.put.call_args_list]
+                        self.assertTrue(any(entry['log_type'] == 'ERROR' and topic in entry['msg_text']
+                                            for entry in log_messages))
 
 class TLSBase(unittest.TestCase):
-    class_under_test = object
+    class_under_test = user.mqttpublish.Publisher
+    # The paho api variant to test; the concrete subclasses set it.
+    api = None
     protocol_string = None
 
     def test_tls_configuration_good(self):
@@ -1042,7 +995,8 @@ class TLSBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': random.randint(0, 10),
+            'min_delay': 1,
+            'max_delay': 120,
             'tls': {
                 'enable': True,
                 'ca_certs': helpers.random_string()
@@ -1061,10 +1015,10 @@ class TLSBase(unittest.TestCase):
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
-                with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
+                with mock.patch.object(user.mqttpublish.Publisher, '_connect'):
                     with mock.patch.object(user.mqttpublish.mqtt.Client, 'tls_set') as mock_tls_set:
 
-                        self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
+                        self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
                         mock_tls_set.assert_called_once_with(ca_certs=config_dict['tls']['ca_certs'],
                                                              certfile=None,
                                                              keyfile=None,
@@ -1085,7 +1039,8 @@ class TLSBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': random.randint(0, 10),
+            'min_delay': 1,
+            'max_delay': 120,
             'tls': {
                 'enable': True,
                 'ca_certs': '',
@@ -1106,10 +1061,10 @@ class TLSBase(unittest.TestCase):
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
-                with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
+                with mock.patch.object(user.mqttpublish.Publisher, '_connect'):
                     with mock.patch.object(user.mqttpublish.mqtt.Client, 'tls_set') as mock_tls_set:
 
-                        self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
+                        self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
                         mock_tls_set.assert_called_once_with(ca_certs=None,
                                                              certfile=None,
                                                              keyfile=None,
@@ -1131,7 +1086,8 @@ class TLSBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': random.randint(0, 10),
+            'min_delay': 1,
+            'max_delay': 120,
             'tls': {
                 'enable': True,
                 'ca_certs': helpers.random_string(),
@@ -1150,7 +1106,7 @@ class TLSBase(unittest.TestCase):
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
-                with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
+                with mock.patch.object(user.mqttpublish.Publisher, '_connect'):
                     with mock.patch.object(user.mqttpublish.mqtt.Client, 'tls_set'):
                         try:
                             saved_version = ssl.PROTOCOL_TLS
@@ -1158,7 +1114,7 @@ class TLSBase(unittest.TestCase):
                         except AttributeError:
                             saved_version = None
                         with self.assertRaises(ValueError) as error:
-                            self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
+                            self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
                         if saved_version:
                             ssl.PROTOCOL_TLS = saved_version
                         self.assertEqual(error.exception.args[0], f"Invalid 'tls_version', {tls_version}")
@@ -1177,7 +1133,8 @@ class TLSBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': random.randint(0, 10),
+            'min_delay': 1,
+            'max_delay': 120,
             'tls': {
                 'enable': True,
                 'ca_certs': helpers.random_string(),
@@ -1196,7 +1153,7 @@ class TLSBase(unittest.TestCase):
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
-                with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
+                with mock.patch.object(user.mqttpublish.Publisher, '_connect'):
                     with mock.patch.object(user.mqttpublish.mqtt.Client, 'tls_set'):
                         try:
                             saved_version = ssl.PROTOCOL_TLSv1
@@ -1204,7 +1161,7 @@ class TLSBase(unittest.TestCase):
                         except AttributeError:
                             saved_version = None
                         with self.assertRaises(ValueError) as error:
-                            self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
+                            self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
                         if saved_version:
                             ssl.PROTOCOL_TLSv1 = saved_version
                         self.assertEqual(error.exception.args[0], f"Invalid 'tls_version', {tls_version}")
@@ -1223,7 +1180,8 @@ class TLSBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': random.randint(0, 10),
+            'min_delay': 1,
+            'max_delay': 120,
             'tls': {
                 'enable': True,
                 'ca_certs': helpers.random_string(),
@@ -1242,7 +1200,7 @@ class TLSBase(unittest.TestCase):
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
-                with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
+                with mock.patch.object(user.mqttpublish.Publisher, '_connect'):
                     with mock.patch.object(user.mqttpublish.mqtt.Client, 'tls_set'):
                         try:
                             saved_version = ssl.PROTOCOL_TLSv1_1
@@ -1250,7 +1208,7 @@ class TLSBase(unittest.TestCase):
                         except AttributeError:
                             saved_version = None
                         with self.assertRaises(ValueError) as error:
-                            self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
+                            self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
                         if saved_version:
                             ssl.PROTOCOL_TLSv1_1 = saved_version
                         self.assertEqual(error.exception.args[0], f"Invalid 'tls_version', {tls_version}")
@@ -1269,7 +1227,8 @@ class TLSBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': random.randint(0, 10),
+            'min_delay': 1,
+            'max_delay': 120,
             'tls': {
                 'enable': True,
                 'ca_certs': helpers.random_string(),
@@ -1288,7 +1247,7 @@ class TLSBase(unittest.TestCase):
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
-                with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
+                with mock.patch.object(user.mqttpublish.Publisher, '_connect'):
                     with mock.patch.object(user.mqttpublish.mqtt.Client, 'tls_set'):
                         try:
                             saved_version = ssl.PROTOCOL_TLSv1_2
@@ -1296,7 +1255,7 @@ class TLSBase(unittest.TestCase):
                         except AttributeError:
                             saved_version = None
                         with self.assertRaises(ValueError) as error:
-                            self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
+                            self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
                         if saved_version:
                             ssl.PROTOCOL_TLSv1_2 = saved_version
                         self.assertEqual(error.exception.args[0], f"Invalid 'tls_version', {tls_version}")
@@ -1315,7 +1274,8 @@ class TLSBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': random.randint(0, 10),
+            'min_delay': 1,
+            'max_delay': 120,
             'tls': {
                 'enable': True,
                 'ca_certs': helpers.random_string(),
@@ -1334,7 +1294,7 @@ class TLSBase(unittest.TestCase):
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
-                with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
+                with mock.patch.object(user.mqttpublish.Publisher, '_connect'):
                     with mock.patch.object(user.mqttpublish.mqtt.Client, 'tls_set'):
                         try:
                             saved_version = ssl.PROTOCOL_SSLv2
@@ -1342,7 +1302,7 @@ class TLSBase(unittest.TestCase):
                         except AttributeError:
                             saved_version = None
                         with self.assertRaises(ValueError) as error:
-                            self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
+                            self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
                         if saved_version:
                             ssl.PROTOCOL_SSLv2 = saved_version
                         self.assertEqual(error.exception.args[0], f"Invalid 'tls_version', {tls_version}")
@@ -1361,7 +1321,8 @@ class TLSBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': random.randint(0, 10),
+            'min_delay': 1,
+            'max_delay': 120,
             'tls': {
                 'enable': True,
                 'ca_certs': helpers.random_string(),
@@ -1380,7 +1341,7 @@ class TLSBase(unittest.TestCase):
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
-                with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
+                with mock.patch.object(user.mqttpublish.Publisher, '_connect'):
                     with mock.patch.object(user.mqttpublish.mqtt.Client, 'tls_set'):
                         try:
                             saved_version = ssl.PROTOCOL_SSLv23
@@ -1388,7 +1349,7 @@ class TLSBase(unittest.TestCase):
                         except AttributeError:
                             saved_version = None
                         with self.assertRaises(ValueError) as error:
-                            self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
+                            self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
                         if saved_version:
                             ssl.PROTOCOL_SSLv23 = saved_version
                         self.assertEqual(error.exception.args[0], f"Invalid 'tls_version', {tls_version}")
@@ -1407,7 +1368,8 @@ class TLSBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': random.randint(0, 10),
+            'min_delay': 1,
+            'max_delay': 120,
             'tls': {
                 'enable': True,
                 'ca_certs': helpers.random_string(),
@@ -1426,7 +1388,7 @@ class TLSBase(unittest.TestCase):
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
-                with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
+                with mock.patch.object(user.mqttpublish.Publisher, '_connect'):
                     with mock.patch.object(user.mqttpublish.mqtt.Client, 'tls_set'):
                         try:
                             saved_version = ssl.PROTOCOL_SSLv3
@@ -1434,7 +1396,7 @@ class TLSBase(unittest.TestCase):
                         except AttributeError:
                             saved_version = None
                         with self.assertRaises(ValueError) as error:
-                            self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
+                            self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
                         if saved_version:
                             ssl.PROTOCOL_SSLv3 = saved_version
                         self.assertEqual(error.exception.args[0], f"Invalid 'tls_version', {tls_version}")
@@ -1453,7 +1415,8 @@ class TLSBase(unittest.TestCase):
             'host': helpers.random_string(),
             'port': random.randint(1, 65535),
             'keepalive': random.randint(1, 30),
-            'max_retries': random.randint(0, 10),
+            'min_delay': 1,
+            'max_delay': 120,
             'tls': {
                 'enable': True,
                 'ca_certs': helpers.random_string(),
@@ -1472,7 +1435,7 @@ class TLSBase(unittest.TestCase):
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
-                with mock.patch.object(user.mqttpublish.AbstractPublisher, '_connect'):
+                with mock.patch.object(user.mqttpublish.Publisher, '_connect'):
                     with mock.patch.object(user.mqttpublish.mqtt.Client, 'tls_set'):
                         try:
                             saved_version = ssl.PROTOCOL_SSLv3
@@ -1480,7 +1443,7 @@ class TLSBase(unittest.TestCase):
                         except AttributeError:
                             saved_version = None
                         with self.assertRaises(ValueError) as error:
-                            self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict)
+                            self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
                         if saved_version:
                             ssl.PROTOCOL_SSLv3 = saved_version
                         self.assertEqual(error.exception.args[0], f"Invalid 'certs_required', {certs_required}")
