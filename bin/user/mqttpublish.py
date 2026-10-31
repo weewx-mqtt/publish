@@ -111,7 +111,7 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
     """ Managing publishing to MQTT. """
 
     def __init__(self, logger_queue, plugin_manager, publisher, mqtt_config, monitor_config, *, api=None):  # pylint: disable=R0913
-        # The paho mqtt api variant to communicate with. It defaults to the selection for the protocol.
+        # Defaults to the variant the protocol selects.
         self.api = self._resolve_api(mqtt_config['protocol'], api)
 
         self.logger_queue = logger_queue
@@ -150,7 +150,7 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
 
     @staticmethod
     def _resolve_api(protocol, api):
-        ''' Resolve the paho mqtt api variant to communicate with, defaulting to the selection for the protocol. '''
+        ''' Resolve the paho mqtt api variant to use. '''
         if api is None:
             api = mqttcommon.select_api(protocol)
         if api == mqttcommon.API_V1 and protocol not in mqttcommon.MQTT3_PROTOCOLS:
@@ -202,8 +202,7 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
             (f"At {int(time.time())}  publishing: {int(time_stamp)} "
              f" {mqtt_message_info.mid} {qos} {topic} took {time.time() - start_time}")))
 
-        # Paho drops the message and returns an error when it is not connected (MQTT_ERR_NO_CONN)
-        # or its outbound queue is full (MQTT_ERR_QUEUE_SIZE). Log it; there is nothing to retry.
+        # Nothing to retry; paho has already dropped the message.
         if mqtt_message_info.rc != mqtt.MQTT_ERR_SUCCESS:
             self.logger_queue.put(mqttcommon.Logger.create_entry(
                 self.name, 'ERROR', None,
