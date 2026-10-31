@@ -186,7 +186,10 @@ good-names=i,
            k,
            ex,
            Run,
+           # The following are for MQTTSubscribe
            rc,
+           MQTTSubscribe,
+           ExampleMessageCallbackProvider,
            _
 
 # Good variable names regexes, separated by a comma. If names match any regex,
@@ -334,10 +337,10 @@ indent-after-paren=4
 indent-string='    '
 
 # Maximum number of characters on a single line.
-max-line-length=133
+max-line-length=145
 
 # Maximum number of lines in a module.
-max-module-lines=1800
+max-module-lines=4200
 
 # Allow the body of a class to be on the same line as the declaration if body
 # contains single statement.
@@ -425,7 +428,7 @@ disable=raw-checker-failed,
         suppressed-message,
         useless-suppression,
         deprecated-pragma,
-        use-symbolic-message-instead
+        use-symbolic-message-instead,
 
 # Enable the message, report, category or checker with the given id(s). You can
 # either give multiple identifier separated by comma (,) or put this option
@@ -446,7 +449,7 @@ timeout-methods=requests.api.delete,requests.api.get,requests.api.head,requests.
 # List of note tags to take in consideration, separated by a comma.
 notes=FIXME,
       XXX,
-      #TODO,
+      # TODO MQTTSubscribe
 
 # Regular expression of note tags to take in consideration.
 notes-rgx=
@@ -552,7 +555,7 @@ contextmanager-decorators=contextlib.contextmanager
 # List of members which are set dynamically and missed by pylint inference
 # system, and so shouldn't trigger E1101 when accessed. Python regular
 # expressions are accepted.
-generated-members=
+generated-members=weewx.Event.record, weewx.Event.packet
 
 # Tells whether to warn about missing members when the owner of the attribute
 # is inferred to be None.

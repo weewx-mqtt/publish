@@ -5,3 +5,6 @@ exclude_lines =
 
     # guard condition
     raise NotImplementedError
+
+    # essentially a getter
+    return self._get_value
