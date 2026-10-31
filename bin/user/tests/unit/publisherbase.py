@@ -516,8 +516,7 @@ class PublisherBase(unittest.TestCase):
             'monitor_on_weewx_data': None,
         }
 
-        # Note: 'user.mqttpublish.time' is deliberately not mocked here. The monitor logging below
-        # does arithmetic and numeric formatting on time.time(), which a MagicMock does not support.
+        # time.time() must stay real; the monitor logging does arithmetic on it.
         with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
             with mock.patch.object(user.mqttpublish.Publisher, '_connect'):
                 with mock.patch.object(user.mqttpublish.mqtt.Client, 'publish') as mock_publish:
@@ -571,8 +570,7 @@ class PublisherBase(unittest.TestCase):
             'monitor_on_weewx_data': None,
         }
 
-        # Note: 'user.mqttpublish.time' is deliberately not mocked here, so that time.time() returns
-        # real numbers if on_connect() gets far enough to do monitor logging.
+        # time.time() must stay real for on_connect's monitor logging.
         with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
             with mock.patch.object(user.mqttpublish.Publisher, '_connect'):
                 with mock.patch.object(user.mqttpublish.mqtt.Client, 'publish') as mock_publish:
@@ -685,8 +683,7 @@ class PublisherBase(unittest.TestCase):
             'monitor_on_weewx_data': None,
         }
 
-        # Note: 'user.mqttpublish.time' is deliberately not mocked here. The monitor logging
-        # does arithmetic and numeric formatting on time.time(), which a MagicMock does not support.
+        # time.time() must stay real; the monitor logging does arithmetic on it.
         with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
             with mock.patch.object(user.mqttpublish.Publisher, '_connect'):
 

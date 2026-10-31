@@ -237,14 +237,6 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
     def on_connect(self, client, userdata, flags, rc, properties):  # pylint: disable=too-many-arguments
         """ The on_connect callback. """
         # https://pypi.org/project/paho-mqtt/#on-connect
-        # rc:
-        # 0: Connection successful
-        # 1: Connection refused - incorrect protocol version
-        # 2: Connection refused - invalid client identifier
-        # 3: Connection refused - server unavailable
-        # 4: Connection refused - bad username or password
-        # 5: Connection refused - not authorised
-        # 6-255: Currently unused.
         if int(rc) != 0:
             self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, 'ERROR', None,
                                                                  (f"Connection refused with result code {int(rc)}, "
@@ -259,10 +251,7 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
     def on_disconnect(self, _client, _userdata, rc, _properties):
         """ The on_disconnect callback. """
         # https://pypi.org/project/paho-mqtt/#on-disconnect
-        # The rc parameter indicates the disconnection state.
-        # If MQTT_ERR_SUCCESS (0), the callback was called in response to a disconnect() call.
-        # If any other value the disconnection was unexpected,
-        # such as might be caused by a network error.
+        # rc is 0 for a requested disconnect; anything else was unexpected.
         self._handle_disconnect(rc)
 
     def on_publish(self, _client, _userdata, mid, _properties):
@@ -831,8 +820,6 @@ class QueueProcessor(multiprocessing.Process):  # pylint: disable=too-many-insta
                  logger_queue,
                  data_queue,
                  processor_config):
-        # processor_config holds: plugins, weewx_dict, manager_dict,
-        #                         mqtt_config, monitor_config, topics_loop, topics_archive
         multiprocessing.Process.__init__(self)
         self.name = self.__class__.__name__
 
@@ -862,9 +849,7 @@ class QueueProcessor(multiprocessing.Process):  # pylint: disable=too-many-insta
 
         self.data_queue = data_queue
 
-        # Flag to control thread running.
-        # Setting to False will stop the thread.
-        # ToDo: eliminate?
+        # Stops the thread when False.  ToDo: eliminate?
         self.process = True
 
     def profile(self, msg):
@@ -1266,8 +1251,7 @@ class PublishWeeWXProcess(threading.Thread):
             self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, self.monitor_config['monitor_queue'], None,
                                                                  f"monitor: Output queue size: {self.out_queue.qsize()}"))
 
-        # Shutdown has been passed into queue processor
-        # so wait for it to shut down
+        # The processor was told to shut down; wait for it.
         if self.processor:
             self.processor.join(5)  # ToDo: make configurable
             if self.processor.is_alive():
