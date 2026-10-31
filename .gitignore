@@ -4,3 +4,5 @@ __pycache__/
 act-artifacts/
 htmlcov/
 tmp/
+results/
+coverage.xml
