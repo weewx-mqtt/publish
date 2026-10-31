@@ -40,8 +40,6 @@ class TestInit(unittest.TestCase):
                     SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
                     SUT.logger_queue.put(None)
                     self.assertEqual(SUT.logger.error.call_count, 1)
-                    #SUT.logger.error.assert_called_once_with(None,
-                    #                                        "'PublishWeeWX' is deprecated. Move options to top level, '[MQTTPublish]'.")
 
     def test_log_mqtt_option(self):
         mock_engine = mock.Mock()
@@ -75,7 +73,7 @@ class TestInit(unittest.TestCase):
         return SUT, engine, mock_logger.return_value, mock_process
 
     def test_deprecated_binding_option(self):
-        SUT, _, mock_logger, _ = self._build_service({
+        _SUT, _, mock_logger, _ = self._build_service({
             'MQTTPublish': {
                 'binding': 'archive',
                 'topics': {},
@@ -126,7 +124,7 @@ class TestInit(unittest.TestCase):
         self.assertEqual(SUT.weewx_dict['defaults']['Station']['altitude'], '111, foot')
 
     def test_deprecated_lwt_option(self):
-        SUT, _, mock_logger, _ = self._build_service({
+        _SUT, _, mock_logger, _ = self._build_service({
             'MQTTPublish': {
                 'lwt': {
                     'topic': 'status',
