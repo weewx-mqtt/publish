@@ -34,9 +34,13 @@ MQTTPUBLISH_CONFIG = """
     # Default is false.
     log_mqtt = false
 
-    # The maximum number of times to try to reconnect.
-    # Default is 5.
-    max_retries = 5
+    # The minimum number of seconds to wait between reconnect attempts.
+    # Default is 1.
+    min_delay = 1
+
+    # The maximum number of seconds to wait between reconnect attempts.
+    # Default is 120.
+    max_delay = 120
 
     # The clientid to connect with.
     # Default is MQTTPublish-xxxx.
@@ -360,6 +364,7 @@ class MQTTPublishInstaller(ExtensionInstaller):
                                     'bin/user/mqttconfigha.py',
                                     'bin/user/mqttaggregatevalues.py',
                                     'bin/user/mqttarchivevalues.py',
+                                    'bin/user/mqttcommon.py',
                                     ])]
         }
 

@@ -20,17 +20,28 @@ Whether the service is enabled or not.
 Valid values are `true` or `false`.
 The default value is `true`.
 
+#### max_delay
+
+The maximum number of seconds to wait between reconnect attempts.
+Reconnection is handled by the paho mqtt network loop, which keeps reconnecting until successful.
+The default is `120`.
+
 #### max_retries
 
-The maximum number of times to try to reconnect.
-If unable to connect within `max_retries`, the publishing thread will be shutdown.
-The default value is `5`.
+Deprecated and no longer used. Reconnection is now handled by the paho mqtt network loop,
+configured with `min_delay` and `max_delay`.
 
 #### max_thread_restarts
 
 The number of times to attempt to start the publishing thread.
 When a thread is running a successful connection is established, it is reset to `0`.
 The default is `2`.
+
+#### min_delay
+
+The minimum number of seconds to wait between reconnect attempts.
+Reconnection is handled by the paho mqtt network loop, which keeps reconnecting until successful.
+The default is `1`.
 
 #### monitor_on_connect
 
@@ -78,13 +89,13 @@ The default is an empty (not set) list.
 
 #### wait_between_retries
 
-The number of seconds to wait before trying to reconnect when there is a connection error.
-The default is `5`.
+Deprecated and no longer used. Reconnection is now handled by the paho mqtt network loop,
+configured with `min_delay` and `max_delay`.
 
 #### wait_for_connection
 
-The number of seconds to wait for connection processing.
-The default value is `1`.
+Deprecated and no longer used. Reconnection is now handled by the paho mqtt network loop,
+configured with `min_delay` and `max_delay`.
 
 #### wait_for_queue_element
 

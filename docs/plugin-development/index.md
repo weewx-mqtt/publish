@@ -32,13 +32,13 @@ It is called with a single dictionary containing the following information.
 
 This is the MQTT on_connect callback.
 It is called with the following parameters.
-These are the same parameters that the Paho MQTT client calls. the `on_connect` callback with.
+MQTTPublish normalizes the parameters, so they are the same with every paho mqtt api version.
 
 - mqtt_client: the client instance for this callback
 - userdata: the private user data as set in Client() or user_data_set()
 - flags: response flags sent by the broker
-- reason_code: the connection reason code received from the broken. In MQTT v5.0 it’s the reason code defined by the standard. In MQTT v3, the return code is converted to a reason code, see convert_connack_rc_to_reason_code(). ReasonCode may be compared to integer.
-- properties: the MQTT v5.0 properties received from the broker. For MQTT v3.1 and v3.1.1 properties is not provided and an empty Properties object is always used.
+- rc: the connection result code: 0 when the connection succeeded, the received reason code otherwise.
+- properties: the MQTT v5.0 properties received from the broker, None with the paho mqtt v1 api.
 
 ### on_message
 

@@ -77,7 +77,6 @@ class ClientStub:
 
         # Some variables that are only used for testing
         self.connect_call_count = 0
-        self.reconnect_call_count = 0
 
     def username_pw_set(self, username, password):  # need to match pylint: disable=unused-argument
         return
@@ -86,8 +85,7 @@ class ClientStub:
         return
 
     def reconnect(self):
-        # default is for reconnection to be sucessful (call on_connect)
-        self.reconnect_with_connection()
+        return
 
     def tls_set(self, ca_certs, certfile, keyfile, cert_reqs, tls_version, ciphers):  # need to match pylint: disable=unused-argument
         return
@@ -107,6 +105,12 @@ class ClientStub:
         return (0, 0)
 
     def loop(self, timeout=0):  # need to match pylint: disable=unused-argument
+        return
+
+    def loop_start(self):
+        return
+
+    def loop_stop(self):
         return
 
     # The following routines are used for testing only
@@ -136,26 +140,6 @@ class ClientStub:
         self.connect_call_count += 1
         if self.connect_call_count == 1:
             raise ConnetExceptionTest()
-
-    # used to 'override' the on_connect method and raise an exceptioin
-    def connect_exception_subsequent_calls(self,
-                                           host,  # need to match pylint: disable=unused-argument
-                                           port,  # need to match pylint: disable=unused-argument
-                                           keepalive,  # need to match pylint: disable=unused-argument
-                                           clean_start=None):  # need to match pylint: disable=unused-argument
-        self.connect_call_count += 1
-        if self.connect_call_count > 1:
-            raise ConnetExceptionTest()
-
-    # used to 'override' the reconnect method and not 'perform' the reconnection (call on_connect)
-    def reconnect_without_connection(self):
-        self.reconnect_call_count += 1
-
-    # used to 'override' the reconnect method and 'perform' the reconnection (call on_connect)
-    def reconnect_with_connection(self):
-        self.reconnect_call_count += 1
-        self._call_on_connect(0)
-
 class ReasonCodeStub:
     '''
     Stub of paho.mqtt.reasoncodes.ReasonCode, i.e. what the paho v2 callbacks
