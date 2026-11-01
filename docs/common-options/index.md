@@ -55,6 +55,12 @@ Used to monitor execution time of plugins that are run via the [on_message](http
 Set it to logging level the information should be logged at.
 Valid values are `DEBUG`, `INFO`, `ERROR`.
 Default value is `None`, meaning that nothing is logged.
+#### monitor_on_publish
+
+Used to monitor execution time of plugins that are run via the [on_publish](https://weewx-mqtt.github.io/publish/plugin-development/#on_publish) callback.
+Set it to logging level the information should be logged at.
+Valid values are `DEBUG`, `INFO`, `ERROR`.
+Default value is `None`, meaning that nothing is logged.
 #### monitor_on_weewx_data
 
 Used to monitor execution time of plugins that are run via the [on_weewx_data](https://weewx-mqtt.github.io/publish/plugin-development/#on_weewx_data) callback.

@@ -88,6 +88,10 @@ class PluginManager():  # pylint: disable=too-few-public-methods
                 'immediate': {},
                 'delay': {}
             },
+            'on_mqtt_publish': {
+                'immediate': {},
+                'delay': {}
+            },
             'update_record': {
                 'immediate': {},
                 'delay': {}
@@ -125,6 +129,7 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
 
         self.monitor_on_message = monitor_config['monitor_on_message']
         self.monitor_on_connect = monitor_config['monitor_on_connect']
+        self.monitor_on_publish = monitor_config['monitor_on_publish']
 
         self.client = self.get_client(mqtt_config['clientid'], mqtt_config['protocol'])
         self.set_callbacks(mqtt_config['log_mqtt'])
@@ -254,12 +259,38 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
         # rc is 0 for a requested disconnect; anything else was unexpected.
         self._handle_disconnect(rc)
 
-    def on_publish(self, _client, _userdata, mid, _properties):
+    def on_publish(self, client, userdata, mid, properties):
         """ The on_publish callback. """
         time_stamp = "          "
         qos = ""
         self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, 'DEBUG', None,
                                                              f"At {int(time.time())} published: {time_stamp} {mid} {qos}"))
+
+        run_time = 0
+        for plugin_name in self.plugin_manager.callbacks['on_mqtt_publish']['immediate']:
+            start_time = time.time()
+            self.plugin_manager.callbacks['on_mqtt_publish']['immediate'][plugin_name](client, userdata, mid, properties)
+            delta_time = time.time() - start_time
+            run_time += delta_time
+            self.logger_queue.put(mqttcommon.Logger.create_entry(
+                self.name, self.monitor_on_publish, None,
+                (f"monitor: {delta_time:<12.10f} on_publish (immediate) {plugin_name} {mid}")))
+
+        self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, self.monitor_on_publish, None,
+                                                             (f"monitor: {run_time:<12.10f} on_publish (immediate)")))
+
+        run_time = 0
+        for plugin_name in self.plugin_manager.callbacks['on_mqtt_publish']['delay']:
+            start_time = time.time()
+            self.plugin_manager.callbacks['on_mqtt_publish']['delay'][plugin_name](client, userdata, mid, properties)
+            delta_time = time.time() - start_time
+            run_time += delta_time
+            self.logger_queue.put(mqttcommon.Logger.create_entry(
+                self.name, self.monitor_on_publish, None,
+                (f"monitor: {delta_time:<12.10f} on_publish (delay) {plugin_name} {mid}")))
+
+        self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, self.monitor_on_publish, None,
+                                                             (f"monitor: {run_time:<12.10f} on_publish (delay)")))
 
     def _publish_lwt_online(self):
         """ Publish the LWT 'online' message, when lwt is configured. """
@@ -511,6 +542,7 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
             'monitor_on_weewx_data': service_dict.get('monitor_on_weewx_data'),
             'monitor_on_message': service_dict.get('monitor_on_message'),
             'monitor_on_connect': service_dict.get('monitor_on_connect'),
+            'monitor_on_publish': service_dict.get('monitor_on_publish'),
         }
         return mqtt_config, monitor_config
 

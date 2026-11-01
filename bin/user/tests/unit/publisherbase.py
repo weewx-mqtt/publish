@@ -55,6 +55,7 @@ class PublisherBase(unittest.TestCase):
             'monitor_queue': None,
             'monitor_on_message': None,
             'monitor_on_connect': None,
+            'monitor_on_publish': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
         }
@@ -98,6 +99,7 @@ class PublisherBase(unittest.TestCase):
             'monitor_queue': None,
             'monitor_on_message': None,
             'monitor_on_connect': None,
+            'monitor_on_publish': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
         }
@@ -135,6 +137,7 @@ class PublisherBase(unittest.TestCase):
             'monitor_queue': None,
             'monitor_on_message': None,
             'monitor_on_connect': None,
+            'monitor_on_publish': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
         }
@@ -191,6 +194,7 @@ class PublisherBase(unittest.TestCase):
             'monitor_queue': None,
             'monitor_on_message': None,
             'monitor_on_connect': None,
+            'monitor_on_publish': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
         }
@@ -226,6 +230,7 @@ class PublisherBase(unittest.TestCase):
             'monitor_queue': None,
             'monitor_on_message': None,
             'monitor_on_connect': None,
+            'monitor_on_publish': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
         }
@@ -261,6 +266,7 @@ class PublisherBase(unittest.TestCase):
             'monitor_queue': None,
             'monitor_on_message': None,
             'monitor_on_connect': None,
+            'monitor_on_publish': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
         }
@@ -304,6 +310,7 @@ class PublisherBase(unittest.TestCase):
             'monitor_queue': None,
             'monitor_on_message': None,
             'monitor_on_connect': None,
+            'monitor_on_publish': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
         }
@@ -353,6 +360,7 @@ class PublisherBase(unittest.TestCase):
             'monitor_queue': None,
             'monitor_on_message': None,
             'monitor_on_connect': None,
+            'monitor_on_publish': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
         }
@@ -397,6 +405,7 @@ class PublisherBase(unittest.TestCase):
             'monitor_queue': None,
             'monitor_on_message': None,
             'monitor_on_connect': None,
+            'monitor_on_publish': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
         }
@@ -453,6 +462,7 @@ class PublisherBase(unittest.TestCase):
             'monitor_queue': None,
             'monitor_on_message': None,
             'monitor_on_connect': None,
+            'monitor_on_publish': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
         }
@@ -512,6 +522,7 @@ class PublisherBase(unittest.TestCase):
             'monitor_queue': None,
             'monitor_on_message': None,
             'monitor_on_connect': None,
+            'monitor_on_publish': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
         }
@@ -566,6 +577,7 @@ class PublisherBase(unittest.TestCase):
             'monitor_queue': None,
             'monitor_on_message': None,
             'monitor_on_connect': None,
+            'monitor_on_publish': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
         }
@@ -620,6 +632,7 @@ class PublisherBase(unittest.TestCase):
             'monitor_queue': None,
             'monitor_on_message': None,
             'monitor_on_connect': None,
+            'monitor_on_publish': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
         }
@@ -679,6 +692,7 @@ class PublisherBase(unittest.TestCase):
             'monitor_queue': None,
             'monitor_on_message': None,
             'monitor_on_connect': None,
+            'monitor_on_publish': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
         }
@@ -728,6 +742,7 @@ class PublisherBase(unittest.TestCase):
             'monitor_queue': None,
             'monitor_on_message': None,
             'monitor_on_connect': None,
+            'monitor_on_publish': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
         }
@@ -750,6 +765,114 @@ class PublisherBase(unittest.TestCase):
                                     for entry in log_messages))
                 self.assertTrue(any('on_message (immediate)' in entry['msg_text'] for entry in log_messages))
                 self.assertTrue(any('on_message (delay)' in entry['msg_text'] for entry in log_messages))
+
+    def test_on_publish(self):
+        mock_logger_queue = mock.Mock()
+        mock_plugin_manager = mock.Mock()
+        mock_publisher = mock.Mock()
+
+        mock_immediate_callback = mock.Mock()
+        mock_delay_callback = mock.Mock()
+        mock_plugin_manager.callbacks = {
+            'on_mqtt_publish': {
+                'immediate': {
+                    helpers.random_string(): mock_immediate_callback,
+                },
+                'delay': {
+                    helpers.random_string(): mock_delay_callback,
+                }
+            },
+        }
+
+        config_dict = {
+            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
+            'clientid': helpers.random_string(),
+            'log_mqtt': random.choice([True, False]),
+            'username': None,
+            'password': None,
+            'host': helpers.random_string(),
+            'port': random.randint(1, 65535),
+            'keepalive': random.randint(1, 30),
+            'min_delay': 1,
+            'max_delay': 120,
+        }
+        config = configobj.ConfigObj(config_dict)
+
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_on_publish': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+        }
+
+        # time.time() must stay real; the monitor logging does arithmetic on it.
+        with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
+            with mock.patch.object(user.mqttpublish.Publisher, '_connect'):
+
+                SUT = self.class_under_test(mock_logger_queue, mock_plugin_manager, mock_publisher, config,
+                                            monitor_dict, api=self.api)
+
+                userdata = helpers.random_string()
+                mid = random.randint(1, 65535)
+                properties = helpers.random_string()
+
+                SUT.on_publish(SUT.client, userdata, mid, properties)
+
+                mock_immediate_callback.assert_called_once_with(SUT.client, userdata, mid, properties)
+                mock_delay_callback.assert_called_once_with(SUT.client, userdata, mid, properties)
+
+    def test_on_publish_with_no_callbacks(self):
+        mock_logger_queue = mock.Mock()
+        mock_plugin_manager = mock.Mock()
+        mock_publisher = mock.Mock()
+
+        mock_plugin_manager.callbacks = {
+            'on_mqtt_publish': {
+                'immediate': {},
+                'delay': {}
+            },
+        }
+
+        config_dict = {
+            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
+            'clientid': helpers.random_string(),
+            'log_mqtt': random.choice([True, False]),
+            'username': None,
+            'password': None,
+            'host': helpers.random_string(),
+            'port': random.randint(1, 65535),
+            'keepalive': random.randint(1, 30),
+            'min_delay': 1,
+            'max_delay': 120,
+        }
+        config = configobj.ConfigObj(config_dict)
+
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_on_publish': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+        }
+
+        with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
+            with mock.patch.object(user.mqttpublish.Publisher, '_connect'):
+
+                SUT = self.class_under_test(mock_logger_queue, mock_plugin_manager, mock_publisher, config,
+                                            monitor_dict, api=self.api)
+
+                SUT.on_publish(SUT.client, None, random.randint(1, 65535), None)
+
+                # The DEBUG 'published' log plus the two empty loop summaries are always logged,
+                # even when no plugins are registered for on_mqtt_publish.
+                log_messages = [call[0][0] for call in mock_logger_queue.put.call_args_list]
+                self.assertTrue(any(entry['log_type'] == 'DEBUG' and 'published:' in entry['msg_text']
+                                    for entry in log_messages))
+                self.assertTrue(any('on_publish (immediate)' in entry['msg_text'] for entry in log_messages))
+                self.assertTrue(any('on_publish (delay)' in entry['msg_text'] for entry in log_messages))
 
     def test_will_set_with_defaults(self):
         mock_logger_queue = mock.Mock()
@@ -776,6 +899,7 @@ class PublisherBase(unittest.TestCase):
             'monitor_queue': None,
             'monitor_on_message': None,
             'monitor_on_connect': None,
+            'monitor_on_publish': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
         }
@@ -818,6 +942,7 @@ class PublisherBase(unittest.TestCase):
             'monitor_queue': None,
             'monitor_on_message': None,
             'monitor_on_connect': None,
+            'monitor_on_publish': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
         }
@@ -856,6 +981,7 @@ class PublisherBase(unittest.TestCase):
             'monitor_queue': None,
             'monitor_on_message': None,
             'monitor_on_connect': None,
+            'monitor_on_publish': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
         }
@@ -903,6 +1029,7 @@ class PublisherBase(unittest.TestCase):
             'monitor_queue': None,
             'monitor_on_message': None,
             'monitor_on_connect': None,
+            'monitor_on_publish': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
         }
@@ -951,6 +1078,7 @@ class PublisherBase(unittest.TestCase):
             'monitor_queue': None,
             'monitor_on_message': None,
             'monitor_on_connect': None,
+            'monitor_on_publish': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
         }
@@ -1009,6 +1137,7 @@ class TLSBase(unittest.TestCase):
             'monitor_queue': None,
             'monitor_on_message': None,
             'monitor_on_connect': None,
+            'monitor_on_publish': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
         }
@@ -1055,6 +1184,7 @@ class TLSBase(unittest.TestCase):
             'monitor_queue': None,
             'monitor_on_message': None,
             'monitor_on_connect': None,
+            'monitor_on_publish': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
         }
@@ -1100,6 +1230,7 @@ class TLSBase(unittest.TestCase):
             'monitor_queue': None,
             'monitor_on_message': None,
             'monitor_on_connect': None,
+            'monitor_on_publish': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
         }
@@ -1147,6 +1278,7 @@ class TLSBase(unittest.TestCase):
             'monitor_queue': None,
             'monitor_on_message': None,
             'monitor_on_connect': None,
+            'monitor_on_publish': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
         }
@@ -1194,6 +1326,7 @@ class TLSBase(unittest.TestCase):
             'monitor_queue': None,
             'monitor_on_message': None,
             'monitor_on_connect': None,
+            'monitor_on_publish': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
         }
@@ -1241,6 +1374,7 @@ class TLSBase(unittest.TestCase):
             'monitor_queue': None,
             'monitor_on_message': None,
             'monitor_on_connect': None,
+            'monitor_on_publish': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
         }
@@ -1288,6 +1422,7 @@ class TLSBase(unittest.TestCase):
             'monitor_queue': None,
             'monitor_on_message': None,
             'monitor_on_connect': None,
+            'monitor_on_publish': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
         }
@@ -1335,6 +1470,7 @@ class TLSBase(unittest.TestCase):
             'monitor_queue': None,
             'monitor_on_message': None,
             'monitor_on_connect': None,
+            'monitor_on_publish': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
         }
@@ -1382,6 +1518,7 @@ class TLSBase(unittest.TestCase):
             'monitor_queue': None,
             'monitor_on_message': None,
             'monitor_on_connect': None,
+            'monitor_on_publish': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
         }
@@ -1429,6 +1566,7 @@ class TLSBase(unittest.TestCase):
             'monitor_queue': None,
             'monitor_on_message': None,
             'monitor_on_connect': None,
+            'monitor_on_publish': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
         }

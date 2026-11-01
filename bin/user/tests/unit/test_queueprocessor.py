@@ -37,6 +37,7 @@ class TestQueueProcessor(unittest.TestCase):
             'monitor_queue': None,
             'monitor_on_message': None,
             'monitor_on_connect': None,
+            'monitor_on_publish': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
         }
@@ -97,6 +98,7 @@ class TestQueueProcessor(unittest.TestCase):
             'monitor_queue': None,
             'monitor_on_message': None,
             'monitor_on_connect': None,
+            'monitor_on_publish': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
         }
@@ -166,6 +168,7 @@ class TestQueueProcessor(unittest.TestCase):
             'monitor_queue': None,
             'monitor_on_message': None,
             'monitor_on_connect': None,
+            'monitor_on_publish': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
         }
@@ -226,6 +229,7 @@ class TestQueueProcessor(unittest.TestCase):
             'monitor_queue': None,
             'monitor_on_message': None,
             'monitor_on_connect': None,
+            'monitor_on_publish': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
         }
@@ -282,6 +286,7 @@ class TestQueueProcessor(unittest.TestCase):
             'monitor_queue': None,
             'monitor_on_message': None,
             'monitor_on_connect': None,
+            'monitor_on_publish': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
         }
@@ -343,6 +348,7 @@ class TestQueueProcessor(unittest.TestCase):
             'monitor_queue': None,
             'monitor_on_message': None,
             'monitor_on_connect': None,
+            'monitor_on_publish': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
         }
@@ -429,6 +435,7 @@ class TestQueueProcessor(unittest.TestCase):
             'monitor_queue': None,
             'monitor_on_message': None,
             'monitor_on_connect': None,
+            'monitor_on_publish': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
         }
@@ -579,6 +586,7 @@ class TestPublishRecord(unittest.TestCase):
             'monitor_queue': None,
             'monitor_on_message': None,
             'monitor_on_connect': None,
+            'monitor_on_publish': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
         }
@@ -675,6 +683,7 @@ class TestPublishRow(unittest.TestCase):
             'monitor_queue': None,
             'monitor_on_message': None,
             'monitor_on_connect': None,
+            'monitor_on_publish': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
         }
@@ -790,6 +799,7 @@ class TestHandleQueueItem(unittest.TestCase):
             'monitor_queue': None,
             'monitor_on_message': None,
             'monitor_on_connect': None,
+            'monitor_on_publish': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
         }
@@ -900,6 +910,7 @@ class TestOnWeewxData(unittest.TestCase):
             'monitor_queue': None,
             'monitor_on_message': None,
             'monitor_on_connect': None,
+            'monitor_on_publish': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': 'MONITOR',
         }
@@ -1017,6 +1028,7 @@ class TestPublishWeeWXProcess(unittest.TestCase):
             'monitor_queue': None,
             'monitor_on_message': None,
             'monitor_on_connect': None,
+            'monitor_on_publish': None,
             'monitor_record_update': None,
             'monitor_on_weewx_data': None,
         }

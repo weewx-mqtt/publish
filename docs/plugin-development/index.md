@@ -12,7 +12,8 @@ Currently these steps support callouts:
 1. on_weewx_data
 2. on_connect
 3. on_message
-4. update_record
+4. on_publish
+5. update_record
 
 Each of these callouts can be called either before MQTTPublish does its processing or after.
 
@@ -48,6 +49,27 @@ It is called with the following parameters.
 - client: the client instance for this callback
 - userdata: the private user data as set in Client() or user_data_set()
 - msg: the received message. This is a class with members topic, payload, qos, retain.
+
+### on_publish
+
+This is the MQTT on_publish callback.
+It is called when a message that was published has completed transmission to the broker.
+For QoS levels 1 and 2 this means that the appropriate handshakes have completed;
+for QoS 0 it means that the message has left the client.
+It is called with the following parameters.
+MQTTPublish normalizes the parameters, so they are the same with every paho mqtt api version.
+
+- client: the client instance for this callback
+- userdata: the private user data as set in Client() or user_data_set()
+- mid: the message id of the publish. This can be matched against the `mid` of the
+  `MQTTMessageInfo` returned by `client.publish(...)`.
+  It identifies the message only while it is in flight; paho's id counter wraps at 65535,
+  so an id is reused after that many publishes.
+- properties: the MQTT v5.0 properties received from the broker, None with the paho mqtt v1 api.
+  The MQTT v5.0 reason code is not passed.
+
+The callback is invoked on paho's network loop thread, so it must be thread safe.
+Keep the handler short; it runs while the network loop is processing the completed publish.
 
 ### update_record
 
@@ -106,6 +128,10 @@ Here is an example `get_callbacks` method.
                 'on_mqtt_message': {
                     'timing': 'immediate',
                     'callback': self.on_mqtt_message
+                },
+                'on_mqtt_publish': {
+                    'timing': 'immediate',
+                    'callback': self.on_mqtt_publish
                 },
                 'update_record': {
                     'timing': 'immediate',

@@ -21,6 +21,7 @@ class StubPlugin():
 
     def get_callbacks(self):
         return [{'on_weewx_data': {'timing': 'immediate', 'callback': self.callback}},
+                {'on_mqtt_publish': {'timing': 'immediate', 'callback': self.callback}},
                 {'update_record': {'timing': 'delay', 'callback': self.callback}}]
 
 class TestPluginManager(unittest.TestCase):
@@ -57,6 +58,7 @@ class TestPluginManager(unittest.TestCase):
 
         callback = SUT.plugins[name]['plugin'].callback
         self.assertIs(SUT.callbacks['on_weewx_data']['immediate'][name], callback)
+        self.assertIs(SUT.callbacks['on_mqtt_publish']['immediate'][name], callback)
         self.assertIs(SUT.callbacks['update_record']['delay'][name], callback)
 
 if __name__ == '__main__':

@@ -109,12 +109,14 @@ def make_publisher(port):
         'monitor_queue': None,
         'monitor_on_message': None,
         'monitor_on_connect': None,
+        'monitor_on_publish': None,
         'monitor_record_update': None,
         'monitor_on_weewx_data': None,
     }
     plugin_manager = types.SimpleNamespace(callbacks={
         'on_mqtt_connect': {'immediate': {}, 'delay': {}},
         'on_mqtt_message': {'immediate': {}, 'delay': {}},
+        'on_mqtt_publish': {'immediate': {}, 'delay': {}},
         'update_record': {'immediate': {}, 'delay': {}},
     })
     # Stands in for the service; Publisher only reads its 'process' flag when a startup connect fails.

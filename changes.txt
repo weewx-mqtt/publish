@@ -54,6 +54,7 @@ Enhancements:
   - Ability to configure a default value for all components belonging to a device (#33).
   - Renamed the [[lwt]] section of MQTTPublish to [[availability_topic]]
   - Options to monitor queue processing, see https://weewx-mqtt.github.io/publish/common-options/#monitor_queue
+  - Added an on_publish plugin callback, and the monitor_on_publish option to monitor its execution time.
   - Improved shutdown logic flow, with timeouts when stopping threads/processes.
   - A plugin can be loaded multiple times with different configurations.
   - The data queue size is passed into plugin callbacks.
