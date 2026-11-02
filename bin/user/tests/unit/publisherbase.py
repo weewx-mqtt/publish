@@ -1171,6 +1171,128 @@ class PublisherBase(unittest.TestCase):
                         mock_delay_callback.assert_called_once_with(
                             SUT.client, mid, int(paho.mqtt.client.MQTT_ERR_SUCCESS), topic, data, qos, retain, time_stamp)
 
+    def test_publish_message_tracks_inflight(self):
+        mock_logger_queue = mock.Mock()
+        mock_publisher = mock.Mock()
+
+        config_dict = {
+            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
+            'clientid': helpers.random_string(),
+            'log_mqtt': random.choice([True, False]),
+            'username': helpers.random_string(),
+            'password': helpers.random_string(),
+            'host': helpers.random_string(),
+            'port': random.randint(1, 65535),
+            'keepalive': random.randint(1, 30),
+            'min_delay': 1,
+            'max_delay': 120,
+        }
+        config = configobj.ConfigObj(config_dict)
+
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_on_publish': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+        }
+
+        with mock.patch('user.mqttpublish.time'):
+            with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
+                with mock.patch.object(user.mqttpublish.Publisher, '_connect'):
+                    with mock.patch.object(user.mqttpublish.mqtt.Client, 'publish') as mock_publish:
+                        mid = random.randint(1, 65535)
+                        mock_publish.return_value.mid = mid
+                        mock_publish.return_value.rc = paho.mqtt.client.MQTT_ERR_SUCCESS
+
+                        SUT = self.class_under_test(mock_logger_queue, None, mock_publisher, config,
+                                                    monitor_dict, api=self.api)
+
+                        SUT.publish_message(random.randint(10, 10000), 0, False,
+                                            helpers.random_string(), helpers.random_string())
+
+                        self.assertIs(SUT.inflight[mid], mock_publish.return_value)
+
+    def test_wait_for_inflight_messages(self):
+        mock_logger_queue = mock.Mock()
+
+        config_dict = {
+            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
+            'clientid': helpers.random_string(),
+            'log_mqtt': random.choice([True, False]),
+            'username': helpers.random_string(),
+            'password': helpers.random_string(),
+            'host': helpers.random_string(),
+            'port': random.randint(1, 65535),
+            'keepalive': random.randint(1, 30),
+            'min_delay': 1,
+            'max_delay': 120,
+        }
+        config = configobj.ConfigObj(config_dict)
+
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_on_publish': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+        }
+
+        with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
+            with mock.patch.object(user.mqttpublish.Publisher, '_connect'):
+                SUT = self.class_under_test(mock_logger_queue, None, mock.Mock(), config,
+                                            monitor_dict, api=self.api)
+
+                mqtt_message_info = mock.Mock()
+                mqtt_message_info.rc = paho.mqtt.client.MQTT_ERR_SUCCESS
+                mqtt_message_info.is_published.return_value = False
+                SUT.inflight = {42: mqtt_message_info}
+
+                SUT.wait_for_inflight_messages(5)
+
+                mqtt_message_info.wait_for_publish.assert_called_once()
+                self.assertEqual(SUT.inflight, {})
+
+    def test_wait_for_inflight_messages_disabled(self):
+        mock_logger_queue = mock.Mock()
+
+        config_dict = {
+            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
+            'clientid': helpers.random_string(),
+            'log_mqtt': random.choice([True, False]),
+            'username': helpers.random_string(),
+            'password': helpers.random_string(),
+            'host': helpers.random_string(),
+            'port': random.randint(1, 65535),
+            'keepalive': random.randint(1, 30),
+            'min_delay': 1,
+            'max_delay': 120,
+        }
+        config = configobj.ConfigObj(config_dict)
+
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_on_publish': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+        }
+
+        with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
+            with mock.patch.object(user.mqttpublish.Publisher, '_connect'):
+                SUT = self.class_under_test(mock_logger_queue, None, mock.Mock(), config,
+                                            monitor_dict, api=self.api)
+
+                mqtt_message_info = mock.Mock()
+                SUT.inflight = {42: mqtt_message_info}
+
+                SUT.wait_for_inflight_messages(0)
+
+                mqtt_message_info.wait_for_publish.assert_not_called()
+
 class TLSBase(unittest.TestCase):
     class_under_test = user.mqttpublish.Publisher
     # The paho api variant to test; the concrete subclasses set it.

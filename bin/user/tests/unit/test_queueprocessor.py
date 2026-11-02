@@ -517,6 +517,9 @@ class TestQueueProcessor(unittest.TestCase):
                         SUT.run()
 
         mock_publisher.client.loop_stop.assert_called_once_with()
+        mock_publisher.publish_lwt_offline.assert_called_once_with()
+        mock_publisher.wait_for_inflight_messages.assert_called_once_with(0)
+        mock_publisher.client.disconnect.assert_called_once_with()
         SUT.plugin_manager.shutdown.assert_called_once_with()
 
     def test_run_shuts_down_plugins_on_error(self):

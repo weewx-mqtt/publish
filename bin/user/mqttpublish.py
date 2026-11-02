@@ -141,6 +141,7 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
         self.logger_queue = logger_queue
         self.plugin_manager = plugin_manager
         self.connected = False
+        self.inflight = {}
         self.mqtt_logger = mqttcommon.PAHO_LOG_LEVELS
         self.name = self.__class__.__name__
 
@@ -230,6 +231,7 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
         callback_args[1] = mqtt_message_info.mid
         callback_args[2] = int(mqtt_message_info.rc)
         self._run_mqtt_publish_callbacks(callback_args, 'delay')
+        self.track_inflight(mqtt_message_info)
 
         self.logger_queue.put(mqttcommon.Logger.create_entry(
             self.name, 'DEBUG', None,
@@ -252,6 +254,37 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
             return
         for plugin_name in self.plugin_manager.callbacks['mqtt_publish'][timing]:
             self.plugin_manager.callbacks['mqtt_publish'][timing][plugin_name](*callback_args)
+
+    def track_inflight(self, mqtt_message_info):
+        """ Remember a publish so shutdown can wait for paho to confirm it. """
+        if mqtt_message_info.rc != mqtt.MQTT_ERR_SUCCESS:
+            return
+        self._prune_inflight()
+        self.inflight[mqtt_message_info.mid] = mqtt_message_info
+
+    def _prune_inflight(self):
+        """ Drop publishes paho has already confirmed. """
+        for mid, mqtt_message_info in list(self.inflight.items()):
+            try:
+                if mqtt_message_info.is_published():
+                    del self.inflight[mid]
+            except (ValueError, RuntimeError):
+                del self.inflight[mid]
+
+    def wait_for_inflight_messages(self, timeout):
+        """ Wait up to timeout seconds for paho to confirm in-flight publishes. """
+        if not timeout or timeout <= 0 or not self.inflight:
+            return
+        deadline = time.time() + timeout
+        for mqtt_message_info in list(self.inflight.values()):
+            remaining = deadline - time.time()
+            if remaining <= 0:
+                break
+            try:
+                mqtt_message_info.wait_for_publish(remaining)
+            except (ValueError, RuntimeError):
+                pass
+        self.inflight.clear()
 
     def get_client(self, client_id, protocol):
         ''' Get the MQTT client. '''
@@ -334,10 +367,20 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
     def _publish_lwt_online(self):
         """ Publish the LWT 'online' message, when lwt is configured. """
         if self.lwt_dict is not None and to_bool(self.lwt_dict.get('enable', True)):
-            self.client.publish(topic=self.lwt_dict.get('topic', 'status'),
-                                payload=self.lwt_dict.get('online_payload', 'online'),
-                                qos=to_int(self.lwt_dict.get('qos', 0)),
-                                retain=to_bool(self.lwt_dict.get('retain', True)))
+            mqtt_message_info = self.client.publish(topic=self.lwt_dict.get('topic', 'status'),
+                                                    payload=self.lwt_dict.get('online_payload', 'online'),
+                                                    qos=to_int(self.lwt_dict.get('qos', 0)),
+                                                    retain=to_bool(self.lwt_dict.get('retain', True)))
+            self.track_inflight(mqtt_message_info)
+
+    def publish_lwt_offline(self):
+        """ Publish the LWT 'offline' message, when lwt is configured. """
+        if self.lwt_dict is not None and to_bool(self.lwt_dict.get('enable', True)):
+            mqtt_message_info = self.client.publish(topic=self.lwt_dict.get('topic', 'status'),
+                                                    payload=self.lwt_dict.get('offline_payload', 'offline'),
+                                                    qos=to_int(self.lwt_dict.get('qos', 0)),
+                                                    retain=to_bool(self.lwt_dict.get('retain', True)))
+            self.track_inflight(mqtt_message_info)
 
     def _run_connect_callbacks(self, callback_args, timing):
         """ Run the on_mqtt_connect plugin callbacks for one timing group. """
@@ -549,6 +592,7 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
         mqtt_config = {}
         mqtt_config['keepalive'] = to_int(service_dict.get('keepalive', 60))
         mqtt_config['wait_for_queue_element'] = to_int(service_dict.get('wait_for_queue_element', 5))
+        mqtt_config['wait_for_inflight'] = to_int(service_dict.get('wait_for_inflight', 2))
         mqtt_config['min_delay'] = to_int(service_dict.get('min_delay', 1))
         mqtt_config['max_delay'] = to_int(service_dict.get('max_delay', 120))
 
@@ -1172,11 +1216,10 @@ class QueueProcessor(multiprocessing.Process):  # pylint: disable=too-many-insta
 
             # MQTT's LWT is sent from the broker on an unexpected disconnect.
             # So we need to send an offline message on an 'expected' disconnect.
-            if self.lwt_dict is not None and to_bool(self.lwt_dict.get('enable', True)):
-                self.publisher.client.publish(topic=self.lwt_dict.get('topic', 'status'),
-                                              payload=self.lwt_dict.get('offline_payload', 'offline'),
-                                              qos=to_int(self.lwt_dict.get('qos', 0)),
-                                              retain=to_bool(self.lwt_dict.get('retain', True)))
+            self.publisher.publish_lwt_offline()
+
+            # Give paho a bounded chance to confirm the in-flight messages before disconnecting.
+            self.publisher.wait_for_inflight_messages(self.mqtt_config.get('wait_for_inflight', 0))
 
             self.publisher.client.disconnect()
         finally:

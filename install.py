@@ -42,6 +42,10 @@ MQTTPUBLISH_CONFIG = """
     # Default is 120.
     max_delay = 120
 
+    # The number of seconds to wait for in-flight messages to be confirmed when shutting down.
+    # Default is 2.
+    wait_for_inflight = 2
+
     # The clientid to connect with.
     # Default is MQTTPublish-xxxx.
     #    Where xxxx is a random number between 1000 and 9999.
