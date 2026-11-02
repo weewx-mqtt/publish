@@ -141,6 +141,15 @@ Here is an example `get_callbacks` method.
         ]
 ```
 
+## Optional methods
+
+### shutdown
+
+Optional.
+Called when the publishing thread is shutting down, after paho's network loop has stopped.
+Use it to flush queued work and close resources.
+Plugins that do not implement it are skipped.
+
 ## Required configuration information
 
 The plugin must have a section `[plugin-name]` configuration section.

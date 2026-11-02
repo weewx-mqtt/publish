@@ -475,6 +475,95 @@ class TestQueueProcessor(unittest.TestCase):
 
         self.assertFalse(run_thread.is_alive())
 
+    def test_run_shuts_down_plugins(self):
+        mock_logger_queue = mock.Mock()
+        weewx_dict = {
+            'config_dict': {
+                'MQTTPublish': {}
+            }
+        }
+
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_on_publish': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+        }
+
+        data_queue = queue.Queue()
+        mqtt_config = {
+            'wait_for_queue_element': 0.05,
+        }
+
+        SUT = user.mqttpublish.QueueProcessor(mock_logger_queue,
+                                              data_queue,
+                                              {'plugins': {},
+                                               'weewx_dict': weewx_dict,
+                                               'manager_dict': None,
+                                               'mqtt_config': mqtt_config,
+                                               'monitor_config': monitor_dict,
+                                               'topics_loop': {},
+                                               'topics_archive': {}})
+
+        mock_publisher = mock.Mock()
+        SUT.plugin_manager = mock.Mock()
+
+        with mock.patch.object(SUT, 'create_plugins'):
+            with mock.patch.object(SUT, 'process_queue'):
+                with mock.patch.object(user.mqttpublish, 'Publisher', return_value=mock_publisher):
+                    with mock.patch('user.mqttpublish.weewx.manager'):
+                        SUT.run()
+
+        mock_publisher.client.loop_stop.assert_called_once_with()
+        SUT.plugin_manager.shutdown.assert_called_once_with()
+
+    def test_run_shuts_down_plugins_on_error(self):
+        mock_logger_queue = mock.Mock()
+        weewx_dict = {
+            'config_dict': {
+                'MQTTPublish': {}
+            }
+        }
+
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_on_publish': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+        }
+
+        data_queue = queue.Queue()
+        mqtt_config = {
+            'wait_for_queue_element': 0.05,
+        }
+
+        SUT = user.mqttpublish.QueueProcessor(mock_logger_queue,
+                                              data_queue,
+                                              {'plugins': {},
+                                               'weewx_dict': weewx_dict,
+                                               'manager_dict': None,
+                                               'mqtt_config': mqtt_config,
+                                               'monitor_config': monitor_dict,
+                                               'topics_loop': {},
+                                               'topics_archive': {}})
+
+        mock_publisher = mock.Mock()
+        SUT.plugin_manager = mock.Mock()
+
+        with mock.patch.object(SUT, 'create_plugins'):
+            with mock.patch.object(SUT, 'process_queue', side_effect=RuntimeError('boom')):
+                with mock.patch.object(user.mqttpublish, 'Publisher', return_value=mock_publisher):
+                    with mock.patch('user.mqttpublish.weewx.manager'):
+                        with self.assertRaises(RuntimeError):
+                            SUT.run()
+
+        mock_publisher.client.loop_stop.assert_called_once_with()
+        SUT.plugin_manager.shutdown.assert_called_once_with()
+
 class TestUpdateField(unittest.TestCase):
     def test_unconfigured_field_passes_through(self):
         topic_dict = {}

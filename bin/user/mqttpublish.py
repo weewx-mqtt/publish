@@ -66,7 +66,7 @@ class MQTTPlugin():  # pylint: disable=too-few-public-methods
         if not self.enabled:
             self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, 'INFO', None, f"Plugin {name} is not enabled."))
 
-class PluginManager():  # pylint: disable=too-few-public-methods
+class PluginManager():
     """ Manage the plugin callbacks. """
     def __init__(self, logger, monitor_config, mqtt_dict, topics, weewx_dict):  # pylint: disable=too-many-arguments
         self.logger = logger
@@ -110,6 +110,22 @@ class PluginManager():  # pylint: disable=too-few-public-methods
             for callback_name in callback:
                 timing = callback[callback_name]['timing']
                 self.callbacks[callback_name][timing][name] = callback[callback_name]['callback']
+
+    def shutdown(self):
+        """ Shut down the plugins that need it. """
+        for name, plugin_dict in self.plugins.items():
+            plugin = plugin_dict.get('plugin')
+            if plugin is None:
+                continue
+            shutdown = getattr(plugin, 'shutdown', None)
+            if shutdown is None:
+                continue
+            try:
+                shutdown()
+            except Exception as exception:  # pylint: disable=broad-exception-caught
+                self.logger.put(mqttcommon.Logger.create_entry(
+                    self.__class__.__name__, 'ERROR', None,
+                    f"Error shutting down plugin {name}: {exception}"))
 
 class Publisher:  # pylint: disable=too-many-instance-attributes
     """ Managing publishing to MQTT. """
@@ -1118,29 +1134,36 @@ class QueueProcessor(multiprocessing.Process):  # pylint: disable=too-many-insta
         """ Process the queue. """
         threading.current_thread().name = f"MQTTPublish-{threading.get_native_id()}"
 
-        self.create_plugins()
+        try:
+            self.create_plugins()
 
-        # need to instantiate inside thread
-        self.publisher = Publisher(self.logger_queue,
-                                   self.plugin_manager,
-                                   self, self.mqtt_config,
-                                   self.monitor_config)
+            # need to instantiate inside thread
+            self.publisher = Publisher(self.logger_queue,
+                                       self.plugin_manager,
+                                       self, self.mqtt_config,
+                                       self.monitor_config)
 
-        with weewx.manager.open_manager(self.manager_dict) as db_manager:
-            self.db_manager = db_manager
-            self.process_queue()
+            with weewx.manager.open_manager(self.manager_dict) as db_manager:
+                self.db_manager = db_manager
+                self.process_queue()
 
-        # MQTT's LWT is sent from the broker on an unexpected disconnect.
-        # So we need to send an offline message on an 'expected' disconnect.
-        if self.lwt_dict is not None and to_bool(self.lwt_dict.get('enable', True)):
-            self.publisher.client.publish(topic=self.lwt_dict.get('topic', 'status'),
-                                          payload=self.lwt_dict.get('offline_payload', 'offline'),
-                                          qos=to_int(self.lwt_dict.get('qos', 0)),
-                                          retain=to_bool(self.lwt_dict.get('retain', True)))
+            # MQTT's LWT is sent from the broker on an unexpected disconnect.
+            # So we need to send an offline message on an 'expected' disconnect.
+            if self.lwt_dict is not None and to_bool(self.lwt_dict.get('enable', True)):
+                self.publisher.client.publish(topic=self.lwt_dict.get('topic', 'status'),
+                                              payload=self.lwt_dict.get('offline_payload', 'offline'),
+                                              qos=to_int(self.lwt_dict.get('qos', 0)),
+                                              retain=to_bool(self.lwt_dict.get('retain', True)))
 
-        self.publisher.client.disconnect()
-        # Stop paho's network loop thread. It must outlive the disconnect, so the DISCONNECT gets sent.
-        self.publisher.client.loop_stop()
+            self.publisher.client.disconnect()
+        finally:
+            # Stop paho's network loop thread. It must outlive the disconnect, so the DISCONNECT gets sent.
+            # It is stopped before the plugins so no callback arrives after a plugin has closed its resources.
+            if self.publisher is not None:
+                self.publisher.client.loop_stop()
+            if self.plugin_manager is not None:
+                self.plugin_manager.shutdown()
+
         self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, 'INFO', None, "Queue processor is shut down."))
 
     def create_plugins(self):
