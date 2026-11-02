@@ -20,6 +20,7 @@ Default is `true`.
 ### data_binding
 
 The WeeWX data binding that identifies the separate database to write to.
+The install adds a `message_tracker_binding`; see [Separate database](#separate-database).
 Required; there is no default, so the tracker never writes to the weather database by accident.
 
 ### create_database
@@ -159,27 +160,88 @@ CREATE TABLE IF NOT EXISTS mqtt_message_tracker (
 )
 ```
 
+## Replaying a message
+
+`failed` and `unconfirmed` rows can be republished with `bin/user/mqttreplay.py`.
+It reads the tracker table and publishes through its own MQTT client; MQTTPublish is not
+involved and does not record the replay as a new publish.
+
+The tool is a dry run unless `--publish` is given:
+
+```shell
+python /usr/share/weewx/bin/user/mqttreplay.py /etc/weewx/weewx.conf
+python /usr/share/weewx/bin/user/mqttreplay.py /etc/weewx/weewx.conf --publish
+```
+
+A replay is a new row, so the original is never changed:
+
+| id | topic | status | origin_id | attempt |
+| --- | --- | --- | --- | --- |
+| A | weather/outTemp_F | unconfirmed | NULL | NULL |
+| B | weather/outTemp_F | acked | A | 1 |
+
+The replay copies the topic, QoS, retain flag, `dateTime` and payload of the original.
+Its `origin_id` is the original row and `attempt` counts the replays of that message from 1.
+Replaying a replay keeps the chain flat under the original, so that message's history is:
+
+```sql
+SELECT id, attempt, mid, sent_ts, arrived_ts, status, rc
+FROM mqtt_message_tracker WHERE origin_id = ? ORDER BY attempt
+```
+
+The tool:
+
+- selects `unconfirmed` rows. Use `--status failed`, or `failed,unconfirmed`, to include `failed`.
+  A `sent` row may still be in flight and an `acked` row does not need a replay;
+- only considers rows sent within `--since` seconds (default `3600`) and replays at most
+  `--limit` messages (default `100`);
+- replays only the newest row per topic, so an old value cannot overwrite a newer one.
+  `--all` replays every selected message, oldest first;
+- skips a message that already has an `acked` replay; `--force` overrides;
+- filters the topics with `--topic`, a glob such as `weather/outTemp_*`;
+- connects with a clientid of its own, so the running service is not disconnected;
+- waits for the connection before publishing, and for each publish to be confirmed, with
+  `--ack-timeout` (default `10` seconds).
+
+`--plugin-section`, `--data-binding` and `--table` select a tracker that is configured under
+another section or writes to another database.
+
+A message published directly by a plugin is not tracked, so it is never replayed.
+
+The exit code is `0` on success, `1` when the connection, a publish or an ack failed, and `2` for
+a config or database error. A connect failure stops the run before anything is published.
+
+The write sequence matches the tracker: the replay is inserted as `sent` after paho accepts it,
+then updated to `acked` or `unconfirmed`. A tool that is killed after publishing leaves a `sent`
+row, which the tracker closes as `unconfirmed` the next time it starts.
+
+Replay is not delivery: it cannot undo an earlier loss, and it may publish a duplicate.
+It assumes the consumer is idempotent on `dateTime`, which is true for InfluxDB and typical
+time-series stores.
+
 ## Separate database
 
-The tracker can write to a database of its own.
-Add the database and binding to `weewx.conf`:
+The install adds a database and binding for the tracker to `weewx.conf`:
 
 ```ini
-[Databases]
-    [[message_tracker]]
-        database_name = mqtt_message_tracker.sdb
-        driver = weedb.sqlite
-        SQLITE_ROOT = /var/lib/weewx
-
 [DataBindings]
     [[message_tracker_binding]]
         database = message_tracker
+
+[Databases]
+    [[message_tracker]]
+        database_name = mqtt_message_tracker.sdb
+        database_type = SQLite
 ```
+
+`database_type = SQLite` uses the SQLite settings in `[DatabaseTypes]`, so the file lands in the
+same directory as the weather archive.
+To use another database, change these entries and point `data_binding` at the binding.
 
 The database is created if it does not exist, unless `create_database` is `false`.
 If it is created, an empty database is made; the tracker then creates its table.
 
-Then configure the plugin to use the binding:
+Then enable the plugin:
 
 ```ini
 [MQTTPublish]

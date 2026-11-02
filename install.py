@@ -360,8 +360,9 @@ MQTTPUBLISH_CONFIG = """
     enable = false
 
     # The WeeWX data binding that identifies the separate database to write to.
+    # The install also adds the message_tracker_binding and message_tracker entries.
     # Required.
-    data_binding =
+    data_binding = message_tracker_binding
 
     # Create the database if it does not exist.
     # Valid values: true or false
@@ -396,6 +397,20 @@ MQTTPUBLISH_CONFIG = """
     # Default is 10.
     shutdown_timeout = 10
 
+[DataBindings]
+    [[message_tracker_binding]]
+        # MQTTMessageTracker keeps its messages in a database of its own
+        # (mqtt_message_tracker.sdb), separate from the weather archive.
+        database = message_tracker
+
+[Databases]
+    [[message_tracker]]
+        # The database named by message_tracker_binding above. It uses the
+        # SQLite settings of [DatabaseTypes], so it lands in the same
+        # directory as the SQLite weather archive.
+        database_name = mqtt_message_tracker.sdb
+        database_type = SQLite
+
 """
 
 def loader():
@@ -421,6 +436,7 @@ class MQTTPublishInstaller(ExtensionInstaller):
                                     'bin/user/mqttarchivevalues.py',
                                     'bin/user/mqttcommon.py',
                                     'bin/user/mqttmessagetracker.py',
+                                    'bin/user/mqttreplay.py',
                                     ])]
         }
 
