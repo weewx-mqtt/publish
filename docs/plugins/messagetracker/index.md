@@ -36,13 +36,13 @@ Default is `mqtt_message_tracker`.
 
 ### retention
 
-How long, in seconds, to keep rows.
+The default retention, in seconds, for topics that do not set their own.
 Set to `0` to keep them forever.
 Default is `604800` (7 days).
 
 ### prune_interval
 
-How often, in seconds, to delete rows older than `retention`.
+How often, in seconds, to delete rows older than their retention.
 Default is `3600`.
 
 ### queue_size
@@ -67,9 +67,38 @@ Default is `60`.
 How long, in seconds, to wait for the tracker thread to write its queue and stop.
 Default is `10`.
 
+### topics
+
+The `[[topics]]` section lists the topics to track.
+Only the topics listed here are tracked; a message published to any other topic is not recorded.
+Required; when there is no enabled topic, the plugin logs an error and does nothing.
+
+#### enable
+
+Whether to track this topic.
+Valid values are `true` or `false`.
+Default is `true`.
+
+#### retention
+
+How long, in seconds, to keep this topic's rows.
+Set to `0` to keep them forever.
+Default is the `retention` option above.
+
+```ini
+[MQTTMessageTracker]
+    [[topics]]
+        [[[weather/outTemp_F]]]
+            # Keep this topic for a day.
+            retention = 86400
+        [[[weather/outHumidity]]]
+            # Do not track this topic.
+            enable = false
+```
+
 ## What is tracked
 
-Each message published by the data pipeline records a row.
+Each message published to a tracked topic records a row.
 
 - `id`: a unique id for the row.
 - `mid`: the MQTT message id.
@@ -133,9 +162,9 @@ An `acked` row is also not proof of delivery to a subscriber:
 
 MQTT reuses a message id after 65,535 publishes, so the table is keyed by `id`, not `mid`.
 When a tracked message reuses a message id that is still waiting for its arrival, the older row is
-closed as `unconfirmed`. A message published directly by a plugin is not tracked, so its arrival
-can still be attributed to a row that is waiting with the same message id. This is rare and only
-happens when the id counter wraps.
+closed as `unconfirmed`. A message published directly by a plugin, or to a topic that is not
+tracked, is not recorded, so its arrival can still be attributed to a row that is waiting with
+the same message id. This is rare and only happens when the id counter wraps.
 
 ## Table schema
 
@@ -206,7 +235,7 @@ The tool:
 `--plugin-section`, `--data-binding` and `--table` select a tracker that is configured under
 another section or writes to another database.
 
-A message published directly by a plugin is not tracked, so it is never replayed.
+A message published directly by a plugin, or to a topic that is not tracked, is never replayed.
 
 The exit code is `0` on success, `1` when the connection, a publish or an ack failed, and `2` for
 a config or database error. A connect failure stops the run before anything is published.
@@ -251,6 +280,9 @@ Then enable the plugin:
     plugin = user.mqttmessagetracker.MQTTMessageTracker
     enable = true
     data_binding = message_tracker_binding
+    [[topics]]
+        [[[weather/outTemp_F]]]
+        [[[weather/outHumidity]]]
 ```
 
 ## SQLite locking

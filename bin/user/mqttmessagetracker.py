@@ -89,8 +89,8 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
     """ Write publish events to the database on a single thread. """
 
     def __init__(self, logger_queue, log_name, database_dict, table,  # pylint: disable=too-many-arguments,too-many-positional-arguments
-                 retention, prune_interval, batch_size, pending_ttl, queue_size, shutdown_timeout,
-                 create_database):
+                 retention, topic_retention, prune_interval, batch_size, pending_ttl, queue_size,
+                 shutdown_timeout, create_database):
         threading.Thread.__init__(self)
         self.daemon = True
 
@@ -99,6 +99,7 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
         self.database_dict = database_dict
         self.table = table
         self.retention = retention
+        self.topic_retention = topic_retention
         self.prune_interval = prune_interval
         self.batch_size = batch_size
         self.pending_ttl = pending_ttl
@@ -199,14 +200,18 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
 
     def _prune_timeout(self):
         """ The queue wait before an idle prune. """
-        if self.retention > 0 and self.prune_interval > 0:
+        if self.prune_interval > 0 and self._has_retention():
             return self.prune_interval
         return None
+
+    def _has_retention(self):
+        """ Whether any row is ever pruned. """
+        return self.retention > 0 or any(retention > 0 for retention in self.topic_retention.values())
 
     def _maybe_prune(self, connection, last_prune):
         """ Prune when the interval has elapsed. """
         now = time.time()
-        if self.retention > 0 and 0 < self.prune_interval <= now - last_prune:
+        if self._has_retention() and 0 < self.prune_interval <= now - last_prune:
             self._prune(connection, now)
             return now
         return last_prune
@@ -333,12 +338,26 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
 
     def _prune(self, connection, now):
         """ Delete rows that are older than the retention period. """
-        if self.retention <= 0:
-            return
         try:
-            connection.execute(f"DELETE FROM {self.table} WHERE sent_ts < ?", (now - self.retention,))
+            self._prune_unlisted_topics(connection, now)
+            for topic, retention in self.topic_retention.items():
+                if retention > 0:
+                    connection.execute(f"DELETE FROM {self.table} WHERE topic = ? AND sent_ts < ?",
+                                       (topic, now - retention))
         except Exception as exception:  # pylint: disable=broad-exception-caught
             self._log('ERROR', f"Unable to prune message tracking data: {exception}")
+
+    def _prune_unlisted_topics(self, connection, now):
+        """ Prune the rows of topics that are no longer tracked, with the table-wide retention. """
+        if self.retention <= 0:
+            return
+        topics = list(self.topic_retention)
+        if not topics:
+            connection.execute(f"DELETE FROM {self.table} WHERE sent_ts < ?", (now - self.retention,))
+            return
+        placeholders = ', '.join('?' for _ in topics)
+        connection.execute(f"DELETE FROM {self.table} WHERE topic NOT IN ({placeholders}) AND sent_ts < ?",
+                           (*topics, now - self.retention))
 
     def _put(self, event):
         """ Queue an event, dropping it rather than blocking the caller. """
@@ -381,14 +400,20 @@ class MQTTMessageTracker(user.mqttpublish.MQTTPlugin):
         super().__init__(logger_queue, name, plugin_dict)
 
         self.tracker = None
+        self.tracked_topics = {}
         if not self.enabled:
+            return
+
+        self.retention = self._config_int(plugin_dict, 'retention', 604800)
+        self.tracked_topics = self._configure_topics(plugin_dict)
+        if not self.tracked_topics:
+            self.enabled = False
             return
 
         try:
             database_dict, table = resolve_tracker_config(plugin_dict, weewx_dict['config_dict'])
         except TrackerConfigError as exception:
-            self.logger_queue.put(user.mqttcommon.Logger.create_entry(
-                self.name, 'ERROR', None, str(exception)))
+            self._log('ERROR', str(exception))
             self.enabled = False
             return
 
@@ -397,7 +422,8 @@ class MQTTMessageTracker(user.mqttpublish.MQTTPlugin):
             self.name,
             database_dict,
             table,
-            self._config_int(plugin_dict, 'retention', 604800),
+            self.retention,
+            self.tracked_topics,
             self._config_int(plugin_dict, 'prune_interval', 3600),
             self._config_int(plugin_dict, 'batch_size', 100),
             self._config_int(plugin_dict, 'pending_ttl', 60),
@@ -406,6 +432,28 @@ class MQTTMessageTracker(user.mqttpublish.MQTTPlugin):
             to_bool(plugin_dict.get('create_database', True)),
         )
         self.tracker.start()
+
+    def _configure_topics(self, plugin_dict):
+        """ Resolve the topics to track, with the retention to prune each one by. """
+        topic_dicts = plugin_dict.get('topics')
+        if topic_dicts is None:
+            self._log('ERROR', "'[[topics]]' is required, no messages are tracked.")
+            return {}
+
+        tracked = {}
+        for topic in topic_dicts.sections:
+            topic_dict = topic_dicts[topic]
+            if not to_bool(topic_dict.get('enable', True)):
+                continue
+            retention = to_int(topic_dict.get('retention', self.retention))
+            tracked[topic] = self.retention if retention is None else retention
+
+        if not tracked:
+            self._log('ERROR', "No topics are enabled, no messages are tracked.")
+        return tracked
+
+    def _log(self, log_type, msg_text):
+        self.logger_queue.put(user.mqttcommon.Logger.create_entry(self.name, log_type, None, msg_text))
 
     @staticmethod
     def _config_int(plugin_dict, key, default):
@@ -435,6 +483,8 @@ class MQTTMessageTracker(user.mqttpublish.MQTTPlugin):
 
     def mqtt_publish(self, _client, mid, rc, topic, payload, qos, retain, date_time):  # pylint: disable=R0913,R0917
         """ Record the message that was handed to paho. """
+        if topic not in self.tracked_topics:
+            return
         self.tracker.sent(mid, rc, topic, payload, qos, retain, date_time)
 
     def on_mqtt_publish(self, _client, _userdata, mid, _properties):

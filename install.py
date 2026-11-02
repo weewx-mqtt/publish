@@ -373,7 +373,8 @@ MQTTPUBLISH_CONFIG = """
     # Default is mqtt_message_tracker.
     table = mqtt_message_tracker
 
-    # How long, in seconds, to keep rows. Set to 0 to keep them forever.
+    # The default retention, in seconds, for topics that do not set their own.
+    # Set to 0 to keep them forever.
     # Default is 604800 (7 days).
     retention = 604800
 
@@ -396,6 +397,19 @@ MQTTPUBLISH_CONFIG = """
     # How long, in seconds, to wait for the tracker thread to shut down.
     # Default is 10.
     shutdown_timeout = 10
+
+    [[topics]]
+        # The topics to track.
+        # Only the topics listed here are tracked.
+        [[[REPLACE_ME]]]
+            # Turn tracking of this topic on and off.
+            # Default is true.
+            enable = false
+
+            # How long, in seconds, to keep this topic's rows.
+            # Set to 0 to keep them forever.
+            # Default is the retention option above.
+            #retention = 604800
 
 [DataBindings]
     [[message_tracker_binding]]

@@ -19,6 +19,16 @@ import helpers
 import user.mqttmessagetracker
 import weedb
 
+TRACKED_TOPICS = ('topic', 'topic/one', 'topic/two', 'a', 'b', 'c', 'first', 'second', 'old', 'new')
+
+
+def topics_config(topics):
+    """ Build a [[topics]] section from a list of names or a dict of options. """
+    if isinstance(topics, dict):
+        return {topic: dict(options) for topic, options in topics.items()}
+    return {topic: {'enable': True} for topic in topics}
+
+
 class TestMQTTMessageTracker(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()  # pylint: disable=consider-using-with
@@ -43,10 +53,12 @@ class TestMQTTMessageTracker(unittest.TestCase):
         })
         self.weewx_dict = {'config_dict': self.config_dict}
 
-    def _make_plugin(self, plugin_dict=None, set_binding=True):
+    def _make_plugin(self, plugin_dict=None, set_binding=True, topics=TRACKED_TOPICS):
         plugin_dict = dict(plugin_dict or {})
         if set_binding:
             plugin_dict.setdefault('data_binding', 'tracker_binding')
+        if topics is not None:
+            plugin_dict['topics'] = topics_config(topics)
 
         logger_queue = mock.Mock()
         plugin = user.mqttmessagetracker.MQTTMessageTracker(logger_queue,
@@ -309,6 +321,59 @@ class TestMQTTMessageTracker(unittest.TestCase):
 
         rows = self._rows()
         self.assertEqual([row['mid'] for row in rows], [2])
+
+    def test_topic_retention(self):
+        plugin, _ = self._make_plugin({'retention': 60},
+                                      topics={'default': {}, 'custom': {'retention': 120}})
+
+        self.assertEqual(plugin.tracked_topics, {'default': 60, 'custom': 120})
+
+    def test_only_configured_topics_are_tracked(self):
+        plugin, _ = self._make_plugin(topics=['tracked'])
+
+        plugin.mqtt_publish(None, 1, 0, 'tracked', 'payload', 0, False, 1)
+        plugin.mqtt_publish(None, 2, 0, 'other', 'payload', 0, False, 2)
+        plugin.shutdown()
+
+        self.assertEqual([row['topic'] for row in self._rows()], ['tracked'])
+
+    def test_disabled_topic_is_not_tracked(self):
+        plugin, _ = self._make_plugin(topics={'tracked': {}, 'off': {'enable': False}})
+
+        plugin.mqtt_publish(None, 1, 0, 'tracked', 'payload', 0, False, 1)
+        plugin.mqtt_publish(None, 2, 0, 'off', 'payload', 0, False, 2)
+        plugin.shutdown()
+
+        self.assertEqual([row['topic'] for row in self._rows()], ['tracked'])
+
+    def test_per_topic_retention(self):
+        plugin, _ = self._make_plugin({'retention': 3600, 'prune_interval': 1},
+                                      topics={'short': {'retention': 1}, 'long': {}})
+
+        plugin.mqtt_publish(None, 1, 0, 'short', 'payload', 0, False, 1)
+        plugin.mqtt_publish(None, 2, 0, 'long', 'payload', 0, False, 2)
+        self._wait_for_rows(2)
+
+        time.sleep(1.1)
+        plugin.mqtt_publish(None, 3, 0, 'long', 'payload', 0, False, 3)
+        plugin.shutdown()
+
+        self.assertEqual([row['topic'] for row in self._rows()], ['long', 'long'])
+
+    def test_missing_topics_disables_plugin(self):
+        plugin, logger_queue = self._make_plugin(topics=None)
+
+        self.assertEqual(plugin.get_callbacks(), [])
+        log_messages = [call[0][0] for call in logger_queue.put.call_args_list]
+        self.assertTrue(any(entry['log_type'] == 'ERROR' and 'topics' in entry['msg_text']
+                            for entry in log_messages))
+
+    def test_no_enabled_topics_disables_plugin(self):
+        plugin, logger_queue = self._make_plugin(topics={'off': {'enable': False}})
+
+        self.assertEqual(plugin.get_callbacks(), [])
+        log_messages = [call[0][0] for call in logger_queue.put.call_args_list]
+        self.assertTrue(any(entry['log_type'] == 'ERROR' for entry in log_messages))
 
     def test_invalid_table_name_disables_plugin(self):
         plugin, logger_queue = self._make_plugin({'table': 'bad name'})
