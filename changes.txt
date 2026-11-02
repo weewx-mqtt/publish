@@ -58,6 +58,7 @@ Enhancements:
   - Added a mqtt_publish plugin callback. The immediate timing runs before the message is sent,
     the delay timing runs after and provides the message id.
   - Plugins can optionally implement a shutdown method, called when the publishing thread stops.
+  - Added MQTTMessageTracker, a plugin that records published MQTT messages in a WeeWX database.
   - Improved shutdown logic flow, with timeouts when stopping threads/processes.
   - A plugin can be loaded multiple times with different configurations.
   - The data queue size is passed into plugin callbacks.

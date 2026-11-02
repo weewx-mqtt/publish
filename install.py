@@ -75,7 +75,7 @@ MQTTPUBLISH_CONFIG = """
     # A list of plugins for MQTTPublish.
     # Each entry must have a corresponding section, [plugin-name] in the weewx configuration file.
     # The plugin option in the [plugin-name] section must have a value.
-    plugins = MQTTAggregateValues, MQTTConfigHA, MQTTArchiveValues
+    plugins = MQTTAggregateValues, MQTTConfigHA, MQTTArchiveValues, MQTTMessageTracker
 
     # The TLS options that are passed to tls_set method of the MQTT client.
     # For additional information see, https://eclipse.org/paho/clients/python/docs/strptime-format-codes
@@ -341,6 +341,57 @@ MQTTPUBLISH_CONFIG = """
             # A comma separated list of fields that are to be added to the data being published.
             # add_fields =
 
+[MQTTMessageTracker]
+    # --------------------------------------------------------------------------------
+    # A MQTTPublish 'plugin' to track published MQTT messages in a WeeWX database.
+    # For additional help on configuring see, https://weewx-mqtt.github.io/publish/plugins/messagetracker/
+    # --------------------------------------------------------------------------------
+
+    # The plugin to be used.
+    plugin = user.mqttmessagetracker.MQTTMessageTracker
+
+    # Whether the service is enabled or not.
+    # Valid values: true or false
+    # Default is true.
+    enable = false
+
+    # The WeeWX data binding that identifies the separate database to write to.
+    # Required.
+    data_binding =
+
+    # Create the database if it does not exist.
+    # Valid values: true or false
+    # Default is true.
+    create_database = true
+
+    # The name of the table to create and write to.
+    # Default is mqtt_message_tracker.
+    table = mqtt_message_tracker
+
+    # How long, in seconds, to keep rows. Set to 0 to keep them forever.
+    # Default is 604800 (7 days).
+    retention = 604800
+
+    # How often, in seconds, to delete rows older than retention.
+    # Default is 3600.
+    prune_interval = 3600
+
+    # The maximum number of events to queue before they are dropped.
+    # Default is 10000.
+    queue_size = 10000
+
+    # The maximum number of events to write in one transaction.
+    # Default is 100.
+    batch_size = 100
+
+    # How long, in seconds, to keep an arrival that arrived before its send event.
+    # Default is 60.
+    pending_ttl = 60
+
+    # How long, in seconds, to wait for the tracker thread to shut down.
+    # Default is 10.
+    shutdown_timeout = 10
+
 """
 
 def loader():
@@ -365,6 +416,7 @@ class MQTTPublishInstaller(ExtensionInstaller):
                                     'bin/user/mqttaggregatevalues.py',
                                     'bin/user/mqttarchivevalues.py',
                                     'bin/user/mqttcommon.py',
+                                    'bin/user/mqttmessagetracker.py',
                                     ])]
         }
 
