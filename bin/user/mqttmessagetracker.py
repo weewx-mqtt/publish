@@ -84,6 +84,11 @@ STATUS_SENT = 'sent'
 STATUS_ACKED = 'acked'
 STATUS_UNCONFIRMED = 'unconfirmed'
 
+# The statuses whose rows are pruned by age. A row that may still be delivered, or whose
+# delivery is unknown, is kept so that it can still be replayed.
+_PRUNED_STATUSES = (STATUS_ACKED, STATUS_FAILED)
+_PRUNED_STATUSES_PLACEHOLDERS = ', '.join('?' for _ in _PRUNED_STATUSES)
+
 
 class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-attributes
     """ Write publish events to the database on a single thread. """
@@ -337,13 +342,18 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
         return True
 
     def _prune(self, connection, now):
-        """ Delete rows that are older than the retention period. """
+        """ Delete rows that are older than the retention period.
+
+            Only rows whose outcome is known are pruned. A sent or unconfirmed row may still be
+            delivered, or can still be replayed, so it is kept. """
         try:
             self._prune_unlisted_topics(connection, now)
             for topic, retention in self.topic_retention.items():
                 if retention > 0:
-                    connection.execute(f"DELETE FROM {self.table} WHERE topic = ? AND sent_ts < ?",
-                                       (topic, now - retention))
+                    connection.execute(
+                        f"DELETE FROM {self.table} WHERE topic = ? AND sent_ts < ? "
+                        f"AND status IN ({_PRUNED_STATUSES_PLACEHOLDERS})",
+                        (topic, now - retention, *_PRUNED_STATUSES))
         except Exception as exception:  # pylint: disable=broad-exception-caught
             self._log('ERROR', f"Unable to prune message tracking data: {exception}")
 
@@ -353,11 +363,15 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
             return
         topics = list(self.topic_retention)
         if not topics:
-            connection.execute(f"DELETE FROM {self.table} WHERE sent_ts < ?", (now - self.retention,))
+            connection.execute(
+                f"DELETE FROM {self.table} WHERE sent_ts < ? AND status IN ({_PRUNED_STATUSES_PLACEHOLDERS})",
+                (now - self.retention, *_PRUNED_STATUSES))
             return
         placeholders = ', '.join('?' for _ in topics)
-        connection.execute(f"DELETE FROM {self.table} WHERE topic NOT IN ({placeholders}) AND sent_ts < ?",
-                           (*topics, now - self.retention))
+        connection.execute(
+            f"DELETE FROM {self.table} WHERE topic NOT IN ({placeholders}) AND sent_ts < ? "
+            f"AND status IN ({_PRUNED_STATUSES_PLACEHOLDERS})",
+            (*topics, now - self.retention, *_PRUNED_STATUSES))
 
     def _put(self, event):
         """ Queue an event, dropping it rather than blocking the caller. """

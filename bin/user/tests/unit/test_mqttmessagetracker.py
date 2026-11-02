@@ -314,9 +314,12 @@ class TestMQTTMessageTracker(unittest.TestCase):
 
         plugin.mqtt_publish(None, 1, 0, 'old', 'payload', 0, False, 1)
         self._wait_for_rows(1)
+        plugin.on_mqtt_publish(None, None, 1, None)
+        self._wait_for(lambda rows: rows[0]['status'] == 'acked')
 
         time.sleep(1.1)
         plugin.mqtt_publish(None, 2, 0, 'new', 'payload', 0, False, 2)
+        plugin.on_mqtt_publish(None, None, 2, None)
         plugin.shutdown()
 
         rows = self._rows()
@@ -353,9 +356,13 @@ class TestMQTTMessageTracker(unittest.TestCase):
         plugin.mqtt_publish(None, 1, 0, 'short', 'payload', 0, False, 1)
         plugin.mqtt_publish(None, 2, 0, 'long', 'payload', 0, False, 2)
         self._wait_for_rows(2)
+        plugin.on_mqtt_publish(None, None, 1, None)
+        plugin.on_mqtt_publish(None, None, 2, None)
+        self._wait_for(lambda rows: all(row['status'] == 'acked' for row in rows))
 
         time.sleep(1.1)
         plugin.mqtt_publish(None, 3, 0, 'long', 'payload', 0, False, 3)
+        plugin.on_mqtt_publish(None, None, 3, None)
         plugin.shutdown()
 
         self.assertEqual([row['topic'] for row in self._rows()], ['long', 'long'])
@@ -374,6 +381,51 @@ class TestMQTTMessageTracker(unittest.TestCase):
         self.assertEqual(plugin.get_callbacks(), [])
         log_messages = [call[0][0] for call in logger_queue.put.call_args_list]
         self.assertTrue(any(entry['log_type'] == 'ERROR' for entry in log_messages))
+
+    def test_unconfirmed_rows_are_not_pruned(self):
+        plugin, logger_queue = self._make_plugin({'retention': 1, 'prune_interval': 1})
+        plugin.mqtt_publish(None, 1, 0, 'topic', 'payload', 0, False, 1)
+        plugin.shutdown()
+
+        connection = weedb.connect(self.database_dict)
+        try:
+            plugin.tracker._prune(connection, time.time() + 10)  # pylint: disable=protected-access
+        finally:
+            connection.close()
+
+        rows = self._rows()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]['status'], 'unconfirmed')
+        log_messages = [call[0][0] for call in logger_queue.put.call_args_list]
+        self.assertFalse(any(entry['log_type'] == 'ERROR' for entry in log_messages))
+
+    def test_sent_rows_are_not_pruned(self):
+        plugin, _ = self._make_plugin({'retention': 1, 'prune_interval': 3600})
+        plugin.mqtt_publish(None, 1, 0, 'topic', 'payload', 0, False, 1)
+        rows = self._wait_for_rows(1)
+        self.assertEqual(rows[0]['status'], 'sent')
+
+        connection = weedb.connect(self.database_dict)
+        try:
+            plugin.tracker._prune(connection, time.time() + 10)  # pylint: disable=protected-access
+        finally:
+            connection.close()
+
+        self.assertEqual(len(self._rows()), 1)
+        plugin.shutdown()
+
+    def test_other_rows_are_pruned(self):
+        plugin, _ = self._make_plugin({'retention': 1, 'prune_interval': 1})
+        plugin.mqtt_publish(None, 1, 1, 'topic', 'payload', 0, False, 1)  # a failed publish
+        plugin.shutdown()
+
+        connection = weedb.connect(self.database_dict)
+        try:
+            plugin.tracker._prune(connection, time.time() + 10)  # pylint: disable=protected-access
+        finally:
+            connection.close()
+
+        self.assertEqual(self._rows(), [])
 
     def test_invalid_table_name_disables_plugin(self):
         plugin, logger_queue = self._make_plugin({'table': 'bad name'})

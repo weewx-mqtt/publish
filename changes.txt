@@ -64,6 +64,7 @@ Enhancements:
     never reported, the time the tracker stopped waiting for it.
     The install adds a message_tracker_binding and message_tracker database for it.
     The topics to track are configured in a [[topics]] section, with an optional per-topic retention.
+    Unconfirmed and sent rows are never pruned, so they can still be replayed.
   - Added the mqttreplay tool, which republishes the messages the tracker recorded as failed or
     unconfirmed. A replay is a new row that points at the original, so the original is never
     changed, and a dry run is the default.

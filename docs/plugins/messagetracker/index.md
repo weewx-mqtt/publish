@@ -40,6 +40,13 @@ The default retention, in seconds, for topics that do not set their own.
 Set to `0` to keep them forever.
 Default is `604800` (7 days).
 
+Rows with the `sent` or `unconfirmed` status are never pruned.
+They may still be delivered, or can still be replayed, so they stay until deleted by hand:
+
+```sql
+DELETE FROM mqtt_message_tracker WHERE status IN ('sent', 'unconfirmed') AND sent_ts < ?
+```
+
 ### prune_interval
 
 How often, in seconds, to delete rows older than their retention.
@@ -83,6 +90,7 @@ Default is `true`.
 
 How long, in seconds, to keep this topic's rows.
 Set to `0` to keep them forever.
+Sent and unconfirmed rows are never pruned.
 Default is the `retention` option above.
 
 ```ini
@@ -138,7 +146,8 @@ availability/LWT message are not tracked.
 | `unconfirmed` | no arrival was reported before the tracker stopped waiting; `unconfirmed_ts` is set. |
 
 `sent` is transient. While the tracker is running, a row is expected to move to `acked`, or to
-`failed` when paho refuses the publish.
+`failed` when paho refuses the publish. A `sent` row is not pruned, so one whose arrival never
+arrives is kept until the tracker stops, which closes it as `unconfirmed`.
 
 `unconfirmed` does not mean the message was not delivered. It means the tracker cannot tell: paho
 never reported the arrival, and no further report can arrive. That is why it is recorded as its own
@@ -231,6 +240,9 @@ The tool:
 - connects with a clientid of its own, so the running service is not disconnected;
 - waits for the connection before publishing, and for each publish to be confirmed, with
   `--ack-timeout` (default `10` seconds).
+
+Unconfirmed rows are never pruned, so the tool can select a message that is older than the
+retention period.
 
 `--plugin-section`, `--data-binding` and `--table` select a tracker that is configured under
 another section or writes to another database.
