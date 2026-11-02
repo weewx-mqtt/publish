@@ -92,6 +92,10 @@ class PluginManager():
                 'immediate': {},
                 'delay': {}
             },
+            'mqtt_publish': {
+                'immediate': {},
+                'delay': {}
+            },
             'update_record': {
                 'immediate': {},
                 'delay': {}
@@ -216,8 +220,17 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
         if data is not None and data_type not in (str, bytearray, int, float):
             payload = json.dumps(data)
 
+        # The mid and rc are only known after paho accepts the publish.
+        callback_args = [self.client, None, None, topic, payload, qos, retain, time_stamp]
+        self._run_mqtt_publish_callbacks(callback_args, 'immediate')
+
         start_time = time.time()
         mqtt_message_info = self.client.publish(topic, payload, qos=qos, retain=retain)
+
+        callback_args[1] = mqtt_message_info.mid
+        callback_args[2] = int(mqtt_message_info.rc)
+        self._run_mqtt_publish_callbacks(callback_args, 'delay')
+
         self.logger_queue.put(mqttcommon.Logger.create_entry(
             self.name, 'DEBUG', None,
             (f"At {int(time.time())}  publishing: {int(time_stamp)} "
@@ -229,6 +242,16 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
                 self.name, 'ERROR', None,
                 (f"The publish of {topic} is not accepted with "
                  f"{mqtt.error_string(mqtt_message_info.rc)}, the message is dropped.")))
+
+    def _run_mqtt_publish_callbacks(self, callback_args, timing):
+        """ Run the mqtt_publish plugin callbacks for one timing group.
+
+            The immediate group runs before paho is handed the message, so its
+            mid and rc are None. The delay group runs after, with both set. """
+        if self.plugin_manager is None:
+            return
+        for plugin_name in self.plugin_manager.callbacks['mqtt_publish'][timing]:
+            self.plugin_manager.callbacks['mqtt_publish'][timing][plugin_name](*callback_args)
 
     def get_client(self, client_id, protocol):
         ''' Get the MQTT client. '''

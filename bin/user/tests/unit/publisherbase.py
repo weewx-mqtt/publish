@@ -1104,6 +1104,73 @@ class PublisherBase(unittest.TestCase):
                         self.assertTrue(any(entry['log_type'] == 'ERROR' and topic in entry['msg_text']
                                             for entry in log_messages))
 
+    def test_publish_message_callbacks(self):
+        mock_logger_queue = mock.Mock()
+        mock_publisher = mock.Mock()
+        mock_plugin_manager = mock.Mock()
+
+        mock_immediate_callback = mock.Mock()
+        mock_delay_callback = mock.Mock()
+        mock_plugin_manager.callbacks = {
+            'mqtt_publish': {
+                'immediate': {
+                    helpers.random_string(): mock_immediate_callback,
+                },
+                'delay': {
+                    helpers.random_string(): mock_delay_callback,
+                }
+            },
+        }
+
+        config_dict = {
+            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
+            'clientid': helpers.random_string(),
+            'log_mqtt': random.choice([True, False]),
+            'username': helpers.random_string(),
+            'password': helpers.random_string(),
+            'host': helpers.random_string(),
+            'port': random.randint(1, 65535),
+            'keepalive': random.randint(1, 30),
+            'min_delay': 1,
+            'max_delay': 120,
+        }
+        config = configobj.ConfigObj(config_dict)
+
+        monitor_dict = {
+            'monitor_queue': None,
+            'monitor_on_message': None,
+            'monitor_on_connect': None,
+            'monitor_on_publish': None,
+            'monitor_record_update': None,
+            'monitor_on_weewx_data': None,
+        }
+
+        with mock.patch('user.mqttpublish.time'):
+            with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
+                with mock.patch.object(user.mqttpublish.Publisher, '_connect'):
+                    with mock.patch.object(user.mqttpublish.mqtt.Client, 'publish') as mock_publish:
+                        mid = random.randint(1, 65535)
+                        mock_publish.return_value.mid = mid
+                        mock_publish.return_value.rc = paho.mqtt.client.MQTT_ERR_SUCCESS
+
+                        SUT = self.class_under_test(mock_logger_queue, mock_plugin_manager, mock_publisher, config,
+                                                    monitor_dict, api=self.api)
+
+                        time_stamp = random.randint(10, 10000)
+                        qos = random.randint(0, 2)
+                        retain = random.choice([True, False])
+                        topic = helpers.random_string()
+                        data = helpers.random_string()
+
+                        SUT.publish_message(time_stamp, qos, retain, topic, data)
+
+                        # The immediate callbacks run before the publish, so the mid and rc are not known.
+                        mock_immediate_callback.assert_called_once_with(
+                            SUT.client, None, None, topic, data, qos, retain, time_stamp)
+                        # The delay callbacks run after the publish and can capture the mid.
+                        mock_delay_callback.assert_called_once_with(
+                            SUT.client, mid, int(paho.mqtt.client.MQTT_ERR_SUCCESS), topic, data, qos, retain, time_stamp)
+
 class TLSBase(unittest.TestCase):
     class_under_test = user.mqttpublish.Publisher
     # The paho api variant to test; the concrete subclasses set it.

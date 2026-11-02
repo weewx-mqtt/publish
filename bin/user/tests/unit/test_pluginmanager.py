@@ -23,6 +23,7 @@ class StubPlugin():
     def get_callbacks(self):
         return [{'on_weewx_data': {'timing': 'immediate', 'callback': self.callback}},
                 {'on_mqtt_publish': {'timing': 'immediate', 'callback': self.callback}},
+                {'mqtt_publish': {'timing': 'delay', 'callback': self.callback}},
                 {'update_record': {'timing': 'delay', 'callback': self.callback}}]
 
 class StubPluginWithoutShutdown():
@@ -69,6 +70,7 @@ class TestPluginManager(unittest.TestCase):
         callback = SUT.plugins[name]['plugin'].callback
         self.assertIs(SUT.callbacks['on_weewx_data']['immediate'][name], callback)
         self.assertIs(SUT.callbacks['on_mqtt_publish']['immediate'][name], callback)
+        self.assertIs(SUT.callbacks['mqtt_publish']['delay'][name], callback)
         self.assertIs(SUT.callbacks['update_record']['delay'][name], callback)
 
     def test_shutdown_calls_plugin_shutdown(self):

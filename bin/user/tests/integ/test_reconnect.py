@@ -117,6 +117,7 @@ def make_publisher(port):
         'on_mqtt_connect': {'immediate': {}, 'delay': {}},
         'on_mqtt_message': {'immediate': {}, 'delay': {}},
         'on_mqtt_publish': {'immediate': {}, 'delay': {}},
+        'mqtt_publish': {'immediate': {}, 'delay': {}},
         'update_record': {'immediate': {}, 'delay': {}},
     })
     # Stands in for the service; Publisher only reads its 'process' flag when a startup connect fails.

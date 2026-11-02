@@ -55,6 +55,8 @@ Enhancements:
   - Renamed the [[lwt]] section of MQTTPublish to [[availability_topic]]
   - Options to monitor queue processing, see https://weewx-mqtt.github.io/publish/common-options/#monitor_queue
   - Added an on_publish plugin callback, and the monitor_on_publish option to monitor its execution time.
+  - Added a mqtt_publish plugin callback. The immediate timing runs before the message is sent,
+    the delay timing runs after and provides the message id.
   - Plugins can optionally implement a shutdown method, called when the publishing thread stops.
   - Improved shutdown logic flow, with timeouts when stopping threads/processes.
   - A plugin can be loaded multiple times with different configurations.
