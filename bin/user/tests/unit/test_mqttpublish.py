@@ -20,6 +20,52 @@ import weewx
 import helpers
 import user.mqttpublish
 
+class TestMQTTConnectionOptions(unittest.TestCase):
+    def test_defaults(self):
+        options = user.mqttpublish.mqtt_connection_options({})
+
+        self.assertEqual(options['host'], 'localhost')
+        self.assertEqual(options['port'], 1883)
+        self.assertEqual(options['keepalive'], 60)
+        self.assertEqual(options['protocol'], user.mqttpublish.mqtt.MQTTv311)
+        self.assertTrue(options['clientid'].startswith('MQTTPublish-'))
+        self.assertIsNone(options['username'])
+        self.assertIsNone(options['password'])
+        self.assertIsNone(options['tls'])
+        self.assertEqual(options['min_delay'], 1)
+        self.assertEqual(options['max_delay'], 120)
+
+    def test_values(self):
+        options = user.mqttpublish.mqtt_connection_options({
+            'host': 'broker',
+            'port': 1884,
+            'keepalive': 30,
+            'username': 'user',
+            'password': 'secret',
+            'clientid': 'configured',
+            'protocol': 'MQTTv5',
+            'tls': {'ca_certs': 'ca.pem'},
+            'min_delay': 2,
+            'max_delay': 60,
+        }, default_clientid='tool')
+
+        self.assertEqual(options['host'], 'broker')
+        self.assertEqual(options['port'], 1884)
+        self.assertEqual(options['keepalive'], 30)
+        self.assertEqual(options['protocol'], user.mqttpublish.mqtt.MQTTv5)
+        self.assertEqual(options['clientid'], 'configured')
+        self.assertEqual(options['username'], 'user')
+        self.assertEqual(options['password'], 'secret')
+        self.assertEqual(options['tls'], {'ca_certs': 'ca.pem'})
+        self.assertEqual(options['min_delay'], 2)
+        self.assertEqual(options['max_delay'], 60)
+
+    def test_default_clientid(self):
+        options = user.mqttpublish.mqtt_connection_options({}, default_clientid='tool')
+
+        self.assertEqual(options['clientid'], 'tool')
+
+
 class TestInit(unittest.TestCase):
     def test_PublishWeeWX_stanza_is_deprecated(self):
         mock_engine = mock.Mock()

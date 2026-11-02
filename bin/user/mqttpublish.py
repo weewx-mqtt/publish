@@ -55,6 +55,22 @@ def setup_logging(logging_level, config_dict):
 
     weeutil.logger.setup('wee_MQTTPublish', config_dict)
 
+def mqtt_connection_options(service_dict, default_clientid=None):
+    """ The MQTT connection options, shared by the service and the tools. """
+    return {
+        'host': service_dict.get('host', 'localhost'),
+        'port': to_int(service_dict.get('port', 1883)),
+        'keepalive': to_int(service_dict.get('keepalive', 60)),
+        'username': service_dict.get('username', None),
+        'password': service_dict.get('password', None),
+        'clientid': service_dict.get('clientid', default_clientid or
+                                     f'MQTTPublish-{random.randint(1000, 9999)}'),  # NOSONAR - just need a unique id
+        'protocol': mqttcommon.parse_protocol(service_dict.get('protocol', 'MQTTv311')),
+        'tls': service_dict.get('tls'),
+        'min_delay': to_int(service_dict.get('min_delay', 1)),
+        'max_delay': to_int(service_dict.get('max_delay', 120)),
+    }
+
 class MQTTPlugin():  # pylint: disable=too-few-public-methods
     """ Common plugin initialization. """
     def __init__(self, logger_queue, name, plugin_dict):
@@ -589,25 +605,11 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
 
     def _configure_mqtt(self, service_dict):
         """ Configure the mqtt connection and monitoring options. """
-        mqtt_config = {}
-        mqtt_config['keepalive'] = to_int(service_dict.get('keepalive', 60))
+        mqtt_config = mqtt_connection_options(service_dict)
         mqtt_config['wait_for_queue_element'] = to_int(service_dict.get('wait_for_queue_element', 5))
         mqtt_config['wait_for_inflight'] = to_int(service_dict.get('wait_for_inflight', 2))
-        mqtt_config['min_delay'] = to_int(service_dict.get('min_delay', 1))
-        mqtt_config['max_delay'] = to_int(service_dict.get('max_delay', 120))
-
         mqtt_config['log_mqtt'] = to_bool(service_dict.get('log_mqtt', False))
-        mqtt_config['host'] = service_dict.get('host', 'localhost')
-        mqtt_config['port'] = to_int(service_dict.get('port', 1883))
-        mqtt_config['username'] = service_dict.get('username', None)
-        mqtt_config['password'] = service_dict.get('password', None)
-        mqtt_config['clientid'] = service_dict.get('clientid', 'MQTTPublish-' +
-                                                   str(random.randint(1000, 9999)))  # NOSONAR - just need a unique id
 
-        protocol_string = service_dict.get('protocol', 'MQTTv311')
-        mqtt_config['protocol'] = getattr(mqtt, protocol_string, 0)
-
-        mqtt_config['tls'] = service_dict.get('tls')
         mqtt_config['lwt'] = service_dict.get('lwt')
         if mqtt_config['lwt'] is not None:
             self.logger.error(None, "'[[lwt]]' is deprecated.  use [[availability_topic]].")

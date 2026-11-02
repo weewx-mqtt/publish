@@ -98,6 +98,23 @@ class TestMQTTMessageTracker(unittest.TestCase):
         finally:
             connection.close()
 
+    def test_resolve_tracker_config(self):
+        database_dict, table = user.mqttmessagetracker.resolve_tracker_config(
+            {'data_binding': 'tracker_binding'}, self.config_dict)
+
+        self.assertEqual(database_dict['database_name'], 'tracker.sdb')
+        self.assertEqual(table, 'mqtt_message_tracker')
+
+        _, custom_table = user.mqttmessagetracker.resolve_tracker_config(
+            {'data_binding': 'tracker_binding', 'table': 'custom_tracker'}, self.config_dict)
+
+        self.assertEqual(custom_table, 'custom_tracker')
+
+    def test_resolve_tracker_config_rejects_invalid_table(self):
+        with self.assertRaises(user.mqttmessagetracker.TrackerConfigError):
+            user.mqttmessagetracker.resolve_tracker_config(
+                {'data_binding': 'tracker_binding', 'table': 'bad name'}, self.config_dict)
+
     def test_get_callbacks(self):
         plugin, _ = self._make_plugin()
 

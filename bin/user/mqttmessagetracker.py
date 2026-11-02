@@ -21,6 +21,31 @@ import user.mqttcommon
 
 
 TABLE_NAME_PATTERN = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*$')
+DEFAULT_TABLE = 'mqtt_message_tracker'
+
+
+class TrackerConfigError(Exception):
+    """ A tracker option that prevents writing to the database. """
+
+
+def resolve_tracker_config(plugin_dict, config_dict):
+    """ Resolve the database and table a tracker writes to.
+
+        Raises TrackerConfigError when the options cannot be used. """
+    data_binding = plugin_dict.get('data_binding')
+    if not data_binding:
+        raise TrackerConfigError("The data_binding option is required and must name a separate database binding.")
+
+    try:
+        manager_dict = weewx.manager.get_manager_dict_from_config(config_dict, data_binding)
+    except (KeyError, TypeError, weewx.UnknownBinding) as exception:
+        raise TrackerConfigError(f"Unable to resolve data binding {data_binding}: {exception}") from exception
+
+    table = plugin_dict.get('table', DEFAULT_TABLE)
+    if not isinstance(table, str) or not TABLE_NAME_PATTERN.match(table):
+        raise TrackerConfigError(f"Invalid table name, {table}.")
+
+    return manager_dict['database_dict'], table
 
 # The column types work with both SQLite and MySQL.
 # MEDIUMTEXT is MySQL's 16 MB text type; SQLite accepts the name and gives it TEXT affinity.
@@ -359,34 +384,18 @@ class MQTTMessageTracker(user.mqttpublish.MQTTPlugin):
         if not self.enabled:
             return
 
-        data_binding = plugin_dict.get('data_binding')
-        if not data_binding:
-            self.logger_queue.put(user.mqttcommon.Logger.create_entry(
-                self.name, 'ERROR', None,
-                "The data_binding option is required and must name a separate database binding."))
-            self.enabled = False
-            return
-
         try:
-            manager_dict = weewx.manager.get_manager_dict_from_config(weewx_dict['config_dict'], data_binding)
-        except (KeyError, TypeError, weewx.UnknownBinding) as exception:
+            database_dict, table = resolve_tracker_config(plugin_dict, weewx_dict['config_dict'])
+        except TrackerConfigError as exception:
             self.logger_queue.put(user.mqttcommon.Logger.create_entry(
-                self.name, 'ERROR', None,
-                f"Unable to resolve data binding {data_binding}: {exception}"))
-            self.enabled = False
-            return
-
-        table = plugin_dict.get('table', 'mqtt_message_tracker')
-        if not isinstance(table, str) or not TABLE_NAME_PATTERN.match(table):
-            self.logger_queue.put(user.mqttcommon.Logger.create_entry(
-                self.name, 'ERROR', None, f"Invalid table name, {table}."))
+                self.name, 'ERROR', None, str(exception)))
             self.enabled = False
             return
 
         self.tracker = _TrackerThread(
             logger_queue,
             self.name,
-            manager_dict['database_dict'],
+            database_dict,
             table,
             self._config_int(plugin_dict, 'retention', 604800),
             self._config_int(plugin_dict, 'prune_interval', 3600),
