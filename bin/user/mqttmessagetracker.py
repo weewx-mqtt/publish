@@ -31,6 +31,8 @@ CREATE TABLE IF NOT EXISTS {table} (
     dateTime INTEGER,
     sent_ts DOUBLE NOT NULL,
     arrived_ts DOUBLE,
+    status VARCHAR(16) NOT NULL,
+    unconfirmed_ts DOUBLE,
     topic VARCHAR(512) NOT NULL,
     qos INTEGER NOT NULL,
     retain INTEGER NOT NULL,
@@ -39,8 +41,19 @@ CREATE TABLE IF NOT EXISTS {table} (
 )
 """
 
-_SENT = 'sent'
-_ARRIVED = 'arrived'
+# The rc paho returns when it accepted the publish.
+_RC_SUCCESS = 0
+
+# The event tags.
+_EVENT_SENT = 'sent'
+_EVENT_ARRIVED = 'arrived'
+_EVENT_FINALIZE = 'finalize'
+
+# The values of the status column.
+_STATUS_FAILED = 'failed'
+_STATUS_SENT = 'sent'
+_STATUS_ACKED = 'acked'
+_STATUS_UNCONFIRMED = 'unconfirmed'
 
 
 class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-attributes
@@ -66,24 +79,25 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
         self.queue = queue.Queue(maxsize=queue_size)
         self.accepting = True
         self.dropped = 0
+        # mid -> (row id, sent timestamp) for the messages paho has not confirmed.
         self.inflight = {}
         self.pending = {}
 
     def sent(self, mid, rc, topic, payload, qos, retain, date_time):  # pylint: disable=too-many-arguments,too-many-positional-arguments
         """ Queue a message that was handed to paho. """
-        self._put((_SENT, uuid.uuid4().hex, mid, rc, topic, self._payload_text(payload),
+        self._put((_EVENT_SENT, uuid.uuid4().hex, mid, rc, topic, self._payload_text(payload),
                    qos, int(retain), date_time, time.time()))
 
     def arrived(self, mid):
         """ Queue a message that paho reported as published. """
-        self._put((_ARRIVED, mid, time.time()))
+        self._put((_EVENT_ARRIVED, mid, time.time()))
 
     def shutdown(self):
-        """ Stop the thread after it has written the queued events. """
+        """ Stop the thread after it has written the queued events and closed the unconfirmed ones. """
         if not self.is_alive():
             return
         try:
-            self.queue.put(None, timeout=self.shutdown_timeout)
+            self.queue.put((_EVENT_FINALIZE, time.time()), timeout=self.shutdown_timeout)
         except queue.Full:
             self._log('ERROR', "Unable to queue the message tracker shutdown event.")
             return
@@ -99,6 +113,7 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
         try:
             connection = self._connect()
             connection.execute(CREATE_TABLE.format(table=self.table))
+            self._sweep(connection)
         except Exception as exception:  # pylint: disable=broad-exception-caught
             self.accepting = False
             self._log('ERROR', f"Unable to open the message tracker database: {exception}")
@@ -140,14 +155,16 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
                 last_prune = self._maybe_prune(connection, last_prune)
                 continue
 
-            if event is None:
+            if event[0] == _EVENT_FINALIZE:
+                self._apply_finalize(connection, event[1])
                 return
 
-            batch, stopping = self._collect(event)
+            batch, finalize_ts = self._collect(event)
             self._apply(connection, batch)
             last_prune = self._maybe_prune(connection, last_prune)
 
-            if stopping:
+            if finalize_ts is not None:
+                self._apply_finalize(connection, finalize_ts)
                 return
 
     def _prune_timeout(self):
@@ -165,19 +182,19 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
         return last_prune
 
     def _collect(self, event):
-        """ Collect a batch of events, stopping when the shutdown event is seen. """
+        """ Collect a batch of events, stopping when the finalize event is seen. """
         batch = [event]
-        stopping = False
+        finalize_ts = None
         while len(batch) < self.batch_size:
             try:
                 item = self.queue.get_nowait()
             except queue.Empty:
                 break
-            if item is None:
-                stopping = True
+            if item[0] == _EVENT_FINALIZE:
+                finalize_ts = item[1]
                 break
             batch.append(item)
-        return batch, stopping
+        return batch, finalize_ts
 
     def _apply(self, connection, batch):
         """ Write one batch in a single transaction. """
@@ -187,8 +204,8 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
 
         statements = []
         for event in batch:
-            if event[0] == _SENT:
-                self._apply_sent(event, inflight, pending, statements)
+            if event[0] == _EVENT_SENT:
+                self._apply_sent(event, inflight, pending, statements, now)
             else:
                 self._apply_arrived(event, inflight, pending, statements, now)
 
@@ -206,28 +223,71 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
                 del pending[mid]
         return pending
 
-    def _apply_sent(self, event, inflight, pending, statements):
+    def _apply_sent(self, event, inflight, pending, statements, now):  # pylint: disable=too-many-positional-arguments,too-many-arguments
         """ Add the statements for a send event. """
+        # pylint: disable=too-many-locals
         _, row_id, mid, rc, topic, payload, qos, retain, date_time, sent_ts = event
+        status = _STATUS_SENT if rc == _RC_SUCCESS else _STATUS_FAILED
         statements.append((f"INSERT INTO {self.table} "
-                           "(id, mid, dateTime, sent_ts, arrived_ts, topic, qos, retain, rc, payload) "
-                           "VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)",
-                           (row_id, mid, date_time, sent_ts, topic, qos, retain, rc, payload)))
-        inflight[mid] = row_id
+                           "(id, mid, dateTime, sent_ts, arrived_ts, status, unconfirmed_ts, "
+                           "topic, qos, retain, rc, payload) "
+                           "VALUES (?, ?, ?, ?, NULL, ?, NULL, ?, ?, ?, ?, ?)",
+                           (row_id, mid, date_time, sent_ts, status, topic, qos, retain, rc, payload)))
+        if status != _STATUS_SENT:
+            return
+
+        self._close_reused_mid(inflight, mid, statements, now)
+        inflight[mid] = (row_id, sent_ts)
         if mid in pending:
             arrived_ts = pending.pop(mid)[0]
-            statements.append((f"UPDATE {self.table} SET arrived_ts = ? WHERE id = ?",
-                               (arrived_ts, row_id)))
+            statements.append((f"UPDATE {self.table} SET arrived_ts = ?, status = ? WHERE id = ?",
+                               (arrived_ts, _STATUS_ACKED, row_id)))
+
+    def _close_reused_mid(self, inflight, mid, statements, now):
+        """ Close the row of a message id that paho has reused.
+
+            The arrival of the older message will never be reported, so it is
+            unconfirmed, not undelivered. """
+        previous = inflight.pop(mid, None)
+        if previous is None:
+            return
+        statements.append((f"UPDATE {self.table} SET status = ?, unconfirmed_ts = ? WHERE id = ? AND status = ?",
+                           (_STATUS_UNCONFIRMED, now, previous[0], _STATUS_SENT)))
 
     def _apply_arrived(self, event, inflight, pending, statements, now):  # pylint: disable=too-many-positional-arguments
         """ Add the statements for an arrival event. """
         _, mid, arrived_ts = event
-        row_id = inflight.pop(mid, None)
-        if row_id is None:
+        previous = inflight.pop(mid, None)
+        if previous is None:
             pending[mid] = (arrived_ts, now)
         else:
-            statements.append((f"UPDATE {self.table} SET arrived_ts = ? WHERE id = ?",
-                               (arrived_ts, row_id)))
+            statements.append((f"UPDATE {self.table} SET arrived_ts = ?, status = ? WHERE id = ? AND status = ?",
+                               (arrived_ts, _STATUS_ACKED, previous[0], _STATUS_SENT)))
+
+    def _apply_finalize(self, connection, unconfirmed_ts):
+        """ Close the rows whose arrival paho never reported. """
+        rows = list(self.inflight.values())
+        self.inflight = {}
+        closed = 0
+        for start in range(0, len(rows), self.batch_size):
+            chunk = rows[start:start + self.batch_size]
+            statements = [(f"UPDATE {self.table} SET status = ?, unconfirmed_ts = ? WHERE id = ? AND status = ?",
+                           (_STATUS_UNCONFIRMED, unconfirmed_ts, row_id, _STATUS_SENT))
+                          for row_id, _ in chunk]
+            if not self._write(connection, statements):
+                break
+            closed += len(chunk)
+        if closed:
+            self._log('INFO', f"Closed {closed} message tracking rows as unconfirmed.")
+
+    def _sweep(self, connection):
+        """ Close the rows a previous run left waiting for an arrival. """
+        try:
+            with weedb.Transaction(connection) as cursor:
+                cursor.execute(f"UPDATE {self.table} SET status = ?, unconfirmed_ts = ? WHERE status = ?",
+                               (_STATUS_UNCONFIRMED, time.time(), _STATUS_SENT))
+        except Exception as exception:  # pylint: disable=broad-exception-caught
+            self._log('ERROR', f"Unable to close the message tracking rows of a previous run: {exception}")
 
     def _write(self, connection, statements):
         """ Execute the batch, returning whether it was written. """
@@ -267,7 +327,7 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
                 event = self.queue.get_nowait()
             except queue.Empty:
                 return
-            if event is None:
+            if event[0] == _EVENT_FINALIZE:
                 return
 
     @staticmethod
