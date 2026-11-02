@@ -326,10 +326,12 @@ class TestMQTTMessageTracker(unittest.TestCase):
         self.assertEqual([row['mid'] for row in rows], [2])
 
     def test_topic_retention(self):
-        plugin, _ = self._make_plugin({'retention': 60},
-                                      topics={'default': {}, 'custom': {'retention': 120}})
+        plugin, _ = self._make_plugin(
+            {'retention': 60, 'unconfirmed_retention': 90},
+            topics={'default': {}, 'custom': {'retention': 120, 'unconfirmed_retention': 180}})
 
         self.assertEqual(plugin.tracked_topics, {'default': 60, 'custom': 120})
+        self.assertEqual(plugin.topic_unconfirmed_retentions, {'default': 90, 'custom': 180})
 
     def test_only_configured_topics_are_tracked(self):
         plugin, _ = self._make_plugin(topics=['tracked'])
@@ -398,6 +400,35 @@ class TestMQTTMessageTracker(unittest.TestCase):
         self.assertEqual(rows[0]['status'], 'unconfirmed')
         log_messages = [call[0][0] for call in logger_queue.put.call_args_list]
         self.assertFalse(any(entry['log_type'] == 'ERROR' for entry in log_messages))
+
+    def test_unconfirmed_retention_prunes_old_rows(self):
+        plugin, _ = self._make_plugin({'unconfirmed_retention': 1, 'prune_interval': 3600})
+        plugin.mqtt_publish(None, 1, 0, 'topic', 'payload', 0, False, 1)
+        plugin.shutdown()
+
+        connection = weedb.connect(self.database_dict)
+        try:
+            plugin.tracker._prune(connection, time.time() + 10)  # pylint: disable=protected-access
+        finally:
+            connection.close()
+
+        self.assertEqual(self._rows(), [])
+
+    def test_per_topic_unconfirmed_retention(self):
+        plugin, _ = self._make_plugin(
+            {'unconfirmed_retention': 3600, 'prune_interval': 3600},
+            topics={'short': {'unconfirmed_retention': 1}, 'long': {}})
+        plugin.mqtt_publish(None, 1, 0, 'short', 'payload', 0, False, 1)
+        plugin.mqtt_publish(None, 2, 0, 'long', 'payload', 0, False, 2)
+        plugin.shutdown()
+
+        connection = weedb.connect(self.database_dict)
+        try:
+            plugin.tracker._prune(connection, time.time() + 10)  # pylint: disable=protected-access
+        finally:
+            connection.close()
+
+        self.assertEqual([row['topic'] for row in self._rows()], ['long'])
 
     def test_sent_rows_are_not_pruned(self):
         plugin, _ = self._make_plugin({'retention': 1, 'prune_interval': 3600})

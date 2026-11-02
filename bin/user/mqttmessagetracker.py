@@ -26,6 +26,7 @@ TABLE_NAME_PATTERN = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*$')
 DEFAULT_TABLE = 'mqtt_message_tracker'
 DEFAULT_PLUGIN_SECTION = 'MQTTMessageTracker'
 DEFAULT_RETENTION = 604800
+DEFAULT_UNCONFIRMED_RETENTION = 0
 
 # The payload preview length in a tool's plan.
 PREVIEW_LENGTH = 60
@@ -84,16 +85,26 @@ def resolve_tracker_config(plugin_dict, config_dict):
     return manager_dict['database_dict'], table
 
 
-def topic_retentions(topic_dicts, default_retention):
-    """ The retention for each enabled topic in a [[topics]] section. """
-    retentions = {}
+def _topic_option(topic_dicts, key, default):
+    """ One option, per enabled topic, from a [[topics]] section. """
+    values = {}
     for topic in topic_dicts.sections:
         topic_dict = topic_dicts[topic]
         if not to_bool(topic_dict.get('enable', True)):
             continue
-        retention = to_int(topic_dict.get('retention', default_retention))
-        retentions[topic] = default_retention if retention is None else retention
-    return retentions
+        value = to_int(topic_dict.get(key, default))
+        values[topic] = default if value is None else value
+    return values
+
+
+def topic_retentions(topic_dicts, default_retention):
+    """ The retention for each enabled topic in a [[topics]] section. """
+    return _topic_option(topic_dicts, 'retention', default_retention)
+
+
+def topic_unconfirmed_retentions(topic_dicts, default_retention):
+    """ The unconfirmed retention for each enabled topic in a [[topics]] section. """
+    return _topic_option(topic_dicts, 'unconfirmed_retention', default_retention)
 
 
 def fetch_rows(connection, table):
@@ -168,15 +179,15 @@ STATUS_UNCONFIRMED = 'unconfirmed'
 # The statuses whose rows are pruned by age. A row that may still be delivered, or whose
 # delivery is unknown, is kept so that it can still be replayed.
 _PRUNED_STATUSES = (STATUS_ACKED, STATUS_FAILED)
-_PRUNED_STATUSES_PLACEHOLDERS = ', '.join('?' for _ in _PRUNED_STATUSES)
 
 
 class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-attributes
     """ Write publish events to the database on a single thread. """
 
     def __init__(self, logger_queue, log_name, database_dict, table,  # pylint: disable=too-many-arguments,too-many-positional-arguments
-                 retention, topic_retention, prune_interval, batch_size, pending_ttl, queue_size,
-                 shutdown_timeout, create_database):
+                 retention, topic_retention, unconfirmed_retention, topic_unconfirmed_retention,
+                 prune_interval, batch_size, pending_ttl, queue_size, shutdown_timeout,
+                 create_database):
         threading.Thread.__init__(self)
         self.daemon = True
 
@@ -186,6 +197,8 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
         self.table = table
         self.retention = retention
         self.topic_retention = topic_retention
+        self.unconfirmed_retention = unconfirmed_retention
+        self.topic_unconfirmed_retention = topic_unconfirmed_retention
         self.prune_interval = prune_interval
         self.batch_size = batch_size
         self.pending_ttl = pending_ttl
@@ -292,7 +305,10 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
 
     def _has_retention(self):
         """ Whether any row is ever pruned. """
-        return self.retention > 0 or any(retention > 0 for retention in self.topic_retention.values())
+        return (self.retention > 0 or
+                self.unconfirmed_retention > 0 or
+                any(retention > 0 for retention in self.topic_retention.values()) or
+                any(retention > 0 for retention in self.topic_unconfirmed_retention.values()))
 
     def _maybe_prune(self, connection, last_prune):
         """ Prune when the interval has elapsed. """
@@ -423,36 +439,62 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
         return True
 
     def _prune(self, connection, now):
-        """ Delete rows that are older than the retention period.
+        """ Delete rows that are older than their retention period.
 
-            Only rows whose outcome is known are pruned. A sent or unconfirmed row may still be
-            delivered, or can still be replayed, so it is kept. """
+            The acked and failed rows are pruned by 'retention'. The unconfirmed
+            rows are pruned by 'unconfirmed_retention', which defaults to never.
+            A sent row is left for the startup sweep to close. """
         try:
-            self._prune_unlisted_topics(connection, now)
-            for topic, retention in self.topic_retention.items():
-                if retention > 0:
-                    connection.execute(
-                        f"DELETE FROM {self.table} WHERE topic = ? AND sent_ts < ? "
-                        f"AND status IN ({_PRUNED_STATUSES_PLACEHOLDERS})",
-                        (topic, now - retention, *_PRUNED_STATUSES))
+            self._prune_known_outcomes(connection, now)
+            self._prune_unconfirmed(connection, now)
         except Exception as exception:  # pylint: disable=broad-exception-caught
             self._log('ERROR', f"Unable to prune message tracking data: {exception}")
 
-    def _prune_unlisted_topics(self, connection, now):
-        """ Prune the rows of topics that are no longer tracked, with the table-wide retention. """
-        if self.retention <= 0:
+    def _prune_known_outcomes(self, connection, now):
+        """ Prune the acked and failed rows, by the topic's retention. """
+        self._delete_unlisted(connection, now, self.retention, self.topic_retention, _PRUNED_STATUSES)
+        for topic, retention in self.topic_retention.items():
+            if retention > 0:
+                self._delete_topic(connection, topic, now, retention, _PRUNED_STATUSES)
+
+    def _prune_unconfirmed(self, connection, now):
+        """ Prune the unconfirmed rows, by the topic's unconfirmed retention. """
+        if not self._has_unconfirmed_retention():
             return
-        topics = list(self.topic_retention)
+        self._delete_unlisted(connection, now, self.unconfirmed_retention,
+                              self.topic_unconfirmed_retention, (STATUS_UNCONFIRMED,))
+        for topic, retention in self.topic_unconfirmed_retention.items():
+            if retention > 0:
+                self._delete_topic(connection, topic, now, retention, (STATUS_UNCONFIRMED,))
+
+    def _has_unconfirmed_retention(self):
+        """ Whether any unconfirmed row is ever pruned. """
+        return (self.unconfirmed_retention > 0 or
+                any(retention > 0 for retention in self.topic_unconfirmed_retention.values()))
+
+    def _delete_topic(self, connection, topic, now, retention, statuses):
+        """ Delete the rows of one topic. """
+        placeholders = ', '.join('?' for _ in statuses)
+        connection.execute(
+            f"DELETE FROM {self.table} WHERE topic = ? AND sent_ts < ? AND status IN ({placeholders})",
+            (topic, now - retention, *statuses))
+
+    def _delete_unlisted(self, connection, now, retention, topic_retention, statuses):
+        """ Delete the rows of topics that are no longer tracked, with the table-wide retention. """
+        if retention <= 0:
+            return
+        topics = list(topic_retention)
+        status_placeholders = ', '.join('?' for _ in statuses)
         if not topics:
             connection.execute(
-                f"DELETE FROM {self.table} WHERE sent_ts < ? AND status IN ({_PRUNED_STATUSES_PLACEHOLDERS})",
-                (now - self.retention, *_PRUNED_STATUSES))
+                f"DELETE FROM {self.table} WHERE sent_ts < ? AND status IN ({status_placeholders})",
+                (now - retention, *statuses))
             return
-        placeholders = ', '.join('?' for _ in topics)
+        topic_placeholders = ', '.join('?' for _ in topics)
         connection.execute(
-            f"DELETE FROM {self.table} WHERE topic NOT IN ({placeholders}) AND sent_ts < ? "
-            f"AND status IN ({_PRUNED_STATUSES_PLACEHOLDERS})",
-            (*topics, now - self.retention, *_PRUNED_STATUSES))
+            f"DELETE FROM {self.table} WHERE topic NOT IN ({topic_placeholders}) AND sent_ts < ? "
+            f"AND status IN ({status_placeholders})",
+            (*topics, now - retention, *statuses))
 
     def _put(self, event):
         """ Queue an event, dropping it rather than blocking the caller. """
@@ -496,11 +538,14 @@ class MQTTMessageTracker(user.mqttpublish.MQTTPlugin):
 
         self.tracker = None
         self.tracked_topics = {}
+        self.topic_unconfirmed_retentions = {}
         if not self.enabled:
             return
 
         self.retention = self._config_int(plugin_dict, 'retention', DEFAULT_RETENTION)
-        self.tracked_topics = self._configure_topics(plugin_dict)
+        self.unconfirmed_retention = self._config_int(
+            plugin_dict, 'unconfirmed_retention', DEFAULT_UNCONFIRMED_RETENTION)
+        self.tracked_topics, self.topic_unconfirmed_retentions = self._configure_topics(plugin_dict)
         if not self.tracked_topics:
             self.enabled = False
             return
@@ -519,6 +564,8 @@ class MQTTMessageTracker(user.mqttpublish.MQTTPlugin):
             table,
             self.retention,
             self.tracked_topics,
+            self.unconfirmed_retention,
+            self.topic_unconfirmed_retentions,
             self._config_int(plugin_dict, 'prune_interval', 3600),
             self._config_int(plugin_dict, 'batch_size', 100),
             self._config_int(plugin_dict, 'pending_ttl', 60),
@@ -533,12 +580,13 @@ class MQTTMessageTracker(user.mqttpublish.MQTTPlugin):
         topic_dicts = plugin_dict.get('topics')
         if topic_dicts is None:
             self._log('ERROR', "'[[topics]]' is required, no messages are tracked.")
-            return {}
+            return {}, {}
 
         tracked = topic_retentions(topic_dicts, self.retention)
         if not tracked:
             self._log('ERROR', "No topics are enabled, no messages are tracked.")
-        return tracked
+        unconfirmed = topic_unconfirmed_retentions(topic_dicts, self.unconfirmed_retention)
+        return tracked, unconfirmed
 
     def _log(self, log_type, msg_text):
         self.logger_queue.put(user.mqttcommon.Logger.create_entry(self.name, log_type, None, msg_text))

@@ -36,12 +36,18 @@ Default is `mqtt_message_tracker`.
 
 ### retention
 
-The default retention, in seconds, for topics that do not set their own.
+The default retention, in seconds, for `acked` and `failed` rows in topics that do not set their own.
 Set to `0` to keep them forever.
 Default is `604800` (7 days).
 
-Rows with the `sent` or `unconfirmed` status are never pruned.
-They may still be delivered, or can still be replayed; see [Pruning](#pruning) to remove them.
+### unconfirmed_retention
+
+How long, in seconds, to keep `unconfirmed` rows in topics that do not set their own.
+Set to `0` to keep them forever.
+Default is `0`.
+
+A `sent` row is not pruned; the startup sweep closes it as `unconfirmed`, which this option then bounds.
+See [Pruning](#pruning) to remove them sooner.
 
 ### prune_interval
 
@@ -84,10 +90,15 @@ Default is `true`.
 
 #### retention
 
-How long, in seconds, to keep this topic's rows.
+How long, in seconds, to keep this topic's `acked` and `failed` rows.
 Set to `0` to keep them forever.
-Sent and unconfirmed rows are never pruned.
 Default is the `retention` option above.
+
+#### unconfirmed_retention
+
+How long, in seconds, to keep this topic's `unconfirmed` rows.
+Set to `0` to keep them forever.
+Default is the `unconfirmed_retention` option above.
 
 ```ini
 [MQTTMessageTracker]
@@ -143,7 +154,8 @@ availability/LWT message are not tracked.
 
 `sent` is transient. While the tracker is running, a row is expected to move to `acked`, or to
 `failed` when paho refuses the publish. A `sent` row is not pruned, so one whose arrival never
-arrives is kept until the tracker stops, which closes it as `unconfirmed`.
+arrives is kept until the tracker stops, which closes it as `unconfirmed`; `unconfirmed_retention`
+then bounds it.
 
 `unconfirmed` does not mean the message was not delivered. It means the tracker cannot tell: paho
 never reported the arrival, and no further report can arrive. That is why it is recorded as its own
@@ -237,8 +249,8 @@ The tool:
 - waits for the connection before publishing, and for each publish to be confirmed, with
   `--ack-timeout` (default `10` seconds).
 
-Unconfirmed rows are never pruned, so the tool can select a message that is older than the
-retention period.
+Unconfirmed rows are kept until `unconfirmed_retention` (default never), so the tool can select a
+message that is older than the normal retention period.
 
 `--plugin-section`, `--data-binding` and `--table` select a tracker that is configured under
 another section or writes to another database.
@@ -258,11 +270,13 @@ time-series stores.
 
 ## Pruning
 
-The tracker prunes rows by age, using each topic's `retention` (or the plugin-level `retention`
-for topics that are no longer configured). Only `acked` and `failed` rows are pruned.
-`sent` and `unconfirmed` rows are kept: they may still be delivered, or can still be replayed.
+The tracker prunes `acked` and `failed` rows by age, using each topic's `retention` (or the
+plugin-level `retention` for topics that are no longer configured). `unconfirmed` rows are pruned
+by `unconfirmed_retention`, which defaults to `0` (never). `sent` rows are not pruned; the startup
+sweep closes them as `unconfirmed`.
 
-To remove those rows, run `bin/user/mqttprune.py`:
+To remove unconfirmed rows sooner, or when `unconfirmed_retention` is `0`, run
+`bin/user/mqttprune.py`:
 
 ```shell
 python /usr/share/weewx/bin/user/mqttprune.py /etc/weewx/weewx.conf
@@ -271,10 +285,9 @@ python /usr/share/weewx/bin/user/mqttprune.py /etc/weewx/weewx.conf --delete
 
 Without `--delete` it only prints the selection.
 
-By default a row is selected when it is older than its topic's configured retention — exactly
-what the automatic prune would have removed if the status were not exempt. `--older-than`
-overrides that with a fixed age; `--older-than 0` selects every matching row, including topics
-whose retention is `0` (keep forever).
+By default a row is selected when it is older than its topic's `retention` — the age the normal
+policy uses. Use `--older-than` to match `unconfirmed_retention`, or to prune sooner.
+`--older-than 0` selects every matching row, including topics whose retention is `0`.
 
 - `--status unconfirmed` is the default. Use `--status failed`, or `failed,unconfirmed`, to
   include `failed`. `sent` is refused (it may be in flight; restart WeeWX to close it as

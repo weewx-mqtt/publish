@@ -38,6 +38,7 @@ class TestInstallConfig(unittest.TestCase):
         database = self.config['Databases']['message_tracker']
         self.assertEqual(database['database_name'], 'mqtt_message_tracker.sdb')
         self.assertEqual(database['database_type'], 'SQLite')
+        self.assertEqual(self.config['MQTTMessageTracker']['unconfirmed_retention'], '0')
 
     def test_tracker_topics_are_seeded(self):
         topics = self.config['MQTTMessageTracker']['topics']

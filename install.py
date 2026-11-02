@@ -378,6 +378,11 @@ MQTTPUBLISH_CONFIG = """
     # Default is 604800 (7 days).
     retention = 604800
 
+    # How long, in seconds, to keep unconfirmed rows.
+    # Set to 0 to keep them forever.
+    # Default is 0.
+    unconfirmed_retention = 0
+
     # How often, in seconds, to delete rows older than retention.
     # Default is 3600.
     prune_interval = 3600
@@ -410,6 +415,11 @@ MQTTPUBLISH_CONFIG = """
             # Set to 0 to keep them forever.
             # Default is the retention option above.
             #retention = 604800
+
+            # How long, in seconds, to keep this topic's unconfirmed rows.
+            # Set to 0 to keep them forever.
+            # Default is the unconfirmed_retention option above.
+            #unconfirmed_retention = 0
 
 [DataBindings]
     [[message_tracker_binding]]
