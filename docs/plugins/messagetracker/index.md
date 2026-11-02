@@ -77,15 +77,23 @@ Each message published by the data pipeline records a row.
 - `arrived_ts`: when paho reported it published, `NULL` for anything that is not `acked`.
 - `status`: what is known about the message, see below.
 - `unconfirmed_ts`: when the tracker stopped waiting for the arrival, `NULL` unless the status is `unconfirmed`.
+- `origin_id`: the id of the original publish when this row is a replay, `NULL` otherwise.
+- `attempt`: the replay number when this row is a replay, `NULL` for the original publish.
+- `clientid`: the client that made a replay, `NULL` for a publish by MQTTPublish.
 - `topic`: the topic the message was published on.
 - `qos`: the quality of service level used.
 - `retain`: whether the message is retained.
 - `rc`: the paho result code.
 - `payload`: the payload that was sent.
+- `payload_encoding`: `text` or `hex`, `NULL` when there is no payload.
 
-The payload is stored as text; binary payloads are hex-encoded.
-With MySQL, `MEDIUMTEXT` holds up to 16 MB; SQLite has no practical limit.
+The payload is stored as text; binary payloads are hex-encoded and marked with
+`payload_encoding`. With MySQL, `MEDIUMTEXT` holds up to 16 MB; SQLite has no practical limit.
 A larger payload makes the insert fail and the batch is logged and dropped.
+
+A replay of a message is a copy of its row, with its own `mid`, `sent_ts`, `arrived_ts`, `status`
+and `rc`. It keeps the original `topic`, `qos`, `retain`, `dateTime` and `payload`, and points at
+the original with `origin_id` and `attempt`. The original row is not changed.
 
 Messages published directly by a plugin, such as the Home Assistant discovery messages, and the
 availability/LWT message are not tracked.
@@ -139,11 +147,15 @@ CREATE TABLE IF NOT EXISTS mqtt_message_tracker (
     arrived_ts DOUBLE,
     status VARCHAR(16) NOT NULL,
     unconfirmed_ts DOUBLE,
+    origin_id VARCHAR(32),
+    attempt INTEGER,
+    clientid VARCHAR(128),
     topic VARCHAR(512) NOT NULL,
     qos INTEGER NOT NULL,
     retain INTEGER NOT NULL,
     rc INTEGER,
-    payload MEDIUMTEXT
+    payload MEDIUMTEXT,
+    payload_encoding VARCHAR(8)
 )
 ```
 

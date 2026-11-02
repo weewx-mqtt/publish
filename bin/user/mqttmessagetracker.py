@@ -33,11 +33,15 @@ CREATE TABLE IF NOT EXISTS {table} (
     arrived_ts DOUBLE,
     status VARCHAR(16) NOT NULL,
     unconfirmed_ts DOUBLE,
+    origin_id VARCHAR(32),
+    attempt INTEGER,
+    clientid VARCHAR(128),
     topic VARCHAR(512) NOT NULL,
     qos INTEGER NOT NULL,
     retain INTEGER NOT NULL,
     rc INTEGER,
-    payload MEDIUMTEXT
+    payload MEDIUMTEXT,
+    payload_encoding VARCHAR(8)
 )
 """
 
@@ -85,7 +89,8 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
 
     def sent(self, mid, rc, topic, payload, qos, retain, date_time):  # pylint: disable=too-many-arguments,too-many-positional-arguments
         """ Queue a message that was handed to paho. """
-        self._put((_EVENT_SENT, uuid.uuid4().hex, mid, rc, topic, self._payload_text(payload),
+        payload_text, payload_encoding = self._payload(payload)
+        self._put((_EVENT_SENT, uuid.uuid4().hex, mid, rc, topic, payload_text, payload_encoding,
                    qos, int(retain), date_time, time.time()))
 
     def arrived(self, mid):
@@ -226,13 +231,14 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
     def _apply_sent(self, event, inflight, pending, statements, now):  # pylint: disable=too-many-positional-arguments,too-many-arguments
         """ Add the statements for a send event. """
         # pylint: disable=too-many-locals
-        _, row_id, mid, rc, topic, payload, qos, retain, date_time, sent_ts = event
+        _, row_id, mid, rc, topic, payload, payload_encoding, qos, retain, date_time, sent_ts = event
         status = _STATUS_SENT if rc == _RC_SUCCESS else _STATUS_FAILED
         statements.append((f"INSERT INTO {self.table} "
                            "(id, mid, dateTime, sent_ts, arrived_ts, status, unconfirmed_ts, "
-                           "topic, qos, retain, rc, payload) "
-                           "VALUES (?, ?, ?, ?, NULL, ?, NULL, ?, ?, ?, ?, ?)",
-                           (row_id, mid, date_time, sent_ts, status, topic, qos, retain, rc, payload)))
+                           "origin_id, attempt, clientid, topic, qos, retain, rc, payload, payload_encoding) "
+                           "VALUES (?, ?, ?, ?, NULL, ?, NULL, NULL, NULL, NULL, ?, ?, ?, ?, ?, ?)",
+                           (row_id, mid, date_time, sent_ts, status, topic, qos, retain, rc, payload,
+                            payload_encoding)))
         if status != _STATUS_SENT:
             return
 
@@ -331,13 +337,13 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
                 return
 
     @staticmethod
-    def _payload_text(payload):
-        """ Convert the payload to something the database can store. """
+    def _payload(payload):
+        """ Convert the payload to something the database can store, with its encoding. """
         if payload is None:
-            return None
+            return None, None
         if isinstance(payload, (bytes, bytearray)):
-            return bytes(payload).hex()
-        return str(payload)
+            return bytes(payload).hex(), 'hex'
+        return str(payload), 'text'
 
     def _log(self, log_type, msg_text):
         self.logger_queue.put(user.mqttcommon.Logger.create_entry(self.log_name, log_type, None, msg_text))

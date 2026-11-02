@@ -64,7 +64,8 @@ class TestMQTTMessageTracker(unittest.TestCase):
         try:
             cursor = connection.cursor()
             cursor.execute(f"SELECT id, mid, dateTime, sent_ts, arrived_ts, status, unconfirmed_ts, "
-                           f"topic, qos, retain, rc, payload FROM {table} ORDER BY sent_ts, id")
+                           f"origin_id, attempt, clientid, topic, qos, retain, rc, payload, payload_encoding "
+                           f"FROM {table} ORDER BY sent_ts, id")
             columns = [description[0] for description in cursor.description]
             return [dict(zip(columns, row)) for row in cursor.fetchall()]
         finally:
@@ -151,6 +152,10 @@ class TestMQTTMessageTracker(unittest.TestCase):
         self.assertEqual(row['retain'], 0)
         self.assertEqual(row['rc'], 0)
         self.assertEqual(row['payload'], 'payload')
+        self.assertEqual(row['payload_encoding'], 'text')
+        self.assertIsNone(row['origin_id'])
+        self.assertIsNone(row['attempt'])
+        self.assertIsNone(row['clientid'])
 
     def test_sent_until_arrival(self):
         plugin, _ = self._make_plugin()
@@ -263,7 +268,9 @@ class TestMQTTMessageTracker(unittest.TestCase):
         plugin.mqtt_publish(None, 3, 0, 'c', None, 0, False, 3)
         plugin.shutdown()
 
-        self.assertEqual([row['payload'] for row in self._rows()], ['616263', '12.5', None])
+        rows = self._rows()
+        self.assertEqual([row['payload'] for row in rows], ['616263', '12.5', None])
+        self.assertEqual([row['payload_encoding'] for row in rows], ['hex', 'text', None])
 
     def test_custom_table(self):
         plugin, _ = self._make_plugin({'table': 'custom_tracker'})
