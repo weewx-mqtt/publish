@@ -79,10 +79,10 @@ _EVENT_ARRIVED = 'arrived'
 _EVENT_FINALIZE = 'finalize'
 
 # The values of the status column.
-_STATUS_FAILED = 'failed'
-_STATUS_SENT = 'sent'
-_STATUS_ACKED = 'acked'
-_STATUS_UNCONFIRMED = 'unconfirmed'
+STATUS_FAILED = 'failed'
+STATUS_SENT = 'sent'
+STATUS_ACKED = 'acked'
+STATUS_UNCONFIRMED = 'unconfirmed'
 
 
 class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-attributes
@@ -257,14 +257,14 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
         """ Add the statements for a send event. """
         # pylint: disable=too-many-locals
         _, row_id, mid, rc, topic, payload, payload_encoding, qos, retain, date_time, sent_ts = event
-        status = _STATUS_SENT if rc == _RC_SUCCESS else _STATUS_FAILED
+        status = STATUS_SENT if rc == _RC_SUCCESS else STATUS_FAILED
         statements.append((f"INSERT INTO {self.table} "
                            "(id, mid, dateTime, sent_ts, arrived_ts, status, unconfirmed_ts, "
                            "origin_id, attempt, clientid, topic, qos, retain, rc, payload, payload_encoding) "
                            "VALUES (?, ?, ?, ?, NULL, ?, NULL, NULL, NULL, NULL, ?, ?, ?, ?, ?, ?)",
                            (row_id, mid, date_time, sent_ts, status, topic, qos, retain, rc, payload,
                             payload_encoding)))
-        if status != _STATUS_SENT:
+        if status != STATUS_SENT:
             return
 
         self._close_reused_mid(inflight, mid, statements, now)
@@ -272,7 +272,7 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
         if mid in pending:
             arrived_ts = pending.pop(mid)[0]
             statements.append((f"UPDATE {self.table} SET arrived_ts = ?, status = ? WHERE id = ?",
-                               (arrived_ts, _STATUS_ACKED, row_id)))
+                               (arrived_ts, STATUS_ACKED, row_id)))
 
     def _close_reused_mid(self, inflight, mid, statements, now):
         """ Close the row of a message id that paho has reused.
@@ -283,7 +283,7 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
         if previous is None:
             return
         statements.append((f"UPDATE {self.table} SET status = ?, unconfirmed_ts = ? WHERE id = ? AND status = ?",
-                           (_STATUS_UNCONFIRMED, now, previous[0], _STATUS_SENT)))
+                           (STATUS_UNCONFIRMED, now, previous[0], STATUS_SENT)))
 
     def _apply_arrived(self, event, inflight, pending, statements, now):  # pylint: disable=too-many-positional-arguments
         """ Add the statements for an arrival event. """
@@ -293,7 +293,7 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
             pending[mid] = (arrived_ts, now)
         else:
             statements.append((f"UPDATE {self.table} SET arrived_ts = ?, status = ? WHERE id = ? AND status = ?",
-                               (arrived_ts, _STATUS_ACKED, previous[0], _STATUS_SENT)))
+                               (arrived_ts, STATUS_ACKED, previous[0], STATUS_SENT)))
 
     def _apply_finalize(self, connection, unconfirmed_ts):
         """ Close the rows whose arrival paho never reported. """
@@ -303,7 +303,7 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
         for start in range(0, len(rows), self.batch_size):
             chunk = rows[start:start + self.batch_size]
             statements = [(f"UPDATE {self.table} SET status = ?, unconfirmed_ts = ? WHERE id = ? AND status = ?",
-                           (_STATUS_UNCONFIRMED, unconfirmed_ts, row_id, _STATUS_SENT))
+                           (STATUS_UNCONFIRMED, unconfirmed_ts, row_id, STATUS_SENT))
                           for row_id, _ in chunk]
             if not self._write(connection, statements):
                 break
@@ -316,7 +316,7 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
         try:
             with weedb.Transaction(connection) as cursor:
                 cursor.execute(f"UPDATE {self.table} SET status = ?, unconfirmed_ts = ? WHERE status = ?",
-                               (_STATUS_UNCONFIRMED, time.time(), _STATUS_SENT))
+                               (STATUS_UNCONFIRMED, time.time(), STATUS_SENT))
         except Exception as exception:  # pylint: disable=broad-exception-caught
             self._log('ERROR', f"Unable to close the message tracking rows of a previous run: {exception}")
 
