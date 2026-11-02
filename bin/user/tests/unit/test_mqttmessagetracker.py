@@ -21,7 +21,7 @@ import weedb
 
 class TestMQTTMessageTracker(unittest.TestCase):
     def setUp(self):
-        self.temp_dir = tempfile.TemporaryDirectory()
+        self.temp_dir = tempfile.TemporaryDirectory()  # pylint: disable=consider-using-with
         self.addCleanup(self.temp_dir.cleanup)
 
         self.database_dict = {
