@@ -51,6 +51,7 @@ class TestInstallConfig(unittest.TestCase):
 
         self.assertIn('bin/user/mqttmessagetracker.py', files)
         self.assertIn('bin/user/mqttreplay.py', files)
+        self.assertIn('bin/user/mqttprune.py', files)
 
 
 if __name__ == '__main__':

@@ -30,7 +30,6 @@ _bin_root = os.getenv('BIN_ROOT') or os.path.dirname(os.path.dirname(os.path.abs
 if _bin_root not in sys.path:
     sys.path.append(_bin_root)
 
-import configobj  # pylint: disable=wrong-import-position
 import weedb  # pylint: disable=wrong-import-position
 from weeutil.weeutil import to_bool  # pylint: disable=wrong-import-position
 
@@ -40,18 +39,15 @@ import user.mqttmessagetracker  # pylint: disable=wrong-import-position
 
 VERSION = user.mqttpublish.VERSION
 
-# The columns read from the tracker table, in the order they are fetched.
-# weedb's MySQL cursor has no 'description' and no 'rowcount', so the names are fixed here.
-MESSAGE_COLUMNS = ('id', 'mid', 'dateTime', 'sent_ts', 'arrived_ts', 'status', 'unconfirmed_ts',
-                   'origin_id', 'attempt', 'clientid', 'topic', 'qos', 'retain', 'rc',
-                   'payload', 'payload_encoding')
+# The tracker table's columns and plugin section are shared with the tracker and mqttprune.
+MESSAGE_COLUMNS = user.mqttmessagetracker.MESSAGE_COLUMNS
 
 # A 'sent' row may still be in flight and an 'acked' row does not need a replay.
 REPLAY_STATUSES = (user.mqttmessagetracker.STATUS_UNCONFIRMED,
                    user.mqttmessagetracker.STATUS_FAILED)
 
 DEFAULT_STATUS = user.mqttmessagetracker.STATUS_UNCONFIRMED
-DEFAULT_PLUGIN_SECTION = 'MQTTMessageTracker'
+DEFAULT_PLUGIN_SECTION = user.mqttmessagetracker.DEFAULT_PLUGIN_SECTION
 DEFAULT_SINCE = 3600
 DEFAULT_LIMIT = 100
 DEFAULT_ACK_TIMEOUT = 10
@@ -59,9 +55,6 @@ DEFAULT_CONNECT_TIMEOUT = 10
 
 # What paho returns when it accepted the publish.
 _RC_SUCCESS = 0
-
-# The payload preview length in the plan.
-_PREVIEW_LENGTH = 60
 
 ReplayOutcome = collections.namedtuple('ReplayOutcome', 'row attempt mid status')
 
@@ -81,25 +74,17 @@ class ReplayConnectError(ReplayError):
 def read_config(config_file):
     """ Read the WeeWX config file. """
     try:
-        return configobj.ConfigObj(os.path.abspath(config_file), file_error=True)
-    except (configobj.ConfigObjError, OSError) as exception:
-        raise ReplayConfigError(f"Unable to read the config file {config_file}: {exception}") from exception
+        return user.mqttmessagetracker.read_config(config_file)
+    except user.mqttmessagetracker.TrackerConfigError as exception:
+        raise ReplayConfigError(str(exception)) from exception
 
 
 def replay_config(config_dict, plugin_section=DEFAULT_PLUGIN_SECTION, data_binding=None, table=None,
                   clientid=None):
     """ Resolve the database, table and mqtt connection options for a replay. """
-    if plugin_section not in config_dict:
-        raise ReplayConfigError(f"The config file has no [{plugin_section}] section.")
-
-    plugin_dict = dict(config_dict[plugin_section])
-    if data_binding:
-        plugin_dict['data_binding'] = data_binding
-    if table:
-        plugin_dict['table'] = table
-
     try:
-        database_dict, table_name = user.mqttmessagetracker.resolve_tracker_config(plugin_dict, config_dict)
+        _, database_dict, table_name = user.mqttmessagetracker.tool_config(
+            config_dict, plugin_section, data_binding, table)
     except user.mqttmessagetracker.TrackerConfigError as exception:
         raise ReplayConfigError(str(exception)) from exception
 
@@ -111,16 +96,6 @@ def replay_config(config_dict, plugin_section=DEFAULT_PLUGIN_SECTION, data_bindi
     options = user.mqttpublish.mqtt_connection_options(
         service_dict, default_clientid=f'MQTTPublish-replay-{random.randint(1000, 9999)}')  # NOSONAR - just need a unique id
     return database_dict, table_name, options
-
-
-def _fetch(connection, table):
-    """ Read every row from the tracker table. """
-    cursor = connection.cursor()
-    try:
-        cursor.execute(f"SELECT {', '.join(MESSAGE_COLUMNS)} FROM {table}")
-        return [dict(zip(MESSAGE_COLUMNS, row)) for row in cursor]
-    finally:
-        cursor.close()
 
 
 def _origin(row):
@@ -367,29 +342,6 @@ def replay_message(client, connection, table, row, clientid):
     return ReplayOutcome(row, attempt, message_info.mid, status)
 
 
-def _describe(row):
-    """ A one line description of a row for the plan. """
-    payload = row['payload']
-    if payload is None:
-        preview = '<none>'
-    else:
-        preview = payload[:_PREVIEW_LENGTH] + ('...' if len(payload) > _PREVIEW_LENGTH else '')
-        preview = preview.replace('\n', ' ')
-    return (f"{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(row['sent_ts']))} "
-            f"{row['topic']} qos={row['qos']} retain={row['retain']} "
-            f"status={row['status']} id={row['id']} payload={preview}")
-
-
-def print_plan(rows, out):
-    """ Print the messages that are about to be replayed. """
-    if not rows:
-        print("No messages match the selection.", file=out)
-        return
-    print(f"{len(rows)} message(s) selected:", file=out)
-    for row in rows:
-        print(f"  {_describe(row)}", file=out)
-
-
 def print_outcomes(outcomes, out):
     """ Print what the broker acknowledged. """
     for outcome in outcomes:
@@ -412,10 +364,10 @@ def replay(database_dict, table, options, *, statuses=None, since=DEFAULT_SINCE,
             f"Unable to open the message tracker database: {exception}") from exception
 
     try:
-        rows = _fetch(connection, table)
+        rows = user.mqttmessagetracker.fetch_rows(connection, table)
         selected = select_messages(rows, statuses=statuses, since=since, limit=limit, topic=topic,
                                    newest_per_topic=newest_per_topic, force=force)
-        print_plan(selected, out)
+        user.mqttmessagetracker.print_plan(selected, out)
         if dry_run or not selected:
             return selected, []
 

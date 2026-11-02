@@ -41,11 +41,7 @@ Set to `0` to keep them forever.
 Default is `604800` (7 days).
 
 Rows with the `sent` or `unconfirmed` status are never pruned.
-They may still be delivered, or can still be replayed, so they stay until deleted by hand:
-
-```sql
-DELETE FROM mqtt_message_tracker WHERE status IN ('sent', 'unconfirmed') AND sent_ts < ?
-```
+They may still be delivered, or can still be replayed; see [Pruning](#pruning) to remove them.
 
 ### prune_interval
 
@@ -259,6 +255,47 @@ row, which the tracker closes as `unconfirmed` the next time it starts.
 Replay is not delivery: it cannot undo an earlier loss, and it may publish a duplicate.
 It assumes the consumer is idempotent on `dateTime`, which is true for InfluxDB and typical
 time-series stores.
+
+## Pruning
+
+The tracker prunes rows by age, using each topic's `retention` (or the plugin-level `retention`
+for topics that are no longer configured). Only `acked` and `failed` rows are pruned.
+`sent` and `unconfirmed` rows are kept: they may still be delivered, or can still be replayed.
+
+To remove those rows, run `bin/user/mqttprune.py`:
+
+```shell
+python /usr/share/weewx/bin/user/mqttprune.py /etc/weewx/weewx.conf
+python /usr/share/weewx/bin/user/mqttprune.py /etc/weewx/weewx.conf --delete
+```
+
+Without `--delete` it only prints the selection.
+
+By default a row is selected when it is older than its topic's configured retention — exactly
+what the automatic prune would have removed if the status were not exempt. `--older-than`
+overrides that with a fixed age; `--older-than 0` selects every matching row, including topics
+whose retention is `0` (keep forever).
+
+- `--status unconfirmed` is the default. Use `--status failed`, or `failed,unconfirmed`, to
+  include `failed`. `sent` is refused (it may be in flight; restart WeeWX to close it as
+  `unconfirmed`) and `acked` is refused (the automatic prune handles it).
+- `--topic` filters with a glob, and `--limit` caps the run (default `100`, oldest first).
+- `--plugin-section`, `--data-binding` and `--table` select a tracker configured elsewhere.
+
+The tool deletes by id and status, so a row that changed between the plan and the delete is left
+alone. It is safe to run while WeeWX is running.
+
+Deleting an `unconfirmed` row discards the only record that its delivery outcome is unknown.
+Deleting an original row while an `acked` replay remains leaves that replay's `origin_id`
+pointing at a row that no longer exists; the replay row is self-contained, so it still replays
+and prunes normally.
+
+A `sent` row is closed as `unconfirmed` when the tracker restarts, so the tool does not touch it.
+If the tool is not installed, the same can be done with SQL:
+
+```sql
+DELETE FROM mqtt_message_tracker WHERE status = 'unconfirmed' AND sent_ts < ?
+```
 
 ## Separate database
 

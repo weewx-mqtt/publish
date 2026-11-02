@@ -5,12 +5,14 @@
 """ Track published MQTT messages in the WeeWX database. """
 
 # pylint: disable=wrong-import-order
+import os
 import queue
 import re
 import threading
 import time
 import uuid
 
+import configobj
 import weewx
 import weewx.manager
 import weedb
@@ -22,10 +24,44 @@ import user.mqttcommon
 
 TABLE_NAME_PATTERN = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*$')
 DEFAULT_TABLE = 'mqtt_message_tracker'
+DEFAULT_PLUGIN_SECTION = 'MQTTMessageTracker'
+DEFAULT_RETENTION = 604800
+
+# The payload preview length in a tool's plan.
+PREVIEW_LENGTH = 60
+
+# The columns read from the tracker table, in the order they are fetched.
+# weedb's MySQL cursor has no 'description' and no 'rowcount', so the names are fixed here.
+MESSAGE_COLUMNS = ('id', 'mid', 'dateTime', 'sent_ts', 'arrived_ts', 'status', 'unconfirmed_ts',
+                   'origin_id', 'attempt', 'clientid', 'topic', 'qos', 'retain', 'rc',
+                   'payload', 'payload_encoding')
 
 
 class TrackerConfigError(Exception):
     """ A tracker option that prevents writing to the database. """
+
+
+def read_config(config_file):
+    """ Read the WeeWX config file. """
+    try:
+        return configobj.ConfigObj(os.path.abspath(config_file), file_error=True)
+    except (configobj.ConfigObjError, OSError) as exception:
+        raise TrackerConfigError(f"Unable to read the config file {config_file}: {exception}") from exception
+
+
+def tool_config(config_dict, plugin_section=DEFAULT_PLUGIN_SECTION, data_binding=None, table=None):
+    """ Resolve the plugin section, database and table a tool works with. """
+    if plugin_section not in config_dict:
+        raise TrackerConfigError(f"The config file has no [{plugin_section}] section.")
+
+    plugin_dict = dict(config_dict[plugin_section])
+    if data_binding:
+        plugin_dict['data_binding'] = data_binding
+    if table:
+        plugin_dict['table'] = table
+
+    database_dict, table_name = resolve_tracker_config(plugin_dict, config_dict)
+    return plugin_dict, database_dict, table_name
 
 
 def resolve_tracker_config(plugin_dict, config_dict):
@@ -46,6 +82,51 @@ def resolve_tracker_config(plugin_dict, config_dict):
         raise TrackerConfigError(f"Invalid table name, {table}.")
 
     return manager_dict['database_dict'], table
+
+
+def topic_retentions(topic_dicts, default_retention):
+    """ The retention for each enabled topic in a [[topics]] section. """
+    retentions = {}
+    for topic in topic_dicts.sections:
+        topic_dict = topic_dicts[topic]
+        if not to_bool(topic_dict.get('enable', True)):
+            continue
+        retention = to_int(topic_dict.get('retention', default_retention))
+        retentions[topic] = default_retention if retention is None else retention
+    return retentions
+
+
+def fetch_rows(connection, table):
+    """ Read every row from the tracker table. """
+    cursor = connection.cursor()
+    try:
+        cursor.execute(f"SELECT {', '.join(MESSAGE_COLUMNS)} FROM {table}")
+        return [dict(zip(MESSAGE_COLUMNS, row)) for row in cursor]
+    finally:
+        cursor.close()
+
+
+def describe_row(row):
+    """ A one line description of a row for a tool's plan. """
+    payload = row['payload']
+    if payload is None:
+        preview = '<none>'
+    else:
+        preview = payload[:PREVIEW_LENGTH] + ('...' if len(payload) > PREVIEW_LENGTH else '')
+        preview = preview.replace('\n', ' ')
+    return (f"{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(row['sent_ts']))} "
+            f"{row['topic']} qos={row['qos']} retain={row['retain']} "
+            f"status={row['status']} id={row['id']} payload={preview}")
+
+
+def print_plan(rows, out):
+    """ Print the rows a tool selected. """
+    if not rows:
+        print("No messages match the selection.", file=out)
+        return
+    print(f"{len(rows)} message(s) selected:", file=out)
+    for row in rows:
+        print(f"  {describe_row(row)}", file=out)
 
 # The column types work with both SQLite and MySQL.
 # MEDIUMTEXT is MySQL's 16 MB text type; SQLite accepts the name and gives it TEXT affinity.
@@ -418,7 +499,7 @@ class MQTTMessageTracker(user.mqttpublish.MQTTPlugin):
         if not self.enabled:
             return
 
-        self.retention = self._config_int(plugin_dict, 'retention', 604800)
+        self.retention = self._config_int(plugin_dict, 'retention', DEFAULT_RETENTION)
         self.tracked_topics = self._configure_topics(plugin_dict)
         if not self.tracked_topics:
             self.enabled = False
@@ -454,14 +535,7 @@ class MQTTMessageTracker(user.mqttpublish.MQTTPlugin):
             self._log('ERROR', "'[[topics]]' is required, no messages are tracked.")
             return {}
 
-        tracked = {}
-        for topic in topic_dicts.sections:
-            topic_dict = topic_dicts[topic]
-            if not to_bool(topic_dict.get('enable', True)):
-                continue
-            retention = to_int(topic_dict.get('retention', self.retention))
-            tracked[topic] = self.retention if retention is None else retention
-
+        tracked = topic_retentions(topic_dicts, self.retention)
         if not tracked:
             self._log('ERROR', "No topics are enabled, no messages are tracked.")
         return tracked

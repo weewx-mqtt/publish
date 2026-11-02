@@ -68,6 +68,8 @@ Enhancements:
   - Added the mqttreplay tool, which republishes the messages the tracker recorded as failed or
     unconfirmed. A replay is a new row that points at the original, so the original is never
     changed, and a dry run is the default.
+  - Added the mqttprune tool, which deletes the unconfirmed rows the automatic prune keeps, and
+    failed rows early, with the configured retention as the default age.
   - Improved shutdown logic flow, with timeouts when stopping threads/processes.
   - A plugin can be loaded multiple times with different configurations.
   - The data queue size is passed into plugin callbacks.

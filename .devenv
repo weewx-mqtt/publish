@@ -8,7 +8,7 @@ export WEEWX_PYENV_VERSION='3.10'
 export WEEWX_TOOL_PATH=~/weewx_dev/weewx-extensions/development-tools/tools
 
 # What the analyze-test workflow lints.
-export WEEWX_LINT_PATHS='./bin/user/mqttpublish.py ./bin/user/mqttarchivevalues.py ./bin/user/mqttconfigha.py ./bin/user/mqttaggregatevalues.py ./bin/user/mqtthaconfig.py ./bin/user/mqttcommon.py ./bin/user/mqttmessagetracker.py ./bin/user/mqttreplay.py'
+export WEEWX_LINT_PATHS='./bin/user/mqttpublish.py ./bin/user/mqttarchivevalues.py ./bin/user/mqttconfigha.py ./bin/user/mqttaggregatevalues.py ./bin/user/mqtthaconfig.py ./bin/user/mqttcommon.py ./bin/user/mqttmessagetracker.py ./bin/user/mqttreplay.py ./bin/user/mqttprune.py'
 
 # The shared repositories this repository vendors.
 export WEEWX_COMMON_REPOS='https://github.com/weewx-mqtt/mqttcommon'

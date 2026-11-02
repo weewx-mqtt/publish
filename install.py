@@ -451,6 +451,7 @@ class MQTTPublishInstaller(ExtensionInstaller):
                                     'bin/user/mqttcommon.py',
                                     'bin/user/mqttmessagetracker.py',
                                     'bin/user/mqttreplay.py',
+                                    'bin/user/mqttprune.py',
                                     ])]
         }
 
