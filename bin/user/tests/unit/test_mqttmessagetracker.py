@@ -88,7 +88,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
         })
         self.weewx_dict = {'config_dict': self.config_dict}
 
-    def _make_plugin(self, plugin_dict=None, set_binding=True, topics=TRACKED_TOPICS):
+    def _make_plugin(self, plugin_dict=None, set_binding=True, topics=TRACKED_TOPICS, publish_topics=None):
         plugin_dict = dict(plugin_dict or {})
         if set_binding:
             plugin_dict.setdefault('data_binding', 'tracker_binding')
@@ -101,7 +101,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
                                                             'MQTTMessageTracker',
                                                             configobj.ConfigObj(plugin_dict),
                                                             None,
-                                                            None,
+                                                            publish_topics,
                                                             self.weewx_dict)
         self.addCleanup(plugin.shutdown)
         return plugin, logger_queue
@@ -367,6 +367,22 @@ class TestMQTTMessageTracker(unittest.TestCase):
 
         self.assertEqual(plugin.tracked_topics, {'default': 60, 'custom': 120})
         self.assertEqual(plugin.topic_unconfirmed_retentions, {'default': 90, 'custom': 180})
+
+    def test_qos_zero_topic_is_not_tracked(self):
+        plugin, logger_queue = self._make_plugin(
+            topics={'qos0': {}, 'qos1': {}},
+            publish_topics={'qos0': {'qos': 0}, 'qos1': {'qos': 1}})
+
+        self.assertEqual(list(plugin.tracked_topics), ['qos1'])
+        self.assertNotIn('qos0', plugin.topic_unconfirmed_retentions)
+        messages = [call[0][0]['msg_text'] for call in logger_queue.put.call_args_list]
+        self.assertTrue(any('qos0' in message and 'qos 0' in message for message in messages))
+
+    def test_only_qos_zero_topics_disables_the_tracker(self):
+        plugin, _ = self._make_plugin(topics=['qos0'], publish_topics={'qos0': {'qos': 0}})
+
+        self.assertFalse(plugin.enabled)
+        self.assertIsNone(plugin.tracker)
 
     def test_only_configured_topics_are_tracked(self):
         plugin, _ = self._make_plugin(topics=['tracked'])

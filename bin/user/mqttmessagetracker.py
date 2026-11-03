@@ -538,10 +538,11 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
 class MQTTMessageTracker(user.mqttpublish.MQTTPlugin):
     """ Track published MQTT messages in the WeeWX database. """
 
-    def __init__(self, logger_queue, _monitor_config, name, plugin_dict, _mqtt_dict, _topics, weewx_dict):  # pylint: disable=R0913,R0917
+    def __init__(self, logger_queue, _monitor_config, name, plugin_dict, _mqtt_dict, topics, weewx_dict):  # pylint: disable=R0913,R0917
         super().__init__(logger_queue, name, plugin_dict)
 
         self.tracker = None
+        self.topics = topics or {}
         self.tracked_topics = {}
         self.topic_unconfirmed_retentions = {}
         if not self.enabled:
@@ -581,16 +582,29 @@ class MQTTMessageTracker(user.mqttpublish.MQTTPlugin):
         self.tracker.start()
 
     def _configure_topics(self, plugin_dict):
-        """ Resolve the topics to track, with the retention to prune each one by. """
+        """ Resolve the topics to track, with the retention to prune each one by.
+
+            A message published with qos 0 is never acknowledged, so its delivery cannot be
+            confirmed. Recording it would either leave a row that can never become 'acked',
+            or - worse - mark it 'acked' when paho has only written it to the socket. Such a
+            topic is rejected with an error.
+        """
         topic_dicts = plugin_dict.get('topics')
         if topic_dicts is None:
             self._log('ERROR', "'[[topics]]' is required, no messages are tracked.")
             return {}, {}
 
         tracked = topic_retentions(topic_dicts, self.retention)
+        unconfirmed = topic_unconfirmed_retentions(topic_dicts, self.unconfirmed_retention)
+        for topic in list(tracked):
+            if self.topics.get(topic, {}).get('qos') == 0:
+                self._log('ERROR', f"{topic} is published with qos 0, so its delivery cannot be confirmed. "
+                                   "It is not tracked.")
+                del tracked[topic]
+                unconfirmed.pop(topic, None)
+
         if not tracked:
             self._log('ERROR', "No topics are enabled, no messages are tracked.")
-        unconfirmed = topic_unconfirmed_retentions(topic_dicts, self.unconfirmed_retention)
         return tracked, unconfirmed
 
     def _log(self, log_type, msg_text):
