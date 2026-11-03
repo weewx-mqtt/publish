@@ -1145,9 +1145,6 @@ class TestPublishWeeWXProcess(unittest.TestCase):
 
         SUT.run()
 
-        print("DEBUG", type(SUT), type(SUT.processor), SUT.processor.method_calls,
-              SUT.processor.is_alive.return_value)
-
         SUT.processor.join.assert_called_once_with(5)
         SUT.processor.terminate.assert_called_once_with()
         mock_logger_queue.put.assert_any_call(
