@@ -11,9 +11,11 @@ import queue as Queue
 
 import copy
 import json
+import logging
 import multiprocessing
 import os
 import random
+import signal
 import sys
 import threading
 import time
@@ -879,6 +881,11 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
         """Stop the thread that hands log records over to the WeeWX logger."""
         self.logger.info(None, f"Shutdown of logger thread, {self.logger.log_thread.name} initiated")
         self.logger.shutdown(self.wait_for_thread_shutdown)
+        if self.multiprocess:
+            # Nothing drains this queue now, and the interpreter joins its feeder thread at
+            # exit. Do not let that wait on a feeder that is stuck behind a worker which had
+            # to be killed while it held the queue's write lock.
+            self.logger_queue.cancel_join_thread()
 
     def _drain_data_queue(self):
         """Take items off the data queue until a get times out on an empty queue."""
@@ -1199,8 +1206,30 @@ class QueueProcessor(multiprocessing.Process):  # pylint: disable=too-many-insta
                                                topic + '/' + key,
                                                value)
 
+    def _reset_signal_handlers(self):
+        """ Take the signal handlers this process inherited from WeeWX out of the picture.
+
+            A fork inherits both handlers, and neither makes sense in this worker.
+
+            A Ctrl-C reaches every process in the foreground process group. An interrupt
+            while this worker holds a queue lock would leave the lock acquired, so let
+            the service send the shutdown item instead.
+
+            WeeWX installs a SIGTERM handler that raises Terminate. Inherited here, it
+            turns Process.terminate() (which sends SIGTERM) into an exception in the
+            worker instead of ending it, so a worker that missed its shutdown item keeps
+            the interpreter alive at exit. Restore the default so terminate() ends it.
+
+            The service also runs this class in a thread, where signal() is illegal and
+            WeeWX has to keep handling both signals.
+        """
+        if multiprocessing.current_process() is self:
+            signal.signal(signal.SIGINT, signal.SIG_IGN)
+            signal.signal(signal.SIGTERM, signal.SIG_DFL)
+
     def run(self):
         """ Process the queue. """
+        self._reset_signal_handlers()
         threading.current_thread().name = f"MQTTPublish-{threading.get_native_id()}"
 
         try:
@@ -1331,6 +1360,7 @@ class PublishWeeWXThread(threading.Thread):
                  data_queue,
                  processor_config):
         threading.Thread.__init__(self)
+        self.daemon = True
         self.name = self.__class__.__name__
 
         self.logger_queue = logger_queue
@@ -1351,6 +1381,7 @@ class PublishWeeWXProcess(threading.Thread):
                  data_queue,
                  processor_config):
         threading.Thread.__init__(self)
+        self.daemon = True
         self.name = self.__class__.__name__
 
         self.logger_queue = logger_queue
@@ -1360,7 +1391,48 @@ class PublishWeeWXProcess(threading.Thread):
         self.processor = QueueProcessor(self.logger_queue,
                                         self.out_queue,
                                         processor_config)
-        self.processor.start()
+        # The worker is expendable. Do not let a wedged one keep the interpreter alive.
+        self.processor.daemon = True
+        self._start_processor()
+
+    def _start_processor(self):
+        """ Fork the worker with the logging streams quiet.
+
+            A fork copies the logging handlers and their file streams, including each
+            stream's internal lock. If another thread is writing a log record at that
+            moment, the child inherits the lock held and never releases it, so the first
+            log call made directly in the child blocks forever. WeeWX does that from
+            inside the publisher ('Type beaufort has been deprecated...'), which stops
+            the worker draining its queue for good.
+
+            Handler.handle() takes the handler's lock around emit(), and emit() is the
+            only place the stream is written, so while this thread holds that lock no
+            other thread can be inside emit() and no stream lock can be held at the fork.
+            A thread that wants to log waits on the handler lock until the fork is done.
+        """
+        handlers = self._logging_handlers()
+        for handler in handlers:
+            handler.acquire()
+        try:
+            self.processor.start()
+        finally:
+            for handler in handlers:
+                handler.release()
+
+    @staticmethod
+    def _logging_handlers():
+        """ Every handler attached to the root logger or to a named logger. """
+        handlers = list(logging.getLogger().handlers)
+        for logger in logging.root.manager.loggerDict.values():
+            if isinstance(logger, logging.Logger):
+                handlers.extend(logger.handlers)
+
+        # A handler can be attached to more than one logger; lock it once.
+        unique = []
+        for handler in handlers:
+            if not any(handler is seen for seen in unique):
+                unique.append(handler)
+        return unique
 
     def run(self):
         while True:
@@ -1376,11 +1448,31 @@ class PublishWeeWXProcess(threading.Thread):
 
         # The processor was told to shut down; wait for it.
         if self.processor:
-            self.processor.join(5)  # ToDo: make configurable
-            if self.processor.is_alive():
-                self.logger_queue.put(mqttcommon.Logger.create_entry(
-                    self.name, 'ERROR', None, f"Unable to shut down {self.processor.name}"))
+            self._stop_processor()
         self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, 'INFO', None, "Exiting PublishWeeWXProcess."))
+
+    def _stop_processor(self):
+        """ Stop the worker process, escalating when it will not go.
+
+            The interpreter joins every child process it knows about at exit, so a worker
+            that survives here keeps WeeWX from exiting. It is first asked nicely, then
+            terminated, then killed, and each step is bounded.
+        """
+        self.processor.join(5)  # ToDo: make configurable
+        if not self.processor.is_alive():
+            return
+
+        self.logger_queue.put(mqttcommon.Logger.create_entry(
+            self.name, 'ERROR', None, f"Unable to shut down {self.processor.name}"))
+        # The worker has the default SIGTERM handler, but it may be inside a C call
+        # that does not return to Python, so follow up with an uncatchable signal.
+        self.processor.terminate()
+        self.processor.join(1)
+        if self.processor.is_alive():
+            self.logger_queue.put(mqttcommon.Logger.create_entry(
+                self.name, 'ERROR', None, f"Unable to terminate {self.processor.name}"))
+            self.processor.kill()
+            self.processor.join(1)
 
 if __name__ == "__main__":
     import argparse

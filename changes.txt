@@ -33,6 +33,14 @@ Fixes
   - Fix random locks/ stalls when reading from the multiprocessing data queue (#39).
     The publishing sub-process is now wrapped in a feeder thread that shuffles data from a
     simple queue to the multiprocessing queue.
+  - Do not hang WeeWX on exit when the multiprocessing publishing worker does not stop.
+    The worker now ignores SIGINT and restores the default SIGTERM handler, and the service
+    terminates it (and kills it if that is not enough), so neither a Ctrl-C nor a missed
+    shutdown can leave WeeWX waiting for it.
+  - Stop the publishing sub-process stalling when WeeWX logs from inside it.
+    The worker is now forked with the logging handler locks held, so it cannot inherit a
+    log stream whose internal lock was stuck. That deadlock stopped the worker draining its
+    queue, which is what made the shutdown wait for it.
   - Ensure the queue 'loop' method is called even when no data is waiting, by giving the
     data queue get() a configurable timeout.
   - Check the return code in the on_connect callback so failed connections are handled.

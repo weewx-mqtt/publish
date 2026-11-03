@@ -824,6 +824,17 @@ class TestShutDown(ServiceBase):
             SUT.logger.shutdown.assert_called_once_with(SUT.wait_for_thread_shutdown)
             SUT.logger.error.assert_not_called()
 
+    def test_cancels_the_logger_queue_join_when_multiprocessing(self):
+        with mock.patch('user.mqttpublish.multiprocessing.Queue') as mock_queue:
+            with self._service(multiprocess=True) as (SUT, _, _, _):
+                SUT._thread = None
+
+                SUT.shutDown()
+
+                # Nothing drains the queue after the logger thread exits, so the
+                # interpreter must not wait on its feeder thread.
+                mock_queue.return_value.cancel_join_thread.assert_called_once_with()
+
     def test_logs_shutdown_progress_in_order(self):
         with self._service() as (SUT, _, _, _):
             SUT._thread.is_alive.return_value = False
