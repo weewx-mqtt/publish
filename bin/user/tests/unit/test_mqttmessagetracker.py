@@ -29,6 +29,41 @@ def topics_config(topics):
     return {topic: {'enable': True} for topic in topics}
 
 
+class TestReadConfig(unittest.TestCase):
+    def test_missing_file(self):
+        with self.assertRaises(user.mqttmessagetracker.TrackerConfigError):
+            user.mqttmessagetracker.read_config('/does/not/exist/weewx.conf')
+
+    def test_supplies_weewx_root(self):
+        # The tools read weewx.conf themselves, so they must supply WEEWX_ROOT the
+        # way that WeeWX does, or SQLITE_ROOT cannot be resolved.
+        with tempfile.TemporaryDirectory() as temp_dir:  # pylint: disable=consider-using-with
+            config_file = os.path.join(temp_dir, 'weewx.conf')
+            with open(config_file, 'w', encoding='utf-8') as file_object:
+                file_object.write(
+                    "[DataBindings]\n"
+                    "    [[tracker_binding]]\n"
+                    "        database = tracker\n"
+                    "[Databases]\n"
+                    "    [[tracker]]\n"
+                    "        database_name = tracker.sdb\n"
+                    "        database_type = SQLite\n"
+                    "[DatabaseTypes]\n"
+                    "    [[SQLite]]\n"
+                    "        driver = weedb.sqlite\n"
+                    "        SQLITE_ROOT = archive\n"
+                    "[MQTTMessageTracker]\n"
+                    "    data_binding = tracker_binding\n")
+
+            config = user.mqttmessagetracker.read_config(config_file)
+            _plugin_dict, database_dict, table = user.mqttmessagetracker.tool_config(config)
+
+            self.assertEqual(config['WEEWX_ROOT'], temp_dir)
+            self.assertEqual(database_dict['SQLITE_ROOT'], os.path.join(temp_dir, 'archive'))
+            self.assertEqual(database_dict['database_name'], 'tracker.sdb')
+            self.assertEqual(table, 'mqtt_message_tracker')
+
+
 class TestMQTTMessageTracker(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()  # pylint: disable=consider-using-with

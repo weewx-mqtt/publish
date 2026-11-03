@@ -219,6 +219,13 @@ python /usr/share/weewx/bin/user/mqttreplay.py /etc/weewx/weewx.conf
 python /usr/share/weewx/bin/user/mqttreplay.py /etc/weewx/weewx.conf --publish
 ```
 
+The tools import WeeWX, so run them with the Python that WeeWX uses and with WeeWX on the
+path. A package install already has it there. For a source install, add its `src` directory:
+
+```shell
+PYTHONPATH=~/weewx/src python ~/weewx-data/bin/user/mqttreplay.py ~/weewx-data/weewx.conf
+```
+
 A replay is a new row, so the original is never changed:
 
 | id | topic | status | origin_id | attempt |

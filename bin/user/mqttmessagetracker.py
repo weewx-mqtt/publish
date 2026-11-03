@@ -13,6 +13,7 @@ import time
 import uuid
 
 import configobj
+import weecfg
 import weewx
 import weewx.manager
 import weedb
@@ -43,10 +44,14 @@ class TrackerConfigError(Exception):
 
 
 def read_config(config_file):
-    """ Read the WeeWX config file. """
+    """ Read the WeeWX config file, as WeeWX reads it.
+
+        weecfg supplies WEEWX_ROOT, which the database bindings need to resolve
+        an SQLITE_ROOT in [DatabaseTypes]. """
     try:
-        return configobj.ConfigObj(os.path.abspath(config_file), file_error=True)
-    except (configobj.ConfigObjError, OSError) as exception:
+        _config_path, config_dict = weecfg.read_config(os.path.abspath(config_file))
+        return config_dict
+    except (OSError, SyntaxError, configobj.ConfigObjError) as exception:
         raise TrackerConfigError(f"Unable to read the config file {config_file}: {exception}") from exception
 
 

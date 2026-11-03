@@ -1380,6 +1380,7 @@ class PublishWeeWXProcess(threading.Thread):
             if self.processor.is_alive():
                 self.logger_queue.put(mqttcommon.Logger.create_entry(
                     self.name, 'ERROR', None, f"Unable to shut down {self.processor.name}"))
+        self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, 'INFO', None, "Exiting PublishWeeWXProcess."))
 
 if __name__ == "__main__":
     import argparse
