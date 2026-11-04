@@ -46,7 +46,7 @@ How long, in seconds, to keep `unconfirmed` rows in topics that do not set their
 Set to `0` to keep them forever.
 Default is `0`.
 
-A `sent` row is not pruned; the startup sweep closes it as `unconfirmed`, which this option then bounds.
+A `sent` row is not pruned; the startup sweep marks it `unconfirmed`, which this option then bounds.
 See [Pruning](#pruning) to remove them sooner.
 
 ### prune_interval
@@ -158,14 +158,14 @@ availability/LWT message are not tracked.
 
 `sent` is transient. While the tracker is running, a row is expected to move to `acked`, or to
 `failed` when paho refuses the publish. A `sent` row is not pruned, so one whose arrival never
-arrives is kept until the tracker stops, which closes it as `unconfirmed`; `unconfirmed_retention`
+arrives is kept until the tracker stops, which marks it `unconfirmed`; `unconfirmed_retention`
 then bounds it.
 
 `unconfirmed` does not mean the message was not delivered. It means the tracker cannot tell: paho
 never reported the arrival, and no further report can arrive. That is why it is recorded as its own
 status instead of an empty `arrived_ts`.
 
-Rows are closed as `unconfirmed`:
+Rows are marked `unconfirmed`:
 
 - when the publishing thread stops and paho has not reported the arrival, with `unconfirmed_ts`
   set to the shutdown time. This includes messages that were delivered but whose arrival was not
@@ -173,7 +173,8 @@ Rows are closed as `unconfirmed`:
 - when paho reuses a message id before the arrival of the older message is reported, with
   `unconfirmed_ts` set to the time of the reuse;
 - at startup, for the rows a previous run left in `sent`, with `unconfirmed_ts` set to the startup
-  time. This covers a process that stopped without shutting down cleanly.
+  time. This covers a process that stopped without shutting down cleanly. The sweep logs how many
+  rows it marked, so a shutdown that did not complete is visible in the log.
 
 An `acked` row is also not proof of delivery to a subscriber:
 
@@ -183,7 +184,7 @@ An `acked` row is also not proof of delivery to a subscriber:
 
 MQTT reuses a message id after 65,535 publishes, so the table is keyed by `id`, not `mid`.
 When a tracked message reuses a message id that is still waiting for its arrival, the older row is
-closed as `unconfirmed`. A message published directly by a plugin, or to a topic that is not
+marked `unconfirmed`. A message published directly by a plugin, or to a topic that is not
 tracked, is not recorded, so its arrival can still be attributed to a row that is waiting with
 the same message id. This is rare and only happens when the id counter wraps.
 
@@ -273,7 +274,7 @@ a config or database error. A connect failure stops the run before anything is p
 
 The write sequence matches the tracker: the replay is inserted as `sent` after paho accepts it,
 then updated to `acked` or `unconfirmed`. A tool that is killed after publishing leaves a `sent`
-row, which the tracker closes as `unconfirmed` the next time it starts.
+row, which the tracker marks `unconfirmed` the next time it starts.
 
 Replay is not delivery: it cannot undo an earlier loss, and it may publish a duplicate.
 It assumes the consumer is idempotent on `dateTime`, which is true for InfluxDB and typical
@@ -284,7 +285,7 @@ time-series stores.
 The tracker prunes `acked` and `failed` rows by age, using each topic's `retention` (or the
 plugin-level `retention` for topics that are no longer configured). `unconfirmed` rows are pruned
 by `unconfirmed_retention`, which defaults to `0` (never). `sent` rows are not pruned; the startup
-sweep closes them as `unconfirmed`.
+sweep marks them `unconfirmed`.
 
 To remove unconfirmed rows sooner, or when `unconfirmed_retention` is `0`, run
 `bin/user/mqttprune.py`:
@@ -301,7 +302,7 @@ policy uses. Use `--older-than` to match `unconfirmed_retention`, or to prune so
 `--older-than 0` selects every matching row, including topics whose retention is `0`.
 
 - `--status unconfirmed` is the default. Use `--status failed`, or `failed,unconfirmed`, to
-  include `failed`. `sent` is refused (it may be in flight; restart WeeWX to close it as
+  include `failed`. `sent` is refused (it may be in flight; restart WeeWX to mark it
   `unconfirmed`) and `acked` is refused (the automatic prune handles it).
 - `--topic` filters with a glob, and `--limit` caps the run (default `100`, oldest first).
 - `--plugin-section`, `--data-binding` and `--table` select a tracker configured elsewhere.
@@ -314,7 +315,7 @@ Deleting an original row while an `acked` replay remains leaves that replay's `o
 pointing at a row that no longer exists; the replay row is self-contained, so it still replays
 and prunes normally.
 
-A `sent` row is closed as `unconfirmed` when the tracker restarts, so the tool does not touch it.
+A `sent` row is marked `unconfirmed` when the tracker restarts, so the tool does not touch it.
 If the tool is not installed, the same can be done with SQL:
 
 ```sql

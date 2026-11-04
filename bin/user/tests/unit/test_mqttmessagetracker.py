@@ -133,6 +133,14 @@ class TestMQTTMessageTracker(unittest.TestCase):
     def _wait_for_rows(self, count, timeout=5):
         return self._wait_for(lambda rows: len(rows) >= count, timeout)
 
+    def _wait_for_log(self, logger_queue, text, timeout=5):
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if any(text in call[0][0]['msg_text'] for call in logger_queue.put.call_args_list):
+                return
+            time.sleep(0.01)
+        self.fail(f"The log did not contain {text!r}.")
+
     def _insert_sent_row(self, mid, payload):
         connection = weedb.connect(self.database_dict)
         try:
@@ -250,7 +258,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
         self.assertIsNone(rows[0]['arrived_ts'])
         self.assertIsNone(rows[0]['unconfirmed_ts'])
 
-    def test_shutdown_closes_unconfirmed_rows(self):
+    def test_shutdown_marks_unreported_rows_unconfirmed(self):
         plugin, _ = self._make_plugin()
 
         start = time.time()
@@ -265,7 +273,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
         self.assertGreaterEqual(rows[0]['unconfirmed_ts'], start)
         self.assertLessEqual(rows[0]['unconfirmed_ts'], end)
 
-    def test_mid_reuse_closes_previous_row(self):
+    def test_mid_reuse_marks_previous_row_unconfirmed(self):
         plugin, _ = self._make_plugin()
 
         plugin.mqtt_publish(None, 42, 0, 'first', 'payload-one', 0, False, 1)
@@ -285,7 +293,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
         self.assertEqual(by_payload['payload-two']['status'], 'unconfirmed')
         self.assertGreaterEqual(by_payload['payload-two']['unconfirmed_ts'], reuse_ts)
 
-    def test_startup_closes_leftover_rows(self):
+    def test_startup_marks_leftover_rows_unconfirmed(self):
         plugin, _ = self._make_plugin()
         plugin.mqtt_publish(None, 1, 0, 'topic', 'payload', 0, False, 1)
         plugin.on_mqtt_publish(None, None, 1, None)
@@ -293,8 +301,8 @@ class TestMQTTMessageTracker(unittest.TestCase):
 
         self._insert_sent_row(2, 'leftover')
 
-        # A new tracker closes the rows the previous run left waiting for an arrival.
-        self._make_plugin()
+        # A new tracker marks the rows the previous run left waiting for an arrival.
+        _, logger_queue = self._make_plugin()
 
         rows = self._wait_for(lambda rows: all(row['status'] != 'sent' for row in rows))
         self.assertEqual(len(rows), 2)
@@ -302,6 +310,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
         self.assertEqual(leftover['status'], 'unconfirmed')
         self.assertIsNotNone(leftover['unconfirmed_ts'])
         self.assertIsNone(leftover['arrived_ts'])
+        self._wait_for_log(logger_queue, "Marked 1 message tracking rows from a previous run")
 
     def test_arrival_before_send(self):
         plugin, _ = self._make_plugin()

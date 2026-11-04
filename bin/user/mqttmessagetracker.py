@@ -228,7 +228,7 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
         self._put((_EVENT_ARRIVED, mid, time.time()))
 
     def shutdown(self):
-        """ Stop the thread after it has written the queued events and closed the unconfirmed ones. """
+        """ Stop the thread after it has written the queued events and marked the unreported ones. """
         if not self.is_alive():
             return
         try:
@@ -379,15 +379,15 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
         if status != STATUS_SENT:
             return
 
-        self._close_reused_mid(inflight, mid, statements, now)
+        self._unconfirm_reused_mid(inflight, mid, statements, now)
         inflight[mid] = (row_id, sent_ts)
         if mid in pending:
             arrived_ts = pending.pop(mid)[0]
             statements.append((f"UPDATE {self.table} SET arrived_ts = ?, status = ? WHERE id = ?",
                                (arrived_ts, STATUS_ACKED, row_id)))
 
-    def _close_reused_mid(self, inflight, mid, statements, now):
-        """ Close the row of a message id that paho has reused.
+    def _unconfirm_reused_mid(self, inflight, mid, statements, now):
+        """ Mark the row of a message id that paho has reused as unconfirmed.
 
             The arrival of the older message will never be reported, so it is
             unconfirmed, not undelivered. """
@@ -408,10 +408,10 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
                                (arrived_ts, STATUS_ACKED, previous[0], STATUS_SENT)))
 
     def _apply_finalize(self, connection, unconfirmed_ts):
-        """ Close the rows whose arrival paho never reported. """
+        """ Mark the rows whose arrival paho never reported as unconfirmed. """
         rows = list(self.inflight.values())
         self.inflight = {}
-        closed = 0
+        marked = 0
         for start in range(0, len(rows), self.batch_size):
             chunk = rows[start:start + self.batch_size]
             statements = [(f"UPDATE {self.table} SET status = ?, unconfirmed_ts = ? WHERE id = ? AND status = ?",
@@ -419,18 +419,24 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
                           for row_id, _ in chunk]
             if not self._write(connection, statements):
                 break
-            closed += len(chunk)
-        if closed:
-            self._log('INFO', f"Closed {closed} message tracking rows as unconfirmed.")
+            marked += len(chunk)
+        if marked:
+            self._log('INFO', f"Marked {marked} message tracking rows as unconfirmed, no arrival was reported.")
 
     def _sweep(self, connection):
-        """ Close the rows a previous run left waiting for an arrival. """
+        """ Mark the rows a previous run left waiting for an arrival as unconfirmed. """
         try:
             with weedb.Transaction(connection) as cursor:
+                cursor.execute(f"SELECT COUNT(*) FROM {self.table} WHERE status = ?", (STATUS_SENT,))
+                row = cursor.fetchone()
+                stale = row[0] if row else 0
                 cursor.execute(f"UPDATE {self.table} SET status = ?, unconfirmed_ts = ? WHERE status = ?",
                                (STATUS_UNCONFIRMED, time.time(), STATUS_SENT))
         except Exception as exception:  # pylint: disable=broad-exception-caught
-            self._log('ERROR', f"Unable to close the message tracking rows of a previous run: {exception}")
+            self._log('ERROR', f"Unable to mark the message tracking rows of a previous run as unconfirmed: {exception}")
+            return
+        if stale:
+            self._log('INFO', f"Marked {stale} message tracking rows from a previous run as unconfirmed.")
 
     def _write(self, connection, statements):
         """ Execute the batch, returning whether it was written. """
@@ -448,7 +454,7 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
 
             The acked and failed rows are pruned by 'retention'. The unconfirmed
             rows are pruned by 'unconfirmed_retention', which defaults to never.
-            A sent row is left for the startup sweep to close. """
+            A sent row is left for the startup sweep. """
         try:
             self._prune_known_outcomes(connection, now)
             self._prune_unconfirmed(connection, now)

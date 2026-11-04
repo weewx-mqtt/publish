@@ -73,6 +73,7 @@ Enhancements:
     The install adds a message_tracker_binding and message_tracker database for it.
     The topics to track are configured in a [[topics]] section, with an optional per-topic retention.
     A topic published with qos 0 is rejected with an error, because its delivery cannot be confirmed.
+    A previous run's leftover 'sent' rows are marked unconfirmed at startup, and the count is logged.
     Unconfirmed rows are kept until unconfirmed_retention (default 0, never), so they can still be replayed.
   - Added the mqttreplay tool, which republishes the messages the tracker recorded as failed or
     unconfirmed. A replay is a new row that points at the original, so the original is never
