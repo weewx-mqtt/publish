@@ -258,6 +258,23 @@ class TestMQTTMessageTracker(unittest.TestCase):
         self.assertIsNone(rows[0]['arrived_ts'])
         self.assertIsNone(rows[0]['unconfirmed_ts'])
 
+    def test_shutdown_logs_that_it_is_shutting_down(self):
+        plugin, logger_queue = self._make_plugin()
+        plugin.shutdown()
+
+        self._wait_for_log(logger_queue, "Shutting down.")
+        self._wait_for_log(logger_queue, "Message tracker is shut down.")
+
+    def test_shutdown_logs_when_the_thread_does_not_stop(self):
+        plugin, logger_queue = self._make_plugin()
+        tracker = plugin.tracker
+        tracker.shutdown_timeout = 3
+
+        with mock.patch.object(tracker, 'join'), mock.patch.object(tracker, 'is_alive', return_value=True):
+            tracker.shutdown()
+
+        self._wait_for_log(logger_queue, "Message tracker did not shut down within 3 seconds.")
+
     def test_shutdown_marks_unreported_rows_unconfirmed(self):
         plugin, _ = self._make_plugin()
 

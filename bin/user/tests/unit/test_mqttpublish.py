@@ -805,10 +805,14 @@ class TestShutDown(ServiceBase):
             thread.name = helpers.random_string()
             thread.is_alive.return_value = True
 
-            SUT.shutDown()
+            with mock.patch('user.mqttpublish.log_direct') as mock_log_direct:
+                SUT.shutDown()
 
-            SUT.logger.error.assert_called_once_with(None,
-                                                     f"Unable to shut down {thread.name}")
+            # Logged directly: a queued entry is never written once the logger thread stops.
+            mock_log_direct.assert_any_call(
+                SUT.name, 'ERROR',
+                f"{thread.name} did not shut down within {SUT.wait_for_thread_shutdown} seconds.")
+            SUT.logger.error.assert_not_called()
             # The reference is dropped even when the thread is still running.
             self.assertIsNone(SUT._thread)
 
@@ -843,14 +847,27 @@ class TestShutDown(ServiceBase):
             # Drop the version banner logged by __init__.
             SUT.logger.info.reset_mock()
 
-            SUT.shutDown()
+            with mock.patch('user.mqttpublish.log_direct') as mock_log_direct:
+                SUT.shutDown()
 
             messages = [call[0][1] for call in SUT.logger.info.call_args_list]
-            self.assertEqual(messages[0], "Shutdown initiated")
-            self.assertEqual(messages[1], "Emptying data queue with size of 2.")
-            self.assertEqual(messages[2], "Data queue has size of 0.")
-            self.assertEqual(messages[3], "Shutdown of queue processor initiated")
-            self.assertEqual(messages[4], f"Shutdown of logger thread, {SUT.logger.log_thread.name} initiated")
+            self.assertEqual(messages[0], "Shutting down.")
+            self.assertEqual(messages[1], "Discarded 2 queued item(s).")
+            self.assertEqual(messages[2], "Shutting down the queue processor.")
+            self.assertEqual(messages[3], "Shutting down the logger thread.")
+            # The completion is logged directly, because the logger thread has stopped by then.
+            mock_log_direct.assert_called_once_with(SUT.name, 'INFO', "MQTTPublish is shut down.")
+
+    def test_an_empty_queue_is_not_reported(self):
+        with self._service() as (SUT, _, _, _):
+            SUT._thread.is_alive.return_value = False
+            SUT.logger.info.reset_mock()
+
+            with mock.patch('user.mqttpublish.log_direct'):
+                SUT.shutDown()
+
+            messages = [call[0][1] for call in SUT.logger.info.call_args_list]
+            self.assertFalse([message for message in messages if message.startswith("Discarded")])
 
 if __name__ == '__main__':
     helpers.run_tests()

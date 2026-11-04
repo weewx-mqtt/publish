@@ -948,7 +948,7 @@ class TestHandleQueueItem(unittest.TestCase):
         immediate.assert_not_called()
         publish.assert_not_called()
         log_messages = [call[0][0]['msg_text'] for call in SUT.logger_queue.put.call_args_list]
-        self.assertIn("Shutting down queue processor.", log_messages)
+        self.assertIn("Shutting down.", log_messages)
 
     def test_loop_item_publishes_to_loop_topics(self):
         loop_topics = {helpers.random_string(): self._topic_dict()}
@@ -1278,119 +1278,73 @@ class TestPublishWeeWXProcess(unittest.TestCase):
             logging.getLogger().removeHandler(handler)
             handler.close()
 
-    def test_run_logs_error_when_processor_does_not_shutdown(self):
+    def test_run_terminates_processor_that_does_not_shut_down(self):
         mock_logger_queue = mock.Mock()
+        SUT = self._make_process(mock_logger_queue, lambda: None)
+        SUT.data_queue.put({'time_stamp': time.time(), 'type': 'shutdown', 'data': {}})
+        SUT.processor.is_alive.side_effect = [True, False]
 
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        with mock.patch('user.mqttpublish.log_direct') as mock_log_direct:
+            SUT.run()
 
-        data_queue = queue.Queue()
-        data_queue.put({'time_stamp': time.time(), 'type': 'shutdown', 'data': {}})
+        SUT.processor.join.assert_has_calls([mock.call(user.mqttpublish.PROCESSOR_SHUTDOWN_TIMEOUT),
+                                             mock.call(user.mqttpublish.PROCESSOR_SIGNAL_TIMEOUT)])
+        SUT.processor.terminate.assert_called_once_with()
+        SUT.processor.kill.assert_not_called()
+        # Logged directly, because the logger thread may be the one that is stuck.
+        mock_log_direct.assert_called_once_with(
+            SUT.name, 'ERROR',
+            f"The queue processor did not shut down within {user.mqttpublish.PROCESSOR_SHUTDOWN_TIMEOUT}"
+            " seconds, terminating it.")
+        self._assert_shut_down(SUT, mock_logger_queue)
 
-        with mock.patch('user.mqttpublish.QueueProcessor'):
-            SUT = user.mqttpublish.PublishWeeWXProcess(mock_logger_queue,
-                                                       data_queue,
-                                                       {'plugins': {},
-                                                        'weewx_dict': {},
-                                                        'manager_dict': None,
-                                                        'mqtt_config': {},
-                                                        'monitor_config': monitor_dict,
-                                                        'topics_loop': {},
-                                                        'topics_archive': {}})
+    def test_run_kills_processor_that_does_not_terminate(self):
+        mock_logger_queue = mock.Mock()
+        SUT = self._make_process(mock_logger_queue, lambda: None)
+        SUT.data_queue.put({'time_stamp': time.time(), 'type': 'shutdown', 'data': {}})
+        SUT.processor.is_alive.side_effect = [True, True, False]
 
-        processor_name = helpers.random_string()
-        SUT.processor.name = processor_name
+        with mock.patch('user.mqttpublish.log_direct') as mock_log_direct:
+            SUT.run()
+
+        SUT.processor.terminate.assert_called_once_with()
+        self.assertEqual(SUT.processor.kill.call_count, 1)
+        mock_log_direct.assert_has_calls([
+            mock.call(SUT.name, 'ERROR',
+                      f"The queue processor did not shut down within {user.mqttpublish.PROCESSOR_SHUTDOWN_TIMEOUT}"
+                      " seconds, terminating it."),
+            mock.call(SUT.name, 'ERROR', "The queue processor did not terminate, killing it.")])
+        self._assert_shut_down(SUT, mock_logger_queue)
+
+    def test_run_reports_a_processor_that_cannot_be_killed(self):
+        mock_logger_queue = mock.Mock()
+        SUT = self._make_process(mock_logger_queue, lambda: None)
+        SUT.data_queue.put({'time_stamp': time.time(), 'type': 'shutdown', 'data': {}})
         SUT.processor.is_alive.return_value = True
 
-        self.assertTrue(SUT.daemon)
-        self.assertTrue(SUT.processor.daemon)
-        SUT.processor.start.assert_called_once_with()
+        with mock.patch('user.mqttpublish.log_direct') as mock_log_direct:
+            SUT.run()
 
-        SUT.run()
-
-        SUT.processor.join.assert_has_calls([mock.call(5), mock.call(1), mock.call(1)])
-        SUT.processor.terminate.assert_called_once_with()
-        SUT.processor.kill.assert_called_once_with()
-        mock_logger_queue.put.assert_any_call(
-            user.mqttcommon.Logger.create_entry(SUT.name, 'ERROR', None, f"Unable to shut down {processor_name}"))
-        mock_logger_queue.put.assert_any_call(
-            user.mqttcommon.Logger.create_entry(SUT.name, 'ERROR', None, f"Unable to terminate {processor_name}"))
+        mock_log_direct.assert_has_calls([
+            mock.call(SUT.name, 'ERROR', "The queue processor could not be killed.")])
 
     def test_run_does_not_terminate_processor_that_shut_down(self):
         mock_logger_queue = mock.Mock()
-
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
-
-        data_queue = queue.Queue()
-        data_queue.put({'time_stamp': time.time(), 'type': 'shutdown', 'data': {}})
-
-        with mock.patch('user.mqttpublish.QueueProcessor'):
-            SUT = user.mqttpublish.PublishWeeWXProcess(mock_logger_queue,
-                                                       data_queue,
-                                                       {'plugins': {},
-                                                        'weewx_dict': {},
-                                                        'manager_dict': None,
-                                                        'mqtt_config': {},
-                                                        'monitor_config': monitor_dict,
-                                                        'topics_loop': {},
-                                                        'topics_archive': {}})
-
+        SUT = self._make_process(mock_logger_queue, lambda: None)
+        SUT.data_queue.put({'time_stamp': time.time(), 'type': 'shutdown', 'data': {}})
         SUT.processor.is_alive.return_value = False
 
-        SUT.run()
+        with mock.patch('user.mqttpublish.log_direct') as mock_log_direct:
+            SUT.run()
 
         SUT.processor.terminate.assert_not_called()
         SUT.processor.kill.assert_not_called()
+        mock_log_direct.assert_not_called()
+        self._assert_shut_down(SUT, mock_logger_queue)
 
-    def test_run_does_not_kill_processor_that_terminate_stopped(self):
-        mock_logger_queue = mock.Mock()
-
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
-
-        data_queue = queue.Queue()
-        data_queue.put({'time_stamp': time.time(), 'type': 'shutdown', 'data': {}})
-
-        with mock.patch('user.mqttpublish.QueueProcessor'):
-            SUT = user.mqttpublish.PublishWeeWXProcess(mock_logger_queue,
-                                                       data_queue,
-                                                       {'plugins': {},
-                                                        'weewx_dict': {},
-                                                        'manager_dict': None,
-                                                        'mqtt_config': {},
-                                                        'monitor_config': monitor_dict,
-                                                        'topics_loop': {},
-                                                        'topics_archive': {}})
-
-        SUT.processor.is_alive.side_effect = [True, False]
-
-        SUT.run()
-
-        SUT.processor.terminate.assert_called_once_with()
-        SUT.processor.kill.assert_not_called()
-        error_messages = [call_args[0][0]['msg_text']
-                          for call_args in mock_logger_queue.put.call_args_list
-                          if call_args[0][0]['log_type'] == 'ERROR']
-        self.assertNotIn(f"Unable to terminate {SUT.processor.name}", error_messages)
+    def _assert_shut_down(self, SUT, mock_logger_queue):
+        messages = [call[0][0]['msg_text'] for call in mock_logger_queue.put.call_args_list]
+        self.assertIn(f"{SUT.name} is shut down.", messages)
 
 if __name__ == '__main__':
     helpers.run_tests()

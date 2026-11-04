@@ -50,6 +50,23 @@ if getattr(mqttcommon, 'MQTTCOMMON_API', (0, 0)) < (1, 0):
 
 VERSION = "1.3.0-rc02a"
 
+# How long the feeder waits for the worker to stop, and then after each signal it sends, in seconds.
+PROCESSOR_SHUTDOWN_TIMEOUT = 5
+PROCESSOR_SIGNAL_TIMEOUT = 1
+
+
+def log_direct(name, log_type, msg_text):
+    """ Log an entry without the queue, for a message that must not be lost.
+
+        A queued entry is written by the logger thread, so when that thread is stuck the entry
+        is never written. This writes from the calling thread instead, which is why it is only
+        for the service's own process: the worker can be a fork of it and keeps to the queue.
+        Only 'INFO' and 'ERROR' are used. """
+    entry = mqttcommon.Logger.create_entry(name, log_type, None, msg_text)
+    args = (f"{entry['name']}-{entry['thread_id']}", entry['msg_text'])
+    getattr(logging.getLogger(__name__), log_type.lower())(mqttcommon.Logger.LOG_FORMAT, *args)
+
+
 def setup_logging(logging_level, config_dict):
     """ Setup logging for running in standalone mode."""
     if logging_level:
@@ -859,19 +876,21 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
 
     def shutDown(self):
         """Run when an engine shutdown is requested."""
-        self.logger.info(None, "Shutdown initiated")
+        self.logger.info(None, "Shutting down.")
         self._shut_down_publishing()
         self._shut_down_logger()
+        # Logged directly: queued entries are never written once the logger thread has stopped.
+        log_direct(self.name, 'INFO', "MQTTPublish is shut down.")
 
     def _shut_down_publishing(self):
         """Stop the publishing thread, if one is running."""
         if not self._thread:
             return
 
-        self.logger.info(None, f"Emptying data queue with size of {self.data_queue.qsize()}.")
-        self._drain_data_queue()
-        self.logger.info(None, f"Data queue has size of {self.data_queue.qsize()}.")
-        self.logger.info(None, "Shutdown of queue processor initiated")
+        discarded = self._drain_data_queue()
+        if discarded:
+            self.logger.info(None, f"Discarded {discarded} queued item(s).")
+        self.logger.info(None, "Shutting down the queue processor.")
         self.data_queue.put({'time_stamp': time.time(), 'type': 'shutdown', 'data': {}})
 
         self._wait_for_thread(self._thread)
@@ -879,7 +898,7 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
 
     def _shut_down_logger(self):
         """Stop the thread that hands log records over to the WeeWX logger."""
-        self.logger.info(None, f"Shutdown of logger thread, {self.logger.log_thread.name} initiated")
+        self.logger.info(None, "Shutting down the logger thread.")
         self.logger.shutdown(self.wait_for_thread_shutdown)
         if self.multiprocess:
             # Nothing drains this queue now, and the interpreter joins its feeder thread at
@@ -888,9 +907,13 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
             self.logger_queue.cancel_join_thread()
 
     def _drain_data_queue(self):
-        """Take items off the data queue until a get times out on an empty queue."""
+        """Take items off the data queue until a get times out on an empty queue.
+
+            Returns the number of items taken. """
+        discarded = 0
         while self._drain_one_item():
-            pass
+            discarded += 1
+        return discarded
 
     def _drain_one_item(self):
         """Take one item. Returns False once the queue is empty.
@@ -907,11 +930,14 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
             return bool(self.data_queue.qsize())
         return True
 
-    def _wait_for_thread(self, thread, message_suffix=""):
-        """Wait for a thread to stop, warning when it does not."""
+    def _wait_for_thread(self, thread):
+        """Wait for a thread to stop, warning when it does not.
+
+            The warning is logged directly, so it survives a logger thread that is stuck. """
         thread.join(self.wait_for_thread_shutdown)
         if thread.is_alive():
-            self.logger.error(None, f"Unable to shut down {thread.name}{message_suffix}")
+            log_direct(self.name, 'ERROR',
+                       f"{thread.name} did not shut down within {self.wait_for_thread_shutdown} seconds.")
 
 
 class QueueProcessor(multiprocessing.Process):  # pylint: disable=too-many-instance-attributes
@@ -1298,7 +1324,7 @@ class QueueProcessor(multiprocessing.Process):  # pylint: disable=too-many-insta
         """
         data_type = data2['type']
         if data_type == 'shutdown':
-            self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, 'INFO', None, "Shutting down queue processor."))
+            self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, 'INFO', None, "Shutting down."))
             self.process = False
             return None
 
@@ -1369,10 +1395,10 @@ class PublishWeeWXThread(threading.Thread):
                                         processor_config)
 
     def run(self):
-        self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, 'INFO', None, f"Starting queue thread,  {self.name}."))
+        self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, 'INFO', None, f"Starting queue thread, {self.name}."))
 
         self.processor.run()
-        self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, 'INFO', None, f"Exited queue thread, {self.name}."))
+        self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, 'INFO', None, f"{self.name} is shut down."))
 
 class PublishWeeWXProcess(threading.Thread):
     """Publish WeeWX data to MQTT. """
@@ -1441,7 +1467,6 @@ class PublishWeeWXProcess(threading.Thread):
                                                                  f"monitor: Input-2 queue size: {self.data_queue.qsize()}"))
             self.out_queue.put(data)
             if data['type'] == 'shutdown':
-                self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, 'INFO', None, "Shutting down queue processor."))
                 break
             self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, self.monitor_config['monitor_queue'], None,
                                                                  f"monitor: Output queue size: {self.out_queue.qsize()}"))
@@ -1449,30 +1474,36 @@ class PublishWeeWXProcess(threading.Thread):
         # The processor was told to shut down; wait for it.
         if self.processor:
             self._stop_processor()
-        self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, 'INFO', None, "Exiting PublishWeeWXProcess."))
+        self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, 'INFO', None,
+                                                             "PublishWeeWXProcess is shut down."))
 
     def _stop_processor(self):
         """ Stop the worker process, escalating when it will not go.
 
             The interpreter joins every child process it knows about at exit, so a worker
             that survives here keeps WeeWX from exiting. It is first asked nicely, then
-            terminated, then killed, and each step is bounded.
+            terminated, then killed, and each step is bounded. The messages are logged
+            directly, so a stuck logger thread cannot swallow them.
         """
-        self.processor.join(5)  # ToDo: make configurable
+        self.processor.join(PROCESSOR_SHUTDOWN_TIMEOUT)
         if not self.processor.is_alive():
             return
 
-        self.logger_queue.put(mqttcommon.Logger.create_entry(
-            self.name, 'ERROR', None, f"Unable to shut down {self.processor.name}"))
+        log_direct(self.name, 'ERROR',
+                   f"The queue processor did not shut down within {PROCESSOR_SHUTDOWN_TIMEOUT} seconds, "
+                   "terminating it.")
         # The worker has the default SIGTERM handler, but it may be inside a C call
         # that does not return to Python, so follow up with an uncatchable signal.
         self.processor.terminate()
-        self.processor.join(1)
+        self.processor.join(PROCESSOR_SIGNAL_TIMEOUT)
+        if not self.processor.is_alive():
+            return
+
+        log_direct(self.name, 'ERROR', "The queue processor did not terminate, killing it.")
+        self.processor.kill()
+        self.processor.join(PROCESSOR_SIGNAL_TIMEOUT)
         if self.processor.is_alive():
-            self.logger_queue.put(mqttcommon.Logger.create_entry(
-                self.name, 'ERROR', None, f"Unable to terminate {self.processor.name}"))
-            self.processor.kill()
-            self.processor.join(1)
+            log_direct(self.name, 'ERROR', "The queue processor could not be killed.")
 
 if __name__ == "__main__":
     import argparse

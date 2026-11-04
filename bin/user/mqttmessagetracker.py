@@ -231,6 +231,7 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
         """ Stop the thread after it has written the queued events and marked the unreported ones. """
         if not self.is_alive():
             return
+        self._log('INFO', "Shutting down.")
         try:
             self.queue.put((_EVENT_FINALIZE, time.time()), timeout=self.shutdown_timeout)
         except queue.Full:
@@ -238,7 +239,7 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
             return
         self.join(self.shutdown_timeout)
         if self.is_alive():
-            self._log('ERROR', "The message tracker thread did not shut down.")
+            self._log('ERROR', f"Message tracker did not shut down within {self.shutdown_timeout} seconds.")
 
     def run(self):
         """ Write the queued events until the shutdown event arrives. """

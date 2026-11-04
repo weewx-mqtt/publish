@@ -82,6 +82,10 @@ Enhancements:
   - Added the mqttprune tool, which deletes the unconfirmed rows the automatic prune keeps, and
     failed rows early, with the configured retention as the default age.
   - Improved shutdown logic flow, with timeouts when stopping threads/processes.
+  - Consistent shutdown log messages: the same wording for a component starting and finishing its
+    shutdown, the drain count, and the timeout named when a component does not stop. A publishing
+    worker that has to be terminated or killed is reported, and shutdown failures are logged
+    directly so a stuck logger thread cannot swallow them.
   - A plugin can be loaded multiple times with different configurations.
   - The data queue size is passed into plugin callbacks.
   - MQTT reconnects are handled by the paho mqtt network loop, which keeps reconnecting until
