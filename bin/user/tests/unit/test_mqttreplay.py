@@ -238,6 +238,13 @@ class TestSelectMessages(unittest.TestCase):
 
         self.assertEqual(len(selected), 2)
 
+    def test_default_selects_every_age(self):
+        rows = [make_row(sent_ts=100.0), make_row(sent_ts=1500.0, topic='weather/outHumidity')]
+
+        selected = user.mqttreplay.select_messages(rows, now=2000)
+
+        self.assertEqual(len(selected), 2)
+
     def test_topic_glob(self):
         out_temp = make_row(topic='weather/outTemp_F', sent_ts=1000.0)
         out_humidity = make_row(topic='weather/outHumidity', sent_ts=1000.0)
@@ -262,6 +269,22 @@ class TestSelectMessages(unittest.TestCase):
         selected = user.mqttreplay.select_messages([older, newer], newest_per_topic=False, now=2000)
 
         self.assertEqual([row['id'] for row in selected], [older['id'], newer['id']])
+
+    def test_superseded_reports_the_rows_a_newer_publish_hides(self):
+        unconfirmed = make_row(sent_ts=1000.0)
+        acked = make_row(sent_ts=1500.0, status=user.mqttmessagetracker.STATUS_ACKED)
+
+        selected = user.mqttreplay.select_messages([unconfirmed, acked], now=2000)
+        stale = user.mqttreplay.superseded([unconfirmed, acked], now=2000)
+
+        self.assertEqual(selected, [])
+        self.assertEqual([row['id'] for row in stale], [unconfirmed['id']])
+
+    def test_superseded_ignores_a_failed_row(self):
+        unconfirmed = make_row(sent_ts=1000.0)
+        failed = make_row(sent_ts=1500.0, status=user.mqttmessagetracker.STATUS_FAILED)
+
+        self.assertEqual(user.mqttreplay.superseded([unconfirmed, failed], now=2000), [])
 
     def test_a_failed_row_does_not_hide_an_older_unconfirmed_row(self):
         unconfirmed = make_row(sent_ts=1000.0)
@@ -482,6 +505,29 @@ class TestReplay(DatabaseTestCase):
         self.assertEqual(outcomes, [])
         self.assertIn('No messages match the selection.', self.out.getvalue())
 
+    def test_a_stale_row_is_reported(self):
+        # An unconfirmed message that a newer publish on the same topic made stale.
+        self.insert_original(make_row(sent_ts=time.time() - 86400, payload='stale'))
+        self.insert_original(make_row(sent_ts=time.time(), payload='newer',
+                                      status=user.mqttmessagetracker.STATUS_ACKED))
+
+        selected, _ = user.mqttreplay.replay(
+            self.database_dict, TABLE, self.options, dry_run=True, out=self.out)
+
+        self.assertEqual(selected, [])
+        self.assertIn('use --all to replay them', self.out.getvalue())
+
+    def test_all_replays_a_stale_row(self):
+        self.insert_original(make_row(sent_ts=time.time() - 86400, payload='stale'))
+        self.insert_original(make_row(sent_ts=time.time(), payload='newer',
+                                      status=user.mqttmessagetracker.STATUS_ACKED))
+
+        selected, _ = user.mqttreplay.replay(
+            self.database_dict, TABLE, self.options, dry_run=True, newest_per_topic=False,
+            out=self.out)
+
+        self.assertEqual([row['payload'] for row in selected], ['stale'])
+
     def test_publishes_and_records(self):
         self.insert_original(make_row())
         client = FakeClient()
@@ -614,7 +660,7 @@ class TestBuildParser(unittest.TestCase):
         self.assertFalse(options.force)
         self.assertEqual(options.plugin_section, 'MQTTMessageTracker')
         self.assertEqual(options.status, [user.mqttmessagetracker.STATUS_UNCONFIRMED])
-        self.assertEqual(options.since, 3600)
+        self.assertIsNone(options.since)
         self.assertEqual(options.limit, 100)
         self.assertIsNone(options.topic)
         self.assertIsNone(options.clientid)

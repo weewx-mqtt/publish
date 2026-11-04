@@ -251,10 +251,10 @@ The tool:
 
 - selects `unconfirmed` rows. Use `--status failed`, or `failed,unconfirmed`, to include `failed`.
   A `sent` row may still be in flight and an `acked` row does not need a replay;
-- only considers rows sent within `--since` seconds (default `3600`) and replays at most
-  `--limit` messages (default `100`);
-- replays only the newest row per topic, so an old value cannot overwrite a newer one.
-  `--all` replays every selected message, oldest first;
+- considers every `unconfirmed` message, whatever its age; `--since SECONDS` bounds it, and
+  `--limit` caps the number replayed (default `100`);
+- replays only the newest row per topic, so an old value cannot overwrite a newer one. A message
+  this hides is reported, and `--all` replays every selected message, oldest first;
 - skips a message that already has an `acked` replay; `--force` overrides;
 - filters the topics with `--topic`, a glob such as `weather/outTemp_*`;
 - connects with a clientid of its own, so the running service is not disconnected;

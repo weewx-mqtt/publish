@@ -48,7 +48,8 @@ REPLAY_STATUSES = (user.mqttmessagetracker.STATUS_UNCONFIRMED,
 
 DEFAULT_STATUS = user.mqttmessagetracker.STATUS_UNCONFIRMED
 DEFAULT_PLUGIN_SECTION = user.mqttmessagetracker.DEFAULT_PLUGIN_SECTION
-DEFAULT_SINCE = 3600
+# Every row is considered by default, so every unconfirmed message is replayed.
+DEFAULT_SINCE = None
 DEFAULT_LIMIT = 100
 DEFAULT_ACK_TIMEOUT = 10
 DEFAULT_CONNECT_TIMEOUT = 10
@@ -154,16 +155,25 @@ def _sort_key(row):
 
 
 # pylint: disable=too-many-arguments,too-many-positional-arguments
-def _select(rows, statuses, oldest, topic, acked_origins, force, newest, newest_per_topic):
-    """ The rows that pass the filters, in publish order. """
-    selected = []
-    for row in rows:
-        if not _candidate(row, statuses, oldest, topic, acked_origins, force):
-            continue
-        if newest_per_topic and row['sent_ts'] < newest.get(row['topic'], row['sent_ts']):
-            continue
-        selected.append(row)
-    return selected
+def _candidates(rows, statuses, since, topic, force, now):
+    """ The rows that pass the filters that do not depend on the other rows. """
+    statuses = tuple(statuses or (DEFAULT_STATUS,))
+    oldest = _oldest(since, now)
+    acked_origins = _acked_origins(rows)
+    return [row for row in rows
+            if _candidate(row, statuses, oldest, topic, acked_origins, force)]
+
+
+def _is_stale(row, newest):
+    """ Whether a newer message was published on the row's topic. """
+    return row['sent_ts'] < newest.get(row['topic'], row['sent_ts'])
+
+
+def _select(candidates, newest):
+    """ The candidates that a newer message on the same topic does not make stale.
+
+        'newest' is empty when every candidate is kept. """
+    return [row for row in candidates if not _is_stale(row, newest)]
 
 
 def _limit(rows, limit):
@@ -179,15 +189,23 @@ def select_messages(rows, statuses=None, since=DEFAULT_SINCE, limit=DEFAULT_LIMI
                     newest_per_topic=True, force=False, now=None):
     """ Select the rows to replay.
 
-        Only the newest row per topic is selected by default, so replayed
-        values cannot overwrite newer ones. A message that already has an
-        acked replay is skipped unless 'force' is set. """
-    statuses = tuple(statuses or (DEFAULT_STATUS,))
-    now = time.time() if now is None else now
+        Every row is considered unless 'since' bounds its age. Only the newest row per topic
+        is selected by default, so replayed values cannot overwrite newer ones. A message that
+        already has an acked replay is skipped unless 'force' is set. """
+    candidates = _candidates(rows, statuses, since, topic, force, time.time() if now is None else now)
+    newest = _newest_per_topic(rows) if newest_per_topic else {}
+    return _limit(_select(candidates, newest), limit)
 
-    selected = _select(rows, statuses, _oldest(since, now), topic, _acked_origins(rows), force,
-                       _newest_per_topic(rows) if newest_per_topic else {}, newest_per_topic)
-    return _limit(selected, limit)
+
+# pylint: disable=too-many-arguments,too-many-positional-arguments
+def superseded(rows, statuses=None, since=DEFAULT_SINCE, topic=None, force=False, now=None):
+    """ The rows a replay would keep, but for a newer message on the same topic.
+
+        Replaying one would write an older value over a newer one, so they are only selected
+        with '--all'. """
+    newest = _newest_per_topic(rows)
+    return [row for row in _candidates(rows, statuses, since, topic, force, time.time() if now is None else now)
+            if _is_stale(row, newest)]
 
 
 def decode_payload(row):
@@ -368,6 +386,11 @@ def replay(database_dict, table, options, *, statuses=None, since=DEFAULT_SINCE,
         selected = select_messages(rows, statuses=statuses, since=since, limit=limit, topic=topic,
                                    newest_per_topic=newest_per_topic, force=force)
         user.mqttmessagetracker.print_plan(selected, out)
+        if newest_per_topic:
+            stale = superseded(rows, statuses=statuses, since=since, topic=topic, force=force)
+            if stale:
+                print(f"{len(stale)} message(s) are older than a newer message on their topic, "
+                      "use --all to replay them.", file=out)
         if dry_run or not selected:
             return selected, []
 
@@ -421,7 +444,8 @@ def build_parser():
                               f"Default is {DEFAULT_STATUS}. Choose from "
                               f"{', '.join(REPLAY_STATUSES)}."))
     parser.add_argument('--since', type=int, default=DEFAULT_SINCE, metavar='SECONDS',
-                        help=f"Only replay messages sent within the last SECONDS. Default is {DEFAULT_SINCE}.")
+                        help="Only replay messages sent within the last SECONDS. "
+                             "Default is every message.")
     parser.add_argument('--limit', type=int, default=DEFAULT_LIMIT, metavar='COUNT',
                         help=f"The maximum number of messages to replay. Default is {DEFAULT_LIMIT}.")
     parser.add_argument('--topic', default=None, metavar='GLOB',
