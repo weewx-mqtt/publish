@@ -996,7 +996,7 @@ class TestHandleQueueItem(unittest.TestCase):
         self.assertEqual(order, ['immediate', 'delay'])
         self.assertIsNotNone(result)
         log_messages = [call[0][0]['msg_text'] for call in SUT.logger_queue.put.call_args_list]
-        self.assertIn("Unknown data type, bogus", log_messages)
+        self.assertIn("Unknown data type, bogus.", log_messages)
 
 
 class TestOnWeewxData(unittest.TestCase):
@@ -1326,7 +1326,7 @@ class TestPublishWeeWXProcess(unittest.TestCase):
             SUT.run()
 
         mock_log_direct.assert_has_calls([
-            mock.call(SUT.name, 'ERROR', "The queue processor could not be killed.")])
+            mock.call(SUT.name, 'ERROR', "Unable to kill the queue processor.")])
 
     def test_run_does_not_terminate_processor_that_shut_down(self):
         mock_logger_queue = mock.Mock()

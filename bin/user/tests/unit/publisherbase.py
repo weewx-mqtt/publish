@@ -1437,7 +1437,7 @@ class TLSBase(unittest.TestCase):
                             self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
                         if saved_version:
                             ssl.PROTOCOL_TLS = saved_version
-                        self.assertEqual(error.exception.args[0], f"Invalid 'tls_version', {tls_version}")
+                        self.assertEqual(error.exception.args[0], f"Invalid 'tls_version', {tls_version}.")
 
     def test_missing_PROTOCOL_TLSv1(self):
         mock_logger_queue = mock.Mock()
@@ -1485,7 +1485,7 @@ class TLSBase(unittest.TestCase):
                             self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
                         if saved_version:
                             ssl.PROTOCOL_TLSv1 = saved_version
-                        self.assertEqual(error.exception.args[0], f"Invalid 'tls_version', {tls_version}")
+                        self.assertEqual(error.exception.args[0], f"Invalid 'tls_version', {tls_version}.")
 
     def test_missing_PROTOCOL_TLSv1_1(self):
         mock_logger_queue = mock.Mock()
@@ -1533,7 +1533,7 @@ class TLSBase(unittest.TestCase):
                             self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
                         if saved_version:
                             ssl.PROTOCOL_TLSv1_1 = saved_version
-                        self.assertEqual(error.exception.args[0], f"Invalid 'tls_version', {tls_version}")
+                        self.assertEqual(error.exception.args[0], f"Invalid 'tls_version', {tls_version}.")
 
     def test_missing_PROTOCOL_TLSv1_2(self):
         mock_logger_queue = mock.Mock()
@@ -1581,7 +1581,7 @@ class TLSBase(unittest.TestCase):
                             self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
                         if saved_version:
                             ssl.PROTOCOL_TLSv1_2 = saved_version
-                        self.assertEqual(error.exception.args[0], f"Invalid 'tls_version', {tls_version}")
+                        self.assertEqual(error.exception.args[0], f"Invalid 'tls_version', {tls_version}.")
 
     def test_missing_PROTOCOL_SSLv2(self):
         mock_logger_queue = mock.Mock()
@@ -1629,7 +1629,7 @@ class TLSBase(unittest.TestCase):
                             self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
                         if saved_version:
                             ssl.PROTOCOL_SSLv2 = saved_version
-                        self.assertEqual(error.exception.args[0], f"Invalid 'tls_version', {tls_version}")
+                        self.assertEqual(error.exception.args[0], f"Invalid 'tls_version', {tls_version}.")
 
     def test_missing_PROTOCOL_SSLv23(self):
         mock_logger_queue = mock.Mock()
@@ -1677,7 +1677,7 @@ class TLSBase(unittest.TestCase):
                             self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
                         if saved_version:
                             ssl.PROTOCOL_SSLv23 = saved_version
-                        self.assertEqual(error.exception.args[0], f"Invalid 'tls_version', {tls_version}")
+                        self.assertEqual(error.exception.args[0], f"Invalid 'tls_version', {tls_version}.")
 
     def test_missing_PROTOCOL_SSLv3(self):
         mock_logger_queue = mock.Mock()
@@ -1725,7 +1725,7 @@ class TLSBase(unittest.TestCase):
                             self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
                         if saved_version:
                             ssl.PROTOCOL_SSLv3 = saved_version
-                        self.assertEqual(error.exception.args[0], f"Invalid 'tls_version', {tls_version}")
+                        self.assertEqual(error.exception.args[0], f"Invalid 'tls_version', {tls_version}.")
 
     def test_invalid_certs_required(self):
         mock_logger_queue = mock.Mock()
@@ -1773,4 +1773,4 @@ class TLSBase(unittest.TestCase):
                             self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
                         if saved_version:
                             ssl.PROTOCOL_SSLv3 = saved_version
-                        self.assertEqual(error.exception.args[0], f"Invalid 'certs_required', {certs_required}")
+                        self.assertEqual(error.exception.args[0], f"Invalid 'certs_required', {certs_required}.")

@@ -372,7 +372,7 @@ class MQTTConfigHA(user.mqttpublish.MQTTPlugin):  # pylint: disable=too-many-ins
             return
 
         if 'devices' not in plugin_dict or len(plugin_dict['devices'].sections) == 0:
-            raise ValueError("At least one device-id must be configured.")
+            raise ValueError("At least one device must be configured.")
 
         self.lwt_dict = mqtt_dict.get('lwt', {})
         self.topics = topics
@@ -447,7 +447,7 @@ class MQTTConfigHA(user.mqttpublish.MQTTPlugin):  # pylint: disable=too-many-ins
         self.state_topics[device_id] = {}
         for state_topic in device_config['topics']:
             if state_topic not in self.topics:
-                raise ValueError(f"{state_topic} not found in topics being published.")
+                raise ValueError(f"Unknown topic, {state_topic}.")
             self.state_topics[device_id][state_topic] = {}
             self.state_topics[device_id][state_topic]['type'] = self.topics[state_topic]['type']
 

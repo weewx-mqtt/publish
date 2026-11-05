@@ -52,7 +52,7 @@ def read_config(config_file):
         _config_path, config_dict = weecfg.read_config(os.path.abspath(config_file))
         return config_dict
     except (OSError, SyntaxError, configobj.ConfigObjError) as exception:
-        raise TrackerConfigError(f"Unable to read the config file {config_file}: {exception}") from exception
+        raise TrackerConfigError(f"Unable to read the config file {config_file}: {exception}.") from exception
 
 
 def tool_config(config_dict, plugin_section=DEFAULT_PLUGIN_SECTION, data_binding=None, table=None):
@@ -81,7 +81,7 @@ def resolve_tracker_config(plugin_dict, config_dict):
     try:
         manager_dict = weewx.manager.get_manager_dict_from_config(config_dict, data_binding)
     except (KeyError, TypeError, weewx.UnknownBinding) as exception:
-        raise TrackerConfigError(f"Unable to resolve data binding {data_binding}: {exception}") from exception
+        raise TrackerConfigError(f"Unable to resolve data binding {data_binding}: {exception}.") from exception
 
     table = plugin_dict.get('table', DEFAULT_TABLE)
     if not isinstance(table, str) or not TABLE_NAME_PATTERN.match(table):
@@ -252,7 +252,7 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
             self._sweep(connection)
         except Exception as exception:  # pylint: disable=broad-exception-caught
             self.accepting = False
-            self._log('ERROR', f"Unable to open the message tracker database: {exception}")
+            self._log('ERROR', f"Unable to open the message tracker database: {exception}.")
             self._drain()
             if connection is not None:
                 connection.close()
@@ -434,7 +434,7 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
                 cursor.execute(f"UPDATE {self.table} SET status = ?, unconfirmed_ts = ? WHERE status = ?",
                                (STATUS_UNCONFIRMED, time.time(), STATUS_SENT))
         except Exception as exception:  # pylint: disable=broad-exception-caught
-            self._log('ERROR', f"Unable to mark the message tracking rows of a previous run as unconfirmed: {exception}")
+            self._log('ERROR', f"Unable to mark the message tracking rows of a previous run as unconfirmed: {exception}.")
             return
         if stale:
             self._log('INFO', f"Marked {stale} message tracking rows from a previous run as unconfirmed.")
@@ -446,7 +446,7 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
                 for statement, args in statements:
                     cursor.execute(statement, args)
         except Exception as exception:  # pylint: disable=broad-exception-caught
-            self._log('ERROR', f"Unable to write message tracking data: {exception}")
+            self._log('ERROR', f"Unable to write message tracking data: {exception}.")
             return False
         return True
 
@@ -460,7 +460,7 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
             self._prune_known_outcomes(connection, now)
             self._prune_unconfirmed(connection, now)
         except Exception as exception:  # pylint: disable=broad-exception-caught
-            self._log('ERROR', f"Unable to prune message tracking data: {exception}")
+            self._log('ERROR', f"Unable to prune message tracking data: {exception}.")
 
     def _prune_known_outcomes(self, connection, now):
         """ Prune the acked and failed rows, by the topic's retention. """

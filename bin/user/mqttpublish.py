@@ -164,7 +164,7 @@ class PluginManager():
             except Exception as exception:  # pylint: disable=broad-exception-caught
                 self.logger.put(mqttcommon.Logger.create_entry(
                     self.__class__.__name__, 'ERROR', None,
-                    f"Error shutting down plugin {name}: {exception}"))
+                    f"Unable to shut down plugin {name}: {exception}."))
 
 class Publisher:  # pylint: disable=too-many-instance-attributes
     """ Managing publishing to MQTT. """
@@ -245,7 +245,7 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
     def _config_tls(self, tls_dict):
         """ Configure TLS."""
         def format_error(option, value):
-            return f"Invalid '{option}', {value}"
+            return f"Invalid '{option}', {value}."
 
         mqttcommon.configure_tls(self.client, tls_dict, format_error=format_error)
 
@@ -1346,7 +1346,7 @@ class QueueProcessor(multiprocessing.Process):  # pylint: disable=too-many-insta
         elif data_type == 'archive':
             self.publish_row(time_stamp, data, self.topics_archive)
         else:
-            self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, 'ERROR', None, f"Unknown data type, {data_type}"))
+            self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, 'ERROR', None, f"Unknown data type, {data_type}."))
 
         self.on_weewx_data_delay(data2)
 
@@ -1505,7 +1505,7 @@ class PublishWeeWXProcess(threading.Thread):
         self.processor.kill()
         self.processor.join(PROCESSOR_SIGNAL_TIMEOUT)
         if self.processor.is_alive():
-            log_direct(self.name, 'ERROR', "The queue processor could not be killed.")
+            log_direct(self.name, 'ERROR', "Unable to kill the queue processor.")
 
 if __name__ == "__main__":
     import argparse

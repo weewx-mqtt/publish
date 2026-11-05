@@ -204,7 +204,7 @@ class Test_MQTTAggregateValues(unittest.TestCase):
                 'topics': {'topic': {'obs': {'observation': 'x', 'aggregation': 'avg', 'period': 'bogus'}}}
             })
 
-        self.assertEqual(str(context.exception), "Invalid 'period', bogus")
+        self.assertEqual(str(context.exception), "Invalid 'period', bogus.")
 
     def test_init_calculation_interval_provided(self):
         plugin, _ = self._make_plugin({
