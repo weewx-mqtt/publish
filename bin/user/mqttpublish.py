@@ -221,8 +221,8 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
 
     def _connect(self):
         self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, 'INFO', None,
-                                                             f"Connecting to host: {self.mqtt_config['host']} "
-                                                             f"port: {self.mqtt_config['port']}."))
+                                                             f"Connecting to {self.mqtt_config['host']}:"
+                                                             f"{self.mqtt_config['port']}."))
 
         mqttcommon.configure_reconnect_delay(self.client,
                                              min_delay=self.mqtt_config['min_delay'],
@@ -351,8 +351,10 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
         # https://pypi.org/project/paho-mqtt/#on-connect
         if int(rc) != 0:
             self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, 'ERROR', None,
-                                                                 (f"Connection refused with result code {int(rc)}, "
-                                                                  f"{mqtt.error_string(rc)}, flags {str(flags)}.")))
+                                                                 f"Connection refused with result code {int(rc)}, "
+                                                                 f"{mqtt.error_string(rc)}"))
+            self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, 'ERROR', None,
+                                                                 f"Connection flags: {str(flags)}."))
             return
 
         self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, 'INFO', None,
@@ -435,7 +437,7 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
         """ The connection succeeded. Run the common processing.
             callback_args is the paho callback tuple: (client, userdata, flags, rc, properties). """
         flags = callback_args[2]
-        self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, 'INFO', None, f"Connected flags {str(flags)}"))
+        self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, 'INFO', None, f"Connection flags: {str(flags)}."))
 
         self._run_connect_callbacks(callback_args, 'immediate')
 

@@ -495,15 +495,15 @@ class MQTTConfigHA(user.mqttpublish.MQTTPlugin):  # pylint: disable=too-many-ins
         """ Handle the MQTT on_connect callback. """
         (result, mid) = mqtt_client.subscribe(self.birth_topic, self.qos)
         self.logger_queue.put(user.mqttcommon.Logger.create_entry(self.name, 'INFO', None,
-                                                                  f"Subscribing to topic {self.birth_topic} "
-                                                                  f"returned mid {int(mid)} "
-                                                                  f"and result {int(result)}."))
+                                                                  f"Subscribing to {self.birth_topic}, "
+                                                                  f"mid {int(mid)}, "
+                                                                  f"result code {int(result)}."))
 
         (result, mid) = mqtt_client.subscribe(self.lwt_topic, self.qos)
         self.logger_queue.put(user.mqttcommon.Logger.create_entry(self.name, 'INFO', None,
-                                                                  f"Subscribing to topic {self.lwt_topic} "
-                                                                  f"returned mid {int(mid)} "
-                                                                  f"and result {int(result)}."))
+                                                                  f"Subscribing to {self.lwt_topic}, "
+                                                                  f"mid {int(mid)}, "
+                                                                  f"result code {int(result)}."))
 
     def update_record(self, mqtt_client, topic, data, unit_system, _qos, _retain):
         """ Run code when MQTT message is published. """

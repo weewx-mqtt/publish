@@ -381,7 +381,7 @@ class PublisherBase(unittest.TestCase):
                         self.assertEqual(mock_connect.call_count, 1)
                         mock_loop_start.assert_called_once_with(mock.ANY)
                         log_messages = [call[0][0]['msg_text'] for call in mock_logger_queue.put.call_args_list]
-                        self.assertIn(f"Connecting to host: {config_dict['host']} port: {config_dict['port']}.", log_messages)
+                        self.assertIn(f"Connecting to {config_dict['host']}:{config_dict['port']}.", log_messages)
 
     def test_connect_first_call_exception(self):
         mock_logger_queue = mock.Mock()

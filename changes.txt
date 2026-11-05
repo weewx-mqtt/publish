@@ -49,6 +49,9 @@ Fixes
   - MQTTConfigHA now ensures published values use WeeWX units.
 
 Enhancements:
+  - Connection lifecycle messages use the shared wording: 'Connecting to host:port.',
+    'Connected with result code ..., ...', 'Connection flags: ...', and
+    'Subscribing to topic, mid ..., result code ...'.
   - Log the startup environment (version, WeeWX version, Python, platform, locale, paho.mqtt,
     logging settings, and record augmentation/generation) through the shared 'log_environment'
     block, using the 'Label: value.' format.
