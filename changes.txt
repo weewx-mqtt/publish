@@ -49,6 +49,9 @@ Fixes
   - MQTTConfigHA now ensures published values use WeeWX units.
 
 Enhancements:
+  - Log the startup environment (version, WeeWX version, Python, platform, locale, paho.mqtt,
+    logging settings, and record augmentation/generation) through the shared 'log_environment'
+    block, using the 'Label: value.' format.
   - The Logger now owns the log queue and the logging thread. Shutting down flushes queued log
     messages, is safe to call more than once, and no longer stalls process exit if it was skipped.
   - Fail loudly at import when an older 'user.mqttcommon' copy is loaded (an install-order

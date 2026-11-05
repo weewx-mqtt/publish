@@ -507,8 +507,6 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
 
         self.logger = mqttcommon.Logger(self.name, log_queue=self.logger_queue, log_name=__name__)
 
-        self.logger.info(None, f"MQTTPublish version: {VERSION}.")
-
         self.plugins = self._configure_plugins(config_dict, service_dict)
 
         exclude_keys = ['password']
@@ -525,6 +523,8 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
         if not self.enable:
             self.logger.info(None, "Not enabled, exiting.")
             return
+
+        self.logger.log_environment(config_dict, VERSION)
 
         data_binding = service_dict.get('data_binding', 'wx_binding')
         self.manager_dict = weewx.manager.get_manager_dict_from_config(config_dict, data_binding)
