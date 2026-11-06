@@ -3,7 +3,7 @@ title: MQTTMessageTracker
 parent: Plugins
 nav_order: 4
 ---
-{% include plugins_warning.html %}
+{% include messagetracker_warning.html %}
 
 ## The `[MQTTMessageTracker]` section
 

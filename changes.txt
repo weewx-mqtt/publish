@@ -49,6 +49,7 @@ Fixes
   - MQTTConfigHA now ensures published values use WeeWX units.
 
 Enhancements:
+  - Document that MQTTMessageTracker is alpha code.
   - Connection lifecycle messages use the shared wording: 'Connecting to host:port.',
     'Connected with result code ..., ...', 'Connection flags: ...', and
     'Subscribing to topic, mid ..., result code ...'.
