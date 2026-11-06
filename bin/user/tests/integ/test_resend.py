@@ -17,14 +17,14 @@ import weedb
 from integhelpers import BROKER_HOST, MosquittoBroker, make_observer, random_string, wait_for
 
 import user.mqttmessagetracker
-import user.mqttreplay
+import user.mqttresend
 
 TABLE = 'mqtt_message_tracker'
-TOPIC = 'weewx/integ/replay'
+TOPIC = 'weewx/integ/resend'
 
 
 @unittest.skipUnless(shutil.which('mosquitto'), 'mosquitto is not installed.')
-class TestReplay(unittest.TestCase):
+class TestResend(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()  # pylint: disable=consider-using-with
         self.addCleanup(self.temp_dir.cleanup)
@@ -43,7 +43,7 @@ class TestReplay(unittest.TestCase):
         self.broker.start()
 
         self.options = {
-            'clientid': f'replay-{random_string(8)}',
+            'clientid': f'resend-{random_string(8)}',
             'protocol': mqtt.MQTTv311,
             'host': BROKER_HOST,
             'port': self.broker.port,
@@ -70,8 +70,8 @@ class TestReplay(unittest.TestCase):
     def rows(self):
         cursor = self.connection.cursor()
         try:
-            cursor.execute(f"SELECT {', '.join(user.mqttreplay.MESSAGE_COLUMNS)} FROM {TABLE}")
-            return [dict(zip(user.mqttreplay.MESSAGE_COLUMNS, row)) for row in cursor]
+            cursor.execute(f"SELECT {', '.join(user.mqttresend.MESSAGE_COLUMNS)} FROM {TABLE}")
+            return [dict(zip(user.mqttresend.MESSAGE_COLUMNS, row)) for row in cursor]
         finally:
             cursor.close()
 
@@ -81,16 +81,16 @@ class TestReplay(unittest.TestCase):
         self.addCleanup(observer.loop_stop)
         return received
 
-    def test_replays_in_order_and_records_the_outcome(self):
+    def test_resends_in_order_and_records_the_outcome(self):
         first = self.insert('first', time.time())
         second = self.insert('second', time.time() + 0.001)
         received = self.observe()
 
-        selected, outcomes = user.mqttreplay.replay(
+        selected, outcomes = user.mqttresend.resend(
             self.database_dict, TABLE, self.options, since=0, newest_per_topic=False,
             dry_run=False, ack_timeout=10, out=io.StringIO())
 
-        wait_for(lambda: len(received) >= 2, 'The replayed messages are not received.')
+        wait_for(lambda: len(received) >= 2, 'The resent messages are not received.')
         self.assertEqual(received, ['first', 'second'])
         self.assertEqual([row['id'] for row in selected], [first, second])
         self.assertEqual([outcome.status for outcome in outcomes],
@@ -99,28 +99,28 @@ class TestReplay(unittest.TestCase):
 
         rows = {row['id']: row for row in self.rows()}
         for origin_id in (first, second):
-            replays = [row for row in rows.values() if row['origin_id'] == origin_id]
-            self.assertEqual(len(replays), 1)
-            self.assertEqual(replays[0]['status'], user.mqttmessagetracker.STATUS_ACKED)
-            self.assertEqual(replays[0]['attempt'], 1)
-            self.assertEqual(replays[0]['clientid'], self.options['clientid'])
-            self.assertIsNotNone(replays[0]['arrived_ts'])
+            resends = [row for row in rows.values() if row['origin_id'] == origin_id]
+            self.assertEqual(len(resends), 1)
+            self.assertEqual(resends[0]['status'], user.mqttmessagetracker.STATUS_ACKED)
+            self.assertEqual(resends[0]['attempt'], 1)
+            self.assertEqual(resends[0]['clientid'], self.options['clientid'])
+            self.assertIsNotNone(resends[0]['arrived_ts'])
 
         # The originals are never modified.
         self.assertEqual(rows[first]['status'], user.mqttmessagetracker.STATUS_UNCONFIRMED)
         self.assertIsNone(rows[first]['arrived_ts'])
         self.assertIsNone(rows[first]['attempt'])
 
-    def test_replays_only_the_newest_message_per_topic(self):
+    def test_resends_only_the_newest_message_per_topic(self):
         self.insert('older', time.time())
         newest = self.insert('newer', time.time() + 0.001)
         received = self.observe()
 
-        selected, outcomes = user.mqttreplay.replay(
+        selected, outcomes = user.mqttresend.resend(
             self.database_dict, TABLE, self.options, since=0,
             dry_run=False, ack_timeout=10, out=io.StringIO())
 
-        wait_for(lambda: received, 'The replayed message is not received.')
+        wait_for(lambda: received, 'The resent message is not received.')
         self.assertEqual(received, ['newer'])
         self.assertEqual([row['id'] for row in selected], [newest])
         self.assertEqual(len(outcomes), 1)

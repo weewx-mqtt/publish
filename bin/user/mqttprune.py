@@ -6,7 +6,7 @@
 
     The tracker prunes 'acked' and 'failed' rows by age, but keeps 'sent' and
     'unconfirmed' rows, because they may still be delivered or can still be
-    replayed. This tool removes the ones an operator no longer wants, with the
+    resent. This tool removes the ones an operator no longer wants, with the
     configured retention as the default age.
 
     The tool is a dry run unless --delete is given.

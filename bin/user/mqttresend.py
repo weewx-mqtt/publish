@@ -2,13 +2,13 @@
 #
 #    See the file LICENSE.txt for your full rights.
 #
-""" Replay the MQTT messages the message tracker recorded.
+""" Resend the MQTT messages the message tracker recorded.
 
     The tracker records what paho saw, which is not the same as what the broker
     received. When that leaves a message 'failed' or 'unconfirmed', an operator
-    can replay it with this tool.
+    can resend it with this tool.
 
-    A replay is a new row in the tracker table that points at the original with
+    A resend is a new row in the tracker table that points at the original with
     'origin_id' and 'attempt'. The original row is never changed.
 
     The tool is a dry run unless --publish is given.
@@ -42,13 +42,13 @@ VERSION = user.mqttpublish.VERSION
 # The tracker table's columns and plugin section are shared with the tracker and mqttprune.
 MESSAGE_COLUMNS = user.mqttmessagetracker.MESSAGE_COLUMNS
 
-# A 'sent' row may still be in flight and an 'acked' row does not need a replay.
-REPLAY_STATUSES = (user.mqttmessagetracker.STATUS_UNCONFIRMED,
+# A 'sent' row may still be in flight and an 'acked' row does not need a resend.
+RESEND_STATUSES = (user.mqttmessagetracker.STATUS_UNCONFIRMED,
                    user.mqttmessagetracker.STATUS_FAILED)
 
 DEFAULT_STATUS = user.mqttmessagetracker.STATUS_UNCONFIRMED
 DEFAULT_PLUGIN_SECTION = user.mqttmessagetracker.DEFAULT_PLUGIN_SECTION
-# Every row is considered by default, so every unconfirmed message is replayed.
+# Every row is considered by default, so every unconfirmed message is resent.
 DEFAULT_SINCE = None
 DEFAULT_LIMIT = 100
 DEFAULT_ACK_TIMEOUT = 10
@@ -57,18 +57,18 @@ DEFAULT_CONNECT_TIMEOUT = 10
 # What paho returns when it accepted the publish.
 _RC_SUCCESS = 0
 
-ReplayOutcome = collections.namedtuple('ReplayOutcome', 'row attempt mid status')
+ResendOutcome = collections.namedtuple('ResendOutcome', 'row attempt mid status')
 
 
-class ReplayError(Exception):
-    """ A replay failure. """
+class ResendError(Exception):
+    """ A resend failure. """
 
 
-class ReplayConfigError(ReplayError):
+class ResendConfigError(ResendError):
     """ A configuration or database problem. """
 
 
-class ReplayConnectError(ReplayError):
+class ResendConnectError(ResendError):
     """ The tool could not connect to the broker, nothing was published. """
 
 
@@ -77,17 +77,17 @@ def read_config(config_file):
     try:
         return user.mqttmessagetracker.read_config(config_file)
     except user.mqttmessagetracker.TrackerConfigError as exception:
-        raise ReplayConfigError(str(exception)) from exception
+        raise ResendConfigError(str(exception)) from exception
 
 
-def replay_config(config_dict, plugin_section=DEFAULT_PLUGIN_SECTION, data_binding=None, table=None,
+def resend_config(config_dict, plugin_section=DEFAULT_PLUGIN_SECTION, data_binding=None, table=None,
                   clientid=None):
-    """ Resolve the database, table and mqtt connection options for a replay. """
+    """ Resolve the database, table and mqtt connection options for a resend. """
     try:
         _, database_dict, table_name = user.mqttmessagetracker.tool_config(
             config_dict, plugin_section, data_binding, table)
     except user.mqttmessagetracker.TrackerConfigError as exception:
-        raise ReplayConfigError(str(exception)) from exception
+        raise ResendConfigError(str(exception)) from exception
 
     service_dict = dict(config_dict.get('MQTTPublish', {}))
     # Never reuse the service's clientid, the broker would disconnect the running service.
@@ -95,7 +95,7 @@ def replay_config(config_dict, plugin_section=DEFAULT_PLUGIN_SECTION, data_bindi
     if clientid:
         service_dict['clientid'] = clientid
     options = user.mqttpublish.mqtt_connection_options(
-        service_dict, default_clientid=f'MQTTPublish-replay-{random.randint(1000, 9999)}')  # NOSONAR - just need a unique id
+        service_dict, default_clientid=f'MQTTPublish-resend-{random.randint(1000, 9999)}')  # NOSONAR - just need a unique id
     return database_dict, table_name, options
 
 
@@ -132,14 +132,14 @@ def _newest_per_topic(rows):
     return newest
 
 
-def _is_acked_replay(row):
-    """ Whether the row is a replay that paho reported as published. """
+def _is_acked_resend(row):
+    """ Whether the row is a resend that paho reported as published. """
     return row['origin_id'] is not None and row['status'] == user.mqttmessagetracker.STATUS_ACKED
 
 
 def _acked_origins(rows):
-    """ The origin ids that already have an acked replay. """
-    return {row['origin_id'] for row in rows if _is_acked_replay(row)}
+    """ The origin ids that already have an acked resend. """
+    return {row['origin_id'] for row in rows if _is_acked_resend(row)}
 
 
 def _oldest(since, now):
@@ -187,11 +187,11 @@ def _limit(rows, limit):
 # pylint: disable=too-many-arguments,too-many-positional-arguments
 def select_messages(rows, statuses=None, since=DEFAULT_SINCE, limit=DEFAULT_LIMIT, topic=None,
                     newest_per_topic=True, force=False, now=None):
-    """ Select the rows to replay.
+    """ Select the rows to resend.
 
         Every row is considered unless 'since' bounds its age. Only the newest row per topic
-        is selected by default, so replayed values cannot overwrite newer ones. A message that
-        already has an acked replay is skipped unless 'force' is set. """
+        is selected by default, so resent values cannot overwrite newer ones. A message that
+        already has an acked resend is skipped unless 'force' is set. """
     candidates = _candidates(rows, statuses, since, topic, force, time.time() if now is None else now)
     newest = _newest_per_topic(rows) if newest_per_topic else {}
     return _limit(_select(candidates, newest), limit)
@@ -199,9 +199,9 @@ def select_messages(rows, statuses=None, since=DEFAULT_SINCE, limit=DEFAULT_LIMI
 
 # pylint: disable=too-many-arguments,too-many-positional-arguments
 def superseded(rows, statuses=None, since=DEFAULT_SINCE, topic=None, force=False, now=None):
-    """ The rows a replay would keep, but for a newer message on the same topic.
+    """ The rows a resend would keep, but for a newer message on the same topic.
 
-        Replaying one would write an older value over a newer one, so they are only selected
+        Resending one would write an older value over a newer one, so they are only selected
         with '--all'. """
     newest = _newest_per_topic(rows)
     return [row for row in _candidates(rows, statuses, since, topic, force, time.time() if now is None else now)
@@ -219,7 +219,7 @@ def decode_payload(row):
 
 
 def next_attempt(cursor, table, origin_id):
-    """ The attempt number for the next replay of an original message. """
+    """ The attempt number for the next resend of an original message. """
     cursor.execute(f"SELECT attempt FROM {table} WHERE origin_id = ?", (origin_id,))
     attempts = [row[0] for row in cursor if row[0] is not None]
     return max(attempts, default=0) + 1
@@ -227,7 +227,7 @@ def next_attempt(cursor, table, origin_id):
 
 # pylint: disable=too-many-arguments,too-many-positional-arguments
 def insert_attempt(connection, table, row, mid, rc, sent_ts, clientid):
-    """ Insert the row of a replay, returning its id, attempt and status. """
+    """ Insert the row of a resend, returning its id, attempt and status. """
     origin_id = _origin(row)
     status = user.mqttmessagetracker.STATUS_FAILED
     if rc == _RC_SUCCESS:
@@ -246,7 +246,7 @@ def insert_attempt(connection, table, row, mid, rc, sent_ts, clientid):
 
 
 def update_attempt(connection, table, row_id, status, timestamp=None):
-    """ Record the outcome of a replay. """
+    """ Record the outcome of a resend. """
     timestamp = time.time() if timestamp is None else timestamp
     if status == user.mqttmessagetracker.STATUS_ACKED:
         statement = f"UPDATE {table} SET status = ?, arrived_ts = ? WHERE id = ?"
@@ -256,7 +256,7 @@ def update_attempt(connection, table, row_id, status, timestamp=None):
         cursor.execute(statement, (status, timestamp, row_id))
 
 
-class ReplayClient:  # pylint: disable=too-many-instance-attributes
+class ResendClient:  # pylint: disable=too-many-instance-attributes
     """ A paho client that records the message ids the broker acknowledged. """
 
     def __init__(self, options, ack_timeout=DEFAULT_ACK_TIMEOUT,
@@ -301,19 +301,19 @@ class ReplayClient:  # pylint: disable=too-many-instance-attributes
                                     host=self.options['host'], port=self.options['port'],
                                     keepalive=self.options['keepalive'])
         except (OSError, ValueError) as exception:
-            raise ReplayConnectError(
+            raise ResendConnectError(
                 f"Unable to connect to {self.options['host']}:{self.options['port']}: "
                 f"{exception}") from exception
 
         self.client.loop_start()
         if not self.connected.wait(self.connect_timeout):
             self._close()
-            raise ReplayConnectError(
+            raise ResendConnectError(
                 f"No CONNACK from {self.options['host']}:{self.options['port']} within "
                 f"{self.connect_timeout} seconds.")
         if self.connect_rc != _RC_SUCCESS:
             self._close()
-            raise ReplayConnectError(f"The broker refused the connection, rc {self.connect_rc}.")
+            raise ResendConnectError(f"The broker refused the connection, rc {self.connect_rc}.")
 
     def publish(self, topic, payload, qos, retain):
         """ Hand a message to paho. """
@@ -335,12 +335,12 @@ class ReplayClient:  # pylint: disable=too-many-instance-attributes
         self.client.loop_stop()
 
 
-def replay_message(client, connection, table, row, clientid):
+def resend_message(client, connection, table, row, clientid):
     """ Publish one message and record its outcome. """
     try:
         payload = decode_payload(row)
     except ValueError as exception:
-        raise ReplayConfigError(
+        raise ResendConfigError(
             f"Unable to decode the payload of {row['id']}: {exception}") from exception
 
     message_info = client.publish(row['topic'], payload, row['qos'], row['retain'])
@@ -348,7 +348,7 @@ def replay_message(client, connection, table, row, clientid):
         connection, table, row, message_info.mid, int(message_info.rc), time.time(), clientid)
 
     if status == user.mqttmessagetracker.STATUS_FAILED:
-        return ReplayOutcome(row, attempt, message_info.mid, status)
+        return ResendOutcome(row, attempt, message_info.mid, status)
 
     arrived_ts = client.wait_for_ack(message_info.mid)
     if arrived_ts is None:
@@ -357,7 +357,7 @@ def replay_message(client, connection, table, row, clientid):
     else:
         status = user.mqttmessagetracker.STATUS_ACKED
         update_attempt(connection, table, row_id, status, arrived_ts)
-    return ReplayOutcome(row, attempt, message_info.mid, status)
+    return ResendOutcome(row, attempt, message_info.mid, status)
 
 
 def print_outcomes(outcomes, out):
@@ -368,17 +368,17 @@ def print_outcomes(outcomes, out):
 
 
 # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals
-def replay(database_dict, table, options, *, statuses=None, since=DEFAULT_SINCE,
+def resend(database_dict, table, options, *, statuses=None, since=DEFAULT_SINCE,
            limit=DEFAULT_LIMIT, topic=None, newest_per_topic=True, force=False, dry_run=True,
            ack_timeout=DEFAULT_ACK_TIMEOUT, connect_timeout=DEFAULT_CONNECT_TIMEOUT, out=None):
-    """ Replay the selected messages, returning the selection and the outcomes.
+    """ Resend the selected messages, returning the selection and the outcomes.
 
         Nothing is published when 'dry_run' is set, or when nothing is selected. """
     out = sys.stdout if out is None else out
     try:
         connection = weedb.connect(database_dict)
     except weedb.DatabaseError as exception:
-        raise ReplayConfigError(
+        raise ResendConfigError(
             f"Unable to open the message tracker database: {exception}") from exception
 
     try:
@@ -390,19 +390,19 @@ def replay(database_dict, table, options, *, statuses=None, since=DEFAULT_SINCE,
             stale = superseded(rows, statuses=statuses, since=since, topic=topic, force=force)
             if stale:
                 print(f"{len(stale)} message(s) are older than a newer message on their topic, "
-                      "use --all to replay them.", file=out)
+                      "use --all to resend them.", file=out)
         if dry_run or not selected:
             return selected, []
 
-        client = ReplayClient(options, ack_timeout=ack_timeout, connect_timeout=connect_timeout)
+        client = ResendClient(options, ack_timeout=ack_timeout, connect_timeout=connect_timeout)
         client.connect()
         try:
-            outcomes = [replay_message(client, connection, table, row, options['clientid'])
+            outcomes = [resend_message(client, connection, table, row, options['clientid'])
                         for row in selected]
         finally:
             client.close()
     except weedb.DatabaseError as exception:
-        raise ReplayConfigError(
+        raise ResendConfigError(
             f"Unable to use the message tracker table {table}: {exception}") from exception
     finally:
         connection.close()
@@ -412,19 +412,19 @@ def replay(database_dict, table, options, *, statuses=None, since=DEFAULT_SINCE,
 
 
 def _statuses(value):
-    """ Parse the statuses a message can be replayed from. """
+    """ Parse the statuses a message can be resent from. """
     statuses = [status.strip() for status in value.split(',') if status.strip()]
-    invalid = [status for status in statuses if status not in REPLAY_STATUSES]
+    invalid = [status for status in statuses if status not in RESEND_STATUSES]
     if invalid:
         raise argparse.ArgumentTypeError(
-            f"invalid status(es) {', '.join(invalid)}, choose from {', '.join(REPLAY_STATUSES)}")
+            f"invalid status(es) {', '.join(invalid)}, choose from {', '.join(RESEND_STATUSES)}")
     return statuses
 
 
 def build_parser():
     """ The command line options. """
     parser = argparse.ArgumentParser(
-        description="Replay the MQTT messages the message tracker recorded.",
+        description="Resend the MQTT messages the message tracker recorded.",
         epilog="Without --publish the selection is only printed, nothing is sent.")
     parser.add_argument('config_file', help="The WeeWX config file, for example /etc/weewx/weewx.conf.")
     parser.add_argument('--version', action='version', version=f'%(prog)s {VERSION}')
@@ -437,23 +437,23 @@ def build_parser():
     parser.add_argument('--table', default=None,
                         help="Override the tracker's table option.")
     parser.add_argument('--clientid', default=None,
-                        help="The clientid to connect with. Default is a unique MQTTPublish-replay id.")
+                        help="The clientid to connect with. Default is a unique MQTTPublish-resend id.")
 
     parser.add_argument('--status', type=_statuses, default=[DEFAULT_STATUS], metavar='STATUS',
-                        help=(f"The statuses to replay, comma separated. "
+                        help=(f"The statuses to resend, comma separated. "
                               f"Default is {DEFAULT_STATUS}. Choose from "
-                              f"{', '.join(REPLAY_STATUSES)}."))
+                              f"{', '.join(RESEND_STATUSES)}."))
     parser.add_argument('--since', type=int, default=DEFAULT_SINCE, metavar='SECONDS',
-                        help="Only replay messages sent within the last SECONDS. "
+                        help="Only resend messages sent within the last SECONDS. "
                              "Default is every message.")
     parser.add_argument('--limit', type=int, default=DEFAULT_LIMIT, metavar='COUNT',
-                        help=f"The maximum number of messages to replay. Default is {DEFAULT_LIMIT}.")
+                        help=f"The maximum number of messages to resend. Default is {DEFAULT_LIMIT}.")
     parser.add_argument('--topic', default=None, metavar='GLOB',
-                        help="Only replay topics that match the glob, for example 'weather/outTemp_*'.")
+                        help="Only resend topics that match the glob, for example 'weather/outTemp_*'.")
     parser.add_argument('--all', action='store_true',
-                        help="Replay every selected message, not just the newest per topic.")
+                        help="Resend every selected message, not just the newest per topic.")
     parser.add_argument('--force', action='store_true',
-                        help="Replay messages that already have an acked replay.")
+                        help="Resend messages that already have an acked resend.")
     parser.add_argument('--publish', action='store_true',
                         help="Publish the selected messages. Without it nothing is sent.")
 
@@ -471,18 +471,18 @@ def run(options, out=None, err=None):
     err = sys.stderr if err is None else err
     try:
         config_dict = read_config(options.config_file)
-        database_dict, table, mqtt_options = replay_config(
+        database_dict, table, mqtt_options = resend_config(
             config_dict, options.plugin_section, options.data_binding, options.table, options.clientid)
-        _, outcomes = replay(
+        _, outcomes = resend(
             database_dict, table, mqtt_options, out=out,
             statuses=options.status, since=options.since, limit=options.limit, topic=options.topic,
             newest_per_topic=not options.all, force=options.force, dry_run=not options.publish,
             ack_timeout=options.ack_timeout, connect_timeout=options.connect_timeout)
-    except ReplayConnectError as exception:
-        print(f"mqttreplay: {exception}", file=err)
+    except ResendConnectError as exception:
+        print(f"mqttresend: {exception}", file=err)
         return 1
-    except ReplayConfigError as exception:
-        print(f"mqttreplay: {exception}", file=err)
+    except ResendConfigError as exception:
+        print(f"mqttresend: {exception}", file=err)
         return 2
 
     if not outcomes:

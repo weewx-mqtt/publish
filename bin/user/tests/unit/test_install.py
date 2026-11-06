@@ -51,7 +51,7 @@ class TestInstallConfig(unittest.TestCase):
         files = self.install.MQTTPublishInstaller()['files'][0][1]
 
         self.assertIn('bin/user/mqttmessagetracker.py', files)
-        self.assertIn('bin/user/mqttreplay.py', files)
+        self.assertIn('bin/user/mqttresend.py', files)
         self.assertIn('bin/user/mqttprune.py', files)
 
 

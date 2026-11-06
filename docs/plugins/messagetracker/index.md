@@ -126,9 +126,9 @@ Each message published to a tracked topic records a row.
 - `arrived_ts`: when paho reported it published, `NULL` for anything that is not `acked`.
 - `status`: what is known about the message, see below.
 - `unconfirmed_ts`: when the tracker stopped waiting for the arrival, `NULL` unless the status is `unconfirmed`.
-- `origin_id`: the id of the original publish when this row is a replay, `NULL` otherwise.
-- `attempt`: the replay number when this row is a replay, `NULL` for the original publish.
-- `clientid`: the client that made a replay, `NULL` for a publish by MQTTPublish.
+- `origin_id`: the id of the original publish when this row is a resend, `NULL` otherwise.
+- `attempt`: the resend number when this row is a resend, `NULL` for the original publish.
+- `clientid`: the client that made a resend, `NULL` for a publish by MQTTPublish.
 - `topic`: the topic the message was published on.
 - `qos`: the quality of service level used.
 - `retain`: whether the message is retained.
@@ -140,7 +140,7 @@ The payload is stored as text; binary payloads are hex-encoded and marked with
 `payload_encoding`. With MySQL, `MEDIUMTEXT` holds up to 16 MB; SQLite has no practical limit.
 A larger payload makes the insert fail and the batch is logged and dropped.
 
-A replay of a message is a copy of its row, with its own `mid`, `sent_ts`, `arrived_ts`, `status`
+A resend of a message is a copy of its row, with its own `mid`, `sent_ts`, `arrived_ts`, `status`
 and `rc`. It keeps the original `topic`, `qos`, `retain`, `dateTime` and `payload`, and points at
 the original with `origin_id` and `attempt`. The original row is not changed.
 
@@ -211,36 +211,36 @@ CREATE TABLE IF NOT EXISTS mqtt_message_tracker (
 )
 ```
 
-## Replaying a message
+## Resending a message
 
-`failed` and `unconfirmed` rows can be republished with `bin/user/mqttreplay.py`.
+`failed` and `unconfirmed` rows can be resent with `bin/user/mqttresend.py`.
 It reads the tracker table and publishes through its own MQTT client; MQTTPublish is not
-involved and does not record the replay as a new publish.
+involved and does not record the resend as a new publish.
 
 The tool is a dry run unless `--publish` is given:
 
 ```shell
-python /usr/share/weewx/bin/user/mqttreplay.py /etc/weewx/weewx.conf
-python /usr/share/weewx/bin/user/mqttreplay.py /etc/weewx/weewx.conf --publish
+python /usr/share/weewx/bin/user/mqttresend.py /etc/weewx/weewx.conf
+python /usr/share/weewx/bin/user/mqttresend.py /etc/weewx/weewx.conf --publish
 ```
 
 The tools import WeeWX, so run them with the Python that WeeWX uses and with WeeWX on the
 path. A package install already has it there. For a source install, add its `src` directory:
 
 ```shell
-PYTHONPATH=~/weewx/src python ~/weewx-data/bin/user/mqttreplay.py ~/weewx-data/weewx.conf
+PYTHONPATH=~/weewx/src python ~/weewx-data/bin/user/mqttresend.py ~/weewx-data/weewx.conf
 ```
 
-A replay is a new row, so the original is never changed:
+A resend is a new row, so the original is never changed:
 
 | id | topic | status | origin_id | attempt |
 | --- | --- | --- | --- | --- |
 | A | weather/outTemp_F | unconfirmed | NULL | NULL |
 | B | weather/outTemp_F | acked | A | 1 |
 
-The replay copies the topic, QoS, retain flag, `dateTime` and payload of the original.
-Its `origin_id` is the original row and `attempt` counts the replays of that message from 1.
-Replaying a replay keeps the chain flat under the original, so that message's history is:
+The resend copies the topic, QoS, retain flag, `dateTime` and payload of the original.
+Its `origin_id` is the original row and `attempt` counts the resends of that message from 1.
+Resending a resend keeps the chain flat under the original, so that message's history is:
 
 ```sql
 SELECT id, attempt, mid, sent_ts, arrived_ts, status, rc
@@ -250,12 +250,12 @@ FROM mqtt_message_tracker WHERE origin_id = ? ORDER BY attempt
 The tool:
 
 - selects `unconfirmed` rows. Use `--status failed`, or `failed,unconfirmed`, to include `failed`.
-  A `sent` row may still be in flight and an `acked` row does not need a replay;
+  A `sent` row may still be in flight and an `acked` row does not need a resend;
 - considers every `unconfirmed` message, whatever its age; `--since SECONDS` bounds it, and
-  `--limit` caps the number replayed (default `100`);
-- replays only the newest row per topic, so an old value cannot overwrite a newer one. A message
-  this hides is reported, and `--all` replays every selected message, oldest first;
-- skips a message that already has an `acked` replay; `--force` overrides;
+  `--limit` caps the number resent (default `100`);
+- resends only the newest row per topic, so an old value cannot overwrite a newer one. A message
+  this hides is reported, and `--all` resends every selected message, oldest first;
+- skips a message that already has an `acked` resend; `--force` overrides;
 - filters the topics with `--topic`, a glob such as `weather/outTemp_*`;
 - connects with a clientid of its own, so the running service is not disconnected;
 - waits for the connection before publishing, and for each publish to be confirmed, with
@@ -267,16 +267,16 @@ message that is older than the normal retention period.
 `--plugin-section`, `--data-binding` and `--table` select a tracker that is configured under
 another section or writes to another database.
 
-A message published directly by a plugin, or to a topic that is not tracked, is never replayed.
+A message published directly by a plugin, or to a topic that is not tracked, is never resent.
 
 The exit code is `0` on success, `1` when the connection, a publish or an ack failed, and `2` for
 a config or database error. A connect failure stops the run before anything is published.
 
-The write sequence matches the tracker: the replay is inserted as `sent` after paho accepts it,
+The write sequence matches the tracker: the resend is inserted as `sent` after paho accepts it,
 then updated to `acked` or `unconfirmed`. A tool that is killed after publishing leaves a `sent`
 row, which the tracker marks `unconfirmed` the next time it starts.
 
-Replay is not delivery: it cannot undo an earlier loss, and it may publish a duplicate.
+Resend is not delivery: it cannot undo an earlier loss, and it may publish a duplicate.
 It assumes the consumer is idempotent on `dateTime`, which is true for InfluxDB and typical
 time-series stores.
 
@@ -311,8 +311,8 @@ The tool deletes by id and status, so a row that changed between the plan and th
 alone. It is safe to run while WeeWX is running.
 
 Deleting an `unconfirmed` row discards the only record that its delivery outcome is unknown.
-Deleting an original row while an `acked` replay remains leaves that replay's `origin_id`
-pointing at a row that no longer exists; the replay row is self-contained, so it still replays
+Deleting an original row while an `acked` resend remains leaves that resend's `origin_id`
+pointing at a row that no longer exists; the resend row is self-contained, so it still resends
 and prunes normally.
 
 A `sent` row is marked `unconfirmed` when the tracker restarts, so the tool does not touch it.

@@ -88,9 +88,9 @@ Enhancements:
     The topics to track are configured in a [[topics]] section, with an optional per-topic retention.
     A topic published with qos 0 is rejected with an error, because its delivery cannot be confirmed.
     A previous run's leftover 'sent' rows are marked unconfirmed at startup, and the count is logged.
-    Unconfirmed rows are kept until unconfirmed_retention (default 0, never), so they can still be replayed.
-  - Added the mqttreplay tool, which republishes the messages the tracker recorded as failed or
-    unconfirmed. A replay is a new row that points at the original, so the original is never
+    Unconfirmed rows are kept until unconfirmed_retention (default 0, never), so they can still be resent.
+  - Added the mqttresend tool, which resends the messages the tracker recorded as failed or
+    unconfirmed. A resend is a new row that points at the original, so the original is never
     changed, and a dry run is the default. Every unconfirmed message is considered by default,
     whatever its age, and a message hidden by a newer publish on the same topic is reported.
   - Added the mqttprune tool, which deletes the unconfirmed rows the automatic prune keeps, and

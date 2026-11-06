@@ -182,7 +182,7 @@ STATUS_ACKED = 'acked'
 STATUS_UNCONFIRMED = 'unconfirmed'
 
 # The statuses whose rows are pruned by age. A row that may still be delivered, or whose
-# delivery is unknown, is kept so that it can still be replayed.
+# delivery is unknown, is kept so that it can still be resent.
 _PRUNED_STATUSES = (STATUS_ACKED, STATUS_FAILED)
 
 
