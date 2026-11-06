@@ -270,7 +270,7 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
 
         self.logger_queue.put(mqttcommon.Logger.create_entry(
             self.name, 'DEBUG', None,
-            (f"At {int(time.time())}  publishing: {int(time_stamp)} "
+            (f"At {int(time.time())} publishing: {int(time_stamp)}"
              f" {mqtt_message_info.mid} {qos} {topic} took {time.time() - start_time}")))
 
         # Nothing to retry; paho has already dropped the message.
@@ -518,7 +518,7 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
 
         #  backwards compatibility
         if 'PublishWeeWX' in service_dict.sections:
-            self.logger.error(None, "'PublishWeeWX' is deprecated. Move options to top level, '[MQTTPublish]'.")
+            self.logger.error(None, "'PublishWeeWX' is deprecated, move its options to the top level '[MQTTPublish]'.")
             service_dict = config_dict.get('MQTTPublish', {}).get('PublishWeeWX', {})
 
         self.enable = to_bool(service_dict.get('enable', True))
@@ -588,8 +588,8 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
         plugins = service_dict.get('plugins', [])
         if isinstance(plugins, dict):
             self.logger.error(None,
-                              ("'[[plugins]]' is deprecated. "
-                               "To configure see, https://weewx-mqtt.github.io/publish/plugins/"))
+                              ("'[[plugins]]' is deprecated, "
+                               "see https://weewx-mqtt.github.io/publish/plugins/."))
             return plugins
 
         self.logger.info(None, f"The plugins are: {plugins}")
@@ -618,11 +618,11 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
     def _log_deprecated_options(self, service_dict):
         """ Warn about options that are deprecated and no longer used. """
         if 'binding' in service_dict:
-            self.logger.info(None, "'binding' is deprecated and no longer used.")
+            self.logger.info(None, "'binding' is deprecated, it is no longer used.")
 
         for option in ('max_retries', 'wait_between_retries', 'wait_for_connection'):
             if option in service_dict:
-                self.logger.info(None, f"'{option}' is deprecated and no longer used.")
+                self.logger.info(None, f"'{option}' is deprecated, it is no longer used.")
 
     def _configure_mqtt(self, service_dict):
         """ Configure the mqtt connection and monitoring options. """
@@ -633,7 +633,7 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
 
         mqtt_config['lwt'] = service_dict.get('lwt')
         if mqtt_config['lwt'] is not None:
-            self.logger.error(None, "'[[lwt]]' is deprecated.  use [[availability_topic]].")
+            self.logger.error(None, "'[[lwt]]' is deprecated, use '[[availability_topic]]'.")
         else:
             mqtt_config['lwt'] = service_dict.get('availability_topic', {})
 
@@ -801,8 +801,8 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
 
         # Temporarily build the MQTTAggregateValues plugin configuration
         self.logger.error(None,
-                          ("'[aggregates]' is deprecated and has moved to a plugin. "
-                           "To configure see, https://weewx-mqtt.github.io/publish/plugins/aggregatevalues/"))
+                          ("'[aggregates]' is deprecated, it has moved to a plugin, "
+                           "see https://weewx-mqtt.github.io/publish/plugins/aggregatevalues/."))
         if 'MQTTAggregateValues' not in self.plugins:
             self.plugins['MQTTAggregateValues'] = {}
             self.plugins['MQTTAggregateValues']['module'] = 'user.mqttaggregatevalues'

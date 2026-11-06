@@ -54,6 +54,11 @@ Enhancements:
     'Subscribing to topic, mid ..., result code ...'.
   - Error and validation messages use the shared wording: 'Unable to ...: ...',
     'Invalid <thing>, <value>.', and one trailing period.
+  - Deprecation messages use the shared wording ('<option> is deprecated, use <replacement>.',
+    '<option> is deprecated, it is no longer used.'), with one trailing period and correct
+    spacing.
+  - Log messages use consistent terminology and spelling ('qos', 'database'), and the publish
+    timing line no longer contains a double space.
   - Log the startup environment (version, WeeWX version, Python, platform, locale, paho.mqtt,
     logging settings, and record augmentation/generation) through the shared 'log_environment'
     block, using the 'Label: value.' format.

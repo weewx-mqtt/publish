@@ -126,7 +126,7 @@ class TestInit(unittest.TestCase):
             }
         })
 
-        mock_logger.info.assert_any_call(None, "'binding' is deprecated and no longer used.")
+        mock_logger.info.assert_any_call(None, "'binding' is deprecated, it is no longer used.")
 
     def test_multiprocess_uses_process_thread(self):
         SUT, _, _, mock_process = self._build_service({
@@ -180,7 +180,7 @@ class TestInit(unittest.TestCase):
         })
 
         mock_logger.error.assert_any_call(None,
-                                          "'[[lwt]]' is deprecated.  use [[availability_topic]].")
+                                          "'[[lwt]]' is deprecated, use '[[availability_topic]]'.")
 
 class TestConfigurePlugins(unittest.TestCase):
     @staticmethod
@@ -203,7 +203,7 @@ class TestConfigurePlugins(unittest.TestCase):
 
         mock_logger.error.assert_any_call(
             None,
-            "'[[plugins]]' is deprecated. To configure see, https://weewx-mqtt.github.io/publish/plugins/")
+            "'[[plugins]]' is deprecated, see https://weewx-mqtt.github.io/publish/plugins/.")
         self.assertIn('PluginA', SUT.plugins)
 
     def test_plugins_list_reports_missing_configuration(self):
