@@ -63,6 +63,10 @@ Enhancements:
   - Log the startup environment (version, WeeWX version, Python, platform, locale, paho.mqtt,
     logging settings, and record augmentation/generation) through the shared 'log_environment'
     block, using the 'Label: value.' format.
+  - Configuration diagnostics use the 'Label: value.' format with one trailing period:
+    'Sanitized configuration (removed: password): ...', 'Plugins: [...]', 'Loop topics: ...',
+    and 'Archive topics: ...'. The mqtt configuration is logged the same way, and the topics are
+    now logged once instead of twice.
   - The Logger now owns the log queue and the logging thread. Shutting down flushes queued log
     messages, is safe to call more than once, and no longer stalls process exit if it was skipped.
   - Fail loudly at import when an older 'user.mqttcommon' copy is loaded (an install-order

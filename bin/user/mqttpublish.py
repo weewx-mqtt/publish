@@ -513,8 +513,8 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
 
         exclude_keys = ['password']
         sanitized_service_dict = {k: service_dict[k] for k in set(service_dict.keys()) - set(exclude_keys)}
-        self.logger.debug(None, f"sanitized configuration removed {exclude_keys}")
-        self.logger.debug(None, f"sanitized_service_dict is {sanitized_service_dict}")
+        self.logger.debug(None, f"Sanitized configuration (removed: {', '.join(exclude_keys)}): "
+                                f"{sanitized_service_dict}.")
 
         #  backwards compatibility
         if 'PublishWeeWX' in service_dict.sections:
@@ -534,8 +534,6 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
         self.weewx_dict = self._configure_weewx_dict(engine, config_dict)
 
         self.topics_loop, self.topics_archive, binding = self.configure_topics(service_dict)
-        self.logger.debug(None, f"archive topic configuration is: {self.topics_archive}")
-        self.logger.debug(None, f"loop topic configuration is: {self.topics_loop}")
 
         self.mqtt_config, self.monitor_config = self._configure_mqtt(service_dict)
 
@@ -592,7 +590,7 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
                                "see https://weewx-mqtt.github.io/publish/plugins/."))
             return plugins
 
-        self.logger.info(None, f"The plugins are: {plugins}")
+        self.logger.info(None, f"Plugins: {to_list(plugins)}.")
         configured_plugins = configobj.ConfigObj({})
         for plugin in to_list(plugins):
             if plugin not in config_dict:
@@ -639,8 +637,8 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
 
         exclude_keys = ['password']
         sanitized_mqtt_config = {k: mqtt_config[k] for k in set(mqtt_config.keys()) - set(exclude_keys)}
-        self.logger.debug(None, f"sanitized mqtt_config removed {exclude_keys}")
-        self.logger.debug(None, f"sanitized_mqtt_config is {sanitized_mqtt_config}")
+        self.logger.debug(None, f"Sanitized MQTT configuration (removed: {', '.join(exclude_keys)}): "
+                                f"{sanitized_mqtt_config}.")
 
         monitor_config = {
             'monitor_queue': service_dict.get('monitor_queue'),
@@ -692,8 +690,8 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
                 topics_archive[topic] = archive_config
                 event_binding['archive'] = True
 
-        self.logger.debug(None, f"Loop topics: {topics_loop}")
-        self.logger.debug(None, f"Archive topics: {topics_archive}")
+        self.logger.debug(None, f"Loop topics: {topics_loop}.")
+        self.logger.debug(None, f"Archive topics: {topics_archive}.")
         return topics_loop, topics_archive, event_binding.keys()
 
     def _configure_topic(self, service_dict, topic):
