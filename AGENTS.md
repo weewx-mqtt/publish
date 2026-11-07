@@ -171,7 +171,7 @@ A plugin class exposes `get_callbacks()` returning a list of
 A plugin may also implement an optional `shutdown()`.
 See `docs/plugin-development/` for parameter meanings.
 
-## Testing conventions
+## Testing conventions and quirks
 
 - Tests use the standalone `mock` package (not `unittest.mock`).
 - Shared fixtures: `helpers.py` (`random_string`, `run_tests`), `mqttstubs.py` (paho stubs),
