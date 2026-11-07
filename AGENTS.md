@@ -207,6 +207,12 @@ See `docs/plugin-development/` for parameter meanings.
   `lint-fail` defaults to true, so any pylint or flake8 finding turns the job red. Run
   `verify.sh` before committing.
 
+## Commits
+
+Never commit, push, tag or release unless explicitly asked: stage the changes and stop. A
+request to make a change is not permission to commit it, and "do it" does not include
+committing. Propose the commit message and wait for the go-ahead.
+
 ## Cross-repo workflow
 
 Single changes stay in this repository. Cross-repo work (a shared change, rename, wording pass)
