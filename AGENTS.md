@@ -4,6 +4,16 @@ WeeWX extension **MQTTPublish** (`weewx-mqtt/publish`): a WeeWX service that pub
 loop/archive data to MQTT, plus a plugin framework for extra processing (Home Assistant
 discovery, aggregate values, archive values). Requires WeeWX 5.x and paho-mqtt 1.6.1+.
 
+## Role & boundaries
+
+- `bin/user/mqttcommon.py` is the paho mqtt code shared with the other weewx-mqtt extensions,
+  vendored **verbatim**: never edit this copy. Publish uses `Logger`/`LoggerThread`; the throttle
+  is unwired.
+- Change it in the [mqttcommon](https://github.com/weewx-mqtt/mqttcommon) repository and sync
+  into every consumer with `commonrepos.sh`; that repository's `AGENTS.md` has the procedure and
+  the `MQTTCOMMON_API` bump ritual.
+- `bin/user/mqtthaconfig.py` is a deprecated shim re-exporting `mqttconfigha.py`. Do not add code.
+
 ## Layout
 
 - `bin/user/mqttpublish.py` — the whole service: `MQTTPublish(StdService)`, `PluginManager`,
@@ -17,14 +27,10 @@ discovery, aggregate values, archive values). Requires WeeWX 5.x and paho-mqtt 1
 - `bin/user/mqttresend.py` — CLI that republishes the tracker's `failed`/`unconfirmed` rows;
   `bin/user/mqttprune.py` — CLI that applies the tracker's retention policy. Neither is loaded
   by WeeWX; both are run directly (see `docs/plugins/messagetracker/`).
-- `bin/user/mqtthaconfig.py` — deprecated shim re-exporting `mqttconfigha.py`. Do not add code.
-- `bin/user/mqttcommon.py` — the paho mqtt code shared with the other weewx-mqtt extensions,
-  vendored **verbatim**: never edit this copy. Publish uses `Logger`/`LoggerThread`; the throttle
-  is unwired. Change it in the [mqttcommon](https://github.com/weewx-mqtt/mqttcommon) repository
-  and sync; that repository's `AGENTS.md` has the procedure and the `MQTTCOMMON_API` bump ritual.
 - `install.py` — WeeWX `ExtensionInstaller`; the `MQTTPUBLISH_CONFIG` string is the template
   inserted into `weewx.conf`.
 - `docs/` — Jekyll site (GitHub Pages, baseurl `/publish`); the user-facing option reference.
+  READMEs are docs-first: the project README lives under `docs/`, not at the repo root.
 - `bin/user/tests/unit/` — stubbed-paho unit tests. `bin/user/tests/integ/` — broker-backed
   smoke tests (`test_reconnect.py`, `test_resend.py`) that spawn their own mosquitto on a free
   port and are skipped when it is not installed. There are no func/e2e dirs; CI disables those
@@ -37,7 +43,7 @@ weewx checkout (`../weewx`). Run everything from the repo root:
 
 ```bash
 source .devenv
-export PYTHONPATH="$WEEWX_PYTHONPATH"   # == bin:../weewx/src
+export PYTHONPATH="$WEEWX_PYTHONPATH"   # == bin, or bin:../weewx/src
 ```
 
 Without `PYTHONPATH=bin` you get `ModuleNotFoundError: No module named 'user'`.
@@ -56,7 +62,7 @@ common-repo checks, all test suites). Also `unittests.sh`, `lint.sh`, `coverage.
 source .devenv
 ~/weewx_dev/weewx-extensions/development-tools/tools/verify.sh
 
-# All unit tests (507, ~6s, no broker or network needed — paho is mocked/stubbed)
+# All unit tests (currently 507, ~6s, no broker or network needed — paho is mocked/stubbed)
 pytest bin/user/tests/unit
 
 # One file / one test (nodeid form)
@@ -87,7 +93,7 @@ coverage html --include 'bin/user/*.py' --omit bin/user/__init__.py
 There is no typechecker. `.flake8` (max-line-length 145) is run by CI on the same `lint-paths`
 target and fails the build on findings.
 
-## Gotchas
+## Architecture / behavior
 
 - **paho-mqtt v1 and v2 must both work** (CI tests latest and `paho-mqtt==1.6.1`).
   `Publisher.__init__` derives `self.api` with `mqttcommon.select_api(protocol)`; tests force a
@@ -101,14 +107,6 @@ target and fails the build on findings.
   connect failure still marks the publisher thread for shutdown via `publisher.process = False`
   so the service's thread-restart budget takes over. The integ smoke test
   (`bin/user/tests/integ/test_reconnect.py`) covers this against a real broker.
-- **CI lint covers every module and the tests, and fails the build**: the workflows pass
-  `lint-paths` with all module paths (including `mqttmessagetracker.py`, `mqttresend.py` and
-  `mqttprune.py`), the reusable workflow lints `bin/user/tests` with `.pylintrc-tests`, and
-  `lint-fail` defaults to true, so any pylint or flake8 finding turns the job red. Run
-  `verify.sh` before committing.
-- **New config options need two edits**: the template in `install.py` (`MQTTPUBLISH_CONFIG`)
-  and the reference in `docs/common-options/index.md`. Deprecated options get an error/log
-  message in `mqttpublish.py` and a page under `docs/deprecated-options/`.
 - **`multiprocess = true` plumbing is fragile.** `QueueProcessor` is a `multiprocessing.Process`
   fed by `PublishWeeWXProcess`, which is deliberately a *thread* that re-queues into a
   `JoinableQueue` (see the comment at `QueueProcessor`) to avoid random queue locks on
@@ -162,19 +160,6 @@ target and fails the build on findings.
   anything still queued is never written. `log_direct` is for the service's own process only
   (the service and the feeder thread); the worker and its plugins can be a fork of it and must
   keep to the queue.
-- **VERSION is duplicated** in `install.py` and `bin/user/mqttpublish.py`; bump both.
-  `changes.txt` is the changelog. Releases are tagged by `.github/workflows/versioning.yml`
-  (Actions-Us/actions-tagger) on GitHub release publish.
-
-## Testing conventions
-
-- Tests use the standalone `mock` package (not `unittest.mock`).
-- Shared fixtures: `helpers.py` (`random_string`, `run_tests`), `mqttstubs.py` (paho stubs),
-  `publisherbase.py` (`PublisherBase`, `TLSBase` — parameterized by `api` and
-  `protocol_string`). Concrete publisher test files end with `del PublisherBase, TLSBase` so
-  pytest doesn't collect the abstract bases (their tests `raise NotImplementedError`).
-- `test_template.py` is the starting point for a new test file. Tests run under pytest *and*
-  directly via the file's `helpers.run_tests()`.
 
 ## Plugin contract
 
@@ -186,10 +171,42 @@ A plugin class exposes `get_callbacks()` returning a list of
 A plugin may also implement an optional `shutdown()`.
 See `docs/plugin-development/` for parameter meanings.
 
+## Testing conventions
+
+- Tests use the standalone `mock` package (not `unittest.mock`).
+- Shared fixtures: `helpers.py` (`random_string`, `run_tests`), `mqttstubs.py` (paho stubs),
+  `publisherbase.py` (`PublisherBase`, `TLSBase` — parameterized by `api` and
+  `protocol_string`). Concrete publisher test files end with `del PublisherBase, TLSBase` so
+  pytest doesn't collect the abstract bases (their tests `raise NotImplementedError`).
+- `test_template.py` is the starting point for a new test file. Tests run under pytest *and*
+  directly via the file's `helpers.run_tests()`.
+
+## Config, versioning and release
+
+- **New config options need two edits**: the template in `install.py` (`MQTTPUBLISH_CONFIG`)
+  and the reference in `docs/common-options/index.md`. Deprecated options get an error/log
+  message in `mqttpublish.py` and a page under `docs/deprecated-options/`.
+- **VERSION is duplicated** in `install.py` and `bin/user/mqttpublish.py`; bump both.
+- `changes.txt` is the changelog.
+- Releases are tagged by `.github/workflows/versioning.yml` (Actions-Us/actions-tagger) on
+  GitHub release publish.
+
 ## CI
 
-`.github/workflows/run-analyze-test.yml` (any non-master push) and `run-analyze-test-matrix.yml`
-(master pushes) both delegate to reusable workflows in
-`weewx-extensions/development-tools@v6`. The `module-name: 'mqttpublish'` input selects the
-module under test. The master matrix covers Python 3.9.13–3.14 and WeeWX 5.0.0 / 5.5.2 /
-branch-master / branch-development — so code must stay compatible with Python 3.9 syntax.
+- `.github/workflows/run-analyze-test.yml` (any non-master push) and
+  `run-analyze-test-matrix.yml` (master pushes) both delegate to reusable workflows in
+  `weewx-extensions/development-tools@v6`. The `module-name: 'mqttpublish'` input selects the
+  module under test.
+- The master matrix covers Python 3.9.13–3.14 and WeeWX 5.0.0 / 5.5.2 / branch-master /
+  branch-development — so code must stay compatible with Python 3.9 syntax.
+- **CI lint covers every module and the tests, and fails the build**: the workflows pass
+  `lint-paths` with all module paths (including `mqttmessagetracker.py`, `mqttresend.py` and
+  `mqttprune.py`), the reusable workflow lints `bin/user/tests` with `.pylintrc-tests`, and
+  `lint-fail` defaults to true, so any pylint or flake8 finding turns the job red. Run
+  `verify.sh` before committing.
+
+## Cross-repo workflow
+
+Single changes stay in this repository. Cross-repo work (a shared change, rename, wording pass)
+starts in the workspace root (`weewx-mqtt`): see the workspace `AGENTS.md` for the order of a
+cross-repo change and `./status-all.sh` to see every repository's state at once.
