@@ -41,6 +41,9 @@ Fixes
     The worker is now forked with the logging handler locks held, so it cannot inherit a
     log stream whose internal lock was stuck. That deadlock stopped the worker draining its
     queue, which is what made the shutdown wait for it.
+  - Use the fork start method explicitly for the publishing sub-process.
+    Python 3.14 makes 'forkserver' the default on Linux, which pickles the process object and
+    fails because the worker is handed objects that are not picklable.
   - Ensure the queue 'loop' method is called even when no data is waiting, by giving the
     data queue get() a configurable timeout.
   - Check the return code in the on_connect callback so failed connections are handled.

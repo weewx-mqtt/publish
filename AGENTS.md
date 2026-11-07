@@ -128,7 +128,9 @@ target and fails the build on findings.
   standalone: 60/60 forked children hung on their first log call without the locks, 0/60 with
   them. Don't drop the locking, and don't fork outside `_start_processor()`. (`spawn` would
   avoid inherited state entirely, but the WeeWX config objects handed to the worker are not
-  picklable.)
+  picklable.) Python 3.14 makes `forkserver` the default start method on Linux, which pickles
+  the process object, so `QueueProcessor` derives from the `fork` context explicitly when the
+  platform default is `forkserver`.
 - **Logging is queued, subscribe-style.** `Logger.trace/debug/info/error(msg_id, msg_text)` queue
   entries built by the single entry builder `Logger.create_entry(name, log_type, msg_id, msg_text, archive_timestamp=None)`
   -> `{'name', 'log_type', 'msg_id', 'msg_text', 'thread_id', 'archive_timestamp'}` (native id of the

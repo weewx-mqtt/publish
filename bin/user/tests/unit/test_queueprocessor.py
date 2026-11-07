@@ -1172,7 +1172,7 @@ class _BlockingProcessor(user.mqttpublish.QueueProcessor):
             time.sleep(0.05)
 
 
-@unittest.skipUnless(multiprocessing.get_start_method(allow_none=True) in (None, 'fork'),
+@unittest.skipUnless(user.mqttpublish.PROCESS_START_METHOD == 'fork',
                      'The inherited signal handlers only happen with fork.')
 class TestQueueProcessorTermination(unittest.TestCase):
     def _make_processor(self, ready):

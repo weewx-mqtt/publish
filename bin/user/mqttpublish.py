@@ -940,7 +940,20 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
                        f"{thread.name} did not shut down within {self.wait_for_thread_shutdown} seconds.")
 
 
-class QueueProcessor(multiprocessing.Process):  # pylint: disable=too-many-instance-attributes
+# The worker must be forked: it inherits the parent's logging streams (see
+# PublishWeeWXProcess._start_processor) and the config objects it is handed are not
+# picklable. Python 3.14 makes 'forkserver' the default start method on Linux, which
+# pickles the process object, so use the fork context explicitly there.
+if (multiprocessing.get_start_method() == 'forkserver' and
+        'fork' in multiprocessing.get_all_start_methods()):
+    _ProcessBase = multiprocessing.get_context('fork').Process
+    PROCESS_START_METHOD = 'fork'
+else:
+    _ProcessBase = multiprocessing.Process
+    PROCESS_START_METHOD = multiprocessing.get_start_method()
+
+
+class QueueProcessor(_ProcessBase):  # pylint: disable=too-many-instance-attributes
     """Publish WeeWX data to MQTT. """
     # For some reason, when PublishWeeWXProcess was a process, getting data from the Queue would lock.
     # The locks seemed to random. I tried all types of multiprocessing queues and Pipe (send/recv).
