@@ -372,7 +372,7 @@ class MQTTConfigHA(user.mqttpublish.MQTTPlugin):  # pylint: disable=too-many-ins
             return
 
         if 'devices' not in plugin_dict or len(plugin_dict['devices'].sections) == 0:
-            raise ValueError("At least one device-id must be configured.")
+            raise ValueError("At least one device must be configured.")
 
         self.lwt_dict = mqtt_dict.get('lwt', {})
         self.topics = topics
@@ -447,7 +447,7 @@ class MQTTConfigHA(user.mqttpublish.MQTTPlugin):  # pylint: disable=too-many-ins
         self.state_topics[device_id] = {}
         for state_topic in device_config['topics']:
             if state_topic not in self.topics:
-                raise ValueError(f"{state_topic} not found in topics being published.")
+                raise ValueError(f"Unknown topic, {state_topic}.")
             self.state_topics[device_id][state_topic] = {}
             self.state_topics[device_id][state_topic]['type'] = self.topics[state_topic]['type']
 
@@ -495,15 +495,15 @@ class MQTTConfigHA(user.mqttpublish.MQTTPlugin):  # pylint: disable=too-many-ins
         """ Handle the MQTT on_connect callback. """
         (result, mid) = mqtt_client.subscribe(self.birth_topic, self.qos)
         self.logger_queue.put(user.mqttcommon.Logger.create_entry(self.name, 'INFO', None,
-                                                                  f"Subscribing to topic {self.birth_topic} "
-                                                                  f"returned mid {int(mid)} "
-                                                                  f"and result {int(result)}."))
+                                                                  f"Subscribing to {self.birth_topic}, "
+                                                                  f"mid {int(mid)}, "
+                                                                  f"result code {int(result)}."))
 
         (result, mid) = mqtt_client.subscribe(self.lwt_topic, self.qos)
         self.logger_queue.put(user.mqttcommon.Logger.create_entry(self.name, 'INFO', None,
-                                                                  f"Subscribing to topic {self.lwt_topic} "
-                                                                  f"returned mid {int(mid)} "
-                                                                  f"and result {int(result)}."))
+                                                                  f"Subscribing to {self.lwt_topic}, "
+                                                                  f"mid {int(mid)}, "
+                                                                  f"result code {int(result)}."))
 
     def update_record(self, mqtt_client, topic, data, unit_system, _qos, _retain):
         """ Run code when MQTT message is published. """

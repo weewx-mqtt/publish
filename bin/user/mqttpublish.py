@@ -11,9 +11,11 @@ import queue as Queue
 
 import copy
 import json
+import logging
 import multiprocessing
 import os
 import random
+import signal
 import sys
 import threading
 import time
@@ -48,12 +50,45 @@ if getattr(mqttcommon, 'MQTTCOMMON_API', (0, 0)) < (1, 0):
 
 VERSION = "1.3.0-rc02a"
 
+# How long the feeder waits for the worker to stop, and then after each signal it sends, in seconds.
+PROCESSOR_SHUTDOWN_TIMEOUT = 5
+PROCESSOR_SIGNAL_TIMEOUT = 1
+
+
+def log_direct(name, log_type, msg_text):
+    """ Log an entry without the queue, for a message that must not be lost.
+
+        A queued entry is written by the logger thread, so when that thread is stuck the entry
+        is never written. This writes from the calling thread instead, which is why it is only
+        for the service's own process: the worker can be a fork of it and keeps to the queue.
+        Only 'INFO' and 'ERROR' are used. """
+    entry = mqttcommon.Logger.create_entry(name, log_type, None, msg_text)
+    args = (f"{entry['name']}-{entry['thread_id']}", entry['msg_text'])
+    getattr(logging.getLogger(__name__), log_type.lower())(mqttcommon.Logger.LOG_FORMAT, *args)
+
+
 def setup_logging(logging_level, config_dict):
     """ Setup logging for running in standalone mode."""
     if logging_level:
         weewx.debug = logging_level
 
     weeutil.logger.setup('wee_MQTTPublish', config_dict)
+
+def mqtt_connection_options(service_dict, default_clientid=None):
+    """ The MQTT connection options, shared by the service and the tools. """
+    return {
+        'host': service_dict.get('host', 'localhost'),
+        'port': to_int(service_dict.get('port', 1883)),
+        'keepalive': to_int(service_dict.get('keepalive', 60)),
+        'username': service_dict.get('username', None),
+        'password': service_dict.get('password', None),
+        'clientid': service_dict.get('clientid', default_clientid or
+                                     f'MQTTPublish-{random.randint(1000, 9999)}'),  # NOSONAR - just need a unique id
+        'protocol': mqttcommon.parse_protocol(service_dict.get('protocol', 'MQTTv311')),
+        'tls': service_dict.get('tls'),
+        'min_delay': to_int(service_dict.get('min_delay', 1)),
+        'max_delay': to_int(service_dict.get('max_delay', 120)),
+    }
 
 class MQTTPlugin():  # pylint: disable=too-few-public-methods
     """ Common plugin initialization. """
@@ -66,7 +101,7 @@ class MQTTPlugin():  # pylint: disable=too-few-public-methods
         if not self.enabled:
             self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, 'INFO', None, f"Plugin {name} is not enabled."))
 
-class PluginManager():  # pylint: disable=too-few-public-methods
+class PluginManager():
     """ Manage the plugin callbacks. """
     def __init__(self, logger, monitor_config, mqtt_dict, topics, weewx_dict):  # pylint: disable=too-many-arguments
         self.logger = logger
@@ -92,6 +127,10 @@ class PluginManager():  # pylint: disable=too-few-public-methods
                 'immediate': {},
                 'delay': {}
             },
+            'mqtt_publish': {
+                'immediate': {},
+                'delay': {}
+            },
             'update_record': {
                 'immediate': {},
                 'delay': {}
@@ -111,6 +150,22 @@ class PluginManager():  # pylint: disable=too-few-public-methods
                 timing = callback[callback_name]['timing']
                 self.callbacks[callback_name][timing][name] = callback[callback_name]['callback']
 
+    def shutdown(self):
+        """ Shut down the plugins that need it. """
+        for name, plugin_dict in self.plugins.items():
+            plugin = plugin_dict.get('plugin')
+            if plugin is None:
+                continue
+            shutdown = getattr(plugin, 'shutdown', None)
+            if shutdown is None:
+                continue
+            try:
+                shutdown()
+            except Exception as exception:  # pylint: disable=broad-exception-caught
+                self.logger.put(mqttcommon.Logger.create_entry(
+                    self.__class__.__name__, 'ERROR', None,
+                    f"Unable to shut down plugin {name}: {exception}."))
+
 class Publisher:  # pylint: disable=too-many-instance-attributes
     """ Managing publishing to MQTT. """
 
@@ -121,6 +176,7 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
         self.logger_queue = logger_queue
         self.plugin_manager = plugin_manager
         self.connected = False
+        self.inflight = {}
         self.mqtt_logger = mqttcommon.PAHO_LOG_LEVELS
         self.name = self.__class__.__name__
 
@@ -165,8 +221,8 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
 
     def _connect(self):
         self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, 'INFO', None,
-                                                             f"Connecting to host: {self.mqtt_config['host']} "
-                                                             f"port: {self.mqtt_config['port']}."))
+                                                             f"Connecting to {self.mqtt_config['host']}:"
+                                                             f"{self.mqtt_config['port']}."))
 
         mqttcommon.configure_reconnect_delay(self.client,
                                              min_delay=self.mqtt_config['min_delay'],
@@ -189,7 +245,7 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
     def _config_tls(self, tls_dict):
         """ Configure TLS."""
         def format_error(option, value):
-            return f"Invalid '{option}', {value}"
+            return f"Invalid '{option}', {value}."
 
         mqttcommon.configure_tls(self.client, tls_dict, format_error=format_error)
 
@@ -200,11 +256,21 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
         if data is not None and data_type not in (str, bytearray, int, float):
             payload = json.dumps(data)
 
+        # The mid and rc are only known after paho accepts the publish.
+        callback_args = [self.client, None, None, topic, payload, qos, retain, time_stamp]
+        self._run_mqtt_publish_callbacks(callback_args, 'immediate')
+
         start_time = time.time()
         mqtt_message_info = self.client.publish(topic, payload, qos=qos, retain=retain)
+
+        callback_args[1] = mqtt_message_info.mid
+        callback_args[2] = int(mqtt_message_info.rc)
+        self._run_mqtt_publish_callbacks(callback_args, 'delay')
+        self.track_inflight(mqtt_message_info)
+
         self.logger_queue.put(mqttcommon.Logger.create_entry(
             self.name, 'DEBUG', None,
-            (f"At {int(time.time())}  publishing: {int(time_stamp)} "
+            (f"At {int(time.time())} publishing: {int(time_stamp)}"
              f" {mqtt_message_info.mid} {qos} {topic} took {time.time() - start_time}")))
 
         # Nothing to retry; paho has already dropped the message.
@@ -213,6 +279,47 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
                 self.name, 'ERROR', None,
                 (f"The publish of {topic} is not accepted with "
                  f"{mqtt.error_string(mqtt_message_info.rc)}, the message is dropped.")))
+
+    def _run_mqtt_publish_callbacks(self, callback_args, timing):
+        """ Run the mqtt_publish plugin callbacks for one timing group.
+
+            The immediate group runs before paho is handed the message, so its
+            mid and rc are None. The delay group runs after, with both set. """
+        if self.plugin_manager is None:
+            return
+        for plugin_name in self.plugin_manager.callbacks['mqtt_publish'][timing]:
+            self.plugin_manager.callbacks['mqtt_publish'][timing][plugin_name](*callback_args)
+
+    def track_inflight(self, mqtt_message_info):
+        """ Remember a publish so shutdown can wait for paho to confirm it. """
+        if mqtt_message_info.rc != mqtt.MQTT_ERR_SUCCESS:
+            return
+        self._prune_inflight()
+        self.inflight[mqtt_message_info.mid] = mqtt_message_info
+
+    def _prune_inflight(self):
+        """ Drop publishes paho has already confirmed. """
+        for mid, mqtt_message_info in list(self.inflight.items()):
+            try:
+                if mqtt_message_info.is_published():
+                    del self.inflight[mid]
+            except (ValueError, RuntimeError):
+                del self.inflight[mid]
+
+    def wait_for_inflight_messages(self, timeout):
+        """ Wait up to timeout seconds for paho to confirm in-flight publishes. """
+        if not timeout or timeout <= 0 or not self.inflight:
+            return
+        deadline = time.time() + timeout
+        for mqtt_message_info in list(self.inflight.values()):
+            remaining = deadline - time.time()
+            if remaining <= 0:
+                break
+            try:
+                mqtt_message_info.wait_for_publish(remaining)
+            except (ValueError, RuntimeError):
+                pass
+        self.inflight.clear()
 
     def get_client(self, client_id, protocol):
         ''' Get the MQTT client. '''
@@ -244,8 +351,10 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
         # https://pypi.org/project/paho-mqtt/#on-connect
         if int(rc) != 0:
             self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, 'ERROR', None,
-                                                                 (f"Connection refused with result code {int(rc)}, "
-                                                                  f"{mqtt.error_string(rc)}, flags {str(flags)}.")))
+                                                                 f"Connection refused with result code {int(rc)}, "
+                                                                 f"{mqtt.error_string(rc)}"))
+            self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, 'ERROR', None,
+                                                                 f"Connection flags: {str(flags)}."))
             return
 
         self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, 'INFO', None,
@@ -295,10 +404,20 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
     def _publish_lwt_online(self):
         """ Publish the LWT 'online' message, when lwt is configured. """
         if self.lwt_dict is not None and to_bool(self.lwt_dict.get('enable', True)):
-            self.client.publish(topic=self.lwt_dict.get('topic', 'status'),
-                                payload=self.lwt_dict.get('online_payload', 'online'),
-                                qos=to_int(self.lwt_dict.get('qos', 0)),
-                                retain=to_bool(self.lwt_dict.get('retain', True)))
+            mqtt_message_info = self.client.publish(topic=self.lwt_dict.get('topic', 'status'),
+                                                    payload=self.lwt_dict.get('online_payload', 'online'),
+                                                    qos=to_int(self.lwt_dict.get('qos', 0)),
+                                                    retain=to_bool(self.lwt_dict.get('retain', True)))
+            self.track_inflight(mqtt_message_info)
+
+    def publish_lwt_offline(self):
+        """ Publish the LWT 'offline' message, when lwt is configured. """
+        if self.lwt_dict is not None and to_bool(self.lwt_dict.get('enable', True)):
+            mqtt_message_info = self.client.publish(topic=self.lwt_dict.get('topic', 'status'),
+                                                    payload=self.lwt_dict.get('offline_payload', 'offline'),
+                                                    qos=to_int(self.lwt_dict.get('qos', 0)),
+                                                    retain=to_bool(self.lwt_dict.get('retain', True)))
+            self.track_inflight(mqtt_message_info)
 
     def _run_connect_callbacks(self, callback_args, timing):
         """ Run the on_mqtt_connect plugin callbacks for one timing group. """
@@ -318,7 +437,7 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
         """ The connection succeeded. Run the common processing.
             callback_args is the paho callback tuple: (client, userdata, flags, rc, properties). """
         flags = callback_args[2]
-        self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, 'INFO', None, f"Connected flags {str(flags)}"))
+        self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, 'INFO', None, f"Connection flags: {str(flags)}."))
 
         self._run_connect_callbacks(callback_args, 'immediate')
 
@@ -390,8 +509,6 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
 
         self.logger = mqttcommon.Logger(self.name, log_queue=self.logger_queue, log_name=__name__)
 
-        self.logger.info(None, f"MQTTPublish version: {VERSION}.")
-
         self.plugins = self._configure_plugins(config_dict, service_dict)
 
         exclude_keys = ['password']
@@ -401,13 +518,15 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
 
         #  backwards compatibility
         if 'PublishWeeWX' in service_dict.sections:
-            self.logger.error(None, "'PublishWeeWX' is deprecated. Move options to top level, '[MQTTPublish]'.")
+            self.logger.error(None, "'PublishWeeWX' is deprecated, move its options to the top level '[MQTTPublish]'.")
             service_dict = config_dict.get('MQTTPublish', {}).get('PublishWeeWX', {})
 
         self.enable = to_bool(service_dict.get('enable', True))
         if not self.enable:
             self.logger.info(None, "Not enabled, exiting.")
             return
+
+        self.logger.log_environment(config_dict, VERSION)
 
         data_binding = service_dict.get('data_binding', 'wx_binding')
         self.manager_dict = weewx.manager.get_manager_dict_from_config(config_dict, data_binding)
@@ -469,8 +588,8 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
         plugins = service_dict.get('plugins', [])
         if isinstance(plugins, dict):
             self.logger.error(None,
-                              ("'[[plugins]]' is deprecated. "
-                               "To configure see, https://weewx-mqtt.github.io/publish/plugins/"))
+                              ("'[[plugins]]' is deprecated, "
+                               "see https://weewx-mqtt.github.io/publish/plugins/."))
             return plugins
 
         self.logger.info(None, f"The plugins are: {plugins}")
@@ -499,35 +618,22 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
     def _log_deprecated_options(self, service_dict):
         """ Warn about options that are deprecated and no longer used. """
         if 'binding' in service_dict:
-            self.logger.info(None, "'binding' is deprecated and no longer used.")
+            self.logger.info(None, "'binding' is deprecated, it is no longer used.")
 
         for option in ('max_retries', 'wait_between_retries', 'wait_for_connection'):
             if option in service_dict:
-                self.logger.info(None, f"'{option}' is deprecated and no longer used.")
+                self.logger.info(None, f"'{option}' is deprecated, it is no longer used.")
 
     def _configure_mqtt(self, service_dict):
         """ Configure the mqtt connection and monitoring options. """
-        mqtt_config = {}
-        mqtt_config['keepalive'] = to_int(service_dict.get('keepalive', 60))
+        mqtt_config = mqtt_connection_options(service_dict)
         mqtt_config['wait_for_queue_element'] = to_int(service_dict.get('wait_for_queue_element', 5))
-        mqtt_config['min_delay'] = to_int(service_dict.get('min_delay', 1))
-        mqtt_config['max_delay'] = to_int(service_dict.get('max_delay', 120))
-
+        mqtt_config['wait_for_inflight'] = to_int(service_dict.get('wait_for_inflight', 2))
         mqtt_config['log_mqtt'] = to_bool(service_dict.get('log_mqtt', False))
-        mqtt_config['host'] = service_dict.get('host', 'localhost')
-        mqtt_config['port'] = to_int(service_dict.get('port', 1883))
-        mqtt_config['username'] = service_dict.get('username', None)
-        mqtt_config['password'] = service_dict.get('password', None)
-        mqtt_config['clientid'] = service_dict.get('clientid', 'MQTTPublish-' +
-                                                   str(random.randint(1000, 9999)))  # NOSONAR - just need a unique id
 
-        protocol_string = service_dict.get('protocol', 'MQTTv311')
-        mqtt_config['protocol'] = getattr(mqtt, protocol_string, 0)
-
-        mqtt_config['tls'] = service_dict.get('tls')
         mqtt_config['lwt'] = service_dict.get('lwt')
         if mqtt_config['lwt'] is not None:
-            self.logger.error(None, "'[[lwt]]' is deprecated.  use [[availability_topic]].")
+            self.logger.error(None, "'[[lwt]]' is deprecated, use '[[availability_topic]]'.")
         else:
             mqtt_config['lwt'] = service_dict.get('availability_topic', {})
 
@@ -695,8 +801,8 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
 
         # Temporarily build the MQTTAggregateValues plugin configuration
         self.logger.error(None,
-                          ("'[aggregates]' is deprecated and has moved to a plugin. "
-                           "To configure see, https://weewx-mqtt.github.io/publish/plugins/aggregatevalues/"))
+                          ("'[aggregates]' is deprecated, it has moved to a plugin, "
+                           "see https://weewx-mqtt.github.io/publish/plugins/aggregatevalues/."))
         if 'MQTTAggregateValues' not in self.plugins:
             self.plugins['MQTTAggregateValues'] = {}
             self.plugins['MQTTAggregateValues']['module'] = 'user.mqttaggregatevalues'
@@ -772,19 +878,21 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
 
     def shutDown(self):
         """Run when an engine shutdown is requested."""
-        self.logger.info(None, "Shutdown initiated")
+        self.logger.info(None, "Shutting down.")
         self._shut_down_publishing()
         self._shut_down_logger()
+        # Logged directly: queued entries are never written once the logger thread has stopped.
+        log_direct(self.name, 'INFO', "MQTTPublish is shut down.")
 
     def _shut_down_publishing(self):
         """Stop the publishing thread, if one is running."""
         if not self._thread:
             return
 
-        self.logger.info(None, f"Emptying data queue with size of {self.data_queue.qsize()}.")
-        self._drain_data_queue()
-        self.logger.info(None, f"Data queue has size of {self.data_queue.qsize()}.")
-        self.logger.info(None, "Shutdown of queue processor initiated")
+        discarded = self._drain_data_queue()
+        if discarded:
+            self.logger.info(None, f"Discarded {discarded} queued item(s).")
+        self.logger.info(None, "Shutting down the queue processor.")
         self.data_queue.put({'time_stamp': time.time(), 'type': 'shutdown', 'data': {}})
 
         self._wait_for_thread(self._thread)
@@ -792,13 +900,22 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
 
     def _shut_down_logger(self):
         """Stop the thread that hands log records over to the WeeWX logger."""
-        self.logger.info(None, f"Shutdown of logger thread, {self.logger.log_thread.name} initiated")
+        self.logger.info(None, "Shutting down the logger thread.")
         self.logger.shutdown(self.wait_for_thread_shutdown)
+        if self.multiprocess:
+            # Nothing drains this queue now, and the interpreter joins its feeder thread at
+            # exit. Do not let that wait on a feeder that is stuck behind a worker which had
+            # to be killed while it held the queue's write lock.
+            self.logger_queue.cancel_join_thread()
 
     def _drain_data_queue(self):
-        """Take items off the data queue until a get times out on an empty queue."""
+        """Take items off the data queue until a get times out on an empty queue.
+
+            Returns the number of items taken. """
+        discarded = 0
         while self._drain_one_item():
-            pass
+            discarded += 1
+        return discarded
 
     def _drain_one_item(self):
         """Take one item. Returns False once the queue is empty.
@@ -815,11 +932,14 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
             return bool(self.data_queue.qsize())
         return True
 
-    def _wait_for_thread(self, thread, message_suffix=""):
-        """Wait for a thread to stop, warning when it does not."""
+    def _wait_for_thread(self, thread):
+        """Wait for a thread to stop, warning when it does not.
+
+            The warning is logged directly, so it survives a logger thread that is stuck. """
         thread.join(self.wait_for_thread_shutdown)
         if thread.is_alive():
-            self.logger.error(None, f"Unable to shut down {thread.name}{message_suffix}")
+            log_direct(self.name, 'ERROR',
+                       f"{thread.name} did not shut down within {self.wait_for_thread_shutdown} seconds.")
 
 
 class QueueProcessor(multiprocessing.Process):  # pylint: disable=too-many-instance-attributes
@@ -1114,33 +1234,61 @@ class QueueProcessor(multiprocessing.Process):  # pylint: disable=too-many-insta
                                                topic + '/' + key,
                                                value)
 
+    def _reset_signal_handlers(self):
+        """ Take the signal handlers this process inherited from WeeWX out of the picture.
+
+            A fork inherits both handlers, and neither makes sense in this worker.
+
+            A Ctrl-C reaches every process in the foreground process group. An interrupt
+            while this worker holds a queue lock would leave the lock acquired, so let
+            the service send the shutdown item instead.
+
+            WeeWX installs a SIGTERM handler that raises Terminate. Inherited here, it
+            turns Process.terminate() (which sends SIGTERM) into an exception in the
+            worker instead of ending it, so a worker that missed its shutdown item keeps
+            the interpreter alive at exit. Restore the default so terminate() ends it.
+
+            The service also runs this class in a thread, where signal() is illegal and
+            WeeWX has to keep handling both signals.
+        """
+        if multiprocessing.current_process() is self:
+            signal.signal(signal.SIGINT, signal.SIG_IGN)
+            signal.signal(signal.SIGTERM, signal.SIG_DFL)
+
     def run(self):
         """ Process the queue. """
+        self._reset_signal_handlers()
         threading.current_thread().name = f"MQTTPublish-{threading.get_native_id()}"
 
-        self.create_plugins()
+        try:
+            self.create_plugins()
 
-        # need to instantiate inside thread
-        self.publisher = Publisher(self.logger_queue,
-                                   self.plugin_manager,
-                                   self, self.mqtt_config,
-                                   self.monitor_config)
+            # need to instantiate inside thread
+            self.publisher = Publisher(self.logger_queue,
+                                       self.plugin_manager,
+                                       self, self.mqtt_config,
+                                       self.monitor_config)
 
-        with weewx.manager.open_manager(self.manager_dict) as db_manager:
-            self.db_manager = db_manager
-            self.process_queue()
+            with weewx.manager.open_manager(self.manager_dict) as db_manager:
+                self.db_manager = db_manager
+                self.process_queue()
 
-        # MQTT's LWT is sent from the broker on an unexpected disconnect.
-        # So we need to send an offline message on an 'expected' disconnect.
-        if self.lwt_dict is not None and to_bool(self.lwt_dict.get('enable', True)):
-            self.publisher.client.publish(topic=self.lwt_dict.get('topic', 'status'),
-                                          payload=self.lwt_dict.get('offline_payload', 'offline'),
-                                          qos=to_int(self.lwt_dict.get('qos', 0)),
-                                          retain=to_bool(self.lwt_dict.get('retain', True)))
+            # MQTT's LWT is sent from the broker on an unexpected disconnect.
+            # So we need to send an offline message on an 'expected' disconnect.
+            self.publisher.publish_lwt_offline()
 
-        self.publisher.client.disconnect()
-        # Stop paho's network loop thread. It must outlive the disconnect, so the DISCONNECT gets sent.
-        self.publisher.client.loop_stop()
+            # Give paho a bounded chance to confirm the in-flight messages before disconnecting.
+            self.publisher.wait_for_inflight_messages(self.mqtt_config.get('wait_for_inflight', 0))
+
+            self.publisher.client.disconnect()
+        finally:
+            # Stop paho's network loop thread. It must outlive the disconnect, so the DISCONNECT gets sent.
+            # It is stopped before the plugins so no callback arrives after a plugin has closed its resources.
+            if self.publisher is not None:
+                self.publisher.client.loop_stop()
+            if self.plugin_manager is not None:
+                self.plugin_manager.shutdown()
+
         self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, 'INFO', None, "Queue processor is shut down."))
 
     def create_plugins(self):
@@ -1178,7 +1326,7 @@ class QueueProcessor(multiprocessing.Process):  # pylint: disable=too-many-insta
         """
         data_type = data2['type']
         if data_type == 'shutdown':
-            self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, 'INFO', None, "Shutting down queue processor."))
+            self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, 'INFO', None, "Shutting down."))
             self.process = False
             return None
 
@@ -1198,7 +1346,7 @@ class QueueProcessor(multiprocessing.Process):  # pylint: disable=too-many-insta
         elif data_type == 'archive':
             self.publish_row(time_stamp, data, self.topics_archive)
         else:
-            self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, 'ERROR', None, f"Unknown data type, {data_type}"))
+            self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, 'ERROR', None, f"Unknown data type, {data_type}."))
 
         self.on_weewx_data_delay(data2)
 
@@ -1240,6 +1388,7 @@ class PublishWeeWXThread(threading.Thread):
                  data_queue,
                  processor_config):
         threading.Thread.__init__(self)
+        self.daemon = True
         self.name = self.__class__.__name__
 
         self.logger_queue = logger_queue
@@ -1248,10 +1397,10 @@ class PublishWeeWXThread(threading.Thread):
                                         processor_config)
 
     def run(self):
-        self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, 'INFO', None, f"Starting queue thread,  {self.name}."))
+        self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, 'INFO', None, f"Starting queue thread, {self.name}."))
 
         self.processor.run()
-        self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, 'INFO', None, f"Exited queue thread, {self.name}."))
+        self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, 'INFO', None, f"{self.name} is shut down."))
 
 class PublishWeeWXProcess(threading.Thread):
     """Publish WeeWX data to MQTT. """
@@ -1260,6 +1409,7 @@ class PublishWeeWXProcess(threading.Thread):
                  data_queue,
                  processor_config):
         threading.Thread.__init__(self)
+        self.daemon = True
         self.name = self.__class__.__name__
 
         self.logger_queue = logger_queue
@@ -1269,7 +1419,48 @@ class PublishWeeWXProcess(threading.Thread):
         self.processor = QueueProcessor(self.logger_queue,
                                         self.out_queue,
                                         processor_config)
-        self.processor.start()
+        # The worker is expendable. Do not let a wedged one keep the interpreter alive.
+        self.processor.daemon = True
+        self._start_processor()
+
+    def _start_processor(self):
+        """ Fork the worker with the logging streams quiet.
+
+            A fork copies the logging handlers and their file streams, including each
+            stream's internal lock. If another thread is writing a log record at that
+            moment, the child inherits the lock held and never releases it, so the first
+            log call made directly in the child blocks forever. WeeWX does that from
+            inside the publisher ('Type beaufort has been deprecated...'), which stops
+            the worker draining its queue for good.
+
+            Handler.handle() takes the handler's lock around emit(), and emit() is the
+            only place the stream is written, so while this thread holds that lock no
+            other thread can be inside emit() and no stream lock can be held at the fork.
+            A thread that wants to log waits on the handler lock until the fork is done.
+        """
+        handlers = self._logging_handlers()
+        for handler in handlers:
+            handler.acquire()
+        try:
+            self.processor.start()
+        finally:
+            for handler in handlers:
+                handler.release()
+
+    @staticmethod
+    def _logging_handlers():
+        """ Every handler attached to the root logger or to a named logger. """
+        handlers = list(logging.getLogger().handlers)
+        for logger in logging.root.manager.loggerDict.values():
+            if isinstance(logger, logging.Logger):
+                handlers.extend(logger.handlers)
+
+        # A handler can be attached to more than one logger; lock it once.
+        unique = []
+        for handler in handlers:
+            if not any(handler is seen for seen in unique):
+                unique.append(handler)
+        return unique
 
     def run(self):
         while True:
@@ -1278,17 +1469,43 @@ class PublishWeeWXProcess(threading.Thread):
                                                                  f"monitor: Input-2 queue size: {self.data_queue.qsize()}"))
             self.out_queue.put(data)
             if data['type'] == 'shutdown':
-                self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, 'INFO', None, "Shutting down queue processor."))
                 break
             self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, self.monitor_config['monitor_queue'], None,
                                                                  f"monitor: Output queue size: {self.out_queue.qsize()}"))
 
         # The processor was told to shut down; wait for it.
         if self.processor:
-            self.processor.join(5)  # ToDo: make configurable
-            if self.processor.is_alive():
-                self.logger_queue.put(mqttcommon.Logger.create_entry(
-                    self.name, 'ERROR', None, f"Unable to shut down {self.processor.name}"))
+            self._stop_processor()
+        self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, 'INFO', None,
+                                                             "PublishWeeWXProcess is shut down."))
+
+    def _stop_processor(self):
+        """ Stop the worker process, escalating when it will not go.
+
+            The interpreter joins every child process it knows about at exit, so a worker
+            that survives here keeps WeeWX from exiting. It is first asked nicely, then
+            terminated, then killed, and each step is bounded. The messages are logged
+            directly, so a stuck logger thread cannot swallow them.
+        """
+        self.processor.join(PROCESSOR_SHUTDOWN_TIMEOUT)
+        if not self.processor.is_alive():
+            return
+
+        log_direct(self.name, 'ERROR',
+                   f"The queue processor did not shut down within {PROCESSOR_SHUTDOWN_TIMEOUT} seconds, "
+                   "terminating it.")
+        # The worker has the default SIGTERM handler, but it may be inside a C call
+        # that does not return to Python, so follow up with an uncatchable signal.
+        self.processor.terminate()
+        self.processor.join(PROCESSOR_SIGNAL_TIMEOUT)
+        if not self.processor.is_alive():
+            return
+
+        log_direct(self.name, 'ERROR', "The queue processor did not terminate, killing it.")
+        self.processor.kill()
+        self.processor.join(PROCESSOR_SIGNAL_TIMEOUT)
+        if self.processor.is_alive():
+            log_direct(self.name, 'ERROR', "Unable to kill the queue processor.")
 
 if __name__ == "__main__":
     import argparse

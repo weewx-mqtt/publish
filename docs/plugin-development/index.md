@@ -12,8 +12,9 @@ Currently these steps support callouts:
 1. on_weewx_data
 2. on_connect
 3. on_message
-4. on_publish
-5. update_record
+4. mqtt_publish
+5. on_publish
+6. update_record
 
 Each of these callouts can be called either before MQTTPublish does its processing or after.
 
@@ -49,6 +50,27 @@ It is called with the following parameters.
 - client: the client instance for this callback
 - userdata: the private user data as set in Client() or user_data_set()
 - msg: the received message. This is a class with members topic, payload, qos, retain.
+
+### mqtt_publish
+
+This is called when MQTTPublish publishes a data message.
+Messages published directly by a plugin, and the LWT/availability message, are not included.
+The `immediate` timing is called before the message is handed to paho.
+The `delay` timing is called after, when the message id and result code are known.
+It is called with the following parameters.
+
+- client: the client instance that publishes the message
+- mid: the message id of the publish. `None` with the `immediate` timing.
+  This can be matched against the mid of the [on_publish](#on_publish) callback.
+- rc: the paho result code. `None` with the `immediate` timing.
+- topic: the topic the message is published on.
+- payload: the payload that is sent.
+- qos: the quality of service level used.
+- retain: whether the message is retained.
+- date_time: the WeeWX timestamp of the data being published.
+
+The callback runs on the publishing thread.
+A plugin that needs the message id should use the `delay` timing.
 
 ### on_publish
 
@@ -133,6 +155,10 @@ Here is an example `get_callbacks` method.
                     'timing': 'immediate',
                     'callback': self.on_mqtt_publish
                 },
+                'mqtt_publish': {
+                    'timing': 'delay',
+                    'callback': self.mqtt_publish
+                },
                 'update_record': {
                     'timing': 'immediate',
                     'callback': self.update_record
@@ -140,6 +166,15 @@ Here is an example `get_callbacks` method.
             },
         ]
 ```
+
+## Optional methods
+
+### shutdown
+
+Optional.
+Called when the publishing thread is shutting down, after paho's network loop has stopped.
+Use it to flush queued work and close resources.
+Plugins that do not implement it are skipped.
 
 ## Required configuration information
 

@@ -108,6 +108,17 @@ configured with `min_delay` and `max_delay`.
 The number of seconds to wait for the queue to have data to be processed.
 The default value is `5`.
 
+#### wait_for_inflight
+
+The number of seconds to wait, when shutting down, for paho to confirm the messages
+published by MQTTPublish that are still in flight.
+Messages published directly by a plugin are not tracked.
+The wait happens before the client is disconnected, so the
+[on_publish](https://weewx-mqtt.github.io/publish/plugin-development/#on_publish)
+callbacks can still run.
+Set it to `0` to disconnect immediately.
+The default value is `2`.
+
 ### These are options that are used as default for [topic settings](topics/topic-name/index.md)
 
 #### minimum_interval

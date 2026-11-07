@@ -69,11 +69,11 @@ class Logger:  # pylint: disable=too-many-instance-attributes
         # trace message
         # debug messages
         # informational messages
-        122002: "Starting logger thread.",
-        122003: "Exited logger thread.",
+        122002: "Logger thread is starting.",
+        122003: "Logger thread is shut down.",
         # error messages
-        124003: "Invalid log entry: {entry}",
-        124004: "Unable to shut down logger thread {name}.",
+        124003: "Invalid log entry: {entry}.",
+        124004: "Logger thread did not shut down within {timeout} seconds.",
     }
 
     def __init__(self, name, *, log_queue=None, log_name=None, config=None,  # pylint: disable=too-many-arguments
@@ -84,7 +84,7 @@ class Logger:  # pylint: disable=too-many-instance-attributes
             thread starts: level, filename, console, the weewx debug setting,
             the throttle, the TRACE level, and the handlers. """
         if not name:
-            raise ValueError("a logger's name must not be empty")
+            raise ValueError("A logger's name must not be empty.")
         self.name = name
         self.log = logging.getLogger(log_name or __name__)
         # The queue must exist before _configure: it queues the throttle notice.
@@ -193,7 +193,7 @@ class Logger:  # pylint: disable=too-many-instance-attributes
             # The thread is stuck, a queued message would not be logged so log it directly.
             self._log_error(self.create_entry(
                 self.name, 'ERROR', None,
-                self.log_messages[124004].format(name=self.log_thread.name),
+                self.log_messages[124004].format(timeout=timeout),
                 self.archive_timestamp))
 
     def log_environment(self, config_dict, version):
@@ -201,23 +201,25 @@ class Logger:  # pylint: disable=too-many-instance-attributes
         # Imported here so that mqttcommon stays importable without weewx.
         import weewx  # pylint: disable=import-outside-toplevel
 
-        # Since WeeWX logs this, only log it when debugging
-        self.debug(0, f"Using weewx version {weewx.__version__}")
-        self.debug(0, f"Using Python {sys.version}")
-        self.debug(0, f"Platform {platform.platform()}")
-        self.debug(0, f"Locale is '{locale.setlocale(locale.LC_ALL)}'")
-
         archive_dict = config_dict.get('StdArchive', {})
         record_augmentation = archive_dict.get('record_augmentation', None)
         record_generation = archive_dict.get('record_generation', None)
-        self.info(0, f"Version is {version}")
-        self.info(0, f"Using paho.mqtt {paho.mqtt.__version__}")
-        self.info(0, f"Log level: {int(self.level)}")
-        self.info(0, f"Log debug setting: {int(self.weewx_debug)}")
-        self.info(0, f"Log console: {self.console}")
-        self.info(0, f"Log file: {self.filename}")
-        self.debug(0, f"Record Augmentation is: {record_augmentation}")
-        self.debug(0, f"Record Generation is: {record_generation}")
+
+        self.info(0, f"Version: {version}.")
+
+        # Since WeeWX logs this, only log it when debugging
+        self.debug(0, f"WeeWX version: {weewx.__version__}.")
+        self.debug(0, f"Python: {platform.python_version()}.")
+        self.debug(0, f"Platform: {platform.platform()}.")
+        self.debug(0, f"Locale: {locale.setlocale(locale.LC_ALL)}.")
+
+        self.info(0, f"paho.mqtt: {paho.mqtt.__version__}.")
+        self.info(0, f"Log level: {int(self.level)}.")
+        self.info(0, f"Log debug: {int(self.weewx_debug)}.")
+        self.info(0, f"Log console: {self.console}.")
+        self.info(0, f"Log file: {self.filename}.")
+        self.debug(0, f"Record augmentation: {record_augmentation}.")
+        self.debug(0, f"Record generation: {record_generation}.")
 
     def _setup_logging(self):
         """ Setup the weewx message handlers. """
@@ -352,15 +354,15 @@ class MessageThrottle:  # pylint: disable=too-few-public-methods
 
     # The suppression summaries, formatted and passed to the log_summary callback.
     SUMMARY_WINDOW = "{count} messages have been suppressed in window id: {window}."
-    SUMMARY_DURATION_ZERO = "{count} messages have been suppressed of {max}."
+    SUMMARY_DURATION_ZERO = "{count} of {max} messages have been suppressed."
 
     # The notice logged when the throttle feature is configured.
     NOTICE_EXPERIMENTAL = ("Throttling messages is an experimental option. It has limited support "
                            "and may cause one to miss important messages.")
 
     # The config parse/validate errors, raised as ValueError.
-    ERROR_DUPLICATE_MESSAGE = "{message_id} has been configured multiple times"
-    ERROR_INVALID_CATEGORY = "{category} is not valid. Valid categories are {valid_categories}"
+    ERROR_DUPLICATE_MESSAGE = "Message id {message_id} has been configured multiple times."
+    ERROR_INVALID_CATEGORY = "Invalid category, {category}. Valid categories are {valid_categories}."
     ERROR_CATEGORY_MISSING_MAX = "{category} is missing 'max' configuration option."
     ERROR_CATEGORY_MISSING_DURATION = "{category} is missing 'duration' configuration option."
     ERROR_MESSAGE_MISSING_MAX = "{message} is missing 'max' configuration option."

@@ -20,6 +20,52 @@ import weewx
 import helpers
 import user.mqttpublish
 
+class TestMQTTConnectionOptions(unittest.TestCase):
+    def test_defaults(self):
+        options = user.mqttpublish.mqtt_connection_options({})
+
+        self.assertEqual(options['host'], 'localhost')
+        self.assertEqual(options['port'], 1883)
+        self.assertEqual(options['keepalive'], 60)
+        self.assertEqual(options['protocol'], user.mqttpublish.mqtt.MQTTv311)
+        self.assertTrue(options['clientid'].startswith('MQTTPublish-'))
+        self.assertIsNone(options['username'])
+        self.assertIsNone(options['password'])
+        self.assertIsNone(options['tls'])
+        self.assertEqual(options['min_delay'], 1)
+        self.assertEqual(options['max_delay'], 120)
+
+    def test_values(self):
+        options = user.mqttpublish.mqtt_connection_options({
+            'host': 'broker',
+            'port': 1884,
+            'keepalive': 30,
+            'username': 'user',
+            'password': 'secret',
+            'clientid': 'configured',
+            'protocol': 'MQTTv5',
+            'tls': {'ca_certs': 'ca.pem'},
+            'min_delay': 2,
+            'max_delay': 60,
+        }, default_clientid='tool')
+
+        self.assertEqual(options['host'], 'broker')
+        self.assertEqual(options['port'], 1884)
+        self.assertEqual(options['keepalive'], 30)
+        self.assertEqual(options['protocol'], user.mqttpublish.mqtt.MQTTv5)
+        self.assertEqual(options['clientid'], 'configured')
+        self.assertEqual(options['username'], 'user')
+        self.assertEqual(options['password'], 'secret')
+        self.assertEqual(options['tls'], {'ca_certs': 'ca.pem'})
+        self.assertEqual(options['min_delay'], 2)
+        self.assertEqual(options['max_delay'], 60)
+
+    def test_default_clientid(self):
+        options = user.mqttpublish.mqtt_connection_options({}, default_clientid='tool')
+
+        self.assertEqual(options['clientid'], 'tool')
+
+
 class TestInit(unittest.TestCase):
     def test_PublishWeeWX_stanza_is_deprecated(self):
         mock_engine = mock.Mock()
@@ -80,7 +126,7 @@ class TestInit(unittest.TestCase):
             }
         })
 
-        mock_logger.info.assert_any_call(None, "'binding' is deprecated and no longer used.")
+        mock_logger.info.assert_any_call(None, "'binding' is deprecated, it is no longer used.")
 
     def test_multiprocess_uses_process_thread(self):
         SUT, _, _, mock_process = self._build_service({
@@ -134,7 +180,7 @@ class TestInit(unittest.TestCase):
         })
 
         mock_logger.error.assert_any_call(None,
-                                          "'[[lwt]]' is deprecated.  use [[availability_topic]].")
+                                          "'[[lwt]]' is deprecated, use '[[availability_topic]]'.")
 
 class TestConfigurePlugins(unittest.TestCase):
     @staticmethod
@@ -157,7 +203,7 @@ class TestConfigurePlugins(unittest.TestCase):
 
         mock_logger.error.assert_any_call(
             None,
-            "'[[plugins]]' is deprecated. To configure see, https://weewx-mqtt.github.io/publish/plugins/")
+            "'[[plugins]]' is deprecated, see https://weewx-mqtt.github.io/publish/plugins/.")
         self.assertIn('PluginA', SUT.plugins)
 
     def test_plugins_list_reports_missing_configuration(self):
@@ -759,10 +805,14 @@ class TestShutDown(ServiceBase):
             thread.name = helpers.random_string()
             thread.is_alive.return_value = True
 
-            SUT.shutDown()
+            with mock.patch('user.mqttpublish.log_direct') as mock_log_direct:
+                SUT.shutDown()
 
-            SUT.logger.error.assert_called_once_with(None,
-                                                     f"Unable to shut down {thread.name}")
+            # Logged directly: a queued entry is never written once the logger thread stops.
+            mock_log_direct.assert_any_call(
+                SUT.name, 'ERROR',
+                f"{thread.name} did not shut down within {SUT.wait_for_thread_shutdown} seconds.")
+            SUT.logger.error.assert_not_called()
             # The reference is dropped even when the thread is still running.
             self.assertIsNone(SUT._thread)
 
@@ -778,6 +828,17 @@ class TestShutDown(ServiceBase):
             SUT.logger.shutdown.assert_called_once_with(SUT.wait_for_thread_shutdown)
             SUT.logger.error.assert_not_called()
 
+    def test_cancels_the_logger_queue_join_when_multiprocessing(self):
+        with mock.patch('user.mqttpublish.multiprocessing.Queue') as mock_queue:
+            with self._service(multiprocess=True) as (SUT, _, _, _):
+                SUT._thread = None
+
+                SUT.shutDown()
+
+                # Nothing drains the queue after the logger thread exits, so the
+                # interpreter must not wait on its feeder thread.
+                mock_queue.return_value.cancel_join_thread.assert_called_once_with()
+
     def test_logs_shutdown_progress_in_order(self):
         with self._service() as (SUT, _, _, _):
             SUT._thread.is_alive.return_value = False
@@ -786,14 +847,27 @@ class TestShutDown(ServiceBase):
             # Drop the version banner logged by __init__.
             SUT.logger.info.reset_mock()
 
-            SUT.shutDown()
+            with mock.patch('user.mqttpublish.log_direct') as mock_log_direct:
+                SUT.shutDown()
 
             messages = [call[0][1] for call in SUT.logger.info.call_args_list]
-            self.assertEqual(messages[0], "Shutdown initiated")
-            self.assertEqual(messages[1], "Emptying data queue with size of 2.")
-            self.assertEqual(messages[2], "Data queue has size of 0.")
-            self.assertEqual(messages[3], "Shutdown of queue processor initiated")
-            self.assertEqual(messages[4], f"Shutdown of logger thread, {SUT.logger.log_thread.name} initiated")
+            self.assertEqual(messages[0], "Shutting down.")
+            self.assertEqual(messages[1], "Discarded 2 queued item(s).")
+            self.assertEqual(messages[2], "Shutting down the queue processor.")
+            self.assertEqual(messages[3], "Shutting down the logger thread.")
+            # The completion is logged directly, because the logger thread has stopped by then.
+            mock_log_direct.assert_called_once_with(SUT.name, 'INFO', "MQTTPublish is shut down.")
+
+    def test_an_empty_queue_is_not_reported(self):
+        with self._service() as (SUT, _, _, _):
+            SUT._thread.is_alive.return_value = False
+            SUT.logger.info.reset_mock()
+
+            with mock.patch('user.mqttpublish.log_direct'):
+                SUT.shutDown()
+
+            messages = [call[0][1] for call in SUT.logger.info.call_args_list]
+            self.assertFalse([message for message in messages if message.startswith("Discarded")])
 
 if __name__ == '__main__':
     helpers.run_tests()

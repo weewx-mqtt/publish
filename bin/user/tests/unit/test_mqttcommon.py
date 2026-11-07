@@ -329,7 +329,7 @@ class TestApplyCredentials(unittest.TestCase):
 class TestConfigureTLS(unittest.TestCase):
     @staticmethod
     def format_error(option, value):
-        return f"Invalid '{option}', {value}"
+        return f"Invalid '{option}', {value}."
 
     @staticmethod
     def test_defaults():
@@ -399,7 +399,7 @@ class TestConfigureTLS(unittest.TestCase):
             user.mqttcommon.configure_tls(client, {'certs_required': 'invalid'},
                                           format_error=TestConfigureTLS.format_error)
 
-        self.assertEqual(error.exception.args[0], "Invalid 'certs_required', invalid")
+        self.assertEqual(error.exception.args[0], "Invalid 'certs_required', invalid.")
 
     def test_invalid_tls_version(self):
         client = mock.Mock()
@@ -408,7 +408,7 @@ class TestConfigureTLS(unittest.TestCase):
             user.mqttcommon.configure_tls(client, {'tls_version': 'invalid'},
                                           format_error=TestConfigureTLS.format_error)
 
-        self.assertEqual(error.exception.args[0], "Invalid 'tls_version', invalid")
+        self.assertEqual(error.exception.args[0], "Invalid 'tls_version', invalid.")
 
 
 class TestPahoLogLevels(unittest.TestCase):
@@ -429,10 +429,10 @@ class TestLogger(unittest.TestCase):
     def test_log_messages_texts(self):
         # The thread entries' message texts are shared and looked up by id.
         self.assertEqual(user.mqttcommon.Logger.log_messages, {
-            122002: "Starting logger thread.",
-            122003: "Exited logger thread.",
-            124003: "Invalid log entry: {entry}",
-            124004: "Unable to shut down logger thread {name}.",
+            122002: "Logger thread is starting.",
+            122003: "Logger thread is shut down.",
+            124003: "Invalid log entry: {entry}.",
+            124004: "Logger thread did not shut down within {timeout} seconds.",
         })
 
     def test_log_environment_logs_the_environment(self):
@@ -454,13 +454,13 @@ class TestLogger(unittest.TestCase):
             self.assertEqual(mock_log.debug.call_count, 6)
             self.assertEqual(mock_log.info.call_count, 6)
             prefix = f"{name}-{threading.get_native_id()}"
-            mock_log.info.assert_any_call("(%s) %s", prefix, "Version is 1.2.3-test")
-            mock_log.info.assert_any_call("(%s) %s", prefix, "Log level: 0")
-            mock_log.info.assert_any_call("(%s) %s", prefix, "Log debug setting: 0")
-            mock_log.info.assert_any_call("(%s) %s", prefix, "Log console: False")
-            mock_log.info.assert_any_call("(%s) %s", prefix, "Log file: None")
-            mock_log.debug.assert_any_call("(%s) %s", prefix, "Record Augmentation is: archive")
-            mock_log.debug.assert_any_call("(%s) %s", prefix, "Record Generation is: generator")
+            mock_log.info.assert_any_call("(%s) %s", prefix, "Version: 1.2.3-test.")
+            mock_log.info.assert_any_call("(%s) %s", prefix, "Log level: 0.")
+            mock_log.info.assert_any_call("(%s) %s", prefix, "Log debug: 0.")
+            mock_log.info.assert_any_call("(%s) %s", prefix, "Log console: False.")
+            mock_log.info.assert_any_call("(%s) %s", prefix, "Log file: None.")
+            mock_log.debug.assert_any_call("(%s) %s", prefix, "Record augmentation: archive.")
+            mock_log.debug.assert_any_call("(%s) %s", prefix, "Record generation: generator.")
 
     def test_init_starts_a_daemon_logger_thread(self):
         with mock.patch('user.mqttcommon.logging') as mock_logging:
@@ -480,7 +480,7 @@ class TestLogger(unittest.TestCase):
             self.assertFalse(SUT.log_thread.is_alive())
             # The thread logs its start and its exit, and nothing else.
             messages = [call[0][2] for call in mock_log.info.call_args_list]
-            self.assertEqual(messages, ["Starting logger thread.", "Exited logger thread."])
+            self.assertEqual(messages, ["Logger thread is starting.", "Logger thread is shut down."])
 
     def test_init_uses_the_supplied_logger_name(self):
         with mock.patch('user.mqttcommon.logging') as mock_logging:
@@ -752,10 +752,10 @@ class TestShutdown(unittest.TestCase):
             # The start message, the queued messages, and the exit message are logged in queue order.
             self.assertFalse(SUT.log_thread.is_alive())
             logged = [(call[0], call[1][2]) for call in mock_log.method_calls if call[0] in ('info', 'error')]
-            self.assertEqual(logged, [('info', "Starting logger thread."),
+            self.assertEqual(logged, [('info', "Logger thread is starting."),
                                       ('info', first['msg_text']),
                                       ('error', second['msg_text']),
-                                      ('info', "Exited logger thread.")])
+                                      ('info', "Logger thread is shut down.")])
 
     def test_shutdown_is_idempotent(self):
         with mock.patch('user.mqttcommon.logging') as mock_logging:
@@ -797,7 +797,7 @@ class TestShutdown(unittest.TestCase):
 
             SUT.shutdown(timeout=0.05)
 
-            expected_text = user.mqttcommon.Logger.log_messages[124004].format(name=SUT.log_thread.name)
+            expected_text = user.mqttcommon.Logger.log_messages[124004].format(timeout=0.05)
             mock_log.error.assert_called_once_with("(%s) %s",
                                                    f"{name}-{threading.get_native_id()}", expected_text)
             self.assertTrue(SUT.log_thread.is_alive())
@@ -837,13 +837,13 @@ class TestLoggerThread(unittest.TestCase):
         entries = [call[0][0] for call in mock_logger.log_entry.call_args_list]
         self.assertEqual(len(entries), 5)
         self.assertEqual(entries[0], {'name': mock_logger.name, 'log_type': 'INFO', 'msg_id': 122002,
-                                      'msg_text': "Starting logger thread.", 'thread_id': SUT.native_id,
+                                      'msg_text': "Logger thread is starting.", 'thread_id': SUT.native_id,
                                       'archive_timestamp': None})
         self.assertIs(entries[1], debug_entry)
         self.assertIs(entries[2], no_log_type_entry)
         self.assertIs(entries[3], error_entry)
         self.assertEqual(entries[4], {'name': mock_logger.name, 'log_type': 'INFO', 'msg_id': 122003,
-                                      'msg_text': "Exited logger thread.",
+                                      'msg_text': "Logger thread is shut down.",
                                       'thread_id': SUT.native_id, 'archive_timestamp': None})
 
     def test_run_invalid_entry(self):
@@ -877,10 +877,10 @@ class TestLoggerThread(unittest.TestCase):
         self.assertIs(entries[1], invalid_entry)
         # The invalid entry is replaced with a formatted error entry.
         self.assertEqual(entries[2], {'name': mock_logger.name, 'log_type': 'ERROR', 'msg_id': 124003,
-                                      'msg_text': f"Invalid log entry: {invalid_entry}",
+                                      'msg_text': f"Invalid log entry: {invalid_entry}.",
                                       'thread_id': SUT.native_id, 'archive_timestamp': None})
         self.assertEqual(entries[3], {'name': mock_logger.name, 'log_type': 'INFO', 'msg_id': 122003,
-                                      'msg_text': "Exited logger thread.",
+                                      'msg_text': "Logger thread is shut down.",
                                       'thread_id': SUT.native_id, 'archive_timestamp': None})
 
 
@@ -1019,7 +1019,7 @@ class TestMessageThrottle(unittest.TestCase):
             self.assertFalse(SUT._check_message(msg_id, throttle_config))
 
             self.assertEqual(SUT.logged_ids, {msg_id: {'count': count + 1}})
-            self.assertEqual(summaries, [f"{count + 1} messages have been suppressed of {max_count}."])
+            self.assertEqual(summaries, [f"{count + 1} of {max_count} messages have been suppressed."])
             self.assertEqual(mock_time.time.call_count, 0)
 
     def test_window_first_message_is_logged(self):
@@ -1213,7 +1213,8 @@ class TestMessageThrottleParseConfig(unittest.TestCase):
             user.mqttcommon.MessageThrottle.parse_config(config)
 
         self.assertEqual(error.exception.args[0],
-                         f"{category_name} is not valid. Valid categories are ['ALL', 'ERROR', 'INFO', 'DEBUG', 'TRACE']")
+                         f"Invalid category, {category_name}. "
+                         "Valid categories are ['ALL', 'ERROR', 'INFO', 'DEBUG', 'TRACE'].")
 
     def test_category_missing_max(self):
         category_name = 'ERROR'
@@ -1405,7 +1406,7 @@ class TestMessageThrottleParseConfig(unittest.TestCase):
         with self.assertRaises(ValueError) as error:
             user.mqttcommon.MessageThrottle.parse_config(config)
 
-        self.assertEqual(error.exception.args[0], f"{message_ids} has been configured multiple times")
+        self.assertEqual(error.exception.args[0], f"Message id {message_ids} has been configured multiple times.")
 
     def test_message_id_already_specified(self):
         messages_name = f"messages-{random.randint(1000, 9999)}"
@@ -1433,7 +1434,7 @@ class TestMessageThrottleParseConfig(unittest.TestCase):
         with self.assertRaises(ValueError) as error:
             user.mqttcommon.MessageThrottle.parse_config(config)
 
-        self.assertEqual(error.exception.args[0], f"{message_ids} has been configured multiple times")
+        self.assertEqual(error.exception.args[0], f"Message id {message_ids} has been configured multiple times.")
 
 
 if __name__ == '__main__':

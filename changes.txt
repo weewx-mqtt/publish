@@ -33,6 +33,14 @@ Fixes
   - Fix random locks/ stalls when reading from the multiprocessing data queue (#39).
     The publishing sub-process is now wrapped in a feeder thread that shuffles data from a
     simple queue to the multiprocessing queue.
+  - Do not hang WeeWX on exit when the multiprocessing publishing worker does not stop.
+    The worker now ignores SIGINT and restores the default SIGTERM handler, and the service
+    terminates it (and kills it if that is not enough), so neither a Ctrl-C nor a missed
+    shutdown can leave WeeWX waiting for it.
+  - Stop the publishing sub-process stalling when WeeWX logs from inside it.
+    The worker is now forked with the logging handler locks held, so it cannot inherit a
+    log stream whose internal lock was stuck. That deadlock stopped the worker draining its
+    queue, which is what made the shutdown wait for it.
   - Ensure the queue 'loop' method is called even when no data is waiting, by giving the
     data queue get() a configurable timeout.
   - Check the return code in the on_connect callback so failed connections are handled.
@@ -41,6 +49,20 @@ Fixes
   - MQTTConfigHA now ensures published values use WeeWX units.
 
 Enhancements:
+  - Document that MQTTMessageTracker is alpha code.
+  - Connection lifecycle messages use the shared wording: 'Connecting to host:port.',
+    'Connected with result code ..., ...', 'Connection flags: ...', and
+    'Subscribing to topic, mid ..., result code ...'.
+  - Error and validation messages use the shared wording: 'Unable to ...: ...',
+    'Invalid <thing>, <value>.', and one trailing period.
+  - Deprecation messages use the shared wording ('<option> is deprecated, use <replacement>.',
+    '<option> is deprecated, it is no longer used.'), with one trailing period and correct
+    spacing.
+  - Log messages use consistent terminology and spelling ('qos', 'database'), and the publish
+    timing line no longer contains a double space.
+  - Log the startup environment (version, WeeWX version, Python, platform, locale, paho.mqtt,
+    logging settings, and record augmentation/generation) through the shared 'log_environment'
+    block, using the 'Label: value.' format.
   - The Logger now owns the log queue and the logging thread. Shutting down flushes queued log
     messages, is safe to call more than once, and no longer stalls process exit if it was skipped.
   - Fail loudly at import when an older 'user.mqttcommon' copy is loaded (an install-order
@@ -55,7 +77,29 @@ Enhancements:
   - Renamed the [[lwt]] section of MQTTPublish to [[availability_topic]]
   - Options to monitor queue processing, see https://weewx-mqtt.github.io/publish/common-options/#monitor_queue
   - Added an on_publish plugin callback, and the monitor_on_publish option to monitor its execution time.
+  - Added a mqtt_publish plugin callback. The immediate timing runs before the message is sent,
+    the delay timing runs after and provides the message id.
+  - Plugins can optionally implement a shutdown method, called when the publishing thread stops.
+  - Added a wait_for_inflight option, so shutdown can wait for paho to confirm in-flight messages.
+  - Added MQTTMessageTracker, a plugin that records published MQTT messages in a WeeWX database.
+    Each row records its status (failed, sent, acked, or unconfirmed) and, when the arrival was
+    never reported, the time the tracker stopped waiting for it.
+    The install adds a message_tracker_binding and message_tracker database for it.
+    The topics to track are configured in a [[topics]] section, with an optional per-topic retention.
+    A topic published with qos 0 is rejected with an error, because its delivery cannot be confirmed.
+    A previous run's leftover 'sent' rows are marked unconfirmed at startup, and the count is logged.
+    Unconfirmed rows are kept until unconfirmed_retention (default 0, never), so they can still be resent.
+  - Added the mqttresend tool, which resends the messages the tracker recorded as failed or
+    unconfirmed. A resend is a new row that points at the original, so the original is never
+    changed, and a dry run is the default. Every unconfirmed message is considered by default,
+    whatever its age, and a message hidden by a newer publish on the same topic is reported.
+  - Added the mqttprune tool, which deletes the unconfirmed rows the automatic prune keeps, and
+    failed rows early, with the configured retention as the default age.
   - Improved shutdown logic flow, with timeouts when stopping threads/processes.
+  - Consistent shutdown log messages: the same wording for a component starting and finishing its
+    shutdown, the drain count, and the timeout named when a component does not stop. A publishing
+    worker that has to be terminated or killed is reported, and shutdown failures are logged
+    directly so a stuck logger thread cannot swallow them.
   - A plugin can be loaded multiple times with different configurations.
   - The data queue size is passed into plugin callbacks.
   - MQTT reconnects are handled by the paho mqtt network loop, which keeps reconnecting until
