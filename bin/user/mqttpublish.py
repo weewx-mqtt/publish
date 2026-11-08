@@ -189,6 +189,7 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
 
         self.monitor_on_message = monitor_config['monitor_on_message']
         self.monitor_on_connect = monitor_config['monitor_on_connect']
+        self.monitor_on_disconnect = monitor_config['monitor_on_disconnect']
         self.monitor_on_publish = monitor_config['monitor_on_publish']
 
         self.client = self.get_client(mqtt_config['clientid'], mqtt_config['protocol'])
@@ -441,8 +442,18 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
         """ Run the on_mqtt_disconnect plugin callbacks for one timing group. """
         if self.plugin_manager is None:
             return
+        run_time = 0
         for plugin_name in self.plugin_manager.callbacks['on_mqtt_disconnect'][timing]:
+            start_time = time.time()
             self.plugin_manager.callbacks['on_mqtt_disconnect'][timing][plugin_name](*callback_args)
+            delta_time = time.time() - start_time
+            run_time += delta_time
+            self.logger_queue.put(mqttcommon.Logger.create_entry(
+                self.name, self.monitor_on_disconnect, None,
+                f"monitor: {delta_time:<12.10f} on_disconnect ({timing}) {plugin_name}"))
+        self.logger_queue.put(mqttcommon.Logger.create_entry(
+            self.name, self.monitor_on_disconnect, None,
+            f"monitor: {run_time:<12.10f} on_disconnect ({timing})"))
 
     def _handle_connect_success(self, callback_args):
         """ The connection succeeded. Run the common processing.
@@ -661,6 +672,7 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
             'monitor_on_weewx_data': service_dict.get('monitor_on_weewx_data'),
             'monitor_on_message': service_dict.get('monitor_on_message'),
             'monitor_on_connect': service_dict.get('monitor_on_connect'),
+            'monitor_on_disconnect': service_dict.get('monitor_on_disconnect'),
             'monitor_on_publish': service_dict.get('monitor_on_publish'),
         }
         return mqtt_config, monitor_config

@@ -99,7 +99,8 @@ Enhancements:
     Unconfirmed rows are kept until unconfirmed_retention (default 0, never), so they can still be resent.
     The optional [[resend]] section resends the failed and unconfirmed messages after the last
     confirmed publish on each topic after a successful connect or reconnect.
-  - Added an on_disconnect plugin callback.
+  - Added an on_disconnect plugin callback, and the monitor_on_disconnect option to monitor
+    its execution time.
   - Added the mqttresend tool, which resends the messages the tracker recorded as failed or
     unconfirmed. A resend is a new row that points at the original, so the original is never
     changed, and a dry run is the default. Every unconfirmed message is considered by default,

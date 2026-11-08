@@ -86,6 +86,7 @@ def make_publisher(config, tracker, logger_queue):
         'monitor_queue': None,
         'monitor_on_message': None,
         'monitor_on_connect': None,
+        'monitor_on_disconnect': None,
         'monitor_on_publish': None,
         'monitor_record_update': None,
         'monitor_on_weewx_data': None,

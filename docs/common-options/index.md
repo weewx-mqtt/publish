@@ -49,6 +49,12 @@ Used to monitor execution time of plugins that are run via the [on_connect](http
 Set it to logging level the information should be logged at.
 Valid values are `DEBUG`, `INFO`, `ERROR`.
 Default value is `None`, meaning that nothing is logged.
+#### monitor_on_disconnect
+
+Used to monitor execution time of plugins that are run via the [on_disconnect](https://weewx-mqtt.github.io/publish/plugin-development/#on_disconnect) callback.
+Set it to logging level the information should be logged at.
+Valid values are `DEBUG`, `INFO`, `ERROR`.
+Default value is `None`, meaning that nothing is logged.
 #### monitor_on_message
 
 Used to monitor execution time of plugins that are run via the [on_message](https://weewx-mqtt.github.io/publish/plugin-development/#on_message) callback.

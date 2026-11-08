@@ -27,6 +27,7 @@ class TestPublisher(unittest.TestCase):
         monitor_dict = {
             'monitor_on_message': None,
             'monitor_on_connect': None,
+            'monitor_on_disconnect': None,
             'monitor_on_publish': None,
         }
 
