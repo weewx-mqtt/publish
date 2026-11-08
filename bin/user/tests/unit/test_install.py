@@ -46,6 +46,7 @@ class TestInstallConfig(unittest.TestCase):
         self.assertEqual(resend['enable'], 'false')
         self.assertEqual(resend['on_startup'], 'true')
         self.assertEqual(resend['on_reconnect'], 'true')
+        self.assertEqual(resend['include_before_last_success'], 'false')
         self.assertEqual(resend['since'], '0')
         self.assertEqual(resend['limit'], '0')
 

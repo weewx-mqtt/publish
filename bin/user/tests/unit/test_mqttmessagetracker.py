@@ -130,6 +130,19 @@ class TestSelectAfterLastSuccess(unittest.TestCase):
 
         self.assertEqual([row['id'] for row in selected], ['origin'])
 
+    def test_include_before_last_success_resends_earlier_rows(self):
+        rows = [
+            make_row('acked-1', 'topic', user.mqttmessagetracker.STATUS_ACKED, 1),
+            make_row('failed-before', 'topic', user.mqttmessagetracker.STATUS_FAILED, 2),
+            make_row('acked-2', 'topic', user.mqttmessagetracker.STATUS_ACKED, 3),
+            make_row('failed-after', 'topic', user.mqttmessagetracker.STATUS_FAILED, 4),
+        ]
+
+        selected = user.mqttmessagetracker.select_after_last_success(
+            rows, include_before_last_success=True)
+
+        self.assertEqual([row['id'] for row in selected], ['failed-before', 'failed-after'])
+
     def test_since_bounds_the_age(self):
         rows = [
             make_row('old', 'topic', user.mqttmessagetracker.STATUS_FAILED, 100),
@@ -272,7 +285,15 @@ class TestMQTTMessageTracker(unittest.TestCase):
     def test_resend_options_default(self):
         plugin, _ = self._make_plugin({'resend': {'enable': True}})
 
-        self.assertEqual(plugin.resend, {'on_startup': True, 'on_reconnect': True, 'since': 0, 'limit': 0})
+        self.assertEqual(plugin.resend,
+                         {'on_startup': True, 'on_reconnect': True, 'include_before_last_success': False,
+                          'since': 0, 'limit': 0})
+
+    def test_resend_options_include_before_last_success(self):
+        plugin, _ = self._make_plugin(
+            {'resend': {'enable': True, 'include_before_last_success': True}})
+
+        self.assertTrue(plugin.resend['include_before_last_success'])
 
     def test_resend_disabled_by_default(self):
         plugin, _ = self._make_plugin()
@@ -426,6 +447,34 @@ class TestMQTTMessageTracker(unittest.TestCase):
         rows = self._wait_for_rows(5)
         client.publish.assert_called_once_with('topic', 'failed-after', qos=1, retain=False)
         self.assertFalse(any(row['payload'] == 'failed-before' and row['origin_id'] for row in rows))
+
+    def test_resend_includes_messages_before_the_last_success(self):
+        plugin, _ = self._make_plugin(
+            {'resend': {'enable': True, 'include_before_last_success': True}})
+
+        plugin.mqtt_publish(None, 1, 0, 'topic', 'acked-1', 1, False, 1)
+        plugin.on_mqtt_publish(None, None, 1, None)
+        self._wait_for(lambda rows: len(rows) == 1 and rows[0]['status'] == 'acked')
+        time.sleep(0.01)
+        plugin.mqtt_publish(None, 2, 1, 'topic', 'failed-before', 1, False, 2)
+        self._wait_for_rows(2)
+        time.sleep(0.01)
+        plugin.mqtt_publish(None, 3, 0, 'topic', 'acked-2', 1, False, 3)
+        plugin.on_mqtt_publish(None, None, 3, None)
+        self._wait_for(lambda rows: any(row['payload'] == 'acked-2' and row['status'] == 'acked'
+                                        for row in rows))
+        time.sleep(0.01)
+        plugin.mqtt_publish(None, 4, 1, 'topic', 'failed-after', 1, False, 4)
+        self._wait_for_rows(4)
+
+        client = mock.Mock()
+        client.publish.side_effect = [mock.Mock(mid=11, rc=0), mock.Mock(mid=12, rc=0)]
+        plugin.on_mqtt_connect(client, None, 0, 0, None)
+
+        rows = self._wait_for_rows(6)
+        self.assertEqual([call[0][1] for call in client.publish.call_args_list],
+                         ['failed-before', 'failed-after'])
+        self.assertEqual(len([row for row in rows if row['origin_id']]), 2)
 
     def test_resend_on_reconnect_only(self):
         plugin, _ = self._make_plugin(

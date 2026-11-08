@@ -418,6 +418,11 @@ MQTTPUBLISH_CONFIG = """
         # Default is true.
         on_reconnect = true
 
+        # Resend every unconfirmed and failed message for the topic, including messages
+        # that are older than the topic's last confirmed publish.
+        # Default is false.
+        include_before_last_success = false
+
         # Only resend messages sent within the last SECONDS.
         # Set to 0 to consider every message after the last confirmed publish.
         # Default is 0.

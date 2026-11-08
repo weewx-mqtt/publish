@@ -277,16 +277,20 @@ def _dedupe(rows):
     return unique
 
 
-def select_after_last_success(rows, since=None, now=None):
-    """ Select the unconfirmed and failed rows after the last confirmed publish.
+def select_after_last_success(rows, since=None, now=None, include_before_last_success=False):
+    """ Select the unconfirmed and failed rows to resend.
 
+        By default only rows after the last confirmed publish on their topic are selected.
         The boundary is the newest confirmed original row on each topic. An original is
         confirmed when it is acked or has an acked resend. A resend's own sent_ts does not
-        move the boundary: a successful resend would otherwise hide an older backlog. """
+        move the boundary: a successful resend would otherwise hide an older backlog.
+
+        With include_before_last_success, every unconfirmed and failed row is a candidate,
+        including rows older than the topic's last confirmed publish. """
     now = time.time() if now is None else now
     oldest = None if since is None or since <= 0 else now - since
     acked_origins = _acked_origins(rows)
-    last_success = _last_success(rows, acked_origins)
+    last_success = {} if include_before_last_success else _last_success(rows, acked_origins)
     selected = [row for row in rows
                 if _after_last_success(row, oldest, last_success, acked_origins)]
     return _dedupe(selected)
@@ -568,7 +572,9 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
         if rows is None:
             return
 
-        selected = select_after_last_success(rows, since=options['since'])
+        selected = select_after_last_success(
+            rows, since=options['since'],
+            include_before_last_success=options['include_before_last_success'])
         if options['limit'] > 0:
             selected = selected[:options['limit']]
         if not selected:
@@ -891,6 +897,7 @@ class MQTTMessageTracker(user.mqttpublish.MQTTPlugin):  # pylint: disable=too-ma
         options = {
             'on_startup': to_bool(resend_dict.get('on_startup', True)),
             'on_reconnect': to_bool(resend_dict.get('on_reconnect', True)),
+            'include_before_last_success': to_bool(resend_dict.get('include_before_last_success', False)),
             'since': max(0, self._config_int(resend_dict, 'since', 0)),
             'limit': max(0, self._config_int(resend_dict, 'limit', 0)),
         }

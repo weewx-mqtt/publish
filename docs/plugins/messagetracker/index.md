@@ -102,6 +102,12 @@ Default is `true`.
 Whether to resend after a reconnect.
 Default is `true`.
 
+#### include_before_last_success
+
+Whether to resend every `unconfirmed` and `failed` message for a topic, including messages
+older than that topic's last confirmed publish.
+Default is `false`.
+
 #### since
 
 Only resend messages sent within the last `since` seconds.
@@ -262,6 +268,8 @@ including a reconnect. It resends the messages after the last confirmed publish 
   hide an older backlog;
 - every `failed` and `unconfirmed` row after that boundary is resent, oldest first;
 - if a topic has no confirmed publish, every `failed` and `unconfirmed` row is resent;
+- with `include_before_last_success = true`, the boundary is ignored and every `failed` and
+  `unconfirmed` row for the topic is resent, even those before the last confirmed publish;
 - a message is resent once, even when it already has several resend attempts.
 
 The boundary is per topic. A successful publish on one topic says nothing about the delivery of
