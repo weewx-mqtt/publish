@@ -62,7 +62,7 @@ common-repo checks, all test suites). Also `unittests.sh`, `lint.sh`, `coverage.
 source .devenv
 ~/weewx_dev/weewx-extensions/development-tools/tools/verify.sh
 
-# All unit tests (currently 507, ~6s, no broker or network needed — paho is mocked/stubbed)
+# All unit tests (no broker or network needed — paho is mocked/stubbed)
 pytest bin/user/tests/unit
 
 # One file / one test (nodeid form)
