@@ -288,6 +288,7 @@ backlog without that risk.
 
 Automatic resend is best-effort. A live publish that races the resend can still land after an
 older resent value; consumers are assumed to be idempotent on `dateTime`.
+See [QoS and duplicate delivery](#qos-and-duplicate-delivery).
 
 ## Resending a message
 
@@ -357,6 +358,20 @@ row, which the tracker marks `unconfirmed` the next time it starts.
 Resend is not delivery: it cannot undo an earlier loss, and it may publish a duplicate.
 It assumes the consumer is idempotent on `dateTime`, which is true for InfluxDB and typical
 time-series stores.
+
+## QoS and duplicate delivery
+
+QoS 2 is exactly-once for a single publish within a single MQTT session. It is not an end-to-end
+guarantee across reconnects, restarts, or application retries.
+
+A resend is a new publish with a new packet id. The broker cannot tell that it is a replay, so a
+subscriber can receive the same application message more than once, even when the topic uses
+QoS 2. This applies to both automatic resend and `mqttresend.py`.
+
+The tracker therefore provides at-least-once delivery end to end. Consumers must be idempotent,
+for example by deduplicating on `dateTime`. `failed` rows are safe to resend: paho refused them,
+so they were not published. `unconfirmed` rows are the ambiguous ones: the original may have
+reached the broker, but its acknowledgement was not observed.
 
 ## Pruning
 

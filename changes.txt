@@ -106,6 +106,8 @@ Enhancements:
     unconfirmed. A resend is a new row that points at the original, so the original is never
     changed, and a dry run is the default. Every unconfirmed message is considered by default,
     whatever its age, and a message hidden by a newer publish on the same topic is reported.
+  - Document that resending is at-least-once: a resend is a new publish, so it can duplicate a
+    message even on a qos 2 topic.
   - Added the mqttprune tool, which deletes the unconfirmed rows the automatic prune keeps, and
     failed rows early, with the configured retention as the default age.
   - Improved shutdown logic flow, with timeouts when stopping threads/processes.
