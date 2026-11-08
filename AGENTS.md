@@ -180,7 +180,7 @@ See `docs/plugin-development/` for parameter meanings.
   `publisherbase.py` (`PublisherBase`, `TLSBase` — parameterized by `api` and
   `protocol_string`). Concrete publisher test files end with `del PublisherBase, TLSBase` so
   pytest doesn't collect the abstract bases (their tests `raise NotImplementedError`).
-- `test_template.py` is the starting point for a new test file. Tests run under pytest *and*
+- New tests start from an existing test of the same shape. Tests run under pytest *and*
   directly via the file's `helpers.run_tests()`.
 
 ## Config, versioning and release
