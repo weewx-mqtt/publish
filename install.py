@@ -403,6 +403,31 @@ MQTTPUBLISH_CONFIG = """
     # Default is 10.
     shutdown_timeout = 10
 
+    # Resend the messages that were not confirmed when the connection is (re)established.
+    # Only the messages after the last confirmed publish on each topic are resent.
+    [[resend]]
+        # Turn automatic resending on and off.
+        # Default is false.
+        enable = false
+
+        # Resend after the first successful connection.
+        # Default is true.
+        on_startup = true
+
+        # Resend after a reconnect.
+        # Default is true.
+        on_reconnect = true
+
+        # Only resend messages sent within the last SECONDS.
+        # Set to 0 to consider every message after the last confirmed publish.
+        # Default is 0.
+        since = 0
+
+        # The maximum number of messages to resend per connection.
+        # Set to 0 to resend every message.
+        # Default is 0.
+        limit = 0
+
     [[topics]]
         # The topics to track.
         # Only the topics listed here are tracked.

@@ -40,6 +40,15 @@ class TestInstallConfig(unittest.TestCase):
         self.assertEqual(database['database_type'], 'SQLite')
         self.assertEqual(self.config['MQTTMessageTracker']['unconfirmed_retention'], '0')
 
+    def test_tracker_resend_is_seeded(self):
+        resend = self.config['MQTTMessageTracker']['resend']
+
+        self.assertEqual(resend['enable'], 'false')
+        self.assertEqual(resend['on_startup'], 'true')
+        self.assertEqual(resend['on_reconnect'], 'true')
+        self.assertEqual(resend['since'], '0')
+        self.assertEqual(resend['limit'], '0')
+
     def test_tracker_topics_are_seeded(self):
         topics = self.config['MQTTMessageTracker']['topics']
 

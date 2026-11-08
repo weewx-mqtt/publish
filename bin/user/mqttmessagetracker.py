@@ -13,6 +13,7 @@ import time
 import uuid
 
 import configobj
+import paho.mqtt.client as mqtt
 import weecfg
 import weewx
 import weewx.manager
@@ -174,6 +175,9 @@ _RC_SUCCESS = 0
 _EVENT_SENT = 'sent'
 _EVENT_ARRIVED = 'arrived'
 _EVENT_FINALIZE = 'finalize'
+_EVENT_DISCONNECT = 'disconnect'
+_EVENT_RESEND = 'resend'
+_CONTROL_EVENTS = (_EVENT_FINALIZE, _EVENT_DISCONNECT, _EVENT_RESEND)
 
 # The values of the status column.
 STATUS_FAILED = 'failed'
@@ -184,6 +188,108 @@ STATUS_UNCONFIRMED = 'unconfirmed'
 # The statuses whose rows are pruned by age. A row that may still be delivered, or whose
 # delivery is unknown, is kept so that it can still be resent.
 _PRUNED_STATUSES = (STATUS_ACKED, STATUS_FAILED)
+
+
+def origin_id(row):
+    """ The id of the original message a row belongs to. """
+    return row['origin_id'] or row['id']
+
+
+def decode_payload(row):
+    """ Reconstruct the payload from its stored value and encoding. """
+    payload = row['payload']
+    if payload is None:
+        return None
+    if row['payload_encoding'] == 'hex':
+        return bytes.fromhex(payload)
+    return payload
+
+
+def next_attempt(cursor, table, row_origin_id):
+    """ The attempt number for the next resend of an original message. """
+    cursor.execute(f"SELECT attempt FROM {table} WHERE origin_id = ?", (row_origin_id,))
+    attempts = [row[0] for row in cursor if row[0] is not None]
+    return max(attempts, default=0) + 1
+
+
+# pylint: disable=too-many-arguments,too-many-positional-arguments
+def insert_attempt(connection, table, row, mid, rc, sent_ts, clientid):
+    """ Insert the row of a resend, returning its id, attempt and status. """
+    row_origin_id = origin_id(row)
+    status = STATUS_FAILED
+    if rc == _RC_SUCCESS:
+        status = STATUS_SENT
+    row_id = uuid.uuid4().hex
+    with weedb.Transaction(connection) as cursor:
+        attempt = next_attempt(cursor, table, row_origin_id)
+        cursor.execute(
+            f"INSERT INTO {table} "
+            "(id, mid, dateTime, sent_ts, arrived_ts, status, unconfirmed_ts, "
+            "origin_id, attempt, clientid, topic, qos, retain, rc, payload, payload_encoding) "
+            "VALUES (?, ?, ?, ?, NULL, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (row_id, mid, row['dateTime'], sent_ts, status, row_origin_id, attempt, clientid,
+             row['topic'], row['qos'], row['retain'], rc, row['payload'], row['payload_encoding']))
+    return row_id, attempt, status
+
+
+def _acked_origins(rows):
+    """ The origin ids that already have an acked resend. """
+    return {row['origin_id'] for row in rows
+            if row['origin_id'] is not None and row['status'] == STATUS_ACKED}
+
+
+def _last_success(rows, acked_origins):
+    """ The newest confirmed original publish time for each topic. """
+    last_success = {}
+    for row in rows:
+        if row['origin_id'] is not None:
+            continue
+        if row['status'] != STATUS_ACKED and row['id'] not in acked_origins:
+            continue
+        last_success[row['topic']] = max(last_success.get(row['topic'], row['sent_ts']), row['sent_ts'])
+    return last_success
+
+
+def _after_last_success(row, oldest, last_success, acked_origins):
+    """ Whether a row is a failed/unconfirmed message after its topic's last success. """
+    if row['status'] not in (STATUS_UNCONFIRMED, STATUS_FAILED):
+        return False
+    if oldest is not None and row['sent_ts'] < oldest:
+        return False
+    boundary = last_success.get(row['topic'])
+    if boundary is not None and row['sent_ts'] <= boundary:
+        return False
+    return origin_id(row) not in acked_origins
+
+
+def _dedupe(rows):
+    """ Keep the earliest row for each original message. """
+    # A message may have several resend attempts. Resend the original once, not each attempt;
+    # the earliest row is the original, or the oldest attempt when the original was pruned.
+    seen = set()
+    unique = []
+    for row in sorted(rows, key=lambda item: (item['sent_ts'], item['id'])):
+        row_origin_id = origin_id(row)
+        if row_origin_id in seen:
+            continue
+        seen.add(row_origin_id)
+        unique.append(row)
+    return unique
+
+
+def select_after_last_success(rows, since=None, now=None):
+    """ Select the unconfirmed and failed rows after the last confirmed publish.
+
+        The boundary is the newest confirmed original row on each topic. An original is
+        confirmed when it is acked or has an acked resend. A resend's own sent_ts does not
+        move the boundary: a successful resend would otherwise hide an older backlog. """
+    now = time.time() if now is None else now
+    oldest = None if since is None or since <= 0 else now - since
+    acked_origins = _acked_origins(rows)
+    last_success = _last_success(rows, acked_origins)
+    selected = [row for row in rows
+                if _after_last_success(row, oldest, last_success, acked_origins)]
+    return _dedupe(selected)
 
 
 class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-attributes
@@ -212,6 +318,7 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
 
         self.queue = queue.Queue(maxsize=queue_size)
         self.accepting = True
+        self.shutting_down = False
         self.dropped = 0
         # mid -> (row id, sent timestamp) for the messages paho has not confirmed.
         self.inflight = {}
@@ -227,10 +334,19 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
         """ Queue a message that paho reported as published. """
         self._put((_EVENT_ARRIVED, mid, time.time()))
 
+    def disconnected(self, timestamp):
+        """ Queue an event that marks the messages in flight as unconfirmed. """
+        self._put((_EVENT_DISCONNECT, timestamp))
+
+    def resend(self, client, options, clientid):
+        """ Queue a resend for the messages after the last confirmed publish. """
+        self._put((_EVENT_RESEND, client, options, clientid))
+
     def shutdown(self):
         """ Stop the thread after it has written the queued events and marked the unreported ones. """
         if not self.is_alive():
             return
+        self.shutting_down = True
         self._log('INFO', "Shutting down.")
         try:
             self.queue.put((_EVENT_FINALIZE, time.time()), timeout=self.shutdown_timeout)
@@ -290,18 +406,30 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
             except queue.Empty:
                 last_prune = self._maybe_prune(connection, last_prune)
                 continue
-
-            if event[0] == _EVENT_FINALIZE:
-                self._apply_finalize(connection, event[1])
+            last_prune, stop = self._process_event(connection, event, last_prune)
+            if stop:
                 return
 
-            batch, finalize_ts = self._collect(event)
-            self._apply(connection, batch)
-            last_prune = self._maybe_prune(connection, last_prune)
+    def _process_event(self, connection, event, last_prune):
+        """ Process one event, returning the next prune time and whether to stop. """
+        if event[0] in _CONTROL_EVENTS:
+            return self._maybe_prune(connection, last_prune), self._apply_control(connection, event)
 
-            if finalize_ts is not None:
-                self._apply_finalize(connection, finalize_ts)
-                return
+        batch, control = self._collect(event)
+        self._apply(connection, batch)
+        last_prune = self._maybe_prune(connection, last_prune)
+        return last_prune, control is not None and self._apply_control(connection, control)
+
+    def _apply_control(self, connection, event):
+        """ Apply a control event, returning whether the queue loop should stop. """
+        if event[0] == _EVENT_FINALIZE:
+            self._apply_finalize(connection, event[1])
+            return True
+        if event[0] == _EVENT_DISCONNECT:
+            self._apply_disconnect(connection, event[1])
+        else:
+            self._apply_resend(connection, event[1], event[2], event[3])
+        return False
 
     def _prune_timeout(self):
         """ The queue wait before an idle prune. """
@@ -325,19 +453,19 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
         return last_prune
 
     def _collect(self, event):
-        """ Collect a batch of events, stopping when the finalize event is seen. """
+        """ Collect a batch of events, stopping when a control event is seen. """
         batch = [event]
-        finalize_ts = None
+        control = None
         while len(batch) < self.batch_size:
             try:
                 item = self.queue.get_nowait()
             except queue.Empty:
                 break
-            if item[0] == _EVENT_FINALIZE:
-                finalize_ts = item[1]
+            if item[0] in _CONTROL_EVENTS:
+                control = item
                 break
             batch.append(item)
-        return batch, finalize_ts
+        return batch, control
 
     def _apply(self, connection, batch):
         """ Write one batch in a single transaction. """
@@ -412,6 +540,16 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
         """ Mark the rows whose arrival paho never reported as unconfirmed. """
         rows = list(self.inflight.values())
         self.inflight = {}
+        self._mark_unconfirmed(connection, rows, unconfirmed_ts, "no arrival was reported")
+
+    def _apply_disconnect(self, connection, unconfirmed_ts):
+        """ Mark the rows in flight when the connection was lost as unconfirmed. """
+        rows = list(self.inflight.values())
+        self.inflight = {}
+        self._mark_unconfirmed(connection, rows, unconfirmed_ts, "the connection was lost")
+
+    def _mark_unconfirmed(self, connection, rows, unconfirmed_ts, reason):
+        """ Mark rows that are still sent as unconfirmed. """
         marked = 0
         for start in range(0, len(rows), self.batch_size):
             chunk = rows[start:start + self.batch_size]
@@ -422,7 +560,133 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
                 break
             marked += len(chunk)
         if marked:
-            self._log('INFO', f"Marked {marked} message tracking rows as unconfirmed, no arrival was reported.")
+            self._log('INFO', f"Marked {marked} message tracking rows as unconfirmed, {reason}.")
+
+    def _apply_resend(self, connection, client, options, clientid):
+        """ Publish the messages after the last confirmed publish on each topic. """
+        rows = self._fetch_for_resend(connection)
+        if rows is None:
+            return
+
+        selected = select_after_last_success(rows, since=options['since'])
+        if options['limit'] > 0:
+            selected = selected[:options['limit']]
+        if not selected:
+            self._log('DEBUG', "No messages need to be resent after the connection was established.")
+            return
+
+        self._log('INFO', f"Resending {len(selected)} message(s) after the connection was established.")
+        published = self._publish_resends(client, selected)
+        if not published:
+            return
+        inserted = self._record_resends(connection, published, clientid)
+        if inserted is None:
+            return
+        self._log_resend_summary(inserted)
+
+    def _fetch_for_resend(self, connection):
+        """ Read the rows for a resend, or None when they cannot be read. """
+        try:
+            return fetch_rows(connection, self.table)
+        except Exception as exception:  # pylint: disable=broad-exception-caught
+            self._log('ERROR', f"Unable to read the message tracking rows for a resend: {exception}.")
+            return None
+
+    def _publish_resends(self, client, selected):
+        """ Publish the selected rows, returning what paho accepted. """
+        published = []
+        for row in selected:
+            if self.shutting_down:
+                self._log('INFO', "Stopping the resend because the message tracker is shutting down.")
+                break
+            published_row, stop = self._publish_resend(client, row)
+            if published_row is not None:
+                published.append(published_row)
+            if stop:
+                break
+        return published
+
+    def _publish_resend(self, client, row):
+        """ Publish one resend, returning the outcome and whether the resend must stop. """
+        try:
+            payload = decode_payload(row)
+        except ValueError as exception:
+            self._log('ERROR', f"Unable to decode the payload of {row['id']}: {exception}.")
+            return None, False
+
+        try:
+            message_info = client.publish(row['topic'], payload, qos=row['qos'], retain=bool(row['retain']))
+        except Exception as exception:  # pylint: disable=broad-exception-caught
+            self._log('ERROR', f"Unable to resend {row['topic']}: {exception}.")
+            return None, False
+
+        rc = int(message_info.rc)
+        if rc == mqtt.MQTT_ERR_NO_CONN:
+            self._log('ERROR', "The connection was lost while resending, "
+                               "the remaining messages are left for the next connection.")
+            return None, True
+        return (row, message_info.mid, rc, time.time()), False
+
+    def _record_resends(self, connection, published, clientid):
+        """ Record the published rows, or None when they cannot be written. """
+        try:
+            inserted = self._insert_resends(connection, published, clientid)
+        except Exception as exception:  # pylint: disable=broad-exception-caught
+            self._log('ERROR', f"Unable to record the resent messages: {exception}.")
+            return None
+        self._finish_resends(connection, inserted)
+        return inserted
+
+    def _finish_resends(self, connection, inserted):
+        """ Track the resent messages that are waiting for an arrival. """
+        for row_id, mid, status, sent_ts in inserted:
+            if status != STATUS_SENT:
+                continue
+            pending = self.pending.pop(mid, None)
+            if pending is None:
+                self.inflight[mid] = (row_id, sent_ts)
+            else:
+                self._ack_pending(connection, row_id, pending[0])
+
+    def _log_resend_summary(self, inserted):
+        """ Log what the resend published. """
+        sent = sum(1 for _, _, status, _ in inserted if status == STATUS_SENT)
+        failed = len(inserted) - sent
+        self._log('INFO', f"Resent {len(inserted)} message(s), "
+                          f"{sent} awaiting confirmation, {failed} failed.")
+
+    def _insert_resends(self, connection, published, clientid):
+        """ Insert the resend rows in one transaction, returning what was inserted. """
+        inserted = []
+        with weedb.Transaction(connection) as cursor:
+            attempts = {}
+            for row, mid, rc, sent_ts in published:
+                row_origin_id = origin_id(row)
+                if row_origin_id not in attempts:
+                    attempts[row_origin_id] = next_attempt(cursor, self.table, row_origin_id)
+                else:
+                    attempts[row_origin_id] += 1
+                status = STATUS_SENT if rc == _RC_SUCCESS else STATUS_FAILED
+                row_id = uuid.uuid4().hex
+                cursor.execute(
+                    f"INSERT INTO {self.table} "
+                    "(id, mid, dateTime, sent_ts, arrived_ts, status, unconfirmed_ts, "
+                    "origin_id, attempt, clientid, topic, qos, retain, rc, payload, payload_encoding) "
+                    "VALUES (?, ?, ?, ?, NULL, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (row_id, mid, row['dateTime'], sent_ts, status, row_origin_id,
+                     attempts[row_origin_id], clientid, row['topic'], row['qos'], row['retain'],
+                     rc, row['payload'], row['payload_encoding']))
+                inserted.append((row_id, mid, status, sent_ts))
+        return inserted
+
+    def _ack_pending(self, connection, row_id, arrived_ts):
+        """ Mark a resend as acked when its arrival was reported before it was recorded. """
+        try:
+            with weedb.Transaction(connection) as cursor:
+                cursor.execute(f"UPDATE {self.table} SET status = ?, arrived_ts = ? WHERE id = ?",
+                               (STATUS_ACKED, arrived_ts, row_id))
+        except Exception as exception:  # pylint: disable=broad-exception-caught
+            self._log('ERROR', f"Unable to record the arrival of a resent message: {exception}.")
 
     def _sweep(self, connection):
         """ Mark the rows a previous run left waiting for an arrival as unconfirmed. """
@@ -542,13 +806,16 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
         self.logger_queue.put(user.mqttcommon.Logger.create_entry(self.log_name, log_type, None, msg_text))
 
 
-class MQTTMessageTracker(user.mqttpublish.MQTTPlugin):
+class MQTTMessageTracker(user.mqttpublish.MQTTPlugin):  # pylint: disable=too-many-instance-attributes
     """ Track published MQTT messages in the WeeWX database. """
 
-    def __init__(self, logger_queue, _monitor_config, name, plugin_dict, _mqtt_dict, topics, weewx_dict):  # pylint: disable=R0913,R0917
+    def __init__(self, logger_queue, _monitor_config, name, plugin_dict, mqtt_dict, topics, weewx_dict):  # pylint: disable=R0913,R0917
         super().__init__(logger_queue, name, plugin_dict)
 
         self.tracker = None
+        self.resend = None
+        self.connect_count = 0
+        self.mqtt_dict = mqtt_dict or {}
         self.topics = topics or {}
         self.tracked_topics = {}
         self.topic_unconfirmed_retentions = {}
@@ -570,6 +837,7 @@ class MQTTMessageTracker(user.mqttpublish.MQTTPlugin):
             self.enabled = False
             return
 
+        self.resend = self._configure_resend(plugin_dict)
         self.tracker = _TrackerThread(
             logger_queue,
             self.name,
@@ -614,6 +882,24 @@ class MQTTMessageTracker(user.mqttpublish.MQTTPlugin):
             self._log('ERROR', "No topics are enabled, no messages are tracked.")
         return tracked, unconfirmed
 
+    def _configure_resend(self, plugin_dict):
+        """ Resolve the automatic resend options, or None when they are not enabled. """
+        resend_dict = plugin_dict.get('resend')
+        if resend_dict is None or not to_bool(resend_dict.get('enable', False)):
+            return None
+
+        options = {
+            'on_startup': to_bool(resend_dict.get('on_startup', True)),
+            'on_reconnect': to_bool(resend_dict.get('on_reconnect', True)),
+            'since': max(0, self._config_int(resend_dict, 'since', 0)),
+            'limit': max(0, self._config_int(resend_dict, 'limit', 0)),
+        }
+        if not options['on_startup'] and not options['on_reconnect']:
+            self._log('ERROR', "The resend options disable both on_startup and on_reconnect, "
+                               "no messages will be resent.")
+            return None
+        return options
+
     def _log(self, log_type, msg_text):
         self.logger_queue.put(user.mqttcommon.Logger.create_entry(self.name, log_type, None, msg_text))
 
@@ -628,7 +914,7 @@ class MQTTMessageTracker(user.mqttpublish.MQTTPlugin):
         if not self.enabled or self.tracker is None:
             return []
 
-        return [
+        callbacks = [
             {
                 'mqtt_publish': {
                     'timing': 'delay',
@@ -641,7 +927,21 @@ class MQTTMessageTracker(user.mqttpublish.MQTTPlugin):
                     'callback': self.on_mqtt_publish
                 }
             },
+            {
+                'on_mqtt_disconnect': {
+                    'timing': 'immediate',
+                    'callback': self.on_mqtt_disconnect
+                }
+            },
         ]
+        if self.resend is not None:
+            callbacks.append({
+                'on_mqtt_connect': {
+                    'timing': 'immediate',
+                    'callback': self.on_mqtt_connect
+                }
+            })
+        return callbacks
 
     def mqtt_publish(self, _client, mid, rc, topic, payload, qos, retain, date_time):  # pylint: disable=R0913,R0917
         """ Record the message that was handed to paho. """
@@ -652,6 +952,23 @@ class MQTTMessageTracker(user.mqttpublish.MQTTPlugin):
     def on_mqtt_publish(self, _client, _userdata, mid, _properties):
         """ Record that paho reported the message as published. """
         self.tracker.arrived(mid)
+
+    def on_mqtt_connect(self, client, _userdata, _flags, _rc, _properties):
+        """ Queue a resend after a successful connect or reconnect. """
+        if self.resend is None:
+            return
+        self.connect_count += 1
+        is_startup = self.connect_count == 1
+        if is_startup and not self.resend['on_startup']:
+            return
+        if not is_startup and not self.resend['on_reconnect']:
+            return
+        self.tracker.resend(client, self.resend, self.mqtt_dict.get('clientid'))
+
+    def on_mqtt_disconnect(self, _client, _userdata, _rc, _properties):
+        """ Queue an event that marks the messages in flight as unconfirmed. """
+        if self.tracker is not None:
+            self.tracker.disconnected(time.time())
 
     def shutdown(self):
         """ Flush the queued events. """

@@ -614,6 +614,15 @@ class PublisherBase(unittest.TestCase):
         mock_plugin_manager = mock.Mock()
         mock_publisher = mock.Mock()
 
+        mock_immediate_callback = mock.Mock()
+        mock_delay_callback = mock.Mock()
+        mock_plugin_manager.callbacks = {
+            'on_mqtt_disconnect': {
+                'immediate': {helpers.random_string(): mock_immediate_callback},
+                'delay': {helpers.random_string(): mock_delay_callback},
+            },
+        }
+
         config_dict = {
             'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
             'clientid': helpers.random_string(),
@@ -648,13 +657,19 @@ class PublisherBase(unittest.TestCase):
                 self._call_on_disconnect(SUT, 0)
                 self.assertFalse(SUT.connected)
                 self.assertIn('INFO', [call[0][0]['log_type'] for call in mock_logger_queue.put.call_args_list])
+                mock_immediate_callback.assert_called_once_with(SUT.client, None, 0, None)
+                mock_delay_callback.assert_called_once_with(SUT.client, None, 0, None)
 
                 # An unexpected disconnect is logged as ERROR.
                 mock_logger_queue.reset_mock()
+                mock_immediate_callback.reset_mock()
+                mock_delay_callback.reset_mock()
                 SUT.connected = True
                 self._call_on_disconnect(SUT, 5)
                 self.assertFalse(SUT.connected)
                 self.assertIn('ERROR', [call[0][0]['log_type'] for call in mock_logger_queue.put.call_args_list])
+                mock_immediate_callback.assert_called_once_with(SUT.client, None, 5, None)
+                mock_delay_callback.assert_called_once_with(SUT.client, None, 5, None)
 
     def test_on_message(self):
         mock_logger_queue = mock.Mock()

@@ -11,10 +11,11 @@ Currently these steps support callouts:
 
 1. on_weewx_data
 2. on_connect
-3. on_message
-4. mqtt_publish
-5. on_publish
-6. update_record
+3. on_disconnect
+4. on_message
+5. mqtt_publish
+6. on_publish
+7. update_record
 
 Each of these callouts can be called either before MQTTPublish does its processing or after.
 
@@ -41,6 +42,22 @@ MQTTPublish normalizes the parameters, so they are the same with every paho mqtt
 - flags: response flags sent by the broker
 - rc: the connection result code: 0 when the connection succeeded, the received reason code otherwise.
 - properties: the MQTT v5.0 properties received from the broker, None with the paho mqtt v1 api.
+
+### on_disconnect
+
+This is the MQTT on_disconnect callback.
+It runs when the connection is lost, or when the client disconnects during shutdown.
+It is called with the following parameters.
+MQTTPublish normalizes the parameters, so they are the same with every paho mqtt api version.
+
+- mqtt_client: the client instance for this callback
+- userdata: the private user data as set in Client() or user_data_set()
+- rc: the disconnect result code: 0 for a requested disconnect, the received reason code otherwise.
+- properties: the MQTT v5.0 properties received from the broker, None with the paho mqtt v1 api.
+  The MQTT v5.0 disconnect flags are not passed.
+
+The callback is invoked on paho's network loop thread, so it must be thread safe.
+Keep the handler short; it runs while the network loop is processing the disconnect.
 
 ### on_message
 
@@ -144,6 +161,12 @@ Here is an example `get_callbacks` method.
                 'on_mqtt_connect': {
                     'timing': 'immediate',
                     'callback': self.on_mqtt_connect
+                }
+            },
+            {
+                'on_mqtt_disconnect': {
+                    'timing': 'immediate',
+                    'callback': self.on_mqtt_disconnect
                 }
             },
             {

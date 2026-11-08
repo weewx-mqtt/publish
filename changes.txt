@@ -95,7 +95,11 @@ Enhancements:
     The topics to track are configured in a [[topics]] section, with an optional per-topic retention.
     A topic published with qos 0 is rejected with an error, because its delivery cannot be confirmed.
     A previous run's leftover 'sent' rows are marked unconfirmed at startup, and the count is logged.
+    Rows that were in flight when the connection was lost are marked unconfirmed at the disconnect.
     Unconfirmed rows are kept until unconfirmed_retention (default 0, never), so they can still be resent.
+    The optional [[resend]] section resends the failed and unconfirmed messages after the last
+    confirmed publish on each topic after a successful connect or reconnect.
+  - Added an on_disconnect plugin callback.
   - Added the mqttresend tool, which resends the messages the tracker recorded as failed or
     unconfirmed. A resend is a new row that points at the original, so the original is never
     changed, and a dry run is the default. Every unconfirmed message is considered by default,

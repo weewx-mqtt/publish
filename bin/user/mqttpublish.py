@@ -119,6 +119,10 @@ class PluginManager():
                 'immediate': {},
                 'delay': {}
             },
+            'on_mqtt_disconnect': {
+                'immediate': {},
+                'delay': {}
+            },
             'on_mqtt_message': {
                 'immediate': {},
                 'delay': {}
@@ -362,11 +366,11 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
 
         self._handle_connect_success((client, userdata, flags, rc, properties))
 
-    def on_disconnect(self, _client, _userdata, rc, _properties):
+    def on_disconnect(self, client, userdata, rc, properties):
         """ The on_disconnect callback. """
         # https://pypi.org/project/paho-mqtt/#on-disconnect
         # rc is 0 for a requested disconnect; anything else was unexpected.
-        self._handle_disconnect(rc)
+        self._handle_disconnect((client, userdata, rc, properties))
 
     def on_publish(self, client, userdata, mid, properties):
         """ The on_publish callback. """
@@ -433,6 +437,13 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
         self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, self.monitor_on_connect, None,
                                                              (f"monitor: {run_time:<12.10f} on_connect ({timing})")))
 
+    def _run_disconnect_callbacks(self, callback_args, timing):
+        """ Run the on_mqtt_disconnect plugin callbacks for one timing group. """
+        if self.plugin_manager is None:
+            return
+        for plugin_name in self.plugin_manager.callbacks['on_mqtt_disconnect'][timing]:
+            self.plugin_manager.callbacks['on_mqtt_disconnect'][timing][plugin_name](*callback_args)
+
     def _handle_connect_success(self, callback_args):
         """ The connection succeeded. Run the common processing.
             callback_args is the paho callback tuple: (client, userdata, flags, rc, properties). """
@@ -447,8 +458,9 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
 
         self.connected = True
 
-    def _handle_disconnect(self, rc):
+    def _handle_disconnect(self, callback_args):
         """ The connection was lost, or a disconnect was requested. Mark as not connected. """
+        rc = callback_args[2]
         self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, 'INFO' if int(rc) == 0 else 'ERROR', None,
                                                              f"Disconnected with result code {int(rc)}, {mqtt.error_string(rc)}"))
 
@@ -456,6 +468,9 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
         # Because that would cause the on_connect callback to be called. Instead we will just mark as not connected.
         # Paho's network loop thread handles the reconnection.
         self.connected = False
+
+        self._run_disconnect_callbacks(callback_args, 'immediate')
+        self._run_disconnect_callbacks(callback_args, 'delay')
 
     def on_message(self, client, userdata, msg):
         """ The on_message callback. """

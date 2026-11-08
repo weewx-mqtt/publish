@@ -23,7 +23,6 @@ import random
 import sys
 import threading
 import time
-import uuid
 
 # When run as a script, the 'user' package is not on the path.
 _bin_root = os.getenv('BIN_ROOT') or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -41,6 +40,12 @@ VERSION = user.mqttpublish.VERSION
 
 # The tracker table's columns and plugin section are shared with the tracker and mqttprune.
 MESSAGE_COLUMNS = user.mqttmessagetracker.MESSAGE_COLUMNS
+
+# The row helpers are shared with the tracker's automatic resend.
+_origin = user.mqttmessagetracker.origin_id
+decode_payload = user.mqttmessagetracker.decode_payload
+next_attempt = user.mqttmessagetracker.next_attempt
+insert_attempt = user.mqttmessagetracker.insert_attempt
 
 # A 'sent' row may still be in flight and an 'acked' row does not need a resend.
 RESEND_STATUSES = (user.mqttmessagetracker.STATUS_UNCONFIRMED,
@@ -97,11 +102,6 @@ def resend_config(config_dict, plugin_section=DEFAULT_PLUGIN_SECTION, data_bindi
     options = user.mqttpublish.mqtt_connection_options(
         service_dict, default_clientid=f'MQTTPublish-resend-{random.randint(1000, 9999)}')  # NOSONAR - just need a unique id
     return database_dict, table_name, options
-
-
-def _origin(row):
-    """ The id of the original message a row belongs to. """
-    return row['origin_id'] or row['id']
 
 
 def _may_be_on_the_broker(row):
@@ -206,43 +206,6 @@ def superseded(rows, statuses=None, since=DEFAULT_SINCE, topic=None, force=False
     newest = _newest_per_topic(rows)
     return [row for row in _candidates(rows, statuses, since, topic, force, time.time() if now is None else now)
             if _is_stale(row, newest)]
-
-
-def decode_payload(row):
-    """ Reconstruct the payload from its stored value and encoding. """
-    payload = row['payload']
-    if payload is None:
-        return None
-    if row['payload_encoding'] == 'hex':
-        return bytes.fromhex(payload)
-    return payload
-
-
-def next_attempt(cursor, table, origin_id):
-    """ The attempt number for the next resend of an original message. """
-    cursor.execute(f"SELECT attempt FROM {table} WHERE origin_id = ?", (origin_id,))
-    attempts = [row[0] for row in cursor if row[0] is not None]
-    return max(attempts, default=0) + 1
-
-
-# pylint: disable=too-many-arguments,too-many-positional-arguments
-def insert_attempt(connection, table, row, mid, rc, sent_ts, clientid):
-    """ Insert the row of a resend, returning its id, attempt and status. """
-    origin_id = _origin(row)
-    status = user.mqttmessagetracker.STATUS_FAILED
-    if rc == _RC_SUCCESS:
-        status = user.mqttmessagetracker.STATUS_SENT
-    row_id = uuid.uuid4().hex
-    with weedb.Transaction(connection) as cursor:
-        attempt = next_attempt(cursor, table, origin_id)
-        cursor.execute(
-            f"INSERT INTO {table} "
-            "(id, mid, dateTime, sent_ts, arrived_ts, status, unconfirmed_ts, "
-            "origin_id, attempt, clientid, topic, qos, retain, rc, payload, payload_encoding) "
-            "VALUES (?, ?, ?, ?, NULL, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (row_id, mid, row['dateTime'], sent_ts, status, origin_id, attempt, clientid,
-             row['topic'], row['qos'], row['retain'], rc, row['payload'], row['payload_encoding']))
-    return row_id, attempt, status
 
 
 def update_attempt(connection, table, row_id, status, timestamp=None):

@@ -76,6 +76,44 @@ Default is `60`.
 How long, in seconds, to wait for the tracker thread to write its queue and stop.
 Default is `10`.
 
+### resend
+
+The `[[resend]]` section controls automatic resending after a successful connection.
+It is disabled by default.
+
+```ini
+[MQTTMessageTracker]
+    [[resend]]
+        enable = true
+```
+
+#### enable
+
+Whether to resend messages after a successful connection.
+Default is `false`.
+
+#### on_startup
+
+Whether to resend after the first successful connection of the tracker.
+Default is `true`.
+
+#### on_reconnect
+
+Whether to resend after a reconnect.
+Default is `true`.
+
+#### since
+
+Only resend messages sent within the last `since` seconds.
+Set to `0` to consider every message after the last confirmed publish.
+Default is `0`.
+
+#### limit
+
+The maximum number of messages to resend per connection.
+Set to `0` to resend every message.
+Default is `0`.
+
 ### topics
 
 The `[[topics]]` section lists the topics to track.
@@ -128,7 +166,7 @@ Each message published to a tracked topic records a row.
 - `unconfirmed_ts`: when the tracker stopped waiting for the arrival, `NULL` unless the status is `unconfirmed`.
 - `origin_id`: the id of the original publish when this row is a resend, `NULL` otherwise.
 - `attempt`: the resend number when this row is a resend, `NULL` for the original publish.
-- `clientid`: the client that made a resend, `NULL` for a publish by MQTTPublish.
+- `clientid`: the client that made a resend, `NULL` for the original publish.
 - `topic`: the topic the message was published on.
 - `qos`: the quality of service level used.
 - `retain`: whether the message is retained.
@@ -157,9 +195,9 @@ availability/LWT message are not tracked.
 | `unconfirmed` | no arrival was reported before the tracker stopped waiting; `unconfirmed_ts` is set. |
 
 `sent` is transient. While the tracker is running, a row is expected to move to `acked`, or to
-`failed` when paho refuses the publish. A `sent` row is not pruned, so one whose arrival never
-arrives is kept until the tracker stops, which marks it `unconfirmed`; `unconfirmed_retention`
-then bounds it.
+`failed` when paho refuses the publish. If the connection is lost, the rows in flight are marked
+`unconfirmed`; otherwise a row whose arrival never arrives is kept until the tracker stops, which
+marks it `unconfirmed`. `unconfirmed_retention` then bounds it.
 
 `unconfirmed` does not mean the message was not delivered. It means the tracker cannot tell: paho
 never reported the arrival, and no further report can arrive. That is why it is recorded as its own
@@ -167,6 +205,9 @@ status instead of an empty `arrived_ts`.
 
 Rows are marked `unconfirmed`:
 
+- when the connection is lost and paho has not reported the arrival, with `unconfirmed_ts` set
+  to the disconnect time. No arrival can be reported for a message that was in flight when the
+  connection went away;
 - when the publishing thread stops and paho has not reported the arrival, with `unconfirmed_ts`
   set to the shutdown time. This includes messages that were delivered but whose arrival was not
   reported before the process stopped;
@@ -211,9 +252,38 @@ CREATE TABLE IF NOT EXISTS mqtt_message_tracker (
 )
 ```
 
+## Resending automatically
+
+When `[[resend]]` is enabled, the tracker resends messages after a successful connection,
+including a reconnect. It resends the messages after the last confirmed publish on each topic:
+
+- the last confirmed publish is the newest original row that is `acked`, or whose resend is
+  `acked`. A resend's own time does not move the boundary, otherwise a successful resend could
+  hide an older backlog;
+- every `failed` and `unconfirmed` row after that boundary is resent, oldest first;
+- if a topic has no confirmed publish, every `failed` and `unconfirmed` row is resent;
+- a message is resent once, even when it already has several resend attempts.
+
+The boundary is per topic. A successful publish on one topic says nothing about the delivery of
+another topic.
+
+The resend runs on the tracker's writer thread, so it does not block paho's network loop and
+does not open a second MQTT or database connection. It publishes each message and records a new
+resend row, then waits for the normal `on_publish` callback to mark it `acked`. A message that was
+in flight when the connection was lost is marked `unconfirmed` by the `on_disconnect` callback, so
+it is part of the next resend.
+
+`since` limits the age of the rows considered, and `limit` caps a run. Set `limit` to `0` to
+resend every message. A capped run resends the oldest messages first, but a later live publish
+can move the boundary past the remaining backlog; the manual tool is the way to clear an old
+backlog without that risk.
+
+Automatic resend is best-effort. A live publish that races the resend can still land after an
+older resent value; consumers are assumed to be idempotent on `dateTime`.
+
 ## Resending a message
 
-`failed` and `unconfirmed` rows can be resent with `bin/user/mqttresend.py`.
+`failed` and `unconfirmed` rows can also be resent with `bin/user/mqttresend.py`.
 It reads the tracker table and publishes through its own MQTT client; MQTTPublish is not
 involved and does not record the resend as a new publish.
 

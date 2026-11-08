@@ -46,6 +46,7 @@ def make_publisher(port):
     }
     plugin_manager = types.SimpleNamespace(callbacks={
         'on_mqtt_connect': {'immediate': {}, 'delay': {}},
+        'on_mqtt_disconnect': {'immediate': {}, 'delay': {}},
         'on_mqtt_message': {'immediate': {}, 'delay': {}},
         'on_mqtt_publish': {'immediate': {}, 'delay': {}},
         'mqtt_publish': {'immediate': {}, 'delay': {}},
