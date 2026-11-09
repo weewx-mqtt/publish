@@ -2,16 +2,14 @@
 #
 #    See the file LICENSE.txt for your full rights.
 #
-""" Resend the MQTT messages the message tracker recorded.
+""" Operate on the MQTTMessageTracker database.
 
-    The tracker records what paho saw, which is not the same as what the broker
-    received. When that leaves a message 'failed' or 'unconfirmed', an operator
-    can resend it with this tool.
+    mqtttracker resend  - republish failed or unconfirmed messages
+    mqtttracker prune   - delete old rows before the retention policy does
+    mqtttracker status  - show failed and unconfirmed messages and their outcome
 
-    A resend is a new row in the tracker table that points at the original with
-    'origin_id' and 'attempt'. The original row is never changed.
-
-    The tool is a dry run unless --publish is given.
+    resend and prune are dry runs unless --publish or --delete is given.
+    The tracker options are read from the WeeWX config file.
 """
 
 # pylint: disable=wrong-import-order
@@ -30,7 +28,7 @@ if _bin_root not in sys.path:
     sys.path.append(_bin_root)
 
 import weedb  # pylint: disable=wrong-import-position
-from weeutil.weeutil import to_bool  # pylint: disable=wrong-import-position
+from weeutil.weeutil import to_bool, to_int  # pylint: disable=wrong-import-position
 
 import user.mqttcommon  # pylint: disable=wrong-import-position
 import user.mqttpublish  # pylint: disable=wrong-import-position
@@ -38,18 +36,17 @@ import user.mqttmessagetracker  # pylint: disable=wrong-import-position
 
 VERSION = user.mqttpublish.VERSION
 
-# The tracker table's columns and plugin section are shared with the tracker and mqttprune.
+# The row helpers are shared with the tracker and the tools.
 MESSAGE_COLUMNS = user.mqttmessagetracker.MESSAGE_COLUMNS
-
-# The row helpers are shared with the tracker's automatic resend.
 _origin = user.mqttmessagetracker.origin_id
 decode_payload = user.mqttmessagetracker.decode_payload
 next_attempt = user.mqttmessagetracker.next_attempt
 insert_attempt = user.mqttmessagetracker.insert_attempt
 
-# A 'sent' row may still be in flight and an 'confirmed' row does not need a resend.
+# A 'sent' row may still be in flight, and a 'confirmed' row needs no resend or prune.
 RESEND_STATUSES = (user.mqttmessagetracker.STATUS_UNCONFIRMED,
                    user.mqttmessagetracker.STATUS_FAILED)
+PRUNE_STATUSES = RESEND_STATUSES
 
 DEFAULT_STATUS = user.mqttmessagetracker.STATUS_UNCONFIRMED
 DEFAULT_PLUGIN_SECTION = user.mqttmessagetracker.DEFAULT_PLUGIN_SECTION
@@ -58,6 +55,9 @@ DEFAULT_SINCE = None
 DEFAULT_LIMIT = 100
 DEFAULT_ACK_TIMEOUT = 10
 DEFAULT_CONNECT_TIMEOUT = 10
+
+# The number of rows deleted in one transaction.
+_PRUNE_BATCH_SIZE = 100
 
 # What paho returns when it accepted the publish.
 _RC_SUCCESS = 0
@@ -77,6 +77,14 @@ class ResendConnectError(ResendError):
     """ The tool could not connect to the broker, nothing was published. """
 
 
+class PruneError(Exception):
+    """ A prune failure. """
+
+
+class StatusError(Exception):
+    """ A status failure. """
+
+
 def read_config(config_file):
     """ Read the WeeWX config file. """
     try:
@@ -84,6 +92,10 @@ def read_config(config_file):
     except user.mqttmessagetracker.TrackerConfigError as exception:
         raise ResendConfigError(str(exception)) from exception
 
+
+# ---------------------------------------------------------------------------
+# resend
+# ---------------------------------------------------------------------------
 
 def resend_config(config_dict, plugin_section=DEFAULT_PLUGIN_SECTION, data_binding=None, table=None,
                   clientid=None):
@@ -374,24 +386,276 @@ def resend(database_dict, table, options, *, statuses=None, since=DEFAULT_SINCE,
     return selected, outcomes
 
 
-def _statuses(value):
-    """ Parse the statuses a message can be resent from. """
+# ---------------------------------------------------------------------------
+# prune
+# ---------------------------------------------------------------------------
+
+def _retention_for(row, topic_retention, default_retention, older_than):
+    """ The age a row must exceed to be pruned. """
+    if older_than is not None:
+        return older_than
+    return topic_retention.get(row['topic'], default_retention)
+
+
+def _is_old_enough(row, retention, now):
+    """ Whether the row is older than its retention. A retention of 0 keeps it forever. """
+    if retention <= 0:
+        return False
+    return row['sent_ts'] < now - retention
+
+
+# pylint: disable=too-many-arguments,too-many-positional-arguments
+def _wanted(row, statuses, topic, retention, now, select_all=False):
+    """ Whether the row passes the filters. """
+    if row['status'] not in statuses:
+        return False
+    if topic and not fnmatch.fnmatchcase(row['topic'], topic):
+        return False
+    if select_all:
+        return True
+    return _is_old_enough(row, retention, now)
+
+
+# pylint: disable=too-many-arguments,too-many-positional-arguments
+def select_rows(rows, statuses=None, topic_retention=None, default_retention=None,
+                older_than=None, topic=None, limit=DEFAULT_LIMIT, now=None):
+    """ Select the rows to delete, oldest first.
+
+        By default a row is selected when it is older than its topic's retention.
+        An explicit 'older_than' overrides the configured retention; 'older_than=0'
+        selects every matching row, unlike a configured retention of 0. """
+    statuses = tuple(statuses or (DEFAULT_STATUS,))
+    topic_retention = topic_retention or {}
+    if default_retention is None:
+        default_retention = user.mqttmessagetracker.DEFAULT_ERROR_RETENTION
+    now = time.time() if now is None else now
+
+    selected = [row for row in rows
+                if _wanted(row, statuses, topic,
+                           _retention_for(row, topic_retention, default_retention, older_than),
+                           now, older_than == 0)]
+    selected.sort(key=lambda row: (row['sent_ts'], row['id']))
+    if limit is not None and limit > 0:
+        selected = selected[:limit]
+    return selected
+
+
+def delete_rows(connection, table, rows):
+    """ Delete the selected rows, in short batches.
+
+        The status is part of the delete, so a row that changed after it was
+        selected is left alone. """
+    deleted = 0
+    for start in range(0, len(rows), _PRUNE_BATCH_SIZE):
+        chunk = rows[start:start + _PRUNE_BATCH_SIZE]
+        with weedb.Transaction(connection) as cursor:
+            for row in chunk:
+                cursor.execute(f"DELETE FROM {table} WHERE id = ? AND status = ?",
+                               (row['id'], row['status']))
+                cursor.execute(f"SELECT COUNT(*) FROM {table} WHERE id = ?", (row['id'],))
+                if cursor.fetchone()[0] == 0:
+                    deleted += 1
+    return deleted
+
+
+def prune_config(config_dict, plugin_section=DEFAULT_PLUGIN_SECTION, data_binding=None, table=None):
+    """ Resolve the database, table and retention options to prune by. """
+    try:
+        plugin_dict, database_dict, table_name = user.mqttmessagetracker.tool_config(
+            config_dict, plugin_section, data_binding, table)
+    except user.mqttmessagetracker.TrackerConfigError as exception:
+        raise PruneError(str(exception)) from exception
+
+    default_retention = user.mqttmessagetracker.DEFAULT_ERROR_RETENTION
+    retention = to_int(plugin_dict.get('error_retention', default_retention))
+    if retention is None:
+        retention = default_retention
+
+    topic_dicts = plugin_dict.get('topics')
+    topic_retention = {}
+    if topic_dicts:
+        topic_retention = user.mqttmessagetracker.topic_error_retentions(topic_dicts, retention)
+    return database_dict, table_name, topic_retention, retention
+
+
+def prune(config_dict, options, out=None):
+    """ Select the rows and, when asked to, delete them. """
+    out = sys.stdout if out is None else out
+    database_dict, table, topic_retention, retention = prune_config(
+        config_dict, options.plugin_section, options.data_binding, options.table)
+
+    try:
+        connection = weedb.connect(database_dict)
+    except weedb.DatabaseError as exception:
+        raise PruneError(f"Unable to open the message tracker database: {exception}") from exception
+
+    try:
+        rows = user.mqttmessagetracker.fetch_rows(connection, table)
+        selected = select_rows(rows, statuses=options.status, topic_retention=topic_retention,
+                               default_retention=retention, older_than=options.older_than,
+                               topic=options.topic, limit=options.limit)
+        user.mqttmessagetracker.print_plan(selected, out)
+        if not options.delete or not selected:
+            return selected
+        deleted = delete_rows(connection, table, selected)
+    except weedb.DatabaseError as exception:
+        raise PruneError(f"Unable to use the message tracker table {table}: {exception}") from exception
+    finally:
+        connection.close()
+
+    print(f"Deleted {deleted} row(s).", file=out)
+    return selected
+
+
+# ---------------------------------------------------------------------------
+# status
+# ---------------------------------------------------------------------------
+
+# Failed and unconfirmed originals, with how many resends each has and how many were confirmed.
+_STATUS_SUMMARY_SQL = """
+SELECT o.id, o.topic, o.status, o.sent_ts,
+       COUNT(r.id) AS attempts,
+       COALESCE(SUM(CASE WHEN r.status = 'confirmed' THEN 1 ELSE 0 END), 0) AS confirmed_attempts
+FROM {table} AS o
+LEFT JOIN {table} AS r ON r.origin_id = o.id
+WHERE o.status IN ('failed', 'unconfirmed')
+GROUP BY o.id, o.topic, o.status, o.sent_ts
+ORDER BY o.sent_ts
+"""
+
+_STATUS_MESSAGE_SQL = """
+SELECT {columns}
+FROM {table}
+WHERE id = ? OR origin_id = ?
+ORDER BY sent_ts
+"""
+
+
+def _rows(connection, statement, args=()):
+    """ Run a query and return its rows. """
+    cursor = connection.cursor()
+    try:
+        cursor.execute(statement, args)
+        return cursor.fetchall()
+    finally:
+        cursor.close()
+
+
+def status_summary(connection, table, unresolved=False, topic=None, limit=DEFAULT_LIMIT):
+    """ The failed and unconfirmed originals, with their resend outcome. """
+    rows = _rows(connection, _STATUS_SUMMARY_SQL.format(table=table))
+    if unresolved:
+        rows = [row for row in rows if row[5] == 0]
+    if topic:
+        rows = [row for row in rows if fnmatch.fnmatchcase(row[1], topic)]
+    if limit is not None and limit > 0:
+        rows = rows[:limit]
+    return rows
+
+
+def status_message(connection, table, message_id):
+    """ The original row for a message id, followed by its resends. """
+    rows = _rows(connection, _STATUS_MESSAGE_SQL.format(
+        columns=', '.join(MESSAGE_COLUMNS), table=table), (message_id, message_id))
+    return [dict(zip(MESSAGE_COLUMNS, row)) for row in rows]
+
+
+def _sent_at(timestamp):
+    """ A sent_ts as a readable local time. """
+    return time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(timestamp))
+
+
+def _outcome(attempts, confirmed_attempts):
+    """ A short description of what the resends show. """
+    if confirmed_attempts > 0:
+        return 'sent'
+    if attempts > 0:
+        return 'pending'
+    return 'not resent'
+
+
+def print_status_summary(rows, out):
+    """ Print the failed and unconfirmed messages as a table. """
+    if not rows:
+        print("No failed or unconfirmed messages.", file=out)
+        return
+    print(f"{len(rows)} failed or unconfirmed message(s):", file=out)
+    print(f"  {'ID':<32} {'TOPIC':<30} {'ORIGINAL':<11} {'SENT':<19} "
+          f"{'ATTEMPTS':>8} {'CONFIRMED':>9}  OUTCOME", file=out)
+    for row_id, topic, status, sent_ts, attempts, confirmed_attempts in rows:
+        print(f"  {row_id:<32} {topic[:30]:<30} {status:<11} {_sent_at(sent_ts):<19} "
+              f"{attempts:>8} {confirmed_attempts:>9}  {_outcome(attempts, confirmed_attempts)}",
+              file=out)
+
+
+def print_status_message(rows, message_id, out):
+    """ Print one message and its resends. """
+    if not rows:
+        print(f"No rows found for message {message_id}.", file=out)
+        return False
+    print(f"Rows for message {message_id}:", file=out)
+    for row in rows:
+        line = user.mqttmessagetracker.describe_row(row)
+        if row['origin_id']:
+            line = f"{line} attempt={row['attempt']} origin={row['origin_id']}"
+        print(f"  {line}", file=out)
+    return True
+
+
+def show_status(config_dict, options, out=None):
+    """ Show failed and unconfirmed messages and their outcome. """
+    out = sys.stdout if out is None else out
+    try:
+        _, database_dict, table = user.mqttmessagetracker.tool_config(
+            config_dict, options.plugin_section, options.data_binding, options.table)
+    except user.mqttmessagetracker.TrackerConfigError as exception:
+        raise StatusError(str(exception)) from exception
+
+    try:
+        connection = weedb.connect(database_dict)
+    except weedb.DatabaseError as exception:
+        raise StatusError(f"Unable to open the message tracker database: {exception}") from exception
+
+    try:
+        if options.message:
+            rows = status_message(connection, table, options.message)
+            return print_status_message(rows, options.message, out)
+        rows = status_summary(connection, table, unresolved=options.unresolved,
+                              topic=options.topic, limit=options.limit)
+        print_status_summary(rows, out)
+        return True
+    except weedb.DatabaseError as exception:
+        raise StatusError(f"Unable to use the message tracker table {table}: {exception}") from exception
+    finally:
+        connection.close()
+
+
+# ---------------------------------------------------------------------------
+# command line
+# ---------------------------------------------------------------------------
+
+def _status_list(value, allowed):
+    """ Parse a comma-separated list of statuses. """
     statuses = [status.strip() for status in value.split(',') if status.strip()]
-    invalid = [status for status in statuses if status not in RESEND_STATUSES]
+    invalid = [status for status in statuses if status not in allowed]
     if invalid:
         raise argparse.ArgumentTypeError(
-            f"invalid status(es) {', '.join(invalid)}, choose from {', '.join(RESEND_STATUSES)}")
+            f"invalid status(es) {', '.join(invalid)}, choose from {', '.join(allowed)}")
     return statuses
 
 
-def build_parser():
-    """ The command line options. """
-    parser = argparse.ArgumentParser(
-        description="Resend the MQTT messages the message tracker recorded.",
-        epilog="Without --publish the selection is only printed, nothing is sent.")
-    parser.add_argument('config_file', help="The WeeWX config file, for example /etc/weewx/weewx.conf.")
-    parser.add_argument('--version', action='version', version=f'%(prog)s {VERSION}')
+def _resend_statuses(value):
+    """ Parse the statuses a message can be resent from. """
+    return _status_list(value, RESEND_STATUSES)
 
+
+def _prune_statuses(value):
+    """ Parse the statuses a row can be pruned from. """
+    return _status_list(value, PRUNE_STATUSES)
+
+
+def _add_tracker_options(parser):
+    """ The options that select the tracker config, database and table. """
     parser.add_argument('--plugin-section', default=DEFAULT_PLUGIN_SECTION,
                         help=(f"The config section of the tracker plugin. "
                               f"Default is {DEFAULT_PLUGIN_SECTION}."))
@@ -399,10 +663,18 @@ def build_parser():
                         help="Override the tracker's data_binding option.")
     parser.add_argument('--table', default=None,
                         help="Override the tracker's table option.")
+
+
+def _add_resend_parser(subparsers):
+    """ The resend subcommand. """
+    parser = subparsers.add_parser(
+        'resend',
+        description="Resend the MQTT messages the message tracker recorded.",
+        epilog="Without --publish the selection is only printed, nothing is sent.")
+    _add_tracker_options(parser)
     parser.add_argument('--clientid', default=None,
                         help="The clientid to connect with. Default is a unique MQTTPublish-resend id.")
-
-    parser.add_argument('--status', type=_statuses, default=[DEFAULT_STATUS], metavar='STATUS',
+    parser.add_argument('--status', type=_resend_statuses, default=[DEFAULT_STATUS], metavar='STATUS',
                         help=(f"The statuses to resend, comma separated. "
                               f"Default is {DEFAULT_STATUS}. Choose from "
                               f"{', '.join(RESEND_STATUSES)}."))
@@ -419,7 +691,6 @@ def build_parser():
                         help="Resend messages that already have a confirmed resend.")
     parser.add_argument('--publish', action='store_true',
                         help="Publish the selected messages. Without it nothing is sent.")
-
     parser.add_argument('--ack-timeout', type=float, default=DEFAULT_ACK_TIMEOUT, metavar='SECONDS',
                         help=f"How long to wait for each publish to be acknowledged. "
                              f"Default is {DEFAULT_ACK_TIMEOUT}.")
@@ -428,12 +699,65 @@ def build_parser():
     return parser
 
 
-def run(options, out=None, err=None):
-    """ Run the tool, returning the exit code. """
-    out = sys.stdout if out is None else out
-    err = sys.stderr if err is None else err
+def _add_prune_parser(subparsers):
+    """ The prune subcommand. """
+    parser = subparsers.add_parser(
+        'prune',
+        description="Delete message tracker rows before the retention policy does.",
+        epilog="Without --delete the selection is only printed, nothing is removed.")
+    _add_tracker_options(parser)
+    parser.add_argument('--status', type=_prune_statuses, default=[DEFAULT_STATUS], metavar='STATUS',
+                        help=(f"The statuses to prune, comma separated. "
+                              f"Default is {DEFAULT_STATUS}. Choose from "
+                              f"{', '.join(PRUNE_STATUSES)}."))
+    parser.add_argument('--older-than', type=int, default=None, metavar='SECONDS',
+                        help="Only prune rows older than SECONDS. Default is the topic's error_retention.")
+    parser.add_argument('--topic', default=None, metavar='GLOB',
+                        help="Only prune topics that match the glob, for example 'weather/outTemp_*'.")
+    parser.add_argument('--limit', type=int, default=DEFAULT_LIMIT, metavar='COUNT',
+                        help=f"The maximum number of rows to prune. Default is {DEFAULT_LIMIT}.")
+    parser.add_argument('--delete', action='store_true',
+                        help="Delete the selected rows. Without it nothing is removed.")
+    return parser
+
+
+def _add_status_parser(subparsers):
+    """ The status subcommand. """
+    parser = subparsers.add_parser(
+        'status',
+        description="Show failed and unconfirmed messages and their resend outcome.")
+    _add_tracker_options(parser)
+    parser.add_argument('--message', '--id', dest='message', default=None, metavar='ID',
+                        help="Show one message and its resends, using the id from the log.")
+    parser.add_argument('--unresolved', action='store_true',
+                        help="Only messages with no confirmed resend.")
+    parser.add_argument('--topic', default=None, metavar='GLOB',
+                        help="Only messages whose topic matches the glob.")
+    parser.add_argument('--limit', type=int, default=DEFAULT_LIMIT, metavar='COUNT',
+                        help=f"The maximum number of messages to show. Default is {DEFAULT_LIMIT}.")
+    return parser
+
+
+def build_parser():
+    """ The command line parser. """
+    parser = argparse.ArgumentParser(
+        prog='mqtttracker',
+        description="Operate on the MQTTMessageTracker database.")
+    parser.add_argument('--config', required=True,
+                        help="The WeeWX config file, for example /etc/weewx/weewx.conf.")
+    parser.add_argument('--version', action='version', version=f'%(prog)s {VERSION}')
+
+    subparsers = parser.add_subparsers(dest='command', required=True, title='commands')
+    _add_resend_parser(subparsers)
+    _add_prune_parser(subparsers)
+    _add_status_parser(subparsers)
+    return parser
+
+
+def _run_resend(options, out, err):
+    """ Run the resend command. """
     try:
-        config_dict = read_config(options.config_file)
+        config_dict = read_config(options.config)
         database_dict, table, mqtt_options = resend_config(
             config_dict, options.plugin_section, options.data_binding, options.table, options.clientid)
         _, outcomes = resend(
@@ -442,16 +766,49 @@ def run(options, out=None, err=None):
             newest_per_topic=not options.all, force=options.force, dry_run=not options.publish,
             ack_timeout=options.ack_timeout, connect_timeout=options.connect_timeout)
     except ResendConnectError as exception:
-        print(f"mqttresend: {exception}", file=err)
+        print(f"mqtttracker resend: {exception}", file=err)
         return 1
     except ResendConfigError as exception:
-        print(f"mqttresend: {exception}", file=err)
+        print(f"mqtttracker resend: {exception}", file=err)
         return 2
 
     if not outcomes:
         return 0
     confirmed = all(outcome.status == user.mqttmessagetracker.STATUS_CONFIRMED for outcome in outcomes)
     return 0 if confirmed else 1
+
+
+def _run_prune(options, out, err):
+    """ Run the prune command. """
+    try:
+        config_dict = user.mqttmessagetracker.read_config(options.config)
+        prune(config_dict, options, out)
+    except (user.mqttmessagetracker.TrackerConfigError, PruneError) as exception:
+        print(f"mqtttracker prune: {exception}", file=err)
+        return 2
+    return 0
+
+
+def _run_status(options, out, err):
+    """ Run the status command. """
+    try:
+        config_dict = user.mqttmessagetracker.read_config(options.config)
+        found = show_status(config_dict, options, out)
+    except (user.mqttmessagetracker.TrackerConfigError, StatusError) as exception:
+        print(f"mqtttracker status: {exception}", file=err)
+        return 2
+    return 0 if found else 1
+
+
+def run(options, out=None, err=None):
+    """ Run a command, returning the exit code. """
+    out = sys.stdout if out is None else out
+    err = sys.stderr if err is None else err
+    if options.command == 'resend':
+        return _run_resend(options, out, err)
+    if options.command == 'prune':
+        return _run_prune(options, out, err)
+    return _run_status(options, out, err)
 
 
 def main(argv=None):

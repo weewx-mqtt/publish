@@ -2,7 +2,7 @@
 title: QoS in detail
 parent: MQTTMessageTracker
 ancestor: MQTTMessageTracker
-nav_order: 4
+nav_order: 5
 ---
 {% include messagetracker_warning.html %}
 

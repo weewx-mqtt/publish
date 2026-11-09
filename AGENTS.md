@@ -24,9 +24,8 @@ discovery, aggregate values, archive values). Requires WeeWX 5.x and paho-mqtt 1
 - `bin/user/mqttmessagetracker.py` — plugin that records published messages in a separate
   WeeWX database. Uses the `mqtt_publish` (delay) and `on_mqtt_publish` callbacks, and the
   optional plugin `shutdown` to flush its writer thread.
-- `bin/user/mqttresend.py` — CLI that republishes the tracker's `failed`/`unconfirmed` rows;
-  `bin/user/mqttprune.py` — CLI that applies the tracker's retention policy. Neither is loaded
-  by WeeWX; both are run directly (see `docs/plugins/messagetracker/`).
+- `bin/user/mqtttracker.py` — the tracker's CLI with `resend`, `prune` and `status`
+  subcommands, run directly (see `docs/plugins/messagetracker/`). Never loaded by WeeWX.
 - `install.py` — WeeWX `ExtensionInstaller`; the `MQTTPUBLISH_CONFIG` string is the template
   inserted into `weewx.conf`.
 - `docs/` — Jekyll site (GitHub Pages, baseurl `/publish`); the user-facing option reference.
@@ -82,7 +81,7 @@ pytest bin/user/tests/integ
 # AND the tests with .pylintrc-tests, and fails the build on findings. `verify.sh` runs both.
 pylint ./bin/user/mqttpublish.py ./bin/user/mqttarchivevalues.py ./bin/user/mqttconfigha.py \
     ./bin/user/mqttaggregatevalues.py ./bin/user/mqtthaconfig.py ./bin/user/mqttcommon.py \
-    ./bin/user/mqttmessagetracker.py ./bin/user/mqttresend.py ./bin/user/mqttprune.py -r n
+    ./bin/user/mqttmessagetracker.py ./bin/user/mqtttracker.py -r n
 pylint ./bin/user/tests -r n --rcfile .pylintrc-tests
 
 # Coverage
@@ -202,8 +201,8 @@ See `docs/plugin-development/` for parameter meanings.
 - The master matrix covers Python 3.9.13–3.14 and WeeWX 5.0.0 / 5.5.2 / branch-master /
   branch-development — so code must stay compatible with Python 3.9 syntax.
 - **CI lint covers every module and the tests, and fails the build**: the workflows pass
-  `lint-paths` with all module paths (including `mqttmessagetracker.py`, `mqttresend.py` and
-  `mqttprune.py`), the reusable workflow lints `bin/user/tests` with `.pylintrc-tests`, and
+  `lint-paths` with all module paths (including `mqttmessagetracker.py` and `mqtttracker.py`),
+  the reusable workflow lints `bin/user/tests` with `.pylintrc-tests`, and
   `lint-fail` defaults to true, so any pylint or flake8 finding turns the job red. Run
   `verify.sh` before committing.
 

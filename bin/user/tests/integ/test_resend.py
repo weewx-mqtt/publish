@@ -17,7 +17,7 @@ import weedb
 from integhelpers import BROKER_HOST, MosquittoBroker, make_observer, random_string, wait_for
 
 import user.mqttmessagetracker
-import user.mqttresend
+import user.mqtttracker
 
 TABLE = 'mqtt_message_tracker'
 TOPIC = 'weewx/integ/resend'
@@ -70,8 +70,8 @@ class TestResend(unittest.TestCase):
     def rows(self):
         cursor = self.connection.cursor()
         try:
-            cursor.execute(f"SELECT {', '.join(user.mqttresend.MESSAGE_COLUMNS)} FROM {TABLE}")
-            return [dict(zip(user.mqttresend.MESSAGE_COLUMNS, row)) for row in cursor]
+            cursor.execute(f"SELECT {', '.join(user.mqtttracker.MESSAGE_COLUMNS)} FROM {TABLE}")
+            return [dict(zip(user.mqtttracker.MESSAGE_COLUMNS, row)) for row in cursor]
         finally:
             cursor.close()
 
@@ -86,7 +86,7 @@ class TestResend(unittest.TestCase):
         second = self.insert('second', time.time() + 0.001)
         received = self.observe()
 
-        selected, outcomes = user.mqttresend.resend(
+        selected, outcomes = user.mqtttracker.resend(
             self.database_dict, TABLE, self.options, since=0, newest_per_topic=False,
             dry_run=False, ack_timeout=10, out=io.StringIO())
 
@@ -116,7 +116,7 @@ class TestResend(unittest.TestCase):
         newest = self.insert('newer', time.time() + 0.001)
         received = self.observe()
 
-        selected, outcomes = user.mqttresend.resend(
+        selected, outcomes = user.mqtttracker.resend(
             self.database_dict, TABLE, self.options, since=0,
             dry_run=False, ack_timeout=10, out=io.StringIO())
 

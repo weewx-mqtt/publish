@@ -7,11 +7,11 @@ nav_order: 2
 {% include messagetracker_warning.html %}
 
 A message that paho refused, or whose acknowledgement was never observed, can be published again.
-The tracker can do it automatically after a connection, or you can run `mqttresend.py` yourself.
+The tracker can do it automatically after a connection, or you can run `mqtttracker resend` yourself.
 
 ## What gets resent
 
-Both automatic resend and `mqttresend.py` start from the tracker's `failed` and `unconfirmed`
+Both automatic resend and `mqtttracker resend` start from the tracker's `failed` and `unconfirmed`
 rows. Automatic resend applies these rules:
 
 - the last confirmed publish on a topic is the newest original row that is `confirmed`, or whose
@@ -84,7 +84,7 @@ The maximum number of messages to resend per connection.
 Default is `0`, which resends every selected message.
 
 A capped run resends the oldest messages first. A later live publish can move the boundary past
-the remaining backlog, so use `mqttresend.py` to clear an old backlog without that risk.
+the remaining backlog, so use `mqtttracker resend` to clear an old backlog without that risk.
 
 The full option and default reference is in
 [Configuration](../configuration/resend/index.md).
@@ -99,24 +99,28 @@ Automatic resend is best-effort. A live publish that races the resend can still 
 older resent value; consumers are assumed to be idempotent on `dateTime`.
 See [QoS and duplicate delivery](../index.md#qos-and-duplicate-delivery).
 
-## Resending with mqttresend.py
+## Resending with mqtttracker resend
 
-`failed` and `unconfirmed` rows can also be resent with `bin/user/mqttresend.py`.
+`failed` and `unconfirmed` rows can also be resent with `bin/user/mqtttracker.py resend`.
 It reads the tracker table and publishes through its own MQTT client; MQTTPublish is not
 involved and does not record the resend as a new publish.
+
+`mqtttracker` is one tool with three subcommands: `resend`, `prune` and `status`. The config file
+is a global `--config` option, so it comes before the subcommand.
 
 The tool is a dry run unless `--publish` is given:
 
 ```shell
-python /usr/share/weewx/bin/user/mqttresend.py /etc/weewx/weewx.conf
-python /usr/share/weewx/bin/user/mqttresend.py /etc/weewx/weewx.conf --publish
+python /usr/share/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf resend
+python /usr/share/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf resend --publish
 ```
 
 The tool imports WeeWX, so run it with the Python that WeeWX uses and with WeeWX on the path.
 A package install already has it there. For a source install, add its `src` directory:
 
 ```shell
-PYTHONPATH=~/weewx/src python ~/weewx-data/bin/user/mqttresend.py ~/weewx-data/weewx.conf
+PYTHONPATH=~/weewx/src python ~/weewx-data/bin/user/mqtttracker.py \
+    --config ~/weewx-data/weewx.conf resend
 ```
 
 ### What the tool selects
@@ -148,7 +152,7 @@ Resend is not delivery: it cannot undo an earlier loss, and it may publish a dup
 It assumes the consumer is idempotent on `dateTime`, which is true for InfluxDB and typical
 time-series stores.
 
-## mqttresend.py options
+## resend options
 
 The first argument is the WeeWX config file. The rest are options.
 
@@ -166,7 +170,7 @@ Use `--status failed` to resend only failed publishes, or `--status failed,uncon
 `sent` may still be in flight and `confirmed` does not need a resend, so both are refused.
 
 ```shell
-python /usr/share/weewx/bin/user/mqttresend.py /etc/weewx/weewx.conf \
+python /usr/share/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf resend \
     --status failed,unconfirmed --publish
 ```
 
@@ -190,7 +194,7 @@ The selection is resent oldest first.
 Only resend topics that match the glob.
 
 ```shell
-python /usr/share/weewx/bin/user/mqttresend.py /etc/weewx/weewx.conf \
+python /usr/share/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf resend \
     --topic 'weather/outTemp_*' --publish
 ```
 

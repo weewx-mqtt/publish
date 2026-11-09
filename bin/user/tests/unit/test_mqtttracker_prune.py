@@ -20,7 +20,7 @@ import weedb
 import helpers
 
 import user.mqttmessagetracker
-import user.mqttprune
+import user.mqtttracker
 
 TABLE = 'mqtt_message_tracker'
 STATUS = user.mqttmessagetracker
@@ -64,7 +64,7 @@ class TestSelectRows(unittest.TestCase):
         rows = [make_row(sent_ts=100.0),
                 make_row(sent_ts=100.0, status=STATUS.STATUS_FAILED)]
 
-        selected = user.mqttprune.select_rows(rows, default_retention=100, now=1000)
+        selected = user.mqtttracker.select_rows(rows, default_retention=100, now=1000)
 
         self.assertEqual([row['status'] for row in selected], [STATUS.STATUS_UNCONFIRMED])
 
@@ -72,7 +72,7 @@ class TestSelectRows(unittest.TestCase):
         rows = [make_row(sent_ts=100.0),
                 make_row(sent_ts=100.0, status=STATUS.STATUS_FAILED)]
 
-        selected = user.mqttprune.select_rows(
+        selected = user.mqtttracker.select_rows(
             rows, statuses=[STATUS.STATUS_FAILED], default_retention=100, now=1000)
 
         self.assertEqual([row['status'] for row in selected], [STATUS.STATUS_FAILED])
@@ -81,7 +81,7 @@ class TestSelectRows(unittest.TestCase):
         rows = [make_row(sent_ts=100.0, status=STATUS.STATUS_SENT),
                 make_row(sent_ts=100.0, status=STATUS.STATUS_CONFIRMED)]
 
-        selected = user.mqttprune.select_rows(rows, default_retention=100, now=1000)
+        selected = user.mqtttracker.select_rows(rows, default_retention=100, now=1000)
 
         self.assertEqual(selected, [])
 
@@ -89,7 +89,7 @@ class TestSelectRows(unittest.TestCase):
         rows = [make_row(sent_ts=925.0, topic='default'),
                 make_row(sent_ts=925.0, topic='short')]
 
-        selected = user.mqttprune.select_rows(
+        selected = user.mqtttracker.select_rows(
             rows, topic_retention={'short': 50}, default_retention=100, now=1000)
 
         self.assertEqual([row['topic'] for row in selected], ['short'])
@@ -97,7 +97,7 @@ class TestSelectRows(unittest.TestCase):
     def test_an_unlisted_topic_uses_the_default_retention(self):
         rows = [make_row(sent_ts=800.0, topic='unlisted')]
 
-        selected = user.mqttprune.select_rows(
+        selected = user.mqtttracker.select_rows(
             rows, topic_retention={'other': 50}, default_retention=100, now=1000)
 
         self.assertEqual([row['topic'] for row in selected], ['unlisted'])
@@ -105,7 +105,7 @@ class TestSelectRows(unittest.TestCase):
     def test_a_retention_of_zero_keeps_the_topic(self):
         rows = [make_row(sent_ts=1.0, topic='keep')]
 
-        selected = user.mqttprune.select_rows(
+        selected = user.mqtttracker.select_rows(
             rows, topic_retention={'keep': 0}, default_retention=100, now=1000)
 
         self.assertEqual(selected, [])
@@ -113,7 +113,7 @@ class TestSelectRows(unittest.TestCase):
     def test_older_than_overrides_the_configured_retention(self):
         rows = [make_row(sent_ts=500.0, topic='keep')]
 
-        selected = user.mqttprune.select_rows(
+        selected = user.mqtttracker.select_rows(
             rows, topic_retention={'keep': 0}, default_retention=100, older_than=100, now=1000)
 
         self.assertEqual([row['topic'] for row in selected], ['keep'])
@@ -123,7 +123,7 @@ class TestSelectRows(unittest.TestCase):
                 make_row(sent_ts=999.0, topic='keep', status=STATUS.STATUS_FAILED),
                 make_row(sent_ts=999.0, status=STATUS.STATUS_SENT)]
 
-        selected = user.mqttprune.select_rows(
+        selected = user.mqtttracker.select_rows(
             rows, statuses=[STATUS.STATUS_UNCONFIRMED, STATUS.STATUS_FAILED],
             topic_retention={'keep': 0}, default_retention=0, older_than=0, now=1000)
 
@@ -134,7 +134,7 @@ class TestSelectRows(unittest.TestCase):
         rows = [make_row(sent_ts=100.0, topic='weather/outTemp_F'),
                 make_row(sent_ts=100.0, topic='weather/outHumidity')]
 
-        selected = user.mqttprune.select_rows(
+        selected = user.mqtttracker.select_rows(
             rows, topic='weather/outTemp*', default_retention=100, now=1000)
 
         self.assertEqual([row['topic'] for row in selected], ['weather/outTemp_F'])
@@ -142,14 +142,14 @@ class TestSelectRows(unittest.TestCase):
     def test_limit_keeps_the_oldest(self):
         rows = [make_row(sent_ts=float(index), topic=f'weather/{index}') for index in range(1, 6)]
 
-        selected = user.mqttprune.select_rows(rows, default_retention=100, limit=2, now=1000)
+        selected = user.mqtttracker.select_rows(rows, default_retention=100, limit=2, now=1000)
 
         self.assertEqual([row['sent_ts'] for row in selected], [1.0, 2.0])
 
     def test_zero_limit_selects_everything(self):
         rows = [make_row(sent_ts=float(index), topic=f'weather/{index}') for index in range(1, 4)]
 
-        selected = user.mqttprune.select_rows(rows, default_retention=100, limit=0, now=1000)
+        selected = user.mqtttracker.select_rows(rows, default_retention=100, limit=0, now=1000)
 
         self.assertEqual(len(selected), 3)
 
@@ -192,7 +192,7 @@ class DatabaseTestCase(unittest.TestCase):
             cursor.close()
 
     def options(self, *args):
-        return user.mqttprune.build_parser().parse_args(['weewx.conf', *args])
+        return user.mqtttracker.build_parser().parse_args(['--config', 'weewx.conf', 'prune', *args])
 
 
 class TestDeleteRows(DatabaseTestCase):
@@ -202,9 +202,9 @@ class TestDeleteRows(DatabaseTestCase):
         self.insert(old)
         self.insert(new)
 
-        selected = user.mqttprune.select_rows(self.rows(), default_retention=100)
+        selected = user.mqtttracker.select_rows(self.rows(), default_retention=100)
 
-        deleted = user.mqttprune.delete_rows(self.connection, TABLE, selected)
+        deleted = user.mqtttracker.delete_rows(self.connection, TABLE, selected)
 
         self.assertEqual(deleted, 1)
         self.assertEqual([row['id'] for row in self.rows()], [new['id']])
@@ -212,22 +212,22 @@ class TestDeleteRows(DatabaseTestCase):
     def test_skips_a_row_whose_status_changed(self):
         row = make_row(sent_ts=time.time() - 1000)
         self.insert(row)
-        selected = user.mqttprune.select_rows(self.rows(), default_retention=100)
+        selected = user.mqtttracker.select_rows(self.rows(), default_retention=100)
 
         with weedb.Transaction(self.connection) as cursor:
             cursor.execute(f"UPDATE {TABLE} SET status = ? WHERE id = ?",
                            (STATUS.STATUS_FAILED, row['id']))
-        deleted = user.mqttprune.delete_rows(self.connection, TABLE, selected)
+        deleted = user.mqtttracker.delete_rows(self.connection, TABLE, selected)
 
         self.assertEqual(deleted, 0)
         self.assertEqual(len(self.rows()), 1)
 
     def test_is_idempotent(self):
         self.insert(make_row(sent_ts=time.time() - 1000))
-        selected = user.mqttprune.select_rows(self.rows(), default_retention=100)
+        selected = user.mqtttracker.select_rows(self.rows(), default_retention=100)
 
-        user.mqttprune.delete_rows(self.connection, TABLE, selected)
-        user.mqttprune.delete_rows(self.connection, TABLE, selected)
+        user.mqtttracker.delete_rows(self.connection, TABLE, selected)
+        user.mqtttracker.delete_rows(self.connection, TABLE, selected)
 
         self.assertEqual(self.rows(), [])
 
@@ -240,7 +240,7 @@ class TestPrune(DatabaseTestCase):
     def test_dry_run_writes_nothing(self):
         self.insert(make_row(sent_ts=time.time() - 1000))
 
-        selected = user.mqttprune.prune(self.config_dict, self.options(), out=self.out)
+        selected = user.mqtttracker.prune(self.config_dict, self.options(), out=self.out)
 
         self.assertEqual(len(selected), 1)
         self.assertEqual(len(self.rows()), 1)
@@ -250,7 +250,7 @@ class TestPrune(DatabaseTestCase):
         old = make_row(sent_ts=time.time() - 1000)
         self.insert(old)
 
-        user.mqttprune.prune(self.config_dict, self.options('--delete'), out=self.out)
+        user.mqtttracker.prune(self.config_dict, self.options('--delete'), out=self.out)
 
         self.assertEqual(self.rows(), [])
         self.assertIn('Deleted 1 row(s).', self.out.getvalue())
@@ -258,7 +258,7 @@ class TestPrune(DatabaseTestCase):
     def test_nothing_selected(self):
         self.insert(make_row(sent_ts=time.time()))
 
-        selected = user.mqttprune.prune(self.config_dict, self.options('--delete'), out=self.out)
+        selected = user.mqtttracker.prune(self.config_dict, self.options('--delete'), out=self.out)
 
         self.assertEqual(selected, [])
         self.assertEqual(len(self.rows()), 1)
@@ -271,7 +271,7 @@ class TestPrune(DatabaseTestCase):
         old = make_row(sent_ts=time.time() - 1000)
         self.insert(old)
 
-        selected = user.mqttprune.prune(config_dict, self.options(), out=self.out)
+        selected = user.mqtttracker.prune(config_dict, self.options(), out=self.out)
 
         self.assertEqual([row['id'] for row in selected], [old['id']])
 
@@ -285,8 +285,8 @@ class TestRun(DatabaseTestCase):
         config.write()
 
     def run_tool(self, *args):
-        options = user.mqttprune.build_parser().parse_args([self.config_file, *args])
-        return user.mqttprune.run(options, out=self.out, err=self.err)
+        options = user.mqtttracker.build_parser().parse_args(['--config', self.config_file, 'prune', *args])
+        return user.mqtttracker.run(options, out=self.out, err=self.err)
 
     def test_dry_run_exits_zero(self):
         self.insert(make_row(sent_ts=time.time() - 1000))
@@ -301,9 +301,9 @@ class TestRun(DatabaseTestCase):
         self.assertEqual(self.rows(), [])
 
     def test_missing_config_exits_two(self):
-        options = user.mqttprune.build_parser().parse_args(['/does/not/exist/weewx.conf'])
+        options = user.mqtttracker.build_parser().parse_args(['--config', '/does/not/exist/weewx.conf', 'prune'])
 
-        self.assertEqual(user.mqttprune.run(options, out=self.out, err=self.err), 2)
+        self.assertEqual(user.mqtttracker.run(options, out=self.out, err=self.err), 2)
         self.assertIn('Unable to read the config file', self.err.getvalue())
 
     def test_missing_section_exits_two(self):
@@ -313,7 +313,7 @@ class TestRun(DatabaseTestCase):
     def test_invalid_status_exits_two(self):
         with self.assertRaises(SystemExit):
             with contextlib.redirect_stderr(io.StringIO()):
-                user.mqttprune.build_parser().parse_args([self.config_file, '--status', 'sent'])
+                user.mqtttracker.build_parser().parse_args(['--config', self.config_file, 'prune', '--status', 'sent'])
 
     def test_missing_table_exits_two(self):
         self.connection.execute(f"DROP TABLE {TABLE}")
@@ -324,7 +324,7 @@ class TestRun(DatabaseTestCase):
 
 class TestBuildParser(unittest.TestCase):
     def test_defaults(self):
-        options = user.mqttprune.build_parser().parse_args(['weewx.conf'])
+        options = user.mqtttracker.build_parser().parse_args(['--config', 'weewx.conf', 'prune'])
 
         self.assertFalse(options.delete)
         self.assertEqual(options.plugin_section, 'MQTTMessageTracker')
@@ -334,8 +334,8 @@ class TestBuildParser(unittest.TestCase):
         self.assertEqual(options.limit, 100)
 
     def test_statuses(self):
-        options = user.mqttprune.build_parser().parse_args(
-            ['weewx.conf', '--status', 'failed,unconfirmed'])
+        options = user.mqtttracker.build_parser().parse_args(
+            ['--config', 'weewx.conf', 'prune', '--status', 'failed,unconfirmed'])
 
         self.assertEqual(options.status, [STATUS.STATUS_FAILED, STATUS.STATUS_UNCONFIRMED])
 

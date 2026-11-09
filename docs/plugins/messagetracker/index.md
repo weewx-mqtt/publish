@@ -11,7 +11,7 @@ WeeWX database. Each record holds the outcome of the publish. The tracker can re
 that failed, or whose outcome is unknown, after the connection comes back.
 
 The plugin is optional. Enable it when you want delivery history, automatic resend, or the
-`mqttresend` and `mqttprune` tools.
+`mqtttracker` tool and its `resend`, `prune` and `status` subcommands.
 
 ## Enabling it
 
@@ -98,7 +98,7 @@ retries, and it does not mean a subscriber received the message.
 
 A resend is a new publish with a new packet id. The broker cannot tell that it is a replay, so a
 subscriber can receive the same application message more than once, even when the topic uses
-QoS 2. This applies to both automatic resend and `mqttresend.py`.
+QoS 2. This applies to both automatic resend and `mqtttracker resend`.
 
 The tracker therefore provides at-least-once delivery end to end. Consumers must be idempotent,
 for example by deduplicating on `dateTime`. `failed` rows are safe to resend: paho refused them,

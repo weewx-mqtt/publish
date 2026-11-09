@@ -13,7 +13,7 @@ jobs:
       pip-list: 'paho-mqtt'
       package-list: 'mosquitto'
       latest-weewx-version: '5.5.2'
-      lint-paths: './bin/user/mqttpublish.py ./bin/user/mqttarchivevalues.py ./bin/user/mqttconfigha.py ./bin/user/mqttaggregatevalues.py ./bin/user/mqtthaconfig.py ./bin/user/mqttcommon.py ./bin/user/mqttmessagetracker.py ./bin/user/mqttresend.py ./bin/user/mqttprune.py'
+      lint-paths: './bin/user/mqttpublish.py ./bin/user/mqttarchivevalues.py ./bin/user/mqttconfigha.py ./bin/user/mqttaggregatevalues.py ./bin/user/mqtthaconfig.py ./bin/user/mqttcommon.py ./bin/user/mqttmessagetracker.py ./bin/user/mqtttracker.py'
       common-repos: |
         https://github.com/weewx-mqtt/mqttcommon v1
       function-test: false
@@ -32,7 +32,7 @@ jobs:
       pip-list: 'paho-mqtt==1.6.1'
       package-list: 'mosquitto'
       latest-weewx-version: '5.5.2'
-      lint-paths: './bin/user/mqttpublish.py ./bin/user/mqttarchivevalues.py ./bin/user/mqttconfigha.py ./bin/user/mqttaggregatevalues.py ./bin/user/mqtthaconfig.py ./bin/user/mqttcommon.py ./bin/user/mqttmessagetracker.py ./bin/user/mqttresend.py ./bin/user/mqttprune.py'
+      lint-paths: './bin/user/mqttpublish.py ./bin/user/mqttarchivevalues.py ./bin/user/mqttconfigha.py ./bin/user/mqttaggregatevalues.py ./bin/user/mqtthaconfig.py ./bin/user/mqttcommon.py ./bin/user/mqttmessagetracker.py ./bin/user/mqtttracker.py'
       common-repos: |
         https://github.com/weewx-mqtt/mqttcommon v1
       # pylint cannot validate the v2 API code against paho-mqtt 1.6.1 (E1101/E1123 are false positives),

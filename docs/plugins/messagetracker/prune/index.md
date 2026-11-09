@@ -8,7 +8,7 @@ nav_order: 3
 
 The tracker deletes old rows so that its database does not grow without bound. Two retention
 options decide how long a row is kept, and a third decides how often the tracker checks. You can
-also delete rows yourself with `mqttprune.py`.
+also delete rows yourself with `mqtttracker prune`.
 
 ## Retention options
 
@@ -78,16 +78,17 @@ deleted automatically until you run the tool.
 The startup sweep is separate from pruning. It runs when the tracker starts and marks leftover
 `sent` rows as `unconfirmed`; it does not delete anything.
 
-## Pruning with mqttprune.py
+## Pruning with mqtttracker prune
 
 To remove rows sooner than their retention allows, or when `error_retention` is `0`, run
-`bin/user/mqttprune.py`:
+`bin/user/mqtttracker.py prune`. `mqtttracker` is one tool with `resend`, `prune` and `status`
+subcommands; the config file is a global `--config` option, so it comes before the subcommand:
 
 ```shell
 # Select unconfirmed rows older than 30 days.
-python /usr/share/weewx/bin/user/mqttprune.py /etc/weewx/weewx.conf --older-than 2592000
+python /usr/share/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune --older-than 2592000
 # Add --delete to remove them.
-python /usr/share/weewx/bin/user/mqttprune.py /etc/weewx/weewx.conf --older-than 2592000 --delete
+python /usr/share/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune --older-than 2592000 --delete
 ```
 
 Without `--delete` it only prints the selection.
@@ -106,7 +107,7 @@ and prunes normally.
 A `sent` row is marked `unconfirmed` when the tracker restarts, so the tool does not touch it.
 See [Internals](../internals/index.md#maintenance-sql) for the equivalent SQL.
 
-## mqttprune.py options
+## prune options
 
 The first argument is the WeeWX config file. The rest are options.
 
@@ -127,7 +128,7 @@ Use `--status failed` to prune only failed publishes, or `--status failed,unconf
 `confirmed` is refused because the automatic prune handles it.
 
 ```shell
-python /usr/share/weewx/bin/user/mqttprune.py /etc/weewx/weewx.conf \
+python /usr/share/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune \
     --status failed,unconfirmed --older-than 2592000 --delete
 ```
 
@@ -142,7 +143,7 @@ regardless of the configured retention.
 
 ```shell
 # Every unconfirmed row, of any age.
-python /usr/share/weewx/bin/user/mqttprune.py /etc/weewx/weewx.conf \
+python /usr/share/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune \
     --older-than 0 --delete
 ```
 
@@ -151,7 +152,7 @@ python /usr/share/weewx/bin/user/mqttprune.py /etc/weewx/weewx.conf \
 Only prune topics that match the glob.
 
 ```shell
-python /usr/share/weewx/bin/user/mqttprune.py /etc/weewx/weewx.conf \
+python /usr/share/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune \
     --topic 'weather/outTemp_*' --older-than 2592000 --delete
 ```
 
@@ -183,14 +184,14 @@ Print the tool's version and exit.
 cadence. Use the tool on a timer when you want a different age or cadence, or want to prune only
 some statuses.
 
-A system cron entry in `/etc/cron.d/mqttprune`:
+A system cron entry in `/etc/cron.d/mqtttracker-prune`:
 
 ```cron
 SHELL=/bin/sh
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 
 # Every day at 03:15, delete unconfirmed rows older than 30 days.
-15 3 * * * weewx /usr/bin/python3 /usr/share/weewx/bin/user/mqttprune.py /etc/weewx/weewx.conf --older-than 2592000 --delete >> /var/log/weewx/mqttprune.log 2>&1
+15 3 * * * weewx /usr/bin/python3 /usr/share/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune --older-than 2592000 --delete >> /var/log/weewx/mqtttracker-prune.log 2>&1
 ```
 
 The same line in the WeeWX user's crontab (`crontab -u weewx -e`) drops the `weewx` user field.
@@ -198,7 +199,7 @@ The same line in the WeeWX user's crontab (`crontab -u weewx -e`) drops the `wee
 To clear a backlog after an outage, widen the age, include `failed`, and raise the limit:
 
 ```cron
-15 3 * * * weewx /usr/bin/python3 /usr/share/weewx/bin/user/mqttprune.py /etc/weewx/weewx.conf --status unconfirmed,failed --older-than 2592000 --limit 1000 --delete >> /var/log/weewx/mqttprune.log 2>&1
+15 3 * * * weewx /usr/bin/python3 /usr/share/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune --status unconfirmed,failed --older-than 2592000 --limit 1000 --delete >> /var/log/weewx/mqtttracker-prune.log 2>&1
 ```
 
 - Run as the WeeWX user, not root, so the database permissions match.
@@ -210,10 +211,10 @@ To clear a backlog after an outage, widen the age, include `failed`, and raise t
 - The exit code is `0` on success and `2` on a config or database error. Cron only sends mail
   when the command writes output, so keep the log and rotate it, or leave stderr unredirected
   with `MAILTO` set. The log directory must exist and be writable by the WeeWX user; `logger -t
-  mqttprune` can be used instead of a file.
+  mqtttracker-prune` can be used instead of a file.
 
 A systemd timer is an alternative to cron. For example,
-`/etc/systemd/system/mqttprune.service`:
+`/etc/systemd/system/mqtttracker-prune.service`:
 
 ```ini
 [Unit]
@@ -222,10 +223,10 @@ Description=Prune the MQTT message tracker
 [Service]
 Type=oneshot
 User=weewx
-ExecStart=/usr/bin/python3 /usr/share/weewx/bin/user/mqttprune.py /etc/weewx/weewx.conf --older-than 2592000 --delete
+ExecStart=/usr/bin/python3 /usr/share/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune --older-than 2592000 --delete
 ```
 
-and `/etc/systemd/system/mqttprune.timer`:
+and `/etc/systemd/system/mqtttracker-prune.timer`:
 
 ```ini
 [Unit]
@@ -239,5 +240,5 @@ Persistent=true
 WantedBy=timers.target
 ```
 
-Then enable it with `systemctl daemon-reload` and `systemctl enable --now mqttprune.timer`.
+Then enable it with `systemctl daemon-reload` and `systemctl enable --now mqtttracker-prune.timer`.
 The service's output goes to the journal.
