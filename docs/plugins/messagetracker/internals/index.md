@@ -2,7 +2,7 @@
 title: Internals
 parent: MQTTMessageTracker
 ancestor: MQTTMessageTracker
-nav_order: 4
+nav_order: 5
 ---
 {% include messagetracker_warning.html %}
 
@@ -71,8 +71,10 @@ Rows are marked `unconfirmed`:
 
 A `confirmed` row is also not proof of delivery to a subscriber. Paho reports it when the broker
 acknowledges the publish: a PUBACK for QoS 1, or a PUBCOMP for QoS 2, which completes the
-exactly-once handshake. Either way it means the broker accepted the message. With `retain`, it also
-means the broker stored the message.
+exactly-once handshake. Either way it means the broker accepted the message. QoS is enforced per
+leg, publisher to broker and broker to subscriber, so the publisher's handshake says nothing about
+whether a subscriber received it; a subscriber with a lower QoS gets weaker delivery guarantees.
+With `retain`, it also means the broker stored the message.
 
 MQTT reuses a message id after 65,535 publishes, so the table is keyed by `id`, not `mid`.
 When a tracked message reuses a message id that is still waiting for its arrival, the older row is
