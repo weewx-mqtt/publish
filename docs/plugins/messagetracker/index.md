@@ -197,8 +197,9 @@ See [Internals](internals/index.md#what-is-tracked) for the row fields and paylo
 refuses it. `unconfirmed` is not proof that the message was not delivered; it means the tracker
 could not tell.
 
-An `acked` row is not proof a subscriber received it: with QoS 0 paho reports the message once it
-is written to the socket, and with `retain` it means the broker stored it. See
+An `acked` row means the broker accepted the publish: paho reports it on the broker's
+acknowledgement, a PUBACK for QoS 1 or a PUBCOMP for QoS 2. It is not proof a subscriber received
+it, and with `retain` it means the broker stored the message. See
 [QoS and duplicate delivery](#qos-and-duplicate-delivery).
 
 See [Internals](internals/index.md#status-lifecycle) for when rows are marked `unconfirmed`, and

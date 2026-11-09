@@ -63,11 +63,9 @@ Rows are marked `unconfirmed`:
   time. This covers a process that stopped without shutting down cleanly. The sweep logs how many
   rows it marked, so a shutdown that did not complete is visible in the log.
 
-An `acked` row is also not proof of delivery to a subscriber:
-
-- with QoS 0, paho reports the message once it is written to the socket, not when the broker
-  receives it;
-- with `retain`, it means the broker stored the message, not that a subscriber received it.
+An `acked` row is also not proof of delivery to a subscriber. Paho reports it when the broker
+acknowledges the publish, a PUBACK for QoS 1 or a PUBCOMP for QoS 2, which means the broker
+accepted the message. With `retain`, it also means the broker stored the message.
 
 MQTT reuses a message id after 65,535 publishes, so the table is keyed by `id`, not `mid`.
 When a tracked message reuses a message id that is still waiting for its arrival, the older row is
