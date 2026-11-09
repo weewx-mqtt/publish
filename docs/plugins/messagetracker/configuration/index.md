@@ -96,4 +96,6 @@ Default is `10`.
 
 See [topics](topics/index.md) for the `[[topics]]` section and its per-topic options.
 
-The automatic resend options are in their own section. See [Resending](../resend/index.md).
+### resend
+
+See [resend](resend/index.md) for the `[[resend]]` section.

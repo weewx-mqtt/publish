@@ -1,5 +1,5 @@
 ---
-title: Resending
+title: Resending messages
 parent: MQTTMessageTracker
 ancestor: MQTTMessageTracker
 nav_order: 2
@@ -39,48 +39,7 @@ Automatic resend is best-effort. A live publish that races the resend can still 
 older resent value; consumers are assumed to be idempotent on `dateTime`.
 See [QoS and duplicate delivery](#qos-and-duplicate-delivery).
 
-### The `[[resend]]` section
-
-The section is disabled by default.
-
-```ini
-[MQTTMessageTracker]
-    [[resend]]
-        enable = true
-```
-
-#### enable
-
-Whether to resend messages after a successful connection.
-Default is `false`.
-
-#### on_startup
-
-Whether to resend after the first successful connection of the tracker.
-Default is `true`.
-
-#### on_reconnect
-
-Whether to resend after a reconnect.
-Default is `true`.
-
-#### include_before_last_success
-
-Whether to resend every `unconfirmed` and `failed` message for a topic, including messages
-older than that topic's last confirmed publish.
-Default is `false`.
-
-#### since
-
-Only resend messages sent within the last `since` seconds.
-Set to `0` to consider every message after the last confirmed publish.
-Default is `0`.
-
-#### limit
-
-The maximum number of messages to resend per connection.
-Set to `0` to resend every message.
-Default is `0`.
+The `[[resend]]` options are in [Configuration](../configuration/resend/index.md).
 
 ## QoS and duplicate delivery
 
