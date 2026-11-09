@@ -59,7 +59,7 @@ def make_tracker(logger_queue, mqtt_config, temp_dir):
     })
     plugin_dict = configobj.ConfigObj({
         'data_binding': 'tracker_binding',
-        'resend': {'enable': True},
+        'resend': {'on_startup': True, 'on_reconnect': True},
         'topics': {TOPIC: {}},
     })
     return user.mqttmessagetracker.MQTTMessageTracker(
