@@ -56,8 +56,10 @@ See [Internals](../internals/index.md#maintenance-sql) for the equivalent SQL.
 
 ## Scheduling
 
-`error_retention` prunes recovery rows automatically. Use the tool on a timer when you want a
-shorter age or a different cadence, or want to prune only some statuses.
+`confirmed_retention` and `error_retention` prune rows automatically. `prune_interval` sets how
+often the tracker checks (default hourly); `0` disables the check, leaving `mqttprune` as the only
+way to delete rows. Use the tool on a timer when you want a shorter age or a different cadence, or
+want to prune only some statuses.
 
 Run it once without `--delete` first, to see the selection.
 

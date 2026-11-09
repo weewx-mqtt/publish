@@ -60,8 +60,13 @@ See [Pruning](../prune/index.md) for how the retentions work.
 
 ### prune_interval
 
-How often, in seconds, to delete rows older than their retention.
+How often, in seconds, to check for rows to delete.
 Default is `3600`.
+Set to `0` to disable automatic pruning; the startup sweep still runs.
+
+A prune deletes `confirmed` rows older than `confirmed_retention`, and `failed` or `unconfirmed`
+rows older than `error_retention`. No pruning happens while every retention is `0`. See
+[Pruning](../prune/index.md) for the policy.
 
 ### Advanced options
 

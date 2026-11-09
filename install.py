@@ -384,7 +384,8 @@ MQTTPUBLISH_CONFIG = """
     # Default is 0.
     error_retention = 0
 
-    # How often, in seconds, to delete rows older than retention.
+    # How often, in seconds, to check for rows to delete.
+    # Set to 0 to disable automatic pruning; the startup sweep still runs.
     # Default is 3600.
     prune_interval = 3600
 
