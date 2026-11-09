@@ -386,6 +386,10 @@ class TestMQTTMessageTracker(unittest.TestCase):
         self.assertIsNone(rows[0]['arrived_ts'])
         self.assertIsNotNone(rows[0]['unconfirmed_ts'])
         self._wait_for_log(logger_queue, "the connection was lost")
+        messages = [call[0][0]['msg_text'] for call in logger_queue.put.call_args_list]
+        self.assertTrue(any(f"Row {rows[0]['id']} for topic is unconfirmed: "
+                            "the connection was lost (mid 42)" in message
+                            for message in messages))
 
     def test_connection_loss_does_not_change_confirmed_rows(self):
         plugin, _ = self._make_plugin()
@@ -579,7 +583,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
         self._wait_for_log(logger_queue, "Message tracker did not shut down within 3 seconds.")
 
     def test_shutdown_marks_unreported_rows_unconfirmed(self):
-        plugin, _ = self._make_plugin()
+        plugin, logger_queue = self._make_plugin()
 
         start = time.time()
         plugin.mqtt_publish(None, 42, 0, 'topic', 'payload', 1, False, 1)
@@ -592,9 +596,13 @@ class TestMQTTMessageTracker(unittest.TestCase):
         self.assertIsNone(rows[0]['arrived_ts'])
         self.assertGreaterEqual(rows[0]['unconfirmed_ts'], start)
         self.assertLessEqual(rows[0]['unconfirmed_ts'], end)
+        messages = [call[0][0]['msg_text'] for call in logger_queue.put.call_args_list]
+        self.assertTrue(any(f"Row {rows[0]['id']} for topic is unconfirmed: "
+                            "no arrival was reported (mid 42)" in message
+                            for message in messages))
 
     def test_mid_reuse_marks_previous_row_unconfirmed(self):
-        plugin, _ = self._make_plugin()
+        plugin, logger_queue = self._make_plugin()
 
         plugin.mqtt_publish(None, 42, 0, 'first', 'payload-one', 0, False, 1)
         plugin.mqtt_publish(None, 42, 0, 'second', 'payload-two', 0, False, 2)
@@ -604,6 +612,11 @@ class TestMQTTMessageTracker(unittest.TestCase):
         self.assertEqual(by_payload['payload-one']['status'], 'unconfirmed')
         self.assertIsNotNone(by_payload['payload-one']['unconfirmed_ts'])
         self.assertEqual(by_payload['payload-two']['status'], 'sent')
+        self._wait_for_log(logger_queue, "paho reused the message id")
+        messages = [call[0][0]['msg_text'] for call in logger_queue.put.call_args_list]
+        self.assertTrue(any(f"Row {by_payload['payload-one']['id']} for first is unconfirmed: "
+                            "paho reused the message id (mid 42)" in message
+                            for message in messages))
 
         reuse_ts = by_payload['payload-one']['unconfirmed_ts']
         plugin.shutdown()
@@ -631,6 +644,10 @@ class TestMQTTMessageTracker(unittest.TestCase):
         self.assertIsNotNone(leftover['unconfirmed_ts'])
         self.assertIsNone(leftover['arrived_ts'])
         self._wait_for_log(logger_queue, "Marked 1 message tracking rows from a previous run")
+        messages = [call[0][0]['msg_text'] for call in logger_queue.put.call_args_list]
+        self.assertTrue(any(f"Row {leftover['id']} for topic is unconfirmed: "
+                            "it was left sent by a previous run (mid 2)" in message
+                            for message in messages))
 
     def test_arrival_before_send(self):
         plugin, _ = self._make_plugin()
@@ -794,7 +811,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
 
         self.assertEqual(self._rows(), [])
         log_messages = [call[0][0] for call in logger_queue.put.call_args_list]
-        self.assertFalse(any(entry['log_type'] == 'ERROR' for entry in log_messages))
+        self.assertFalse(any('Unable to prune' in entry['msg_text'] for entry in log_messages))
 
     def test_per_topic_error_retention_prunes_unconfirmed_rows(self):
         plugin, _ = self._make_plugin(

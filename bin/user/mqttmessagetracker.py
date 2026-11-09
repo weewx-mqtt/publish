@@ -482,9 +482,10 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
 
         statements = []
         failed = []
+        unconfirmed = []
         for event in batch:
             if event[0] == _EVENT_SENT:
-                self._apply_sent(event, inflight, pending, statements, failed, now)
+                self._apply_sent(event, inflight, pending, statements, failed, unconfirmed, now)
             else:
                 self._apply_arrived(event, inflight, pending, statements, now)
 
@@ -494,6 +495,7 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
         self.inflight = inflight
         self.pending = pending
         self._log_failed_rows('publish', failed)
+        self._log_unconfirmed_rows(unconfirmed, "paho reused the message id")
 
     def _prune_pending(self, now):
         """ Drop arrivals that never matched a send event. """
@@ -503,7 +505,8 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
                 del pending[mid]
         return pending
 
-    def _apply_sent(self, event, inflight, pending, statements, failed, now):  # pylint: disable=too-many-positional-arguments,too-many-arguments
+    # pylint: disable=too-many-arguments,too-many-positional-arguments
+    def _apply_sent(self, event, inflight, pending, statements, failed, unconfirmed, now):
         """ Add the statements for a send event. """
         # pylint: disable=too-many-locals
         _, row_id, mid, rc, topic, payload, payload_encoding, qos, retain, date_time, sent_ts = event
@@ -519,14 +522,14 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
         if status != STATUS_SENT:
             return
 
-        self._unconfirm_reused_mid(inflight, mid, statements, now)
-        inflight[mid] = (row_id, sent_ts)
+        self._unconfirm_reused_mid(inflight, mid, statements, unconfirmed, now)
+        inflight[mid] = (row_id, sent_ts, topic)
         if mid in pending:
             arrived_ts = pending.pop(mid)[0]
             statements.append((f"UPDATE {self.table} SET arrived_ts = ?, status = ? WHERE id = ?",
                                (arrived_ts, STATUS_CONFIRMED, row_id)))
 
-    def _unconfirm_reused_mid(self, inflight, mid, statements, now):
+    def _unconfirm_reused_mid(self, inflight, mid, statements, unconfirmed, now):
         """ Mark the row of a message id that paho has reused as unconfirmed.
 
             The arrival of the older message will never be reported, so it is
@@ -534,8 +537,10 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
         previous = inflight.pop(mid, None)
         if previous is None:
             return
+        row_id, _, topic = previous
         statements.append((f"UPDATE {self.table} SET status = ?, unconfirmed_ts = ? WHERE id = ? AND status = ?",
-                           (STATUS_UNCONFIRMED, now, previous[0], STATUS_SENT)))
+                           (STATUS_UNCONFIRMED, now, row_id, STATUS_SENT)))
+        unconfirmed.append((row_id, topic, mid))
 
     def _apply_arrived(self, event, inflight, pending, statements, now):  # pylint: disable=too-many-positional-arguments
         """ Add the statements for an arrival event. """
@@ -549,29 +554,32 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
 
     def _apply_finalize(self, connection, unconfirmed_ts):
         """ Mark the rows whose arrival paho never reported as unconfirmed. """
-        rows = list(self.inflight.values())
+        rows = list(self.inflight.items())
         self.inflight = {}
         self._mark_unconfirmed(connection, rows, unconfirmed_ts, "no arrival was reported")
 
     def _apply_disconnect(self, connection, unconfirmed_ts):
         """ Mark the rows in flight when the connection was lost as unconfirmed. """
-        rows = list(self.inflight.values())
+        rows = list(self.inflight.items())
         self.inflight = {}
         self._mark_unconfirmed(connection, rows, unconfirmed_ts, "the connection was lost")
 
     def _mark_unconfirmed(self, connection, rows, unconfirmed_ts, reason):
         """ Mark rows that are still sent as unconfirmed. """
         marked = 0
+        unconfirmed = []
         for start in range(0, len(rows), self.batch_size):
             chunk = rows[start:start + self.batch_size]
             statements = [(f"UPDATE {self.table} SET status = ?, unconfirmed_ts = ? WHERE id = ? AND status = ?",
                            (STATUS_UNCONFIRMED, unconfirmed_ts, row_id, STATUS_SENT))
-                          for row_id, _ in chunk]
+                          for _, (row_id, _, _) in chunk]
             if not self._write(connection, statements):
                 break
             marked += len(chunk)
+            unconfirmed.extend((row_id, topic, mid) for mid, (row_id, _, topic) in chunk)
         if marked:
             self._log('INFO', f"Marked {marked} message tracking rows as unconfirmed, {reason}.")
+            self._log_unconfirmed_rows(unconfirmed, reason)
 
     def _apply_resend(self, connection, client, options, clientid):
         """ Publish the messages after the last confirmed publish on each topic. """
@@ -654,18 +662,18 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
 
     def _finish_resends(self, connection, inserted):
         """ Track the resent messages that are waiting for an arrival. """
-        for row_id, mid, status, sent_ts in inserted:
+        for row_id, mid, status, sent_ts, topic in inserted:
             if status != STATUS_SENT:
                 continue
             pending = self.pending.pop(mid, None)
             if pending is None:
-                self.inflight[mid] = (row_id, sent_ts)
+                self.inflight[mid] = (row_id, sent_ts, topic)
             else:
                 self._ack_pending(connection, row_id, pending[0])
 
     def _log_resend_summary(self, inserted):
         """ Log what the resend published. """
-        sent = sum(1 for _, _, status, _ in inserted if status == STATUS_SENT)
+        sent = sum(1 for _, _, status, _, _ in inserted if status == STATUS_SENT)
         failed = len(inserted) - sent
         self._log('INFO', f"Resent {len(inserted)} message(s), "
                           f"{sent} awaiting confirmation, {failed} failed.")
@@ -692,7 +700,7 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
                     (row_id, mid, row['dateTime'], sent_ts, status, row_origin_id,
                      attempts[row_origin_id], clientid, row['topic'], row['qos'], row['retain'],
                      rc, row['payload'], row['payload_encoding']))
-                inserted.append((row_id, mid, status, sent_ts))
+                inserted.append((row_id, mid, status, sent_ts, row['topic']))
                 if status == STATUS_FAILED:
                     failed.append((row_id, row['topic'], mid, rc))
         return inserted, failed
@@ -710,16 +718,17 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
         """ Mark the rows a previous run left waiting for an arrival as unconfirmed. """
         try:
             with weedb.Transaction(connection) as cursor:
-                cursor.execute(f"SELECT COUNT(*) FROM {self.table} WHERE status = ?", (STATUS_SENT,))
-                row = cursor.fetchone()
-                stale = row[0] if row else 0
+                cursor.execute(f"SELECT id, topic, mid FROM {self.table} WHERE status = ?",
+                               (STATUS_SENT,))
+                stale = cursor.fetchall()
                 cursor.execute(f"UPDATE {self.table} SET status = ?, unconfirmed_ts = ? WHERE status = ?",
                                (STATUS_UNCONFIRMED, time.time(), STATUS_SENT))
         except Exception as exception:  # pylint: disable=broad-exception-caught
             self._log('ERROR', f"Unable to mark the message tracking rows of a previous run as unconfirmed: {exception}.")
             return
         if stale:
-            self._log('INFO', f"Marked {stale} message tracking rows from a previous run as unconfirmed.")
+            self._log('INFO', f"Marked {len(stale)} message tracking rows from a previous run as unconfirmed.")
+            self._log_unconfirmed_rows(stale, "it was left sent by a previous run")
 
     def _write(self, connection, statements):
         """ Execute the batch, returning whether it was written. """
@@ -811,6 +820,11 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
         for row_id, topic, mid, rc in failed:
             self._log('ERROR', f"Failed to {action} {topic}, rc {rc}; "
                                f"stored as row {row_id} (mid {mid}).")
+
+    def _log_unconfirmed_rows(self, rows, reason):
+        """ Log each row that changed to unconfirmed, with the id it is stored under. """
+        for row_id, topic, mid in rows:
+            self._log('ERROR', f"Row {row_id} for {topic} is unconfirmed: {reason} (mid {mid}).")
 
     def _log(self, log_type, msg_text):
         self.logger_queue.put(user.mqttcommon.Logger.create_entry(self.log_name, log_type, None, msg_text))

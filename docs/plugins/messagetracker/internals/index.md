@@ -52,8 +52,10 @@ availability/LWT message are not tracked.
 marks it `unconfirmed`. The topic's `error_retention` then bounds it.
 
 A `failed` publish, and a resend that paho refuses, are logged at `ERROR` with the topic, `rc`,
-`mid` and the row's `id`. A log monitor can follow the message straight to its row without
-searching the table by topic and time.
+`mid` and the row's `id`. A row that changes to `unconfirmed` is also logged at `ERROR`, with its
+`id`, topic, `mid` and the reason: the connection was lost, no arrival was reported, the message id
+was reused, or a previous run left it `sent`. A log monitor can follow a message straight to its
+row without searching the table by topic and time.
 
 `unconfirmed` does not mean the message was not delivered. It means the tracker cannot tell: paho
 never reported the arrival, and no further report can arrive. That is why it is recorded as its
