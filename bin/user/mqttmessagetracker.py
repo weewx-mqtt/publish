@@ -879,7 +879,7 @@ class MQTTMessageTracker(user.mqttpublish.MQTTPlugin):  # pylint: disable=too-ma
         tracked = topic_retentions(topic_dicts, self.retention)
         unconfirmed = topic_unconfirmed_retentions(topic_dicts, self.unconfirmed_retention)
         for topic in list(tracked):
-            if self.topics.get(topic, {}).get('qos') == 0:
+            if self._published_qos(topic) == 0:
                 self._log('ERROR', f"{topic} is published with qos 0, so its delivery cannot be confirmed. "
                                    "It is not tracked.")
                 del tracked[topic]
@@ -888,6 +888,21 @@ class MQTTMessageTracker(user.mqttpublish.MQTTPlugin):  # pylint: disable=too-ma
         if not tracked:
             self._log('ERROR', "No topics are enabled, no messages are tracked.")
         return tracked, unconfirmed
+
+    def _published_qos(self, topic):
+        """ The qos a tracked topic is published with, or None when it cannot be resolved.
+
+            A topic with type 'individual' publishes each field to '<topic>/<field>', so a
+            tracked topic is the configured topic plus one segment. Looking up the configured
+            name alone would miss it and let a qos 0 topic through. """
+        topic_dict = self.topics.get(topic)
+        if topic_dict is not None:
+            return topic_dict.get('qos')
+        parent, _, _ = topic.rpartition('/')
+        parent_dict = self.topics.get(parent) if parent else None
+        if parent_dict is not None and parent_dict.get('type') == 'individual':
+            return parent_dict.get('qos')
+        return None
 
     def _configure_resend(self, plugin_dict):
         """ Resolve the automatic resend options, or None when they are not enabled. """

@@ -667,6 +667,22 @@ class TestMQTTMessageTracker(unittest.TestCase):
         messages = [call[0][0]['msg_text'] for call in logger_queue.put.call_args_list]
         self.assertTrue(any('qos0' in message and 'qos 0' in message for message in messages))
 
+    def test_qos_zero_individual_topic_is_not_tracked(self):
+        plugin, logger_queue = self._make_plugin(
+            topics={'weather/outTemp_F': {}},
+            publish_topics={'weather': {'qos': 0, 'type': 'individual'}})
+
+        self.assertEqual(plugin.tracked_topics, {})
+        messages = [call[0][0]['msg_text'] for call in logger_queue.put.call_args_list]
+        self.assertTrue(any('weather/outTemp_F' in message and 'qos 0' in message for message in messages))
+
+    def test_qos_one_individual_topic_is_tracked(self):
+        plugin, _ = self._make_plugin(
+            topics={'weather/outTemp_F': {}},
+            publish_topics={'weather': {'qos': 1, 'type': 'individual'}})
+
+        self.assertEqual(list(plugin.tracked_topics), ['weather/outTemp_F'])
+
     def test_only_qos_zero_topics_disables_the_tracker(self):
         plugin, _ = self._make_plugin(topics=['qos0'], publish_topics={'qos0': {'qos': 0}})
 
