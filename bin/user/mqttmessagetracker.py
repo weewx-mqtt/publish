@@ -481,9 +481,10 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
         pending = self._prune_pending(now)
 
         statements = []
+        failed = []
         for event in batch:
             if event[0] == _EVENT_SENT:
-                self._apply_sent(event, inflight, pending, statements, now)
+                self._apply_sent(event, inflight, pending, statements, failed, now)
             else:
                 self._apply_arrived(event, inflight, pending, statements, now)
 
@@ -492,6 +493,7 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
 
         self.inflight = inflight
         self.pending = pending
+        self._log_failed_rows('publish', failed)
 
     def _prune_pending(self, now):
         """ Drop arrivals that never matched a send event. """
@@ -501,11 +503,13 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
                 del pending[mid]
         return pending
 
-    def _apply_sent(self, event, inflight, pending, statements, now):  # pylint: disable=too-many-positional-arguments,too-many-arguments
+    def _apply_sent(self, event, inflight, pending, statements, failed, now):  # pylint: disable=too-many-positional-arguments,too-many-arguments
         """ Add the statements for a send event. """
         # pylint: disable=too-many-locals
         _, row_id, mid, rc, topic, payload, payload_encoding, qos, retain, date_time, sent_ts = event
         status = STATUS_SENT if rc == _RC_SUCCESS else STATUS_FAILED
+        if status == STATUS_FAILED:
+            failed.append((row_id, topic, mid, rc))
         statements.append((f"INSERT INTO {self.table} "
                            "(id, mid, dateTime, sent_ts, arrived_ts, status, unconfirmed_ts, "
                            "origin_id, attempt, clientid, topic, qos, retain, rc, payload, payload_encoding) "
@@ -588,10 +592,12 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
         published = self._publish_resends(client, selected)
         if not published:
             return
-        inserted = self._record_resends(connection, published, clientid)
-        if inserted is None:
+        recorded = self._record_resends(connection, published, clientid)
+        if recorded is None:
             return
+        inserted, failed = recorded
         self._log_resend_summary(inserted)
+        self._log_failed_rows('resend', failed)
 
     def _fetch_for_resend(self, connection):
         """ Read the rows for a resend, or None when they cannot be read. """
@@ -639,12 +645,12 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
     def _record_resends(self, connection, published, clientid):
         """ Record the published rows, or None when they cannot be written. """
         try:
-            inserted = self._insert_resends(connection, published, clientid)
+            inserted, failed = self._insert_resends(connection, published, clientid)
         except Exception as exception:  # pylint: disable=broad-exception-caught
             self._log('ERROR', f"Unable to record the resent messages: {exception}.")
             return None
         self._finish_resends(connection, inserted)
-        return inserted
+        return inserted, failed
 
     def _finish_resends(self, connection, inserted):
         """ Track the resent messages that are waiting for an arrival. """
@@ -667,6 +673,7 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
     def _insert_resends(self, connection, published, clientid):
         """ Insert the resend rows in one transaction, returning what was inserted. """
         inserted = []
+        failed = []
         with weedb.Transaction(connection) as cursor:
             attempts = {}
             for row, mid, rc, sent_ts in published:
@@ -686,7 +693,9 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
                      attempts[row_origin_id], clientid, row['topic'], row['qos'], row['retain'],
                      rc, row['payload'], row['payload_encoding']))
                 inserted.append((row_id, mid, status, sent_ts))
-        return inserted
+                if status == STATUS_FAILED:
+                    failed.append((row_id, row['topic'], mid, rc))
+        return inserted, failed
 
     def _ack_pending(self, connection, row_id, arrived_ts):
         """ Mark a resend as confirmed when its arrival was reported before it was recorded. """
@@ -796,6 +805,12 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
         if isinstance(payload, (bytes, bytearray)):
             return bytes(payload).hex(), 'hex'
         return str(payload), 'text'
+
+    def _log_failed_rows(self, action, failed):
+        """ Log each failed row with the id it was stored under. """
+        for row_id, topic, mid, rc in failed:
+            self._log('ERROR', f"Failed to {action} {topic}, rc {rc}; "
+                               f"stored as row {row_id} (mid {mid}).")
 
     def _log(self, log_type, msg_text):
         self.logger_queue.put(user.mqttcommon.Logger.create_entry(self.log_name, log_type, None, msg_text))
