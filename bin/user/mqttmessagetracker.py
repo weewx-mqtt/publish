@@ -593,7 +593,7 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
         if options['limit'] > 0:
             selected = selected[:options['limit']]
         if not selected:
-            self._log('DEBUG', "No messages need to be resent after the connection was established.")
+            self._log('INFO', "No messages need to be resent after the connection was established.")
             return
 
         self._log('INFO', f"Resending {len(selected)} message(s) after the connection was established.")
@@ -999,9 +999,13 @@ class MQTTMessageTracker(user.mqttpublish.MQTTPlugin):  # pylint: disable=too-ma
         self.connect_count += 1
         is_startup = self.connect_count == 1
         if is_startup and not self.resend['on_startup']:
+            self._log('DEBUG', "Skipping the startup resend, on_startup is false.")
             return
         if not is_startup and not self.resend['on_reconnect']:
+            self._log('DEBUG', "Skipping the resend, on_reconnect is false.")
             return
+        self._log('INFO', "Startup resend requested after the first connection." if is_startup
+                          else "Resend requested after a reconnect.")
         self.tracker.resend(client, self.resend, self.mqtt_dict.get('clientid'))
 
     def on_mqtt_disconnect(self, _client, _userdata, _rc, _properties):

@@ -310,6 +310,25 @@ class TestMQTTMessageTracker(unittest.TestCase):
 
         self.assertIsNone(plugin.resend)
 
+    def test_startup_resend_is_logged(self):
+        plugin, logger_queue = self._make_plugin({'resend': {'on_startup': True}})
+
+        plugin.on_mqtt_connect(mock.Mock(), None, 0, 0, None)
+
+        self._wait_for_log(logger_queue, "Startup resend requested after the first connection.")
+        self._wait_for_log(
+            logger_queue, "No messages need to be resent after the connection was established.")
+
+    def test_reconnect_resend_is_logged(self):
+        plugin, logger_queue = self._make_plugin({'resend': {'on_reconnect': True}})
+        client = mock.Mock()
+
+        plugin.on_mqtt_connect(client, None, 0, 0, None)
+        self._wait_for_log(logger_queue, "Skipping the startup resend, on_startup is false.")
+
+        plugin.on_mqtt_connect(client, None, 0, 0, None)
+        self._wait_for_log(logger_queue, "Resend requested after a reconnect.")
+
     def test_creates_missing_database(self):
         database_path = os.path.join(self.temp_dir.name, 'tracker.sdb')
         self.assertFalse(os.path.exists(database_path))
