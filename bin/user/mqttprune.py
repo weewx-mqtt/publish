@@ -61,12 +61,15 @@ def _is_old_enough(row, retention, now):
     return row['sent_ts'] < now - retention
 
 
-def _wanted(row, statuses, topic, retention, now):
+# pylint: disable=too-many-arguments,too-many-positional-arguments
+def _wanted(row, statuses, topic, retention, now, select_all=False):
     """ Whether the row passes the filters. """
     if row['status'] not in statuses:
         return False
     if topic and not fnmatch.fnmatchcase(row['topic'], topic):
         return False
+    if select_all:
+        return True
     return _is_old_enough(row, retention, now)
 
 
@@ -76,7 +79,8 @@ def select_rows(rows, statuses=None, topic_retention=None, default_retention=Non
     """ Select the rows to delete, oldest first.
 
         By default a row is selected when it is older than its topic's retention.
-        An explicit 'older_than' overrides the configured retention. """
+        An explicit 'older_than' overrides the configured retention; 'older_than=0'
+        selects every matching row, unlike a configured retention of 0. """
     statuses = tuple(statuses or (DEFAULT_STATUS,))
     topic_retention = topic_retention or {}
     if default_retention is None:
@@ -85,7 +89,8 @@ def select_rows(rows, statuses=None, topic_retention=None, default_retention=Non
 
     selected = [row for row in rows
                 if _wanted(row, statuses, topic,
-                           _retention_for(row, topic_retention, default_retention, older_than), now)]
+                           _retention_for(row, topic_retention, default_retention, older_than),
+                           now, older_than == 0)]
     selected.sort(key=lambda row: (row['sent_ts'], row['id']))
     if limit is not None and limit > 0:
         selected = selected[:limit]

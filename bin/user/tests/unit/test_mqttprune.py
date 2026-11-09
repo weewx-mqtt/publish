@@ -118,6 +118,18 @@ class TestSelectRows(unittest.TestCase):
 
         self.assertEqual([row['topic'] for row in selected], ['keep'])
 
+    def test_older_than_zero_selects_every_matching_row(self):
+        rows = [make_row(sent_ts=999.0, topic='keep'),
+                make_row(sent_ts=999.0, topic='keep', status=STATUS.STATUS_FAILED),
+                make_row(sent_ts=999.0, status=STATUS.STATUS_SENT)]
+
+        selected = user.mqttprune.select_rows(
+            rows, statuses=[STATUS.STATUS_UNCONFIRMED, STATUS.STATUS_FAILED],
+            topic_retention={'keep': 0}, default_retention=0, older_than=0, now=1000)
+
+        self.assertEqual([row['status'] for row in selected],
+                         [STATUS.STATUS_UNCONFIRMED, STATUS.STATUS_FAILED])
+
     def test_topic_glob(self):
         rows = [make_row(sent_ts=100.0, topic='weather/outTemp_F'),
                 make_row(sent_ts=100.0, topic='weather/outHumidity')]
