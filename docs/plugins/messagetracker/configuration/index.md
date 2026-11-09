@@ -94,41 +94,6 @@ Default is `10`.
 
 ### topics
 
-The `[[topics]]` section lists the topics to track.
-Only the topics listed here are tracked; a message published to any other topic is not recorded.
-Required; when there is no enabled topic, the plugin logs an error and does nothing.
-
-A topic published with `qos = 0` is rejected: a qos 0 message is never acknowledged, so its
-delivery cannot be confirmed and the tracker could only record it as if it had been. The plugin
-logs an error and does not track that topic.
-
-#### enable
-
-Whether to track this topic.
-Valid values are `true` or `false`.
-Default is `true`.
-
-#### retention
-
-How long, in seconds, to keep this topic's `confirmed` and `failed` rows.
-Set to `0` to keep them forever.
-Default is the `retention` option above.
-
-#### unconfirmed_retention
-
-How long, in seconds, to keep this topic's `unconfirmed` rows.
-Set to `0` to keep them forever.
-Default is the `unconfirmed_retention` option above.
-
-```ini
-[MQTTMessageTracker]
-    [[topics]]
-        [[[weather/outTemp_F]]]
-            # Keep this topic for a day.
-            retention = 86400
-        [[[weather/outHumidity]]]
-            # Do not track this topic.
-            enable = false
-```
+See [topics](topics/index.md) for the `[[topics]]` section and its per-topic options.
 
 The automatic resend options are in their own section. See [Resending](../resend/index.md).
