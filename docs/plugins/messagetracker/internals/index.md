@@ -108,7 +108,7 @@ CREATE TABLE IF NOT EXISTS mqtt_message_tracker (
     rc INTEGER,
     payload MEDIUMTEXT,
     payload_encoding VARCHAR(8)
-)
+);
 ```
 
 ## Resend rows
@@ -126,11 +126,88 @@ Resending a resend keeps the chain flat under the original, so that message's hi
 
 ```sql
 SELECT id, attempt, mid, sent_ts, arrived_ts, status, rc
-FROM mqtt_message_tracker WHERE origin_id = ? ORDER BY attempt
+FROM mqtt_message_tracker WHERE origin_id = ? ORDER BY attempt;
 ```
 
 The write sequence matches the tracker: the resend is inserted as `sent` after paho accepts it,
 then updated to `confirmed` or `unconfirmed`.
+
+## Checking a message's outcome
+
+A resend is a new row, so the original `failed` or `unconfirmed` row never changes. "Eventually
+sent" therefore means that at least one row with `origin_id` equal to the original's `id` has
+status `confirmed`. A `confirmed` resend means the broker accepted it, not that a subscriber
+received it.
+
+These queries look only at `failed` and `unconfirmed` originals. A `sent` row is still in flight;
+it is not an outcome yet, and the tracker will move it to `confirmed`, `failed` or `unconfirmed`.
+
+### One message
+
+Start from the id in the `ERROR` log line, replacing `3f2a9c...` with it:
+
+```sql
+-- The original row, followed by every resend of it.
+SELECT id, attempt, status, sent_ts, arrived_ts, rc
+FROM mqtt_message_tracker
+WHERE id = '3f2a9c...' OR origin_id = '3f2a9c...'
+ORDER BY sent_ts;
+```
+
+How to read the result:
+
+- only the original row: no resend was recorded;
+- a second row with `origin_id` set and `status = 'confirmed'`: that resend was accepted by the
+  broker;
+- a resend row still `failed` or `unconfirmed`: that attempt did not confirm, and another resend
+  is still possible.
+
+The resend row's own `sent_ts` and `arrived_ts` show when it was sent and when the broker
+confirmed it, which is later than the original's `sent_ts`.
+
+### Still unresolved
+
+```sql
+-- Failed or unconfirmed originals with no confirmed resend.
+SELECT o.id, o.topic, o.status, o.sent_ts
+FROM mqtt_message_tracker AS o
+WHERE o.status IN ('failed', 'unconfirmed')
+  AND NOT EXISTS (
+      SELECT 1 FROM mqtt_message_tracker AS r
+      WHERE r.origin_id = o.id AND r.status = 'confirmed')
+ORDER BY o.sent_ts;
+```
+
+This is the work still outstanding. A row appears here when it was never resent, or when its
+resends exist but none is `confirmed` yet (a resend that is still `sent` has not finished).
+
+### Attempts and outcome
+
+```sql
+-- Every failed or unconfirmed original, with its resend attempts and outcomes.
+SELECT o.id, o.topic, o.status, o.sent_ts,
+       COUNT(r.id) AS attempts,
+       SUM(r.status = 'confirmed') AS confirmed_attempts
+FROM mqtt_message_tracker AS o
+LEFT JOIN mqtt_message_tracker AS r ON r.origin_id = o.id
+WHERE o.status IN ('failed', 'unconfirmed')
+GROUP BY o.id
+ORDER BY o.sent_ts;
+```
+
+How to read the counts:
+
+- `attempts` counts every resend row, whatever its status. `0` means nothing was resent.
+- `confirmed_attempts` counts the resends where `status = 'confirmed'`. It is empty (`NULL`) when
+  `attempts` is `0`, because there are no rows to sum.
+- `confirmed_attempts > 0` means the message was eventually sent. A value lower than `attempts`
+  means some attempts failed but a later one succeeded.
+
+For example, an original with `attempts = 1` and `confirmed_attempts = 1` was resent once and the
+broker accepted that resend. An original with `attempts = 0` and an empty `confirmed_attempts` has
+not been resent at all.
+
+`ORDER BY o.sent_ts` lists the oldest first; use `DESC` for the newest first.
 
 ## Maintenance SQL
 
@@ -138,7 +215,7 @@ then updated to `confirmed` or `unconfirmed`.
 If the tool is not installed, the same can be done with SQL:
 
 ```sql
-DELETE FROM mqtt_message_tracker WHERE status = 'unconfirmed' AND sent_ts < ?
+DELETE FROM mqtt_message_tracker WHERE status = 'unconfirmed' AND sent_ts < ?;
 ```
 
 Deleting an original row while a `confirmed` resend remains leaves that resend's `origin_id`

@@ -56,6 +56,11 @@ the first connection is skipped and the next successful connection triggers the 
 
 Setting both to `false` turns automatic resend off, the same as omitting the section.
 
+The log records each connection: `Startup resend requested after the first connection.` or
+`Resend requested after a reconnect.` when a resend is queued, and
+`No messages need to be resent after the connection was established.` when there is nothing to
+select. A trigger that is off is logged at `DEBUG`.
+
 ### include_before_last_success
 
 Whether to resend rows older than the topic's last confirmed publish.
