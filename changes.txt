@@ -100,7 +100,8 @@ Enhancements:
     Confirmed rows are pruned by confirmed_retention. Failed and unconfirmed rows are pruned by
     error_retention, which defaults to 0 so they can still be resent.
     The optional [[resend]] section resends the failed and unconfirmed messages after the last
-    confirmed publish on each topic after a successful connect or reconnect.
+    confirmed publish on each topic. on_startup and on_reconnect select the trigger and both
+    default to false.
     include_before_last_success resends them even when they are older than that publish.
   - Added an on_disconnect plugin callback, and the monitor_on_disconnect option to monitor
     its execution time.

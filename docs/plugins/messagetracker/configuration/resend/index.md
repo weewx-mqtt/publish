@@ -8,28 +8,26 @@ nav_order: 2
 
 ## The `[[resend]]` section
 
-The automatic resend options. The section is disabled by default.
+The automatic resend options. Resending is off until `on_startup` or `on_reconnect` is `true`.
 
 ```ini
 [MQTTMessageTracker]
     [[resend]]
-        enable = true
+        on_startup = true
+        on_reconnect = true
 ```
-
-### enable
-
-Whether to resend messages after a successful connection.
-Default is `false`.
 
 ### on_startup
 
 Whether to resend after the first successful connection of the tracker.
-Default is `true`.
+Default is `false`.
 
 ### on_reconnect
 
 Whether to resend after a reconnect.
-Default is `true`.
+Default is `false`.
+
+When both are `false`, the section does nothing.
 
 ### include_before_last_success
 

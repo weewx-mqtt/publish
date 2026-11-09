@@ -407,18 +407,15 @@ MQTTPUBLISH_CONFIG = """
 
     # Resend the messages that were not confirmed when the connection is (re)established.
     # Only the messages after the last confirmed publish on each topic are resent.
+    # Automatic resending is off until one of the triggers below is true.
     [[resend]]
-        # Turn automatic resending on and off.
-        # Default is false.
-        enable = false
-
         # Resend after the first successful connection.
-        # Default is true.
-        on_startup = true
+        # Default is false.
+        on_startup = false
 
         # Resend after a reconnect.
-        # Default is true.
-        on_reconnect = true
+        # Default is false.
+        on_reconnect = false
 
         # Resend every unconfirmed and failed message for the topic, including messages
         # that are older than the topic's last confirmed publish.

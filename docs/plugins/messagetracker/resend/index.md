@@ -11,8 +11,9 @@ The tracker can do it automatically after a connection, or you can run `mqttrese
 
 ## Automatic resend
 
-When `[[resend]]` is enabled, the tracker resends messages after a successful connection,
-including a reconnect. It resends the messages after the last confirmed publish on each topic:
+When `on_startup` or `on_reconnect` is `true`, the tracker resends messages after the matching
+successful connection, including a reconnect. It resends the messages after the last confirmed
+publish on each topic:
 
 - the last confirmed publish is the newest original row that is `confirmed`, or whose resend is
   `confirmed`. A resend's own time does not move the boundary, otherwise a successful resend could

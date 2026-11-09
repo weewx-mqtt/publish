@@ -894,21 +894,19 @@ class MQTTMessageTracker(user.mqttpublish.MQTTPlugin):  # pylint: disable=too-ma
         return None
 
     def _configure_resend(self, plugin_dict):
-        """ Resolve the automatic resend options, or None when they are not enabled. """
+        """ Resolve the automatic resend options, or None when no trigger is enabled. """
         resend_dict = plugin_dict.get('resend')
-        if resend_dict is None or not to_bool(resend_dict.get('enable', False)):
+        if resend_dict is None:
             return None
 
         options = {
-            'on_startup': to_bool(resend_dict.get('on_startup', True)),
-            'on_reconnect': to_bool(resend_dict.get('on_reconnect', True)),
+            'on_startup': to_bool(resend_dict.get('on_startup', False)),
+            'on_reconnect': to_bool(resend_dict.get('on_reconnect', False)),
             'include_before_last_success': to_bool(resend_dict.get('include_before_last_success', False)),
             'since': max(0, self._config_int(resend_dict, 'since', 0)),
             'limit': max(0, self._config_int(resend_dict, 'limit', 0)),
         }
         if not options['on_startup'] and not options['on_reconnect']:
-            self._log('ERROR', "The resend options disable both on_startup and on_reconnect, "
-                               "no messages will be resent.")
             return None
         return options
 

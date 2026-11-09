@@ -45,9 +45,9 @@ class TestInstallConfig(unittest.TestCase):
     def test_tracker_resend_is_seeded(self):
         resend = self.config['MQTTMessageTracker']['resend']
 
-        self.assertEqual(resend['enable'], 'false')
-        self.assertEqual(resend['on_startup'], 'true')
-        self.assertEqual(resend['on_reconnect'], 'true')
+        self.assertNotIn('enable', resend)
+        self.assertEqual(resend['on_startup'], 'false')
+        self.assertEqual(resend['on_reconnect'], 'false')
         self.assertEqual(resend['include_before_last_success'], 'false')
         self.assertEqual(resend['since'], '0')
         self.assertEqual(resend['limit'], '0')
