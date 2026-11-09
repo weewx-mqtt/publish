@@ -92,11 +92,13 @@ Enhancements:
     Each row records its status (failed, sent, confirmed, or unconfirmed) and, when the arrival was
     never reported, the time the tracker stopped waiting for it.
     The install adds a message_tracker_binding and message_tracker database for it.
-    The topics to track are configured in a [[topics]] section, with an optional per-topic retention.
+    The topics to track are configured in a [[topics]] section, with optional per-topic
+    confirmed_retention and error_retention.
     A topic published with qos 0 is rejected with an error, because its delivery cannot be confirmed.
     A previous run's leftover 'sent' rows are marked unconfirmed at startup, and the count is logged.
     Rows that were in flight when the connection was lost are marked unconfirmed at the disconnect.
-    Unconfirmed rows are kept until unconfirmed_retention (default 0, never), so they can still be resent.
+    Confirmed rows are pruned by confirmed_retention. Failed and unconfirmed rows are pruned by
+    error_retention, which defaults to 0 so they can still be resent.
     The optional [[resend]] section resends the failed and unconfirmed messages after the last
     confirmed publish on each topic after a successful connect or reconnect.
     include_before_last_success resends them even when they are older than that publish.

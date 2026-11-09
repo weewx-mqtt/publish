@@ -45,7 +45,7 @@ def make_row(**overrides):
     return row
 
 
-def tracker_config(temp_dir, database_dict, retention=100, topics=None):
+def tracker_config(temp_dir, database_dict, error_retention=100, topics=None):
     """ A config with the tracker section, binding and database. """
     return configobj.ConfigObj({
         'WEEWX_ROOT': temp_dir,
@@ -53,7 +53,7 @@ def tracker_config(temp_dir, database_dict, retention=100, topics=None):
         'Databases': {'tracker': database_dict},
         'MQTTMessageTracker': {
             'data_binding': 'tracker_binding',
-            'retention': retention,
+            'error_retention': error_retention,
             'topics': {'weather/outTemp_F': {}} if topics is None else topics,
         },
     })
@@ -252,9 +252,10 @@ class TestPrune(DatabaseTestCase):
         self.assertEqual(len(self.rows()), 1)
         self.assertIn('No messages match the selection.', self.out.getvalue())
 
-    def test_per_topic_retention(self):
+    def test_per_topic_error_retention(self):
         config_dict = tracker_config(self.temp_dir.name, self.database_dict,
-                                     retention=1000, topics={'weather/outTemp_F': {'retention': 10}})
+                                     error_retention=1000,
+                                     topics={'weather/outTemp_F': {'error_retention': 10}})
         old = make_row(sent_ts=time.time() - 1000)
         self.insert(old)
 

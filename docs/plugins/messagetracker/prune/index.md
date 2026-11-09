@@ -6,37 +6,36 @@ nav_order: 3
 ---
 {% include messagetracker_warning.html %}
 
-The tracker deletes old rows so that its database does not grow without bound. The retention
-options decide how long each kind of row is kept. See
-[Configuration](../configuration/index.md#retention) for the options and their defaults.
+The tracker deletes old rows so that its database does not grow without bound. Two options decide
+how long a row is kept, one for confirmed rows and one for the rows a resend can still use. See
+[Configuration](../configuration/index.md#confirmed_retention) for them and their defaults.
 
 ## How retention works
 
-The retentions decide how long a message remains available to resend. `retention` bounds `confirmed`
-and `failed` rows; `unconfirmed_retention` bounds the uncertain rows a resend can still use.
-Shortening either makes older messages unrecoverable; keeping them at `0` preserves recovery but
-lets the table grow.
+`confirmed_retention` bounds `confirmed` rows — the success history. `error_retention` bounds
+`failed` and `unconfirmed` rows, the messages a resend can still recover. Each uses the topic's
+value, or the plugin-level value for topics that are no longer configured. `0` keeps a group
+forever. `sent` rows are not pruned; the startup sweep and a disconnect mark them `unconfirmed`.
 
-The tracker prunes `confirmed` and `failed` rows by age, using each topic's `retention` (or the
-plugin-level `retention` for topics that are no longer configured). `unconfirmed` rows are pruned
-by `unconfirmed_retention`, which defaults to `0` (never). `sent` rows are not pruned; the startup
-sweep and a disconnect mark them `unconfirmed`.
+Shortening `confirmed_retention` only loses history. Shortening `error_retention` also makes older
+messages unrecoverable, so it is the one to keep generous.
 
 ## Pruning with mqttprune.py
 
-To remove unconfirmed rows sooner, or when `unconfirmed_retention` is `0`, run
-`bin/user/mqttprune.py`:
+To remove rows sooner than their retention allows, run `bin/user/mqttprune.py`:
 
 ```shell
-python /usr/share/weewx/bin/user/mqttprune.py /etc/weewx/weewx.conf
-python /usr/share/weewx/bin/user/mqttprune.py /etc/weewx/weewx.conf --delete
+# Select unconfirmed rows older than 30 days.
+python /usr/share/weewx/bin/user/mqttprune.py /etc/weewx/weewx.conf --older-than 2592000
+# Add --delete to remove them.
+python /usr/share/weewx/bin/user/mqttprune.py /etc/weewx/weewx.conf --older-than 2592000 --delete
 ```
 
 Without `--delete` it only prints the selection.
 
-By default a row is selected when it is older than its topic's `retention` — the age the normal
-policy uses. Use `--older-than` to match `unconfirmed_retention`, or to prune sooner.
-`--older-than 0` selects every matching row, including topics whose retention is `0`.
+By default a row is selected when it is older than its topic's `error_retention`. Because that
+defaults to `0`, a run without `--older-than` selects nothing. `--older-than 0` selects every
+matching row, including topics whose retention is `0`.
 
 - `--status unconfirmed` is the default. Use `--status failed`, or `failed,unconfirmed`, to
   include `failed`. `sent` is refused (it may be in flight; restart WeeWX to mark it
@@ -57,9 +56,8 @@ See [Internals](../internals/index.md#maintenance-sql) for the equivalent SQL.
 
 ## Scheduling
 
-`unconfirmed_retention` bounds unconfirmed rows automatically. Use the tool on a timer when you
-want a different age or cadence, want to prune `failed` early, or leave `unconfirmed_retention`
-at `0`.
+`error_retention` prunes recovery rows automatically. Use the tool on a timer when you want a
+shorter age or a different cadence, or want to prune only some statuses.
 
 Run it once without `--delete` first, to see the selection.
 
@@ -69,8 +67,8 @@ A system cron entry in `/etc/cron.d/mqttprune`:
 SHELL=/bin/sh
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 
-# Every day at 03:15, delete unconfirmed rows older than their topic's retention.
-15 3 * * * weewx /usr/bin/python3 /usr/share/weewx/bin/user/mqttprune.py /etc/weewx/weewx.conf --delete >> /var/log/weewx/mqttprune.log 2>&1
+# Every day at 03:15, delete unconfirmed rows older than 30 days.
+15 3 * * * weewx /usr/bin/python3 /usr/share/weewx/bin/user/mqttprune.py /etc/weewx/weewx.conf --older-than 2592000 --delete >> /var/log/weewx/mqttprune.log 2>&1
 ```
 
 The same line in the WeeWX user's crontab (`crontab -u weewx -e`) drops the `weewx` user field.
@@ -102,7 +100,7 @@ Description=Prune the MQTT message tracker
 [Service]
 Type=oneshot
 User=weewx
-ExecStart=/usr/bin/python3 /usr/share/weewx/bin/user/mqttprune.py /etc/weewx/weewx.conf --delete
+ExecStart=/usr/bin/python3 /usr/share/weewx/bin/user/mqttprune.py /etc/weewx/weewx.conf --older-than 2592000 --delete
 ```
 
 and `/etc/systemd/system/mqttprune.timer`:

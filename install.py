@@ -373,15 +373,16 @@ MQTTPUBLISH_CONFIG = """
     # Default is mqtt_message_tracker.
     table = mqtt_message_tracker
 
-    # The default retention, in seconds, for topics that do not set their own.
-    # Set to 0 to keep them forever.
+    # How long, in seconds, to keep a confirmed publish in topics that do not set
+    # their own. Set to 0 to keep them forever.
     # Default is 604800 (7 days).
-    retention = 604800
+    confirmed_retention = 604800
 
-    # How long, in seconds, to keep unconfirmed rows.
+    # How long, in seconds, to keep failed and unconfirmed rows in topics that do
+    # not set their own. These are the messages a resend can still recover.
     # Set to 0 to keep them forever.
     # Default is 0.
-    unconfirmed_retention = 0
+    error_retention = 0
 
     # How often, in seconds, to delete rows older than retention.
     # Default is 3600.
@@ -441,15 +442,15 @@ MQTTPUBLISH_CONFIG = """
             # Default is true.
             enable = false
 
-            # How long, in seconds, to keep this topic's rows.
+            # How long, in seconds, to keep this topic's confirmed rows.
             # Set to 0 to keep them forever.
-            # Default is the retention option above.
-            #retention = 604800
+            # Default is the confirmed_retention option above.
+            #confirmed_retention = 604800
 
-            # How long, in seconds, to keep this topic's unconfirmed rows.
+            # How long, in seconds, to keep this topic's failed and unconfirmed rows.
             # Set to 0 to keep them forever.
-            # Default is the unconfirmed_retention option above.
-            #unconfirmed_retention = 0
+            # Default is the error_retention option above.
+            #error_retention = 0
 
 [DataBindings]
     [[message_tracker_binding]]

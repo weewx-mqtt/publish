@@ -2,12 +2,12 @@
 #
 #    See the file LICENSE.txt for your full rights.
 #
-""" Delete the message tracker rows that the retention policy keeps.
+""" Delete message tracker rows before the retention policy does.
 
-    The tracker prunes 'confirmed' and 'failed' rows by age, but keeps 'sent' and
-    'unconfirmed' rows, because they may still be delivered or can still be
-    resent. This tool removes the ones an operator no longer wants, with the
-    configured retention as the default age.
+    The tracker prunes 'confirmed' rows by confirmed_retention and the 'failed'
+    and 'unconfirmed' rows by error_retention. This tool prunes the failed and
+    unconfirmed rows, by status and with the topic's error_retention as the
+    default age. A 'sent' row is left alone because it may still be in flight.
 
     The tool is a dry run unless --delete is given.
 """
@@ -32,7 +32,7 @@ import user.mqttmessagetracker  # pylint: disable=wrong-import-position
 
 VERSION = user.mqttpublish.VERSION
 
-# A 'sent' row may be in flight and an 'confirmed' row is pruned by the tracker.
+# A 'sent' row may be in flight and a 'confirmed' row is pruned by the tracker.
 PRUNE_STATUSES = (user.mqttmessagetracker.STATUS_UNCONFIRMED,
                   user.mqttmessagetracker.STATUS_FAILED)
 
@@ -80,7 +80,7 @@ def select_rows(rows, statuses=None, topic_retention=None, default_retention=Non
     statuses = tuple(statuses or (DEFAULT_STATUS,))
     topic_retention = topic_retention or {}
     if default_retention is None:
-        default_retention = user.mqttmessagetracker.DEFAULT_RETENTION
+        default_retention = user.mqttmessagetracker.DEFAULT_ERROR_RETENTION
     now = time.time() if now is None else now
 
     selected = [row for row in rows
@@ -118,15 +118,15 @@ def _resolve(config_dict, options):
     except user.mqttmessagetracker.TrackerConfigError as exception:
         raise PruneError(str(exception)) from exception
 
-    default_retention = user.mqttmessagetracker.DEFAULT_RETENTION
-    retention = to_int(plugin_dict.get('retention', default_retention))
+    default_retention = user.mqttmessagetracker.DEFAULT_ERROR_RETENTION
+    retention = to_int(plugin_dict.get('error_retention', default_retention))
     if retention is None:
         retention = default_retention
 
     topic_dicts = plugin_dict.get('topics')
     topic_retention = {}
     if topic_dicts:
-        topic_retention = user.mqttmessagetracker.topic_retentions(topic_dicts, retention)
+        topic_retention = user.mqttmessagetracker.topic_error_retentions(topic_dicts, retention)
     return database_dict, table, topic_retention, retention
 
 
@@ -171,7 +171,7 @@ def _statuses(value):
 def build_parser():
     """ The command line options. """
     parser = argparse.ArgumentParser(
-        description="Delete the message tracker rows that the retention policy keeps.",
+        description="Delete message tracker rows before the retention policy does.",
         epilog="Without --delete the selection is only printed, nothing is removed.")
     parser.add_argument('config_file', help="The WeeWX config file, for example /etc/weewx/weewx.conf.")
     parser.add_argument('--version', action='version', version=f'%(prog)s {VERSION}')
@@ -189,7 +189,7 @@ def build_parser():
                               f"Default is {DEFAULT_STATUS}. Choose from "
                               f"{', '.join(PRUNE_STATUSES)}."))
     parser.add_argument('--older-than', type=int, default=None, metavar='SECONDS',
-                        help="Only prune rows older than SECONDS. Default is the topic's retention.")
+                        help="Only prune rows older than SECONDS. Default is the topic's error_retention.")
     parser.add_argument('--topic', default=None, metavar='GLOB',
                         help="Only prune topics that match the glob, for example 'weather/outTemp_*'.")
     parser.add_argument('--limit', type=int, default=DEFAULT_LIMIT, metavar='COUNT',

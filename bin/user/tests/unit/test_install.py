@@ -38,7 +38,9 @@ class TestInstallConfig(unittest.TestCase):
         database = self.config['Databases']['message_tracker']
         self.assertEqual(database['database_name'], 'mqtt_message_tracker.sdb')
         self.assertEqual(database['database_type'], 'SQLite')
-        self.assertEqual(self.config['MQTTMessageTracker']['unconfirmed_retention'], '0')
+        self.assertEqual(self.config['MQTTMessageTracker']['confirmed_retention'], '604800')
+        self.assertEqual(self.config['MQTTMessageTracker']['error_retention'], '0')
+        self.assertNotIn('retention', self.config['MQTTMessageTracker'])
 
     def test_tracker_resend_is_seeded(self):
         resend = self.config['MQTTMessageTracker']['resend']

@@ -35,30 +35,28 @@ Default is `true`.
 The name of the table to create and write to.
 Default is `mqtt_message_tracker`.
 
-### retention
+### confirmed_retention
 
-The default retention, in seconds, for `confirmed` and `failed` rows in topics that do not set their own.
+How long, in seconds, to keep `confirmed` rows in topics that do not set their own.
 Set to `0` to keep them forever.
 Default is `604800` (7 days).
 
-A `confirmed` row is a record of a publish the broker acknowledged. Pruning it frees space but
-loses that history. A `failed` row can still be resent, so pruning it removes a message that could
-otherwise have been recovered. `retention` does not apply to `unconfirmed` rows.
-See [Pruning](../prune/index.md) for how the retentions work.
+A `confirmed` row is a record of a publish the broker accepted. It is the only status the tracker
+will not resend, so pruning it frees space and loses history, but no recoverable message.
 
-### unconfirmed_retention
+### error_retention
 
-How long, in seconds, to keep `unconfirmed` rows in topics that do not set their own.
+How long, in seconds, to keep `failed` and `unconfirmed` rows in topics that do not set their own.
 Set to `0` to keep them forever.
 Default is `0`.
 
-`unconfirmed` rows are the ones a resend can still recover. Keeping them forever preserves the
-whole recovery window, but the table can grow after an outage. A finite value bounds the table at
-the cost of losing older messages before they are resent. This option does not apply to `confirmed` or
-`failed` rows.
+A `failed` or `unconfirmed` row is a message a resend can still recover. Pruning it removes that
+opportunity. The default keeps them until they are resolved, which lets the table grow during an
+outage; set a finite value to bound it.
 
-A `sent` row is not pruned; the startup sweep and a disconnect mark it `unconfirmed`, which this
-option then bounds. See [Pruning](../prune/index.md) to remove them sooner.
+A `sent` row is not pruned by either option; the startup sweep and a disconnect mark it
+`unconfirmed`, which `error_retention` then bounds.
+See [Pruning](../prune/index.md) for how the retentions work.
 
 ### prune_interval
 

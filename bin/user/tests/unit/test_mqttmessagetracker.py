@@ -634,7 +634,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
         self.assertEqual(len(self._rows('custom_tracker')), 1)
 
     def test_prunes_old_rows(self):
-        plugin, _ = self._make_plugin({'retention': 1, 'prune_interval': 1})
+        plugin, _ = self._make_plugin({'confirmed_retention': 1, 'prune_interval': 1})
 
         plugin.mqtt_publish(None, 1, 0, 'old', 'payload', 0, False, 1)
         self._wait_for_rows(1)
@@ -649,21 +649,22 @@ class TestMQTTMessageTracker(unittest.TestCase):
         rows = self._rows()
         self.assertEqual([row['mid'] for row in rows], [2])
 
-    def test_topic_retention(self):
+    def test_topic_retentions(self):
         plugin, _ = self._make_plugin(
-            {'retention': 60, 'unconfirmed_retention': 90},
-            topics={'default': {}, 'custom': {'retention': 120, 'unconfirmed_retention': 180}})
+            {'confirmed_retention': 60, 'error_retention': 90},
+            topics={'default': {},
+                    'custom': {'confirmed_retention': 120, 'error_retention': 180}})
 
-        self.assertEqual(plugin.tracked_topics, {'default': 60, 'custom': 120})
-        self.assertEqual(plugin.topic_unconfirmed_retentions, {'default': 90, 'custom': 180})
+        self.assertEqual(plugin.tracked_topics, {'default', 'custom'})
+        self.assertEqual(plugin.topic_confirmed_retentions, {'default': 60, 'custom': 120})
+        self.assertEqual(plugin.topic_error_retentions, {'default': 90, 'custom': 180})
 
     def test_qos_zero_topic_is_not_tracked(self):
         plugin, logger_queue = self._make_plugin(
             topics={'qos0': {}, 'qos1': {}},
             publish_topics={'qos0': {'qos': 0}, 'qos1': {'qos': 1}})
 
-        self.assertEqual(list(plugin.tracked_topics), ['qos1'])
-        self.assertNotIn('qos0', plugin.topic_unconfirmed_retentions)
+        self.assertEqual(plugin.tracked_topics, {'qos1'})
         messages = [call[0][0]['msg_text'] for call in logger_queue.put.call_args_list]
         self.assertTrue(any('qos0' in message and 'qos 0' in message for message in messages))
 
@@ -672,7 +673,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
             topics={'weather/outTemp_F': {}},
             publish_topics={'weather': {'qos': 0, 'type': 'individual'}})
 
-        self.assertEqual(plugin.tracked_topics, {})
+        self.assertEqual(plugin.tracked_topics, set())
         messages = [call[0][0]['msg_text'] for call in logger_queue.put.call_args_list]
         self.assertTrue(any('weather/outTemp_F' in message and 'qos 0' in message for message in messages))
 
@@ -681,7 +682,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
             topics={'weather/outTemp_F': {}},
             publish_topics={'weather': {'qos': 1, 'type': 'individual'}})
 
-        self.assertEqual(list(plugin.tracked_topics), ['weather/outTemp_F'])
+        self.assertEqual(plugin.tracked_topics, {'weather/outTemp_F'})
 
     def test_only_qos_zero_topics_disables_the_tracker(self):
         plugin, _ = self._make_plugin(topics=['qos0'], publish_topics={'qos0': {'qos': 0}})
@@ -708,8 +709,8 @@ class TestMQTTMessageTracker(unittest.TestCase):
         self.assertEqual([row['topic'] for row in self._rows()], ['tracked'])
 
     def test_per_topic_retention(self):
-        plugin, _ = self._make_plugin({'retention': 3600, 'prune_interval': 1},
-                                      topics={'short': {'retention': 1}, 'long': {}})
+        plugin, _ = self._make_plugin({'confirmed_retention': 3600, 'prune_interval': 1},
+                                      topics={'short': {'confirmed_retention': 1}, 'long': {}})
 
         plugin.mqtt_publish(None, 1, 0, 'short', 'payload', 0, False, 1)
         plugin.mqtt_publish(None, 2, 0, 'long', 'payload', 0, False, 2)
@@ -740,25 +741,8 @@ class TestMQTTMessageTracker(unittest.TestCase):
         log_messages = [call[0][0] for call in logger_queue.put.call_args_list]
         self.assertTrue(any(entry['log_type'] == 'ERROR' for entry in log_messages))
 
-    def test_unconfirmed_rows_are_not_pruned(self):
-        plugin, logger_queue = self._make_plugin({'retention': 1, 'prune_interval': 1})
-        plugin.mqtt_publish(None, 1, 0, 'topic', 'payload', 0, False, 1)
-        plugin.shutdown()
-
-        connection = weedb.connect(self.database_dict)
-        try:
-            plugin.tracker._prune(connection, time.time() + 10)  # pylint: disable=protected-access
-        finally:
-            connection.close()
-
-        rows = self._rows()
-        self.assertEqual(len(rows), 1)
-        self.assertEqual(rows[0]['status'], 'unconfirmed')
-        log_messages = [call[0][0] for call in logger_queue.put.call_args_list]
-        self.assertFalse(any(entry['log_type'] == 'ERROR' for entry in log_messages))
-
-    def test_unconfirmed_retention_prunes_old_rows(self):
-        plugin, _ = self._make_plugin({'unconfirmed_retention': 1, 'prune_interval': 3600})
+    def test_error_rows_are_pruned_by_error_retention(self):
+        plugin, logger_queue = self._make_plugin({'error_retention': 1, 'prune_interval': 1})
         plugin.mqtt_publish(None, 1, 0, 'topic', 'payload', 0, False, 1)
         plugin.shutdown()
 
@@ -769,11 +753,13 @@ class TestMQTTMessageTracker(unittest.TestCase):
             connection.close()
 
         self.assertEqual(self._rows(), [])
+        log_messages = [call[0][0] for call in logger_queue.put.call_args_list]
+        self.assertFalse(any(entry['log_type'] == 'ERROR' for entry in log_messages))
 
-    def test_per_topic_unconfirmed_retention(self):
+    def test_per_topic_error_retention_prunes_unconfirmed_rows(self):
         plugin, _ = self._make_plugin(
-            {'unconfirmed_retention': 3600, 'prune_interval': 3600},
-            topics={'short': {'unconfirmed_retention': 1}, 'long': {}})
+            {'error_retention': 3600, 'prune_interval': 3600},
+            topics={'short': {'error_retention': 1}, 'long': {}})
         plugin.mqtt_publish(None, 1, 0, 'short', 'payload', 0, False, 1)
         plugin.mqtt_publish(None, 2, 0, 'long', 'payload', 0, False, 2)
         plugin.shutdown()
@@ -787,7 +773,8 @@ class TestMQTTMessageTracker(unittest.TestCase):
         self.assertEqual([row['topic'] for row in self._rows()], ['long'])
 
     def test_sent_rows_are_not_pruned(self):
-        plugin, _ = self._make_plugin({'retention': 1, 'prune_interval': 3600})
+        plugin, _ = self._make_plugin({'confirmed_retention': 1, 'error_retention': 1,
+                                       'prune_interval': 3600})
         plugin.mqtt_publish(None, 1, 0, 'topic', 'payload', 0, False, 1)
         rows = self._wait_for_rows(1)
         self.assertEqual(rows[0]['status'], 'sent')
@@ -802,7 +789,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
         plugin.shutdown()
 
     def test_other_rows_are_pruned(self):
-        plugin, _ = self._make_plugin({'retention': 1, 'prune_interval': 1})
+        plugin, _ = self._make_plugin({'error_retention': 1, 'prune_interval': 1})
         plugin.mqtt_publish(None, 1, 1, 'topic', 'payload', 0, False, 1)  # a failed publish
         plugin.shutdown()
 

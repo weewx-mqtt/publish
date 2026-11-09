@@ -79,8 +79,8 @@ The tool:
 - waits for the connection before publishing, and for each publish to be confirmed, with
   `--ack-timeout` (default `10` seconds).
 
-Unconfirmed rows are kept until `unconfirmed_retention` (default never), so the tool can select a
-message that is older than the normal retention period.
+A row can only be resent while the tracker has not pruned it, so the topic's `error_retention` sets
+the recovery window. Keep it long enough to cover the outages you want to recover from.
 
 `--plugin-section`, `--data-binding` and `--table` select a tracker that is configured under
 another section or writes to another database.

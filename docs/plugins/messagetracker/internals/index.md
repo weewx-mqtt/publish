@@ -49,7 +49,7 @@ availability/LWT message are not tracked.
 `sent` is transient. While the tracker is running, a row is expected to move to `confirmed`, or to
 `failed` when paho refuses the publish. If the connection is lost, the rows in flight are marked
 `unconfirmed`; otherwise a row whose arrival never arrives is kept until the tracker stops, which
-marks it `unconfirmed`. `unconfirmed_retention` then bounds it.
+marks it `unconfirmed`. The topic's `error_retention` then bounds it.
 
 `unconfirmed` does not mean the message was not delivered. It means the tracker cannot tell: paho
 never reported the arrival, and no further report can arrive. That is why it is recorded as its
