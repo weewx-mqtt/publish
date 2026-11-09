@@ -78,7 +78,21 @@ could not tell.
 
 A `confirmed` row means the broker acknowledged the publish. It is not proof a subscriber received
 it, and with `retain` it means the broker stored the message. See
-[QoS and duplicate delivery](resend/index.md#qos-and-duplicate-delivery).
+[QoS and duplicate delivery](#qos-and-duplicate-delivery).
 
 See [Internals](internals/index.md#status-lifecycle) for when rows are marked `unconfirmed`, and
 for the message-id reuse behavior.
+
+## QoS and duplicate delivery
+
+QoS 2 is exactly-once for a single publish within a single MQTT session. It is not an end-to-end
+guarantee across reconnects, restarts, or application retries.
+
+A resend is a new publish with a new packet id. The broker cannot tell that it is a replay, so a
+subscriber can receive the same application message more than once, even when the topic uses
+QoS 2. This applies to both automatic resend and `mqttresend.py`.
+
+The tracker therefore provides at-least-once delivery end to end. Consumers must be idempotent,
+for example by deduplicating on `dateTime`. `failed` rows are safe to resend: paho refused them,
+so they were not published. `unconfirmed` rows are the ambiguous ones: the original may have
+reached the broker, but its acknowledgement was not observed.
