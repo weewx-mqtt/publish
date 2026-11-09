@@ -40,38 +40,52 @@ The default retention, in seconds, for `acked` and `failed` rows in topics that 
 Set to `0` to keep them forever.
 Default is `604800` (7 days).
 
+An `acked` row is a record of what paho reported as published. Pruning it frees space but loses
+that history. A `failed` row can still be resent, so pruning it removes a message that could
+otherwise have been recovered. `retention` does not apply to `unconfirmed` rows.
+
 ### unconfirmed_retention
 
 How long, in seconds, to keep `unconfirmed` rows in topics that do not set their own.
 Set to `0` to keep them forever.
 Default is `0`.
 
-A `sent` row is not pruned; the startup sweep marks it `unconfirmed`, which this option then bounds.
-See [Pruning](#pruning) to remove them sooner.
+`unconfirmed` rows are the ones a resend can still recover. Keeping them forever preserves the
+whole recovery window, but the table can grow after an outage. A finite value bounds the table at
+the cost of losing older messages before they are resent. This option does not apply to `acked` or
+`failed` rows.
+
+A `sent` row is not pruned; the startup sweep and a disconnect mark it `unconfirmed`, which this
+option then bounds. See [Pruning](#pruning) to remove them sooner.
 
 ### prune_interval
 
 How often, in seconds, to delete rows older than their retention.
 Default is `3600`.
 
-### queue_size
+### Advanced options
+
+These control the tracker's writer thread. The defaults are suitable for normal use.
+See [Internals](internals/index.md) for the implementation details.
+
+#### queue_size
 
 The maximum number of events to queue before they are dropped.
 The queue is drained by a background thread.
 Default is `10000`.
 
-### batch_size
+#### batch_size
 
 The maximum number of events written in one transaction.
 Default is `100`.
 
-### pending_ttl
+#### pending_ttl
 
 How long, in seconds, to keep an arrival that arrived before its send event.
 This can happen because the MQTT callback and the publishing code run on different threads.
 Default is `60`.
 
-### shutdown_timeout
+#### shutdown_timeout
 
 How long, in seconds, to wait for the tracker thread to write its queue and stop.
 Default is `10`.
@@ -161,35 +175,14 @@ Default is the `unconfirmed_retention` option above.
 
 ## What is tracked
 
-Each message published to a tracked topic records a row.
-
-- `id`: a unique id for the row.
-- `mid`: the MQTT message id.
-- `dateTime`: the WeeWX timestamp of the data.
-- `sent_ts`: when the message was handed to paho.
-- `arrived_ts`: when paho reported it published, `NULL` for anything that is not `acked`.
-- `status`: what is known about the message, see below.
-- `unconfirmed_ts`: when the tracker stopped waiting for the arrival, `NULL` unless the status is `unconfirmed`.
-- `origin_id`: the id of the original publish when this row is a resend, `NULL` otherwise.
-- `attempt`: the resend number when this row is a resend, `NULL` for the original publish.
-- `clientid`: the client that made a resend, `NULL` for the original publish.
-- `topic`: the topic the message was published on.
-- `qos`: the quality of service level used.
-- `retain`: whether the message is retained.
-- `rc`: the paho result code.
-- `payload`: the payload that was sent.
-- `payload_encoding`: `text` or `hex`, `NULL` when there is no payload.
-
-The payload is stored as text; binary payloads are hex-encoded and marked with
-`payload_encoding`. With MySQL, `MEDIUMTEXT` holds up to 16 MB; SQLite has no practical limit.
-A larger payload makes the insert fail and the batch is logged and dropped.
-
-A resend of a message is a copy of its row, with its own `mid`, `sent_ts`, `arrived_ts`, `status`
-and `rc`. It keeps the original `topic`, `qos`, `retain`, `dateTime` and `payload`, and points at
-the original with `origin_id` and `attempt`. The original row is not changed.
+Each message published to a tracked topic records a row in the tracker table.
+A resend is a new row that points at the original with `origin_id` and `attempt`; the original
+row is never changed.
 
 Messages published directly by a plugin, such as the Home Assistant discovery messages, and the
 availability/LWT message are not tracked.
+
+See [Internals](internals/index.md#what-is-tracked) for the row fields and payload storage.
 
 ## What the status means
 
@@ -200,63 +193,16 @@ availability/LWT message are not tracked.
 | `acked` | paho reported the message as published; `arrived_ts` is set. |
 | `unconfirmed` | no arrival was reported before the tracker stopped waiting; `unconfirmed_ts` is set. |
 
-`sent` is transient. While the tracker is running, a row is expected to move to `acked`, or to
-`failed` when paho refuses the publish. If the connection is lost, the rows in flight are marked
-`unconfirmed`; otherwise a row whose arrival never arrives is kept until the tracker stops, which
-marks it `unconfirmed`. `unconfirmed_retention` then bounds it.
+`sent` is transient: it moves to `acked` when paho reports the publish, or to `failed` when paho
+refuses it. `unconfirmed` is not proof that the message was not delivered; it means the tracker
+could not tell.
 
-`unconfirmed` does not mean the message was not delivered. It means the tracker cannot tell: paho
-never reported the arrival, and no further report can arrive. That is why it is recorded as its own
-status instead of an empty `arrived_ts`.
+An `acked` row is not proof a subscriber received it: with QoS 0 paho reports the message once it
+is written to the socket, and with `retain` it means the broker stored it. See
+[QoS and duplicate delivery](#qos-and-duplicate-delivery).
 
-Rows are marked `unconfirmed`:
-
-- when the connection is lost and paho has not reported the arrival, with `unconfirmed_ts` set
-  to the disconnect time. No arrival can be reported for a message that was in flight when the
-  connection went away;
-- when the publishing thread stops and paho has not reported the arrival, with `unconfirmed_ts`
-  set to the shutdown time. This includes messages that were delivered but whose arrival was not
-  reported before the process stopped;
-- when paho reuses a message id before the arrival of the older message is reported, with
-  `unconfirmed_ts` set to the time of the reuse;
-- at startup, for the rows a previous run left in `sent`, with `unconfirmed_ts` set to the startup
-  time. This covers a process that stopped without shutting down cleanly. The sweep logs how many
-  rows it marked, so a shutdown that did not complete is visible in the log.
-
-An `acked` row is also not proof of delivery to a subscriber:
-
-- with QoS 0, paho reports the message once it is written to the socket, not when the broker
-  receives it;
-- with `retain`, it means the broker stored the message, not that a subscriber received it.
-
-MQTT reuses a message id after 65,535 publishes, so the table is keyed by `id`, not `mid`.
-When a tracked message reuses a message id that is still waiting for its arrival, the older row is
-marked `unconfirmed`. A message published directly by a plugin, or to a topic that is not
-tracked, is not recorded, so its arrival can still be attributed to a row that is waiting with
-the same message id. This is rare and only happens when the id counter wraps.
-
-## Table schema
-
-```sql
-CREATE TABLE IF NOT EXISTS mqtt_message_tracker (
-    id VARCHAR(32) NOT NULL PRIMARY KEY,
-    mid INTEGER NOT NULL,
-    dateTime INTEGER,
-    sent_ts DOUBLE NOT NULL,
-    arrived_ts DOUBLE,
-    status VARCHAR(16) NOT NULL,
-    unconfirmed_ts DOUBLE,
-    origin_id VARCHAR(32),
-    attempt INTEGER,
-    clientid VARCHAR(128),
-    topic VARCHAR(512) NOT NULL,
-    qos INTEGER NOT NULL,
-    retain INTEGER NOT NULL,
-    rc INTEGER,
-    payload MEDIUMTEXT,
-    payload_encoding VARCHAR(8)
-)
-```
+See [Internals](internals/index.md#status-lifecycle) for when rows are marked `unconfirmed`, and
+for the message-id reuse behavior.
 
 ## Resending automatically
 
@@ -275,11 +221,9 @@ including a reconnect. It resends the messages after the last confirmed publish 
 The boundary is per topic. A successful publish on one topic says nothing about the delivery of
 another topic.
 
-The resend runs on the tracker's writer thread, so it does not block paho's network loop and
-does not open a second MQTT or database connection. It publishes each message and records a new
-resend row, then waits for the normal `on_publish` callback to mark it `acked`. A message that was
-in flight when the connection was lost is marked `unconfirmed` by the `on_disconnect` callback, so
-it is part of the next resend.
+The resend uses the tracker's existing MQTT connection. It publishes each message and records a
+new resend row; a later `on_publish` marks the row `acked`. A message that was in flight when the
+connection was lost is marked `unconfirmed`, so it is part of the next resend.
 
 `since` limits the age of the rows considered, and `limit` caps a run. Set `limit` to `0` to
 resend every message. A capped run resends the oldest messages first, but a later live publish
@@ -310,21 +254,9 @@ path. A package install already has it there. For a source install, add its `src
 PYTHONPATH=~/weewx/src python ~/weewx-data/bin/user/mqttresend.py ~/weewx-data/weewx.conf
 ```
 
-A resend is a new row, so the original is never changed:
-
-| id | topic | status | origin_id | attempt |
-| --- | --- | --- | --- | --- |
-| A | weather/outTemp_F | unconfirmed | NULL | NULL |
-| B | weather/outTemp_F | acked | A | 1 |
-
-The resend copies the topic, QoS, retain flag, `dateTime` and payload of the original.
-Its `origin_id` is the original row and `attempt` counts the resends of that message from 1.
-Resending a resend keeps the chain flat under the original, so that message's history is:
-
-```sql
-SELECT id, attempt, mid, sent_ts, arrived_ts, status, rc
-FROM mqtt_message_tracker WHERE origin_id = ? ORDER BY attempt
-```
+A resend is a new row, so the original is never changed. It copies the topic, QoS, retain flag,
+`dateTime` and payload of the original, and points at the original with `origin_id` and `attempt`.
+See [Internals](internals/index.md#resend-rows) for the row layout and history query.
 
 The tool:
 
@@ -351,9 +283,8 @@ A message published directly by a plugin, or to a topic that is not tracked, is 
 The exit code is `0` on success, `1` when the connection, a publish or an ack failed, and `2` for
 a config or database error. A connect failure stops the run before anything is published.
 
-The write sequence matches the tracker: the resend is inserted as `sent` after paho accepts it,
-then updated to `acked` or `unconfirmed`. A tool that is killed after publishing leaves a `sent`
-row, which the tracker marks `unconfirmed` the next time it starts.
+A tool that is killed after publishing leaves a `sent` row, which the tracker marks `unconfirmed`
+the next time it starts. See [Internals](internals/index.md#resend-rows) for the write sequence.
 
 Resend is not delivery: it cannot undo an earlier loss, and it may publish a duplicate.
 It assumes the consumer is idempotent on `dateTime`, which is true for InfluxDB and typical
@@ -375,10 +306,15 @@ reached the broker, but its acknowledgement was not observed.
 
 ## Pruning
 
+The retentions decide how long a message remains available to resend. `retention` bounds `acked`
+and `failed` rows; `unconfirmed_retention` bounds the uncertain rows a resend can still use.
+Shortening either makes older messages unrecoverable; keeping them at `0` preserves recovery but
+lets the table grow.
+
 The tracker prunes `acked` and `failed` rows by age, using each topic's `retention` (or the
 plugin-level `retention` for topics that are no longer configured). `unconfirmed` rows are pruned
 by `unconfirmed_retention`, which defaults to `0` (never). `sent` rows are not pruned; the startup
-sweep marks them `unconfirmed`.
+sweep and a disconnect mark them `unconfirmed`.
 
 To remove unconfirmed rows sooner, or when `unconfirmed_retention` is `0`, run
 `bin/user/mqttprune.py`:
@@ -409,11 +345,7 @@ pointing at a row that no longer exists; the resend row is self-contained, so it
 and prunes normally.
 
 A `sent` row is marked `unconfirmed` when the tracker restarts, so the tool does not touch it.
-If the tool is not installed, the same can be done with SQL:
-
-```sql
-DELETE FROM mqtt_message_tracker WHERE status = 'unconfirmed' AND sent_ts < ?
-```
+See [Internals](internals/index.md#maintenance-sql) for the equivalent SQL.
 
 ### Scheduling
 
@@ -433,11 +365,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 15 3 * * * weewx /usr/bin/python3 /usr/share/weewx/bin/user/mqttprune.py /etc/weewx/weewx.conf --delete >> /var/log/weewx/mqttprune.log 2>&1
 ```
 
-The same line in the WeeWX user's crontab (`crontab -u weewx -e`) drops the user field:
-
-```cron
-15 3 * * * /usr/bin/python3 /usr/share/weewx/bin/user/mqttprune.py /etc/weewx/weewx.conf --delete >> /var/log/weewx/mqttprune.log 2>&1
-```
+The same line in the WeeWX user's crontab (`crontab -u weewx -e`) drops the `weewx` user field.
 
 To clear a backlog after an outage, widen the age, include `failed`, and raise the limit:
 
@@ -523,9 +451,7 @@ Then enable the plugin:
         [[[weather/outHumidity]]]
 ```
 
-## SQLite locking
+## Technical details
 
-The tracker writes from its own thread, in batches and short transactions.
-The default SQLite `timeout` is 5 seconds.
-If the database is busy, the batch is logged as an error and dropped; publishing is not blocked.
-With a separate database, this contention is with other writers of that file, not with the weather archive.
+See [Internals](internals/index.md) for the table schema, status lifecycle, resend write sequence,
+maintenance SQL, and SQLite locking.
