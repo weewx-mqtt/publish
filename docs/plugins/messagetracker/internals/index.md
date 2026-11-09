@@ -1,9 +1,15 @@
 ---
 title: Internals
 parent: MQTTMessageTracker
+ancestor: MQTTMessageTracker
+nav_order: 4
 ---
+{% include messagetracker_warning.html %}
+
 Implementation notes for `MQTTMessageTracker`.
 They are not needed to install or use the plugin.
+The options are in [Configuration](../configuration/index.md), and the resend and prune behavior
+is in [Resending](../resend/index.md) and [Pruning](../prune/index.md).
 
 ## What is tracked
 
