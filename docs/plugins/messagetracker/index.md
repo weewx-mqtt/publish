@@ -36,12 +36,12 @@ Default is `mqtt_message_tracker`.
 
 ### retention
 
-The default retention, in seconds, for `acked` and `failed` rows in topics that do not set their own.
+The default retention, in seconds, for `confirmed` and `failed` rows in topics that do not set their own.
 Set to `0` to keep them forever.
 Default is `604800` (7 days).
 
-An `acked` row is a record of what paho reported as published. Pruning it frees space but loses
-that history. A `failed` row can still be resent, so pruning it removes a message that could
+A `confirmed` row is a record of a publish the broker acknowledged. Pruning it frees space but
+loses that history. A `failed` row can still be resent, so pruning it removes a message that could
 otherwise have been recovered. `retention` does not apply to `unconfirmed` rows.
 
 ### unconfirmed_retention
@@ -52,7 +52,7 @@ Default is `0`.
 
 `unconfirmed` rows are the ones a resend can still recover. Keeping them forever preserves the
 whole recovery window, but the table can grow after an outage. A finite value bounds the table at
-the cost of losing older messages before they are resent. This option does not apply to `acked` or
+the cost of losing older messages before they are resent. This option does not apply to `confirmed` or
 `failed` rows.
 
 A `sent` row is not pruned; the startup sweep and a disconnect mark it `unconfirmed`, which this
@@ -152,7 +152,7 @@ Default is `true`.
 
 #### retention
 
-How long, in seconds, to keep this topic's `acked` and `failed` rows.
+How long, in seconds, to keep this topic's `confirmed` and `failed` rows.
 Set to `0` to keep them forever.
 Default is the `retention` option above.
 
@@ -190,15 +190,14 @@ See [Internals](internals/index.md#what-is-tracked) for the row fields and paylo
 | --- | --- |
 | `failed` | paho returned a non-success `rc`; the message was not published. |
 | `sent` | the message was handed to paho and its arrival has not been reported yet. |
-| `acked` | paho reported the message as published; `arrived_ts` is set. |
+| `confirmed` | the broker acknowledged the publish; `arrived_ts` is set. |
 | `unconfirmed` | no arrival was reported before the tracker stopped waiting; `unconfirmed_ts` is set. |
 
-`sent` is transient: it moves to `acked` when paho reports the publish, or to `failed` when paho
+`sent` is transient: it moves to `confirmed` when paho reports the publish, or to `failed` when paho
 refuses it. `unconfirmed` is not proof that the message was not delivered; it means the tracker
 could not tell.
 
-An `acked` row means the broker accepted the publish: paho reports it on the broker's
-acknowledgement, a PUBACK for QoS 1 or a PUBCOMP for QoS 2. It is not proof a subscriber received
+A `confirmed` row means the broker acknowledged the publish. It is not proof a subscriber received
 it, and with `retain` it means the broker stored the message. See
 [QoS and duplicate delivery](#qos-and-duplicate-delivery).
 
@@ -210,8 +209,8 @@ for the message-id reuse behavior.
 When `[[resend]]` is enabled, the tracker resends messages after a successful connection,
 including a reconnect. It resends the messages after the last confirmed publish on each topic:
 
-- the last confirmed publish is the newest original row that is `acked`, or whose resend is
-  `acked`. A resend's own time does not move the boundary, otherwise a successful resend could
+- the last confirmed publish is the newest original row that is `confirmed`, or whose resend is
+  `confirmed`. A resend's own time does not move the boundary, otherwise a successful resend could
   hide an older backlog;
 - every `failed` and `unconfirmed` row after that boundary is resent, oldest first;
 - if a topic has no confirmed publish, every `failed` and `unconfirmed` row is resent;
@@ -223,7 +222,7 @@ The boundary is per topic. A successful publish on one topic says nothing about 
 another topic.
 
 The resend uses the tracker's existing MQTT connection. It publishes each message and records a
-new resend row; a later `on_publish` marks the row `acked`. A message that was in flight when the
+new resend row; a later `on_publish` marks the row `confirmed`. A message that was in flight when the
 connection was lost is marked `unconfirmed`, so it is part of the next resend.
 
 `since` limits the age of the rows considered, and `limit` caps a run. Set `limit` to `0` to
@@ -262,12 +261,12 @@ See [Internals](internals/index.md#resend-rows) for the row layout and history q
 The tool:
 
 - selects `unconfirmed` rows. Use `--status failed`, or `failed,unconfirmed`, to include `failed`.
-  A `sent` row may still be in flight and an `acked` row does not need a resend;
+  A `sent` row may still be in flight and a `confirmed` row does not need a resend;
 - considers every `unconfirmed` message, whatever its age; `--since SECONDS` bounds it, and
   `--limit` caps the number resent (default `100`);
 - resends only the newest row per topic, so an old value cannot overwrite a newer one. A message
   this hides is reported, and `--all` resends every selected message, oldest first;
-- skips a message that already has an `acked` resend; `--force` overrides;
+- skips a message that already has a `confirmed` resend; `--force` overrides;
 - filters the topics with `--topic`, a glob such as `weather/outTemp_*`;
 - connects with a clientid of its own, so the running service is not disconnected;
 - waits for the connection before publishing, and for each publish to be confirmed, with
@@ -307,12 +306,12 @@ reached the broker, but its acknowledgement was not observed.
 
 ## Pruning
 
-The retentions decide how long a message remains available to resend. `retention` bounds `acked`
+The retentions decide how long a message remains available to resend. `retention` bounds `confirmed`
 and `failed` rows; `unconfirmed_retention` bounds the uncertain rows a resend can still use.
 Shortening either makes older messages unrecoverable; keeping them at `0` preserves recovery but
 lets the table grow.
 
-The tracker prunes `acked` and `failed` rows by age, using each topic's `retention` (or the
+The tracker prunes `confirmed` and `failed` rows by age, using each topic's `retention` (or the
 plugin-level `retention` for topics that are no longer configured). `unconfirmed` rows are pruned
 by `unconfirmed_retention`, which defaults to `0` (never). `sent` rows are not pruned; the startup
 sweep and a disconnect mark them `unconfirmed`.
@@ -333,7 +332,7 @@ policy uses. Use `--older-than` to match `unconfirmed_retention`, or to prune so
 
 - `--status unconfirmed` is the default. Use `--status failed`, or `failed,unconfirmed`, to
   include `failed`. `sent` is refused (it may be in flight; restart WeeWX to mark it
-  `unconfirmed`) and `acked` is refused (the automatic prune handles it).
+  `unconfirmed`) and `confirmed` is refused (the automatic prune handles it).
 - `--topic` filters with a glob, and `--limit` caps the run (default `100`, oldest first).
 - `--plugin-section`, `--data-binding` and `--table` select a tracker configured elsewhere.
 
@@ -341,7 +340,7 @@ The tool deletes by id and status, so a row that changed between the plan and th
 alone. It is safe to run while WeeWX is running.
 
 Deleting an `unconfirmed` row discards the only record that its delivery outcome is unknown.
-Deleting an original row while an `acked` resend remains leaves that resend's `origin_id`
+Deleting an original row while a `confirmed` resend remains leaves that resend's `origin_id`
 pointing at a row that no longer exists; the resend row is self-contained, so it still resends
 and prunes normally.
 

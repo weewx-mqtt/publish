@@ -73,9 +73,9 @@ def make_row(row_id, topic, status, sent_ts, origin_id=None):
 class TestSelectAfterLastSuccess(unittest.TestCase):
     def test_resends_the_tail_after_the_last_success(self):
         rows = [
-            make_row('acked-1', 'topic', user.mqttmessagetracker.STATUS_ACKED, 1),
+            make_row('confirmed-1', 'topic', user.mqttmessagetracker.STATUS_CONFIRMED, 1),
             make_row('failed', 'topic', user.mqttmessagetracker.STATUS_FAILED, 2),
-            make_row('acked-2', 'topic', user.mqttmessagetracker.STATUS_ACKED, 3),
+            make_row('confirmed-2', 'topic', user.mqttmessagetracker.STATUS_CONFIRMED, 3),
             make_row('unconfirmed', 'topic', user.mqttmessagetracker.STATUS_UNCONFIRMED, 4),
             make_row('failed-2', 'topic', user.mqttmessagetracker.STATUS_FAILED, 5),
         ]
@@ -97,9 +97,9 @@ class TestSelectAfterLastSuccess(unittest.TestCase):
 
     def test_the_boundary_is_per_topic(self):
         rows = [
-            make_row('a-acked', 'a', user.mqttmessagetracker.STATUS_ACKED, 1),
+            make_row('a-confirmed', 'a', user.mqttmessagetracker.STATUS_CONFIRMED, 1),
             make_row('a-failed', 'a', user.mqttmessagetracker.STATUS_FAILED, 2),
-            make_row('b-acked', 'b', user.mqttmessagetracker.STATUS_ACKED, 10),
+            make_row('b-confirmed', 'b', user.mqttmessagetracker.STATUS_CONFIRMED, 10),
             make_row('b-failed', 'b', user.mqttmessagetracker.STATUS_FAILED, 11),
         ]
 
@@ -107,10 +107,10 @@ class TestSelectAfterLastSuccess(unittest.TestCase):
 
         self.assertEqual([row['id'] for row in selected], ['a-failed', 'b-failed'])
 
-    def test_an_acked_resend_confirms_the_original_without_moving_the_boundary(self):
+    def test_a_confirmed_resend_confirms_the_original_without_moving_the_boundary(self):
         rows = [
             make_row('origin', 'topic', user.mqttmessagetracker.STATUS_UNCONFIRMED, 1),
-            make_row('resend', 'topic', user.mqttmessagetracker.STATUS_ACKED, 10, origin_id='origin'),
+            make_row('resend', 'topic', user.mqttmessagetracker.STATUS_CONFIRMED, 10, origin_id='origin'),
             make_row('failed', 'topic', user.mqttmessagetracker.STATUS_FAILED, 2),
         ]
 
@@ -132,9 +132,9 @@ class TestSelectAfterLastSuccess(unittest.TestCase):
 
     def test_include_before_last_success_resends_earlier_rows(self):
         rows = [
-            make_row('acked-1', 'topic', user.mqttmessagetracker.STATUS_ACKED, 1),
+            make_row('confirmed-1', 'topic', user.mqttmessagetracker.STATUS_CONFIRMED, 1),
             make_row('failed-before', 'topic', user.mqttmessagetracker.STATUS_FAILED, 2),
-            make_row('acked-2', 'topic', user.mqttmessagetracker.STATUS_ACKED, 3),
+            make_row('confirmed-2', 'topic', user.mqttmessagetracker.STATUS_CONFIRMED, 3),
             make_row('failed-after', 'topic', user.mqttmessagetracker.STATUS_FAILED, 4),
         ]
 
@@ -337,7 +337,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
         self.assertEqual(row['dateTime'], 123456)
         self.assertIsNotNone(row['sent_ts'])
         self.assertIsNotNone(row['arrived_ts'])
-        self.assertEqual(row['status'], 'acked')
+        self.assertEqual(row['status'], 'confirmed')
         self.assertIsNone(row['unconfirmed_ts'])
         self.assertEqual(row['topic'], 'topic/one')
         self.assertEqual(row['qos'], 1)
@@ -360,7 +360,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
         self.assertIsNone(rows[0]['unconfirmed_ts'])
 
         plugin.on_mqtt_publish(None, None, 42, None)
-        rows = self._wait_for(lambda rows: rows and rows[0]['status'] == 'acked')
+        rows = self._wait_for(lambda rows: rows and rows[0]['status'] == 'confirmed')
 
         self.assertIsNotNone(rows[0]['arrived_ts'])
 
@@ -377,27 +377,27 @@ class TestMQTTMessageTracker(unittest.TestCase):
         self.assertIsNotNone(rows[0]['unconfirmed_ts'])
         self._wait_for_log(logger_queue, "the connection was lost")
 
-    def test_connection_loss_does_not_change_acked_rows(self):
+    def test_connection_loss_does_not_change_confirmed_rows(self):
         plugin, _ = self._make_plugin()
 
-        plugin.mqtt_publish(None, 1, 0, 'topic', 'acked', 1, False, 1)
+        plugin.mqtt_publish(None, 1, 0, 'topic', 'confirmed', 1, False, 1)
         plugin.on_mqtt_publish(None, None, 1, None)
         plugin.mqtt_publish(None, 2, 0, 'topic', 'sent', 1, False, 2)
-        self._wait_for(lambda rows: any(row['status'] == 'acked' for row in rows) and len(rows) == 2)
+        self._wait_for(lambda rows: any(row['status'] == 'confirmed' for row in rows) and len(rows) == 2)
 
         plugin.on_mqtt_disconnect(None, None, 1, None)
 
         rows = self._wait_for(lambda rows: any(row['status'] == 'unconfirmed' for row in rows))
         by_payload = {row['payload']: row for row in rows}
-        self.assertEqual(by_payload['acked']['status'], 'acked')
+        self.assertEqual(by_payload['confirmed']['status'], 'confirmed')
         self.assertEqual(by_payload['sent']['status'], 'unconfirmed')
 
     def test_resend_after_connect(self):
         plugin, _ = self._make_plugin({'resend': {'enable': True}}, mqtt_dict={'clientid': 'test-client'})
 
-        plugin.mqtt_publish(None, 1, 0, 'topic', 'acked', 1, False, 1)
+        plugin.mqtt_publish(None, 1, 0, 'topic', 'confirmed', 1, False, 1)
         plugin.on_mqtt_publish(None, None, 1, None)
-        self._wait_for(lambda rows: len(rows) == 1 and rows[0]['status'] == 'acked')
+        self._wait_for(lambda rows: len(rows) == 1 and rows[0]['status'] == 'confirmed')
         time.sleep(0.01)
         plugin.mqtt_publish(None, 2, 1, 'topic', 'failed', 1, False, 2)
         rows = self._wait_for_rows(2)
@@ -416,25 +416,25 @@ class TestMQTTMessageTracker(unittest.TestCase):
         self.assertEqual(resent['payload'], 'failed')
 
         plugin.on_mqtt_publish(None, None, 11, None)
-        rows = self._wait_for(lambda rows: any(row['id'] == resent['id'] and row['status'] == 'acked'
+        rows = self._wait_for(lambda rows: any(row['id'] == resent['id'] and row['status'] == 'confirmed'
                                                for row in rows))
         by_id = {row['id']: row for row in rows}
         self.assertEqual(by_id[failed['id']]['status'], 'failed')
-        self.assertEqual(by_id[resent['id']]['status'], 'acked')
+        self.assertEqual(by_id[resent['id']]['status'], 'confirmed')
 
     def test_resend_uses_the_last_success_as_the_boundary(self):
         plugin, _ = self._make_plugin({'resend': {'enable': True}})
 
-        plugin.mqtt_publish(None, 1, 0, 'topic', 'acked-1', 1, False, 1)
+        plugin.mqtt_publish(None, 1, 0, 'topic', 'confirmed-1', 1, False, 1)
         plugin.on_mqtt_publish(None, None, 1, None)
-        self._wait_for(lambda rows: len(rows) == 1 and rows[0]['status'] == 'acked')
+        self._wait_for(lambda rows: len(rows) == 1 and rows[0]['status'] == 'confirmed')
         time.sleep(0.01)
         plugin.mqtt_publish(None, 2, 1, 'topic', 'failed-before', 1, False, 2)
         self._wait_for_rows(2)
         time.sleep(0.01)
-        plugin.mqtt_publish(None, 3, 0, 'topic', 'acked-2', 1, False, 3)
+        plugin.mqtt_publish(None, 3, 0, 'topic', 'confirmed-2', 1, False, 3)
         plugin.on_mqtt_publish(None, None, 3, None)
-        self._wait_for(lambda rows: any(row['payload'] == 'acked-2' and row['status'] == 'acked'
+        self._wait_for(lambda rows: any(row['payload'] == 'confirmed-2' and row['status'] == 'confirmed'
                                         for row in rows))
         time.sleep(0.01)
         plugin.mqtt_publish(None, 4, 1, 'topic', 'failed-after', 1, False, 4)
@@ -452,16 +452,16 @@ class TestMQTTMessageTracker(unittest.TestCase):
         plugin, _ = self._make_plugin(
             {'resend': {'enable': True, 'include_before_last_success': True}})
 
-        plugin.mqtt_publish(None, 1, 0, 'topic', 'acked-1', 1, False, 1)
+        plugin.mqtt_publish(None, 1, 0, 'topic', 'confirmed-1', 1, False, 1)
         plugin.on_mqtt_publish(None, None, 1, None)
-        self._wait_for(lambda rows: len(rows) == 1 and rows[0]['status'] == 'acked')
+        self._wait_for(lambda rows: len(rows) == 1 and rows[0]['status'] == 'confirmed')
         time.sleep(0.01)
         plugin.mqtt_publish(None, 2, 1, 'topic', 'failed-before', 1, False, 2)
         self._wait_for_rows(2)
         time.sleep(0.01)
-        plugin.mqtt_publish(None, 3, 0, 'topic', 'acked-2', 1, False, 3)
+        plugin.mqtt_publish(None, 3, 0, 'topic', 'confirmed-2', 1, False, 3)
         plugin.on_mqtt_publish(None, None, 3, None)
-        self._wait_for(lambda rows: any(row['payload'] == 'acked-2' and row['status'] == 'acked'
+        self._wait_for(lambda rows: any(row['payload'] == 'confirmed-2' and row['status'] == 'confirmed'
                                         for row in rows))
         time.sleep(0.01)
         plugin.mqtt_publish(None, 4, 1, 'topic', 'failed-after', 1, False, 4)
@@ -601,7 +601,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
 
         rows = self._rows()
         self.assertEqual(len(rows), 1)
-        self.assertEqual(rows[0]['status'], 'acked')
+        self.assertEqual(rows[0]['status'], 'confirmed')
         self.assertIsNotNone(rows[0]['arrived_ts'])
         self.assertIsNone(rows[0]['unconfirmed_ts'])
 
@@ -639,7 +639,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
         plugin.mqtt_publish(None, 1, 0, 'old', 'payload', 0, False, 1)
         self._wait_for_rows(1)
         plugin.on_mqtt_publish(None, None, 1, None)
-        self._wait_for(lambda rows: rows[0]['status'] == 'acked')
+        self._wait_for(lambda rows: rows[0]['status'] == 'confirmed')
 
         time.sleep(1.1)
         plugin.mqtt_publish(None, 2, 0, 'new', 'payload', 0, False, 2)
@@ -700,7 +700,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
         self._wait_for_rows(2)
         plugin.on_mqtt_publish(None, None, 1, None)
         plugin.on_mqtt_publish(None, None, 2, None)
-        self._wait_for(lambda rows: all(row['status'] == 'acked' for row in rows))
+        self._wait_for(lambda rows: all(row['status'] == 'confirmed' for row in rows))
 
         time.sleep(1.1)
         plugin.mqtt_publish(None, 3, 0, 'long', 'payload', 0, False, 3)

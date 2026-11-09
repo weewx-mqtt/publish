@@ -13,7 +13,7 @@ Each message published to a tracked topic records a row.
 - `mid`: the MQTT message id.
 - `dateTime`: the WeeWX timestamp of the data.
 - `sent_ts`: when the message was handed to paho.
-- `arrived_ts`: when paho reported it published, `NULL` for anything that is not `acked`.
+- `arrived_ts`: when paho reported it published, `NULL` for anything that is not `confirmed`.
 - `status`: what is known about the message.
 - `unconfirmed_ts`: when the tracker stopped waiting for the arrival, `NULL` unless the status is
   `unconfirmed`.
@@ -40,7 +40,7 @@ availability/LWT message are not tracked.
 
 ## Status lifecycle
 
-`sent` is transient. While the tracker is running, a row is expected to move to `acked`, or to
+`sent` is transient. While the tracker is running, a row is expected to move to `confirmed`, or to
 `failed` when paho refuses the publish. If the connection is lost, the rows in flight are marked
 `unconfirmed`; otherwise a row whose arrival never arrives is kept until the tracker stops, which
 marks it `unconfirmed`. `unconfirmed_retention` then bounds it.
@@ -63,9 +63,10 @@ Rows are marked `unconfirmed`:
   time. This covers a process that stopped without shutting down cleanly. The sweep logs how many
   rows it marked, so a shutdown that did not complete is visible in the log.
 
-An `acked` row is also not proof of delivery to a subscriber. Paho reports it when the broker
-acknowledges the publish, a PUBACK for QoS 1 or a PUBCOMP for QoS 2, which means the broker
-accepted the message. With `retain`, it also means the broker stored the message.
+A `confirmed` row is also not proof of delivery to a subscriber. Paho reports it when the broker
+acknowledges the publish: a PUBACK for QoS 1, or a PUBCOMP for QoS 2, which completes the
+exactly-once handshake. Either way it means the broker accepted the message. With `retain`, it also
+means the broker stored the message.
 
 MQTT reuses a message id after 65,535 publishes, so the table is keyed by `id`, not `mid`.
 When a tracked message reuses a message id that is still waiting for its arrival, the older row is
@@ -103,7 +104,7 @@ A resend is a new row, so the original is never changed:
 | id | topic | status | origin_id | attempt |
 | --- | --- | --- | --- | --- |
 | A | weather/outTemp_F | unconfirmed | NULL | NULL |
-| B | weather/outTemp_F | acked | A | 1 |
+| B | weather/outTemp_F | confirmed | A | 1 |
 
 The resend copies the topic, QoS, retain flag, `dateTime` and payload of the original.
 Its `origin_id` is the original row and `attempt` counts the resends of that message from 1.
@@ -115,7 +116,7 @@ FROM mqtt_message_tracker WHERE origin_id = ? ORDER BY attempt
 ```
 
 The write sequence matches the tracker: the resend is inserted as `sent` after paho accepts it,
-then updated to `acked` or `unconfirmed`.
+then updated to `confirmed` or `unconfirmed`.
 
 ## Maintenance SQL
 
@@ -126,7 +127,7 @@ If the tool is not installed, the same can be done with SQL:
 DELETE FROM mqtt_message_tracker WHERE status = 'unconfirmed' AND sent_ts < ?
 ```
 
-Deleting an original row while an `acked` resend remains leaves that resend's `origin_id`
+Deleting an original row while a `confirmed` resend remains leaves that resend's `origin_id`
 pointing at a row that no longer exists; the resend row is self-contained, so it still resends
 and prunes normally.
 

@@ -272,10 +272,10 @@ class TestSelectMessages(unittest.TestCase):
 
     def test_superseded_reports_the_rows_a_newer_publish_hides(self):
         unconfirmed = make_row(sent_ts=1000.0)
-        acked = make_row(sent_ts=1500.0, status=user.mqttmessagetracker.STATUS_ACKED)
+        confirmed = make_row(sent_ts=1500.0, status=user.mqttmessagetracker.STATUS_CONFIRMED)
 
-        selected = user.mqttresend.select_messages([unconfirmed, acked], now=2000)
-        stale = user.mqttresend.superseded([unconfirmed, acked], now=2000)
+        selected = user.mqttresend.select_messages([unconfirmed, confirmed], now=2000)
+        stale = user.mqttresend.superseded([unconfirmed, confirmed], now=2000)
 
         self.assertEqual(selected, [])
         self.assertEqual([row['id'] for row in stale], [unconfirmed['id']])
@@ -294,21 +294,21 @@ class TestSelectMessages(unittest.TestCase):
 
         self.assertEqual([row['id'] for row in selected], [unconfirmed['id']])
 
-    def test_acked_resend_excludes_the_origin(self):
+    def test_confirmed_resend_excludes_the_origin(self):
         origin = make_row(sent_ts=1000.0)
-        acked_resend = make_row(sent_ts=1000.0, origin_id=origin['id'], attempt=1,
-                                status=user.mqttmessagetracker.STATUS_ACKED)
+        confirmed_resend = make_row(sent_ts=1000.0, origin_id=origin['id'], attempt=1,
+                                    status=user.mqttmessagetracker.STATUS_CONFIRMED)
 
-        selected = user.mqttresend.select_messages([origin, acked_resend], now=2000)
+        selected = user.mqttresend.select_messages([origin, confirmed_resend], now=2000)
 
         self.assertEqual(selected, [])
 
     def test_force_includes_the_origin(self):
         origin = make_row(sent_ts=1000.0)
-        acked_resend = make_row(sent_ts=1000.0, origin_id=origin['id'], attempt=1,
-                                status=user.mqttmessagetracker.STATUS_ACKED)
+        confirmed_resend = make_row(sent_ts=1000.0, origin_id=origin['id'], attempt=1,
+                                    status=user.mqttmessagetracker.STATUS_CONFIRMED)
 
-        selected = user.mqttresend.select_messages([origin, acked_resend], force=True, now=2000)
+        selected = user.mqttresend.select_messages([origin, confirmed_resend], force=True, now=2000)
 
         self.assertEqual([row['id'] for row in selected], [origin['id']])
 
@@ -405,13 +405,13 @@ class TestInsertAttempt(DatabaseTestCase):
 
 
 class TestUpdateAttempt(DatabaseTestCase):
-    def test_acked(self):
+    def test_confirmed(self):
         row_id, _, _ = self.insert(make_row())
 
         user.mqttresend.update_attempt(self.connection, TABLE, row_id,
-                                       user.mqttmessagetracker.STATUS_ACKED, 1234.5)
+                                       user.mqttmessagetracker.STATUS_CONFIRMED, 1234.5)
 
-        self.assert_row(row_id, status=user.mqttmessagetracker.STATUS_ACKED, arrived_ts=1234.5)
+        self.assert_row(row_id, status=user.mqttmessagetracker.STATUS_CONFIRMED, arrived_ts=1234.5)
 
     def test_unconfirmed(self):
         row_id, _, _ = self.insert(make_row())
@@ -423,16 +423,16 @@ class TestUpdateAttempt(DatabaseTestCase):
 
 
 class TestResendMessage(DatabaseTestCase):
-    def test_acked(self):
+    def test_confirmed(self):
         row = make_row()
         client = FakeClient(ack=True)
 
         outcome = user.mqttresend.resend_message(client, self.connection, TABLE, row, 'resend')
 
-        self.assertEqual(outcome.status, user.mqttmessagetracker.STATUS_ACKED)
+        self.assertEqual(outcome.status, user.mqttmessagetracker.STATUS_CONFIRMED)
         self.assertEqual(client.published, [('weather/outTemp_F', '72.5', 0, False)])
         stored = self.rows()[0]
-        self.assertEqual(stored['status'], user.mqttmessagetracker.STATUS_ACKED)
+        self.assertEqual(stored['status'], user.mqttmessagetracker.STATUS_CONFIRMED)
         self.assertIsNotNone(stored['arrived_ts'])
         self.assertIsNone(stored['unconfirmed_ts'])
 
@@ -509,7 +509,7 @@ class TestResend(DatabaseTestCase):
         # An unconfirmed message that a newer publish on the same topic made stale.
         self.insert_original(make_row(sent_ts=time.time() - 86400, payload='stale'))
         self.insert_original(make_row(sent_ts=time.time(), payload='newer',
-                                      status=user.mqttmessagetracker.STATUS_ACKED))
+                                      status=user.mqttmessagetracker.STATUS_CONFIRMED))
 
         selected, _ = user.mqttresend.resend(
             self.database_dict, TABLE, self.options, dry_run=True, out=self.out)
@@ -520,7 +520,7 @@ class TestResend(DatabaseTestCase):
     def test_all_resends_a_stale_row(self):
         self.insert_original(make_row(sent_ts=time.time() - 86400, payload='stale'))
         self.insert_original(make_row(sent_ts=time.time(), payload='newer',
-                                      status=user.mqttmessagetracker.STATUS_ACKED))
+                                      status=user.mqttmessagetracker.STATUS_CONFIRMED))
 
         selected, _ = user.mqttresend.resend(
             self.database_dict, TABLE, self.options, dry_run=True, newest_per_topic=False,
@@ -540,11 +540,11 @@ class TestResend(DatabaseTestCase):
         self.assertTrue(client.connected)
         self.assertTrue(client.closed)
         self.assertEqual([outcome.status for outcome in outcomes],
-                         [user.mqttmessagetracker.STATUS_ACKED])
+                         [user.mqttmessagetracker.STATUS_CONFIRMED])
         resends = [row for row in self.rows() if row['origin_id'] is not None]
         self.assertEqual(len(resends), 1)
-        self.assertEqual(resends[0]['status'], user.mqttmessagetracker.STATUS_ACKED)
-        self.assertIn('acked', self.out.getvalue())
+        self.assertEqual(resends[0]['status'], user.mqttmessagetracker.STATUS_CONFIRMED)
+        self.assertIn('confirmed', self.out.getvalue())
 
     def test_missing_database_is_a_config_error(self):
         weedb.drop(self.database_dict)
@@ -604,14 +604,14 @@ class TestRun(unittest.TestCase):
         self.assertEqual(self.run_tool(), 0)
         self.assertIn('message(s) selected', self.out.getvalue())
 
-    def test_publish_exits_zero_when_acked(self):
+    def test_publish_exits_zero_when_confirmed(self):
         self.add_unconfirmed()
         client = FakeClient()
 
         with mock.patch('user.mqttresend.ResendClient', return_value=client):
             self.assertEqual(self.run_tool('--publish'), 0)
 
-    def test_publish_exits_one_when_unacked(self):
+    def test_publish_exits_one_when_unconfirmed(self):
         self.add_unconfirmed()
         client = FakeClient(ack=False)
 
@@ -641,7 +641,7 @@ class TestRun(unittest.TestCase):
     def test_unconfirmed_exits_two(self):
         with self.assertRaises(SystemExit):
             with contextlib.redirect_stderr(io.StringIO()):
-                user.mqttresend.build_parser().parse_args([self.config_file, '--status', 'acked'])
+                user.mqttresend.build_parser().parse_args([self.config_file, '--status', 'confirmed'])
 
     def test_statuses(self):
         options = user.mqttresend.build_parser().parse_args(

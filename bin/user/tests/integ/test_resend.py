@@ -94,14 +94,14 @@ class TestResend(unittest.TestCase):
         self.assertEqual(received, ['first', 'second'])
         self.assertEqual([row['id'] for row in selected], [first, second])
         self.assertEqual([outcome.status for outcome in outcomes],
-                         [user.mqttmessagetracker.STATUS_ACKED,
-                          user.mqttmessagetracker.STATUS_ACKED])
+                         [user.mqttmessagetracker.STATUS_CONFIRMED,
+                          user.mqttmessagetracker.STATUS_CONFIRMED])
 
         rows = {row['id']: row for row in self.rows()}
         for origin_id in (first, second):
             resends = [row for row in rows.values() if row['origin_id'] == origin_id]
             self.assertEqual(len(resends), 1)
-            self.assertEqual(resends[0]['status'], user.mqttmessagetracker.STATUS_ACKED)
+            self.assertEqual(resends[0]['status'], user.mqttmessagetracker.STATUS_CONFIRMED)
             self.assertEqual(resends[0]['attempt'], 1)
             self.assertEqual(resends[0]['clientid'], self.options['clientid'])
             self.assertIsNotNone(resends[0]['arrived_ts'])

@@ -89,7 +89,7 @@ Enhancements:
   - Plugins can optionally implement a shutdown method, called when the publishing thread stops.
   - Added a wait_for_inflight option, so shutdown can wait for paho to confirm in-flight messages.
   - Added MQTTMessageTracker, a plugin that records published MQTT messages in a WeeWX database.
-    Each row records its status (failed, sent, acked, or unconfirmed) and, when the arrival was
+    Each row records its status (failed, sent, confirmed, or unconfirmed) and, when the arrival was
     never reported, the time the tracker stopped waiting for it.
     The install adds a message_tracker_binding and message_tracker database for it.
     The topics to track are configured in a [[topics]] section, with an optional per-topic retention.

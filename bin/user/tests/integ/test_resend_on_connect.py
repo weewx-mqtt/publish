@@ -154,7 +154,7 @@ class TestResendOnConnect(unittest.TestCase):
         publisher.publish_message(time.time(), 1, False, TOPIC, 'before')
         wait_for(lambda: 'before' in received, 'The first publish is not received.')
         rows = self._wait_for_rows(lambda rows: any(
-            row['payload'] == 'before' and row['status'] == 'acked' for row in rows))
+            row['payload'] == 'before' and row['status'] == 'confirmed' for row in rows))
         before = [row for row in rows if row['payload'] == 'before'][0]
 
         # The broker goes away. Publish while disconnected, which paho refuses and the
@@ -179,10 +179,10 @@ class TestResendOnConnect(unittest.TestCase):
         self.assertEqual(resent['topic'], TOPIC)
 
         rows = self._wait_for_rows(lambda rows: any(
-            row['id'] == resent['id'] and row['status'] == 'acked' for row in rows))
+            row['id'] == resent['id'] and row['status'] == 'confirmed' for row in rows))
         by_id = {row['id']: row for row in rows}
-        self.assertEqual(by_id[resent['id']]['status'], 'acked')
-        self.assertEqual(by_id[before['id']]['status'], 'acked')
+        self.assertEqual(by_id[resent['id']]['status'], 'confirmed')
+        self.assertEqual(by_id[before['id']]['status'], 'confirmed')
 
 
 if __name__ == '__main__':

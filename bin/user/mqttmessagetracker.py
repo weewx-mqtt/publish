@@ -182,12 +182,12 @@ _CONTROL_EVENTS = (_EVENT_FINALIZE, _EVENT_DISCONNECT, _EVENT_RESEND)
 # The values of the status column.
 STATUS_FAILED = 'failed'
 STATUS_SENT = 'sent'
-STATUS_ACKED = 'acked'
+STATUS_CONFIRMED = 'confirmed'
 STATUS_UNCONFIRMED = 'unconfirmed'
 
 # The statuses whose rows are pruned by age. A row that may still be delivered, or whose
 # delivery is unknown, is kept so that it can still be resent.
-_PRUNED_STATUSES = (STATUS_ACKED, STATUS_FAILED)
+_PRUNED_STATUSES = (STATUS_CONFIRMED, STATUS_FAILED)
 
 
 def origin_id(row):
@@ -232,25 +232,25 @@ def insert_attempt(connection, table, row, mid, rc, sent_ts, clientid):
     return row_id, attempt, status
 
 
-def _acked_origins(rows):
-    """ The origin ids that already have an acked resend. """
+def _confirmed_origins(rows):
+    """ The origin ids that already have a confirmed resend. """
     return {row['origin_id'] for row in rows
-            if row['origin_id'] is not None and row['status'] == STATUS_ACKED}
+            if row['origin_id'] is not None and row['status'] == STATUS_CONFIRMED}
 
 
-def _last_success(rows, acked_origins):
+def _last_success(rows, confirmed_origins):
     """ The newest confirmed original publish time for each topic. """
     last_success = {}
     for row in rows:
         if row['origin_id'] is not None:
             continue
-        if row['status'] != STATUS_ACKED and row['id'] not in acked_origins:
+        if row['status'] != STATUS_CONFIRMED and row['id'] not in confirmed_origins:
             continue
         last_success[row['topic']] = max(last_success.get(row['topic'], row['sent_ts']), row['sent_ts'])
     return last_success
 
 
-def _after_last_success(row, oldest, last_success, acked_origins):
+def _after_last_success(row, oldest, last_success, confirmed_origins):
     """ Whether a row is a failed/unconfirmed message after its topic's last success. """
     if row['status'] not in (STATUS_UNCONFIRMED, STATUS_FAILED):
         return False
@@ -259,7 +259,7 @@ def _after_last_success(row, oldest, last_success, acked_origins):
     boundary = last_success.get(row['topic'])
     if boundary is not None and row['sent_ts'] <= boundary:
         return False
-    return origin_id(row) not in acked_origins
+    return origin_id(row) not in confirmed_origins
 
 
 def _dedupe(rows):
@@ -281,18 +281,19 @@ def select_after_last_success(rows, since=None, now=None, include_before_last_su
     """ Select the unconfirmed and failed rows to resend.
 
         By default only rows after the last confirmed publish on their topic are selected.
-        The boundary is the newest confirmed original row on each topic. An original is
-        confirmed when it is acked or has an acked resend. A resend's own sent_ts does not
-        move the boundary: a successful resend would otherwise hide an older backlog.
+        The boundary is the newest confirmed original row on each topic. An original counts as
+        confirmed when its own status is confirmed, or when it has a confirmed resend. A resend's
+        own sent_ts does not move the boundary: a successful resend would otherwise hide an older
+        backlog.
 
         With include_before_last_success, every unconfirmed and failed row is a candidate,
         including rows older than the topic's last confirmed publish. """
     now = time.time() if now is None else now
     oldest = None if since is None or since <= 0 else now - since
-    acked_origins = _acked_origins(rows)
-    last_success = {} if include_before_last_success else _last_success(rows, acked_origins)
+    confirmed_origins = _confirmed_origins(rows)
+    last_success = {} if include_before_last_success else _last_success(rows, confirmed_origins)
     selected = [row for row in rows
-                if _after_last_success(row, oldest, last_success, acked_origins)]
+                if _after_last_success(row, oldest, last_success, confirmed_origins)]
     return _dedupe(selected)
 
 
@@ -517,7 +518,7 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
         if mid in pending:
             arrived_ts = pending.pop(mid)[0]
             statements.append((f"UPDATE {self.table} SET arrived_ts = ?, status = ? WHERE id = ?",
-                               (arrived_ts, STATUS_ACKED, row_id)))
+                               (arrived_ts, STATUS_CONFIRMED, row_id)))
 
     def _unconfirm_reused_mid(self, inflight, mid, statements, now):
         """ Mark the row of a message id that paho has reused as unconfirmed.
@@ -538,7 +539,7 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
             pending[mid] = (arrived_ts, now)
         else:
             statements.append((f"UPDATE {self.table} SET arrived_ts = ?, status = ? WHERE id = ? AND status = ?",
-                               (arrived_ts, STATUS_ACKED, previous[0], STATUS_SENT)))
+                               (arrived_ts, STATUS_CONFIRMED, previous[0], STATUS_SENT)))
 
     def _apply_finalize(self, connection, unconfirmed_ts):
         """ Mark the rows whose arrival paho never reported as unconfirmed. """
@@ -686,11 +687,11 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
         return inserted
 
     def _ack_pending(self, connection, row_id, arrived_ts):
-        """ Mark a resend as acked when its arrival was reported before it was recorded. """
+        """ Mark a resend as confirmed when its arrival was reported before it was recorded. """
         try:
             with weedb.Transaction(connection) as cursor:
                 cursor.execute(f"UPDATE {self.table} SET status = ?, arrived_ts = ? WHERE id = ?",
-                               (STATUS_ACKED, arrived_ts, row_id))
+                               (STATUS_CONFIRMED, arrived_ts, row_id))
         except Exception as exception:  # pylint: disable=broad-exception-caught
             self._log('ERROR', f"Unable to record the arrival of a resent message: {exception}.")
 
@@ -723,7 +724,7 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
     def _prune(self, connection, now):
         """ Delete rows that are older than their retention period.
 
-            The acked and failed rows are pruned by 'retention'. The unconfirmed
+            The confirmed and failed rows are pruned by 'retention'. The unconfirmed
             rows are pruned by 'unconfirmed_retention', which defaults to never.
             A sent row is left for the startup sweep. """
         try:
@@ -733,7 +734,7 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
             self._log('ERROR', f"Unable to prune message tracking data: {exception}.")
 
     def _prune_known_outcomes(self, connection, now):
-        """ Prune the acked and failed rows, by the topic's retention. """
+        """ Prune the confirmed and failed rows, by the topic's retention. """
         self._delete_unlisted(connection, now, self.retention, self.topic_retention, _PRUNED_STATUSES)
         for topic, retention in self.topic_retention.items():
             if retention > 0:
@@ -866,8 +867,8 @@ class MQTTMessageTracker(user.mqttpublish.MQTTPlugin):  # pylint: disable=too-ma
         """ Resolve the topics to track, with the retention to prune each one by.
 
             A message published with qos 0 is never acknowledged, so its delivery cannot be
-            confirmed. Recording it would either leave a row that can never become 'acked',
-            or - worse - mark it 'acked' when paho has only written it to the socket. Such a
+            confirmed. Recording it would either leave a row that can never become 'confirmed',
+            or - worse - mark it 'confirmed' when paho has only written it to the socket. Such a
             topic is rejected with an error.
         """
         topic_dicts = plugin_dict.get('topics')

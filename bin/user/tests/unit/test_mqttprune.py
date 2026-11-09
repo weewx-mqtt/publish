@@ -77,9 +77,9 @@ class TestSelectRows(unittest.TestCase):
 
         self.assertEqual([row['status'] for row in selected], [STATUS.STATUS_FAILED])
 
-    def test_sent_and_acked_are_never_selected(self):
+    def test_sent_and_confirmed_are_never_selected(self):
         rows = [make_row(sent_ts=100.0, status=STATUS.STATUS_SENT),
-                make_row(sent_ts=100.0, status=STATUS.STATUS_ACKED)]
+                make_row(sent_ts=100.0, status=STATUS.STATUS_CONFIRMED)]
 
         selected = user.mqttprune.select_rows(rows, default_retention=100, now=1000)
 

@@ -4,7 +4,7 @@
 #
 """ Delete the message tracker rows that the retention policy keeps.
 
-    The tracker prunes 'acked' and 'failed' rows by age, but keeps 'sent' and
+    The tracker prunes 'confirmed' and 'failed' rows by age, but keeps 'sent' and
     'unconfirmed' rows, because they may still be delivered or can still be
     resent. This tool removes the ones an operator no longer wants, with the
     configured retention as the default age.
@@ -32,7 +32,7 @@ import user.mqttmessagetracker  # pylint: disable=wrong-import-position
 
 VERSION = user.mqttpublish.VERSION
 
-# A 'sent' row may be in flight and an 'acked' row is pruned by the tracker.
+# A 'sent' row may be in flight and an 'confirmed' row is pruned by the tracker.
 PRUNE_STATUSES = (user.mqttmessagetracker.STATUS_UNCONFIRMED,
                   user.mqttmessagetracker.STATUS_FAILED)
 

@@ -47,7 +47,7 @@ decode_payload = user.mqttmessagetracker.decode_payload
 next_attempt = user.mqttmessagetracker.next_attempt
 insert_attempt = user.mqttmessagetracker.insert_attempt
 
-# A 'sent' row may still be in flight and an 'acked' row does not need a resend.
+# A 'sent' row may still be in flight and an 'confirmed' row does not need a resend.
 RESEND_STATUSES = (user.mqttmessagetracker.STATUS_UNCONFIRMED,
                    user.mqttmessagetracker.STATUS_FAILED)
 
@@ -110,7 +110,7 @@ def _may_be_on_the_broker(row):
 
 
 # pylint: disable=too-many-arguments,too-many-positional-arguments
-def _candidate(row, statuses, oldest, topic, acked_origins, force):
+def _candidate(row, statuses, oldest, topic, confirmed_origins, force):
     """ Whether a row passes the filters that do not depend on the other rows. """
     if row['status'] not in statuses:
         return False
@@ -118,7 +118,7 @@ def _candidate(row, statuses, oldest, topic, acked_origins, force):
         return False
     if topic and not fnmatch.fnmatchcase(row['topic'], topic):
         return False
-    if not force and _origin(row) in acked_origins:
+    if not force and _origin(row) in confirmed_origins:
         return False
     return True
 
@@ -132,14 +132,14 @@ def _newest_per_topic(rows):
     return newest
 
 
-def _is_acked_resend(row):
+def _is_confirmed_resend(row):
     """ Whether the row is a resend that paho reported as published. """
-    return row['origin_id'] is not None and row['status'] == user.mqttmessagetracker.STATUS_ACKED
+    return row['origin_id'] is not None and row['status'] == user.mqttmessagetracker.STATUS_CONFIRMED
 
 
-def _acked_origins(rows):
-    """ The origin ids that already have an acked resend. """
-    return {row['origin_id'] for row in rows if _is_acked_resend(row)}
+def _confirmed_origins(rows):
+    """ The origin ids that already have a confirmed resend. """
+    return {row['origin_id'] for row in rows if _is_confirmed_resend(row)}
 
 
 def _oldest(since, now):
@@ -159,9 +159,9 @@ def _candidates(rows, statuses, since, topic, force, now):
     """ The rows that pass the filters that do not depend on the other rows. """
     statuses = tuple(statuses or (DEFAULT_STATUS,))
     oldest = _oldest(since, now)
-    acked_origins = _acked_origins(rows)
+    confirmed_origins = _confirmed_origins(rows)
     return [row for row in rows
-            if _candidate(row, statuses, oldest, topic, acked_origins, force)]
+            if _candidate(row, statuses, oldest, topic, confirmed_origins, force)]
 
 
 def _is_stale(row, newest):
@@ -191,7 +191,7 @@ def select_messages(rows, statuses=None, since=DEFAULT_SINCE, limit=DEFAULT_LIMI
 
         Every row is considered unless 'since' bounds its age. Only the newest row per topic
         is selected by default, so resent values cannot overwrite newer ones. A message that
-        already has an acked resend is skipped unless 'force' is set. """
+        already has a confirmed resend is skipped unless 'force' is set. """
     candidates = _candidates(rows, statuses, since, topic, force, time.time() if now is None else now)
     newest = _newest_per_topic(rows) if newest_per_topic else {}
     return _limit(_select(candidates, newest), limit)
@@ -211,7 +211,7 @@ def superseded(rows, statuses=None, since=DEFAULT_SINCE, topic=None, force=False
 def update_attempt(connection, table, row_id, status, timestamp=None):
     """ Record the outcome of a resend. """
     timestamp = time.time() if timestamp is None else timestamp
-    if status == user.mqttmessagetracker.STATUS_ACKED:
+    if status == user.mqttmessagetracker.STATUS_CONFIRMED:
         statement = f"UPDATE {table} SET status = ?, arrived_ts = ? WHERE id = ?"
     else:
         statement = f"UPDATE {table} SET status = ?, unconfirmed_ts = ? WHERE id = ?"
@@ -318,7 +318,7 @@ def resend_message(client, connection, table, row, clientid):
         status = user.mqttmessagetracker.STATUS_UNCONFIRMED
         update_attempt(connection, table, row_id, status)
     else:
-        status = user.mqttmessagetracker.STATUS_ACKED
+        status = user.mqttmessagetracker.STATUS_CONFIRMED
         update_attempt(connection, table, row_id, status, arrived_ts)
     return ResendOutcome(row, attempt, message_info.mid, status)
 
@@ -416,7 +416,7 @@ def build_parser():
     parser.add_argument('--all', action='store_true',
                         help="Resend every selected message, not just the newest per topic.")
     parser.add_argument('--force', action='store_true',
-                        help="Resend messages that already have an acked resend.")
+                        help="Resend messages that already have a confirmed resend.")
     parser.add_argument('--publish', action='store_true',
                         help="Publish the selected messages. Without it nothing is sent.")
 
@@ -450,8 +450,8 @@ def run(options, out=None, err=None):
 
     if not outcomes:
         return 0
-    acked = all(outcome.status == user.mqttmessagetracker.STATUS_ACKED for outcome in outcomes)
-    return 0 if acked else 1
+    confirmed = all(outcome.status == user.mqttmessagetracker.STATUS_CONFIRMED for outcome in outcomes)
+    return 0 if confirmed else 1
 
 
 def main(argv=None):
