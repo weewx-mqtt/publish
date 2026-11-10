@@ -100,6 +100,10 @@ class ClientStub:
         # default is for connection to be sucessful (call on_connect)
         self.connect_with_connection(host, port, keepalive, clean_start)
 
+    def connect_async(self, host, port, keepalive, clean_start=None):  # need to match pylint: disable=unused-argument
+        # default is for connection to be sucessful (call on_connect)
+        self.connect_with_connection(host, port, keepalive, clean_start)
+
     def subscribe(self, topic, qos):  # need to match pylint: disable=unused-argument
         self.topic = topic
         return (0, 0)

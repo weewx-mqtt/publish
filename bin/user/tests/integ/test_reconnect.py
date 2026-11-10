@@ -61,6 +61,27 @@ def make_publisher(port):
 
 @unittest.skipUnless(shutil.which('mosquitto'), 'mosquitto is not installed.')
 class TestReconnect(unittest.TestCase):
+    def test_connect_retries_when_broker_starts_later(self):
+        broker = MosquittoBroker()
+        self.addCleanup(broker.cleanup)
+
+        # The publisher is created while the broker is down; paho must keep retrying
+        # the first connection instead of shutting the publisher thread down.
+        publisher = make_publisher(broker.port)
+        self.addCleanup(publisher.client.disconnect)
+        self.addCleanup(publisher.client.loop_stop)
+        self.assertFalse(publisher.connected)
+
+        broker.start()
+        wait_for(lambda: publisher.connected, 'The publisher does not connect after the broker starts.')
+
+        observer, received = make_observer(broker.port, TOPIC)
+        self.addCleanup(observer.disconnect)
+        self.addCleanup(observer.loop_stop)
+
+        publisher.publish_message(time.time(), 1, False, TOPIC, 'after')
+        wait_for(lambda: 'after' in received, 'The publish is not received.')
+
     def test_publish_reconnects_when_broker_restarts(self):
         broker = MosquittoBroker()
         self.addCleanup(broker.cleanup)

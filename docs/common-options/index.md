@@ -33,8 +33,9 @@ configured with `min_delay` and `max_delay`.
 
 #### max_thread_restarts
 
-The number of times to attempt to start the publishing thread.
-When a thread is running a successful connection is established, it is reset to `0`.
+The number of times to restart the publishing thread after an unexpected failure.
+A broker that is unavailable is retried by paho and does not consume this budget.
+When a thread is running and connected, it is reset to `0`.
 The default is `2`.
 
 #### min_delay

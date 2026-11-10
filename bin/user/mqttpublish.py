@@ -44,7 +44,7 @@ from user import mqttcommon
 
 # All the weewx-mqtt extensions ship their own copy of mqttcommon. Fail loudly when the
 # loaded copy is older than this extension needs, instead of with a mysterious error later.
-if getattr(mqttcommon, 'MQTTCOMMON_API', (0, 0)) < (1, 0):
+if getattr(mqttcommon, 'MQTTCOMMON_API', (0, 0)) < (1, 1):
     raise ImportError("user.mqttcommon is too old. An older weewx-mqtt extension likely overwrote it during"
                       " install; reinstall or upgrade all the weewx-mqtt extensions.")
 
@@ -234,17 +234,20 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
                                              max_delay=self.mqtt_config['max_delay'])
 
         try:
-            self.connect(self.mqtt_config['host'], self.mqtt_config['port'], self.mqtt_config['keepalive'])
+            self.connect_async(self.mqtt_config['host'], self.mqtt_config['port'],
+                               self.mqtt_config['keepalive'])
         except Exception as exception:  # want to catch all pylint: disable=broad-exception-caught
+            # paho rejects the connection options here. A broker that is down is not an
+            # exception: paho's network loop retries it like any later reconnect.
             self.logger_queue.put(mqttcommon.Logger.create_entry(
                 self.name, 'ERROR', None,
                 f"MQTT connect failed with {type(exception)} and reason {exception}."))
-            # Shut down the publishing thread, a bit of a hack.
-            # The service will restart it, and stops WeeWX when the restart budget is spent.
+            # A rejected connection option is fatal for this worker. The service
+            # restarts it, and stops WeeWX when the restart budget is spent.
             self.publisher.process = False
             return
 
-        # Reconnection, and the CONNACK processing, is handled by paho's network loop thread.
+        # The network loop owns the first connection and every reconnect.
         self.client.loop_start()
 
     def _config_tls(self, tls_dict):
@@ -343,9 +346,9 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
         if log_mqtt:
             self.client.on_log = self.on_log
 
-    def connect(self, host, port, keepalive):
-        ''' Connect to the MQTT server. '''
-        mqttcommon.connect(self.client, self.api, host=host, port=port, keepalive=keepalive, clean_start=True)
+    def connect_async(self, host, port, keepalive):
+        ''' Start connecting to the MQTT server. '''
+        mqttcommon.connect_async(self.client, self.api, host=host, port=port, keepalive=keepalive, clean_start=True)
 
     def on_log(self, _client, _userdata, level, msg):
         """ The on_log callback. """

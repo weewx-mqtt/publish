@@ -325,7 +325,7 @@ class PublisherBase(unittest.TestCase):
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
                 with mock.patch.object(user.mqttpublish.mqtt.Client,
-                                       'connect',
+                                       'connect_async',
                                        side_effect=mqttstubs.ClientStub.connect_with_connection,
                                        autospec=True) as mock_connect:
                     with mock.patch.object(user.mqttpublish.mqtt.Client,
@@ -376,7 +376,7 @@ class PublisherBase(unittest.TestCase):
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
                 with mock.patch.object(user.mqttpublish.mqtt.Client,
-                                       'connect',
+                                       'connect_async',
                                        side_effect=mqttstubs.ClientStub.connect_without_connection,
                                        autospec=True) as mock_connect:
                     with mock.patch.object(user.mqttpublish.mqtt.Client,
@@ -385,13 +385,14 @@ class PublisherBase(unittest.TestCase):
 
                         self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
 
-                        # A connect that does not raise is attempted once; the network loop waits for the CONNACK.
+                        # The connection is started once; paho's network loop waits for the CONNACK and retries failures.
                         self.assertEqual(mock_connect.call_count, 1)
                         mock_loop_start.assert_called_once_with(mock.ANY)
+                        self.assertTrue(mock_publisher.process)
                         log_messages = [call[0][0]['msg_text'] for call in mock_logger_queue.put.call_args_list]
                         self.assertIn(f"Connecting to {config_dict['host']}:{config_dict['port']}.", log_messages)
 
-    def test_connect_first_call_exception(self):
+    def test_connect_option_exception(self):
         mock_logger_queue = mock.Mock()
         mock_publisher = mock.Mock()
 
@@ -422,7 +423,7 @@ class PublisherBase(unittest.TestCase):
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
                 with mock.patch.object(user.mqttpublish.mqtt.Client,
-                                       'connect',
+                                       'connect_async',
                                        side_effect=mqttstubs.ClientStub.connect_exception_first_call,
                                        autospec=True) as mock_connect:
                     with mock.patch.object(user.mqttpublish.mqtt.Client,
@@ -431,7 +432,7 @@ class PublisherBase(unittest.TestCase):
 
                         self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
 
-                        # A connect failure is not retried; it marks the publisher thread for shutdown, instead of raising.
+                        # An exception while starting the connection marks the publisher thread for shutdown.
                         self.assertEqual(mock_connect.call_count, 1)
                         mock_loop_start.assert_not_called()
                         self.assertFalse(mock_publisher.process)
@@ -480,7 +481,7 @@ class PublisherBase(unittest.TestCase):
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
                 with mock.patch.object(user.mqttpublish.mqtt.Client,
-                                       'connect',
+                                       'connect_async',
                                        side_effect=mqttstubs.ClientStub.connect_with_refused_connection,
                                        autospec=True) as mock_connect:
                     with mock.patch.object(user.mqttpublish.mqtt.Client, 'publish') as mock_publish:

@@ -100,13 +100,14 @@ target and fails the build on findings.
   specific variant with the `api` argument. V2 tests are
   guarded with `@unittest.skipIf(not hasattr(paho.mqtt.client, 'CallbackAPIVersion'), ...)`.
 - **Reconnects are paho-native.** `Publisher._connect()` configures
-  `mqttcommon.configure_reconnect_delay` and starts `client.loop_start()`; paho's network loop
-  thread then owns the connection, and reconnects until the broker is available. Never call
+  `mqttcommon.configure_reconnect_delay`, starts the connection with
+  `mqttcommon.connect_async`, and starts `client.loop_start()`. paho's network loop owns the
+  first connection and every reconnect, and retries until the broker is available. Never call
   `client.loop()` manually (it is forbidden while `loop_start()` is running). `max_retries`,
-  `wait_between_retries`, and `wait_for_connection` are deprecated and no longer used. A startup
-  connect failure still marks the publisher thread for shutdown via `publisher.process = False`
-  so the service's thread-restart budget takes over. The integ smoke test
-  (`bin/user/tests/integ/test_reconnect.py`) covers this against a real broker.
+  `wait_between_retries`, and `wait_for_connection` are deprecated and no longer used. A broker
+  that is down at startup is retried in place, like any later disconnect; `max_thread_restarts`
+  is only for unexpected worker failures. The integ smoke tests
+  (`bin/user/tests/integ/test_reconnect.py`) cover both cases against a real broker.
 - **`multiprocess = true` plumbing is fragile.** `QueueProcessor` is a `multiprocessing.Process`
   fed by `PublishWeeWXProcess`, which is deliberately a *thread* that re-queues into a
   `JoinableQueue` (see the comment at `QueueProcessor`) to avoid random queue locks on
