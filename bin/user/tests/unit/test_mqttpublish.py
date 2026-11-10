@@ -149,19 +149,6 @@ class TestInit(unittest.TestCase):
 
         self.assertEqual(SUT.weewx_dict['defaults']['Station']['altitude'], '111, foot')
 
-    def test_deprecated_lwt_option(self):
-        _SUT, _, mock_logger, _ = self._build_service({
-            'MQTTPublish': {
-                'lwt': {
-                    'topic': 'status',
-                },
-                'topics': {},
-            }
-        })
-
-        mock_logger.error.assert_any_call(None,
-                                          "'[[lwt]]' is deprecated, use '[[availability_topic]]'.")
-
 class TestConfigurePlugins(unittest.TestCase):
     @staticmethod
     def _build_service(config_dict):

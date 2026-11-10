@@ -650,9 +650,9 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
 
         mqtt_config['lwt'] = service_dict.get('lwt')
         if mqtt_config['lwt'] is not None:
-            self.logger.error(None, "'[[lwt]]' is deprecated, use '[[availability_topic]]'.")
-        else:
-            mqtt_config['lwt'] = service_dict.get('availability_topic', {})
+            raise ValueError("'[[lwt]]' is deprecated, use '[[availability_topic]]'.")
+
+        mqtt_config['lwt'] = service_dict.get('availability_topic', {})
 
         exclude_keys = ['password']
         sanitized_mqtt_config = {k: mqtt_config[k] for k in set(mqtt_config.keys()) - set(exclude_keys)}
