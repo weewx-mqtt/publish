@@ -595,7 +595,6 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
             self._log('INFO', "No messages need to be resent after the connection was established.")
             return
 
-        self._log('INFO', f"Resending {len(selected)} message(s) after the connection was established.")
         published = self._publish_resends(client, selected)
         if not published:
             return
@@ -671,11 +670,16 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
                 self._ack_pending(connection, row_id, pending[0])
 
     def _log_resend_summary(self, inserted):
-        """ Log what the resend published. """
+        """ Log what the resend published, with the row ids to inspect. """
         sent = sum(1 for _, _, status, _, _ in inserted if status == STATUS_SENT)
         failed = len(inserted) - sent
-        self._log('INFO', f"Resent {len(inserted)} message(s), "
-                          f"{sent} awaiting confirmation, {failed} failed.")
+        sent_ids = [row_id for row_id, _, status, _, _ in inserted if status == STATUS_SENT]
+        rows = ''
+        if sent_ids:
+            label = 'row' if len(sent_ids) == 1 else 'rows'
+            rows = f" ({label} {', '.join(sent_ids)})"
+        self._log('INFO', f"Resent {len(inserted)} message(s) after the connection was established: "
+                          f"{failed} failed{rows}.")
 
     def _insert_resends(self, connection, published, clientid):
         """ Insert the resend rows in one transaction, returning what was inserted. """

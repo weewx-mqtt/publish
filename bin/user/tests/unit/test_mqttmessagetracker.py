@@ -429,7 +429,8 @@ class TestMQTTMessageTracker(unittest.TestCase):
         self.assertEqual(by_payload['sent']['status'], 'unconfirmed')
 
     def test_resend_after_connect(self):
-        plugin, _ = self._make_plugin({'resend': {'on_startup': True}}, mqtt_dict={'clientid': 'test-client'})
+        plugin, logger_queue = self._make_plugin({'resend': {'on_startup': True}},
+                                                 mqtt_dict={'clientid': 'test-client'})
 
         plugin.mqtt_publish(None, 1, 0, 'topic', 'confirmed', 1, False, 1)
         plugin.on_mqtt_publish(None, None, 1, None)
@@ -450,6 +451,15 @@ class TestMQTTMessageTracker(unittest.TestCase):
         self.assertEqual(resent['clientid'], 'test-client')
         self.assertEqual(resent['status'], 'sent')
         self.assertEqual(resent['payload'], 'failed')
+
+        self._wait_for_log(logger_queue, resent['id'])
+        entries = [call[0][0] for call in logger_queue.put.call_args_list]
+        self.assertTrue(any(entry['log_type'] == 'INFO' and
+                            'Resent 1 message(s) after the connection was established' in entry['msg_text'] and
+                            f'0 failed (row {resent["id"]})' in entry['msg_text']
+                            for entry in entries))
+        self.assertFalse(any('awaiting confirmation' in entry['msg_text'] for entry in entries))
+        self.assertFalse(any('Resending ' in entry['msg_text'] for entry in entries))
 
         plugin.on_mqtt_publish(None, None, 11, None)
         rows = self._wait_for(lambda rows: any(row['id'] == resent['id'] and row['status'] == 'confirmed'

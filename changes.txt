@@ -99,6 +99,7 @@ Enhancements:
     Rows that were in flight when the connection was lost are marked unconfirmed at the disconnect.
     Failed publishes are logged at INFO and failed resends at ERROR, both with the row id they
     were stored under.
+    A completed resend is logged once, with the new row ids and the failure count.
     Rows that change to unconfirmed are logged at ERROR with the row id and the reason.
     Confirmed rows are pruned by confirmed_retention. Failed and unconfirmed rows are pruned by
     error_retention, which defaults to 0 so they can still be resent.
