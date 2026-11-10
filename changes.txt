@@ -154,7 +154,6 @@ The following are deprecated and no longer used.
   See, https://weewx-mqtt.github.io/publish/common-options/availability-topic.html
 - [MQTTPublish] [[topics]] / [[[topic-name]]] / [[[[aggregates]]]] has been replaced witht plugin MQTTAggregateValues
   See, https://weewx-mqtt.github.io/publish/plugins/aggregatevalues/
-
 - [MQTTPublish] max_retries, wait_between_retries, and wait_for_connection are deprecated and no longer used.
   Reconnection is handled by the paho mqtt network loop, configured with min_delay and max_delay.
   See, https://weewx-mqtt.github.io/publish/common-options/

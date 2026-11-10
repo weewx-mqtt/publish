@@ -722,8 +722,10 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
 
         fields = self._configure_topic_fields(field_options, topic_dict.get('fields', None))
         self._apply_field_list_overrides(topic_dict, fields)
-        self._configure_deprecated_aggregates(topic, topic_dict.get('aggregates', {}))
 
+        if topic_dict.get('aggregates'):
+            raise ValueError("'[aggregates]' is deprecated, it has moved to a plugin, "
+                             "see https://weewx-mqtt.github.io/publish/plugins/aggregatevalues/.")
         # ToDo: add a check that ignore_field and publish_field are mutually exclusive
         # ToDo: Could go as far making sure there are no fully configured fields...
 
@@ -811,25 +813,6 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
             fields[publish_field] = {
                 'ignore': False
             }
-
-    def _configure_deprecated_aggregates(self, topic, aggregates):
-        """ Convert a deprecated '[aggregates]' stanza to the MQTTAggregateValues plugin configuration. """
-        if not aggregates:
-            return
-
-        # Temporarily build the MQTTAggregateValues plugin configuration
-        self.logger.error(None,
-                          ("'[aggregates]' is deprecated, it has moved to a plugin, "
-                           "see https://weewx-mqtt.github.io/publish/plugins/aggregatevalues/."))
-        if 'MQTTAggregateValues' not in self.plugins:
-            self.plugins['MQTTAggregateValues'] = {}
-            self.plugins['MQTTAggregateValues']['module'] = 'user.mqttaggregatevalues'
-        if 'topics' not in self.plugins['MQTTAggregateValues']:
-            self.plugins['MQTTAggregateValues']['topics'] = {}
-        if topic not in self.plugins['MQTTAggregateValues']['topics']:
-            self.plugins['MQTTAggregateValues']['topics'][topic] = {}
-        for aggregate in aggregates:
-            self.plugins['MQTTAggregateValues']['topics'][topic][aggregate] = aggregates[aggregate]
 
     def thread_start(self):
         """Start the publishing thread."""

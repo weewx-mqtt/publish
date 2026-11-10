@@ -473,40 +473,6 @@ class TestConfigureTopics(unittest.TestCase):
         }
         self.assertDictEqual(topics_loop[topic1]['fields'], expected_fields)
 
-    def test_config_topics_with_deprecated_aggregates(self):
-        mock_engine = mock.Mock()
-        config = configobj.ConfigObj({'MQTTPublish': {'enable': False}})
-
-        topic1 = helpers.random_string()
-        aggregate1 = helpers.random_string()
-        observation1 = helpers.random_string()
-        service_dict = {
-            'topics': {
-                topic1: {
-                    'aggregates': {
-                        aggregate1: {
-                            'observation': observation1,
-                            'aggregation': 'avg',
-                        },
-                    },
-                },
-            },
-        }
-        service_config = configobj.ConfigObj(service_dict)
-
-        with mock.patch('user.mqttpublish.PublishWeeWXThread'):
-            with mock.patch('user.mqttcommon.Logger'):
-                SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
-
-                SUT.configure_topics(service_config)
-
-        # pylint: disable=no-member
-        self.assertEqual(SUT.logger.error.call_count, 1)
-        self.assertEqual(SUT.plugins['MQTTAggregateValues']['module'], 'user.mqttaggregatevalues')
-        self.assertEqual(SUT.plugins['MQTTAggregateValues']['topics'][topic1][aggregate1]['observation'],
-                         observation1)
-        self.assertEqual(SUT.plugins['MQTTAggregateValues']['topics'][topic1][aggregate1]['aggregation'], 'avg')
-
 class ServiceBase(unittest.TestCase):
     """ Common fixture: an enabled MQTTPublish service with its collaborators mocked. """
     # Subclasses exercise protected members, hence the blanket disable.
