@@ -622,10 +622,10 @@ def print_status_summary(rows, out):
         return
     print(f"{len(rows)} failed or unconfirmed message(s):", file=out)
     print(f"  {'ID':<32} {'TOPIC':<30} {'ORIGINAL STATUS':<15} {'ORIGINALLY SENT':<19} "
-          f"{'ATTEMPTS':>8} {'CONFIRMED':>9}  FINAL STATUS", file=out)
+          f"{'ATTEMPTS':<8} {'CONFIRMED':<9}  FINAL STATUS", file=out)
     for row_id, topic, status, sent_ts, attempts, confirmed_attempts in rows:
         print(f"  {row_id:<32} {topic[:30]:<30} {status:<15} {_sent_at(sent_ts):<19} "
-              f"{attempts:>8} {confirmed_attempts:>9}  {_outcome(attempts, confirmed_attempts)}",
+              f"{attempts:<8} {confirmed_attempts:<9}  {_outcome(attempts, confirmed_attempts)}",
               file=out)
 
 
