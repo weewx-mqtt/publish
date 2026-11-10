@@ -89,6 +89,15 @@ RESEND_STATUSES = (user.mqttmessagetracker.STATUS_UNCONFIRMED,
                    user.mqttmessagetracker.STATUS_FAILED)
 PRUNE_STATUSES = RESEND_STATUSES
 
+# The status command can show any row; the default is every row that is not confirmed.
+SUMMARY_STATUSES = (user.mqttmessagetracker.STATUS_FAILED,
+                    user.mqttmessagetracker.STATUS_UNCONFIRMED,
+                    user.mqttmessagetracker.STATUS_SENT,
+                    user.mqttmessagetracker.STATUS_CONFIRMED)
+DEFAULT_SUMMARY_STATUSES = (user.mqttmessagetracker.STATUS_FAILED,
+                            user.mqttmessagetracker.STATUS_UNCONFIRMED,
+                            user.mqttmessagetracker.STATUS_SENT)
+
 DEFAULT_STATUS = user.mqttmessagetracker.STATUS_UNCONFIRMED
 DEFAULT_PLUGIN_SECTION = user.mqttmessagetracker.DEFAULT_PLUGIN_SECTION
 # Every row is considered by default, so every unconfirmed message is resent.
@@ -552,16 +561,10 @@ def prune(config_dict, options, out=None):
 # status
 # ---------------------------------------------------------------------------
 
-# Failed and unconfirmed originals, with how many resends each has and how many were confirmed.
-_STATUS_SUMMARY_SQL = """
-SELECT o.id, o.topic, o.status, o.sent_ts,
-       COUNT(r.id) AS attempts,
-       COALESCE(SUM(CASE WHEN r.status = 'confirmed' THEN 1 ELSE 0 END), 0) AS confirmed_attempts
-FROM {table} AS o
-LEFT JOIN {table} AS r ON r.origin_id = o.id
-WHERE o.status IN ('failed', 'unconfirmed')
-GROUP BY o.id, o.topic, o.status, o.sent_ts
-ORDER BY o.sent_ts
+# The columns the status summary needs; the resend counts are computed per chain.
+_STATUS_ROWS_SQL = """
+SELECT id, topic, status, sent_ts, origin_id
+FROM {table}
 """
 
 _STATUS_MESSAGE_SQL = """
@@ -582,9 +585,28 @@ def _rows(connection, statement, args=()):
         cursor.close()
 
 
-def status_summary(connection, table, unresolved=False, topic=None, limit=DEFAULT_LIMIT):
-    """ The failed and unconfirmed originals, with their resend outcome. """
-    rows = _rows(connection, _STATUS_SUMMARY_SQL.format(table=table))
+def _status_chains(rows):
+    """ Yield one summary row per message chain.
+
+        The chain is anchored at its original row; if the original was pruned, the
+        oldest surviving resend is the anchor. """
+    chains = {}
+    for row in rows:
+        chains.setdefault(row[4] or row[0], []).append(row)
+    for chain in chains.values():
+        anchor = min(chain, key=lambda row: (row[3], row[0]))
+        attempts = sum(1 for row in chain if row[4] is not None)
+        confirmed = sum(1 for row in chain
+                        if row[4] is not None and row[2] == user.mqttmessagetracker.STATUS_CONFIRMED)
+        yield (anchor[0], anchor[1], anchor[2], anchor[3], attempts, confirmed)
+
+
+def status_summary(connection, table, statuses=None, unresolved=False, topic=None, limit=DEFAULT_LIMIT):
+    """ One row per message chain, with its resend outcome. """
+    statuses = tuple(statuses or DEFAULT_SUMMARY_STATUSES)
+    rows = [row for row in _status_chains(_rows(connection, _STATUS_ROWS_SQL.format(table=table)))
+            if row[2] in statuses]
+    rows.sort(key=lambda row: (row[3], row[0]))
     if unresolved:
         rows = [row for row in rows if row[5] == 0]
     if topic:
@@ -595,9 +617,13 @@ def status_summary(connection, table, unresolved=False, topic=None, limit=DEFAUL
 
 
 def status_message(connection, table, message_id):
-    """ The original row for a message id, followed by its resends. """
+    """ The chain for a message id, anchored at its original row. """
+    message = _rows(connection, f"SELECT id, origin_id FROM {table} WHERE id = ?", (message_id,))
+    if not message:
+        return []
+    chain_id = message[0][1] or message[0][0]
     rows = _rows(connection, _STATUS_MESSAGE_SQL.format(
-        columns=', '.join(MESSAGE_COLUMNS), table=table), (message_id, message_id))
+        columns=', '.join(MESSAGE_COLUMNS), table=table), (chain_id, chain_id))
     return [dict(zip(MESSAGE_COLUMNS, row)) for row in rows]
 
 
@@ -615,12 +641,19 @@ def _outcome(attempts, confirmed_attempts):
     return 'not resent'
 
 
-def print_status_summary(rows, out):
-    """ Print the failed and unconfirmed messages as a table. """
+def print_status_summary(rows, out, statuses=DEFAULT_SUMMARY_STATUSES):
+    """ Print the selected messages as a table. """
+    if tuple(statuses) == DEFAULT_SUMMARY_STATUSES:
+        empty = "No failed, unconfirmed, or sent messages."
+        label = "failed, unconfirmed, or sent message(s)"
+    else:
+        status_text = ', '.join(statuses)
+        empty = f"No messages with status {status_text}."
+        label = f"message(s) with status {status_text}"
     if not rows:
-        print("No failed or unconfirmed messages.", file=out)
+        print(empty, file=out)
         return
-    print(f"{len(rows)} failed or unconfirmed message(s):", file=out)
+    print(f"{len(rows)} {label}:", file=out)
     print(f"  {'ID':<32} {'TOPIC':<30} {'ORIGINAL STATUS':<15} {'ORIGINALLY SENT':<19} "
           f"{'ATTEMPTS':<8} {'CONFIRMED':<9}  FINAL STATUS", file=out)
     for row_id, topic, status, sent_ts, attempts, confirmed_attempts in rows:
@@ -644,7 +677,7 @@ def print_status_message(rows, message_id, out):
 
 
 def show_status(config_dict, options, out=None):
-    """ Show failed and unconfirmed messages and their outcome. """
+    """ Show tracked messages and their resend outcome. """
     out = sys.stdout if out is None else out
     try:
         _, database_dict, table = user.mqttmessagetracker.tool_config(
@@ -661,9 +694,10 @@ def show_status(config_dict, options, out=None):
         if options.message:
             rows = status_message(connection, table, options.message)
             return print_status_message(rows, options.message, out)
-        rows = status_summary(connection, table, unresolved=options.unresolved,
+        rows = status_summary(connection, table, statuses=options.status,
+                              unresolved=options.unresolved,
                               topic=options.topic, limit=options.limit)
-        print_status_summary(rows, out)
+        print_status_summary(rows, out, options.status)
         return True
     except weedb.DatabaseError as exception:
         raise StatusError(f"Unable to use the message tracker table {table}: {exception}") from exception
@@ -693,6 +727,11 @@ def _resend_statuses(value):
 def _prune_statuses(value):
     """ Parse the statuses a row can be pruned from. """
     return _status_list(value, PRUNE_STATUSES)
+
+
+def _summary_statuses(value):
+    """ Parse the statuses the status summary can show. """
+    return _status_list(value, SUMMARY_STATUSES)
 
 
 def _add_tracker_options(parser):
@@ -766,8 +805,13 @@ def _add_status_parser(subparsers):
     """ The status subcommand. """
     parser = subparsers.add_parser(
         'status',
-        description="Show failed and unconfirmed messages and their resend outcome.")
+        description="Show tracked messages and their resend outcome.")
     _add_tracker_options(parser)
+    parser.add_argument('--status', type=_summary_statuses, default=list(DEFAULT_SUMMARY_STATUSES),
+                        metavar='STATUS',
+                        help=(f"The statuses to show, comma separated. "
+                              f"Default is {', '.join(DEFAULT_SUMMARY_STATUSES)}. Choose from "
+                              f"{', '.join(SUMMARY_STATUSES)}."))
     parser.add_argument('--message', '--id', dest='message', default=None, metavar='ID',
                         help="Show one message and its resends, using the id from the log.")
     parser.add_argument('--unresolved', action='store_true',

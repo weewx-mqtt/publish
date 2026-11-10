@@ -115,6 +115,77 @@ class TestStatus(DatabaseTestCase):
         self.assertIn('sent', self.out.getvalue())
         self.assertIn('not resent', self.out.getvalue())
 
+    def test_status_filter_shows_sent_rows(self):
+        failed = make_row(status=STATUS.STATUS_FAILED)
+        sent = make_row(status=STATUS.STATUS_SENT)
+        self.insert(failed)
+        self.insert(sent)
+
+        self.assertEqual(self.run_tool('--status', 'sent'), 0)
+
+        self.assertIn(sent['id'], self.out.getvalue())
+        self.assertNotIn(failed['id'], self.out.getvalue())
+        self.assertIn('1 message(s) with status sent', self.out.getvalue())
+
+    def test_status_filter_can_show_no_rows(self):
+        self.insert(make_row(status=STATUS.STATUS_FAILED))
+
+        self.assertEqual(self.run_tool('--status', 'sent'), 0)
+
+        self.assertIn('No messages with status sent.', self.out.getvalue())
+
+    def test_default_includes_sent_and_excludes_confirmed(self):
+        failed = make_row(status=STATUS.STATUS_FAILED)
+        unconfirmed = make_row(status=STATUS.STATUS_UNCONFIRMED)
+        sent = make_row(status=STATUS.STATUS_SENT)
+        confirmed = make_row(status=STATUS.STATUS_CONFIRMED)
+        for row in (failed, unconfirmed, sent, confirmed):
+            self.insert(row)
+
+        self.assertEqual(self.run_tool(), 0)
+
+        output = self.out.getvalue()
+        for row in (failed, unconfirmed, sent):
+            self.assertIn(row['id'], output)
+        self.assertNotIn(confirmed['id'], output)
+        self.assertIn('3 failed, unconfirmed, or sent message(s)', output)
+
+    def test_summary_shows_one_row_per_chain(self):
+        original = make_row(status=STATUS.STATUS_FAILED, sent_ts=1000.0)
+        first = make_row(status=STATUS.STATUS_SENT, sent_ts=1100.0,
+                         origin_id=original['id'], attempt=1)
+        second = make_row(status=STATUS.STATUS_SENT, sent_ts=1200.0,
+                          origin_id=original['id'], attempt=2)
+        for row in (original, first, second):
+            self.insert(row)
+
+        self.assertEqual(self.run_tool(), 0)
+
+        output = self.out.getvalue()
+        self.assertIn('1 failed, unconfirmed, or sent message(s)', output)
+        self.assertIn(original['id'], output)
+        self.assertNotIn(first['id'], output)
+        self.assertNotIn(second['id'], output)
+        line = [row for row in output.splitlines() if original['id'] in row][0]
+        self.assertEqual(line.split()[-3:], ['2', '0', 'pending'])
+
+    def test_summary_anchors_an_orphaned_chain_at_the_oldest_resend(self):
+        original_id = helpers.random_string()
+        first = make_row(status=STATUS.STATUS_SENT, sent_ts=1100.0,
+                         origin_id=original_id, attempt=1)
+        second = make_row(status=STATUS.STATUS_SENT, sent_ts=1200.0,
+                          origin_id=original_id, attempt=2)
+        self.insert(first)
+        self.insert(second)
+
+        self.assertEqual(self.run_tool(), 0)
+
+        output = self.out.getvalue()
+        self.assertIn(first['id'], output)
+        self.assertNotIn(second['id'], output)
+        line = [row for row in output.splitlines() if first['id'] in row][0]
+        self.assertEqual(line.split()[-3:], ['2', '0', 'pending'])
+
     def test_unresolved_hides_messages_with_a_confirmed_resend(self):
         original = make_row(sent_ts=1000.0)
         resend = make_row(sent_ts=1100.0, status=STATUS.STATUS_CONFIRMED,
@@ -142,6 +213,19 @@ class TestStatus(DatabaseTestCase):
         self.assertIn(resend['id'], self.out.getvalue())
         self.assertIn('attempt=1', self.out.getvalue())
 
+    def test_message_accepts_a_resend_id(self):
+        original = make_row(sent_ts=1000.0)
+        resend = make_row(sent_ts=1100.0, status=STATUS.STATUS_CONFIRMED,
+                          origin_id=original['id'], attempt=1, arrived_ts=1200.0)
+        self.insert(original)
+        self.insert(resend)
+
+        self.assertEqual(self.run_tool('--message', resend['id']), 0)
+
+        self.assertIn(original['id'], self.out.getvalue())
+        self.assertIn(resend['id'], self.out.getvalue())
+        self.assertIn('attempt=1', self.out.getvalue())
+
     def test_unknown_message_exits_one(self):
         self.insert(make_row())
 
@@ -153,7 +237,7 @@ class TestStatus(DatabaseTestCase):
             self.insert(make_row(id=helpers.random_string(), sent_ts=float(index)))
 
         self.assertEqual(self.run_tool('--limit', '2'), 0)
-        self.assertIn('2 failed or unconfirmed message(s)', self.out.getvalue())
+        self.assertIn('2 failed, unconfirmed, or sent message(s)', self.out.getvalue())
 
     def test_missing_config_exits_two(self):
         options = user.mqtttracker.build_parser().parse_args(
@@ -171,6 +255,7 @@ class TestBuildParser(unittest.TestCase):
         self.assertIsNone(options.message)
         self.assertFalse(options.unresolved)
         self.assertIsNone(options.topic)
+        self.assertEqual(options.status, ['failed', 'unconfirmed', 'sent'])
         self.assertEqual(options.limit, 100)
         self.assertEqual(options.plugin_section, 'MQTTMessageTracker')
         self.assertEqual(options.command, 'status')

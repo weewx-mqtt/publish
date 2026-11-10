@@ -113,9 +113,10 @@ Enhancements:
     messages the tracker recorded as failed or unconfirmed; a resend is a new row that points at
     the original, so the original is never changed, and a dry run is the default. prune deletes the
     unconfirmed rows the automatic prune keeps, and failed rows early, with the configured
-    retention as the default age. status shows the failed and unconfirmed messages and whether a
-    resend was accepted. On a package install the tool finds WeeWX by itself, so it runs by path
-    without PYTHONPATH.
+    retention as the default age. status shows one row per message chain that is not confirmed
+    (failed, unconfirmed, and sent) by default and whether a resend was accepted; --status can
+    also show confirmed rows. On a package install the tool finds WeeWX by itself, so it runs by
+    path without PYTHONPATH.
   - Document that resending is at-least-once: a resend is a new publish, so it can duplicate a
     message even on a qos 2 topic.
   - Improved shutdown logic flow, with timeouts when stopping threads/processes.

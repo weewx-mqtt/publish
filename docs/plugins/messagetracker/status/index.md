@@ -6,9 +6,10 @@ nav_order: 4
 ---
 {% include messagetracker_warning.html %}
 
-`mqtttracker status` shows the `failed` and `unconfirmed` messages and whether a resend was
-accepted by the broker. It reads the tracker database directly, so it does not need MQTTPublish to
-be running.
+`mqtttracker status` shows tracked messages and their resend outcome. By default it shows one row
+per message chain that is not `confirmed`: `failed`, `unconfirmed`, and `sent`. `--status` can
+also restrict the list or include `confirmed` rows. It reads the tracker database directly, so it
+does not need MQTTPublish to be running.
 
 `mqtttracker` is one tool with `resend`, `prune` and `status` subcommands. The config file is a
 global `--config` option, so it comes before the subcommand:
@@ -16,6 +17,7 @@ global `--config` option, so it comes before the subcommand:
 ```shell
 python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf status
 python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf status --unresolved
+python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf status --status sent
 python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf status --message 3f2a9c...
 ```
 
@@ -34,15 +36,19 @@ The original `failed` or `unconfirmed` row is never changed, so "eventually sent
 least one row with `origin_id` equal to the original's `id` has status `confirmed`. A `confirmed`
 resend means the broker accepted it, not that a subscriber received it.
 
+A message with several resend attempts appears once. The row is anchored at the original, or at
+the oldest surviving resend when the original was pruned. `ATTEMPTS`, `CONFIRMED`, and
+`FINAL STATUS` summarize the rest of the chain.
+
 The default summary lists each message with:
 
 | column | meaning |
 | --- | --- |
-| `ID` | the row id, the same id in the log line. |
+| `ID` | the anchor row id; `--message` also accepts a resend id. |
 | `TOPIC` | the topic the message was published on. |
-| `ORIGINAL STATUS` | the original row's status, `failed` or `unconfirmed`. |
-| `ORIGINALLY SENT` | when the original was handed to paho. |
-| `ATTEMPTS` | the number of resend rows, whatever their status. |
+| `ORIGINAL STATUS` | the anchor row's status: `failed`, `unconfirmed`, `sent`, or `confirmed`. |
+| `ORIGINALLY SENT` | when the anchor was handed to paho. |
+| `ATTEMPTS` | the number of resend rows in the chain, whatever their status. |
 | `CONFIRMED` | how many of those resends the broker confirmed. |
 | `FINAL STATUS` | `sent`, `pending`, or `not resent`. |
 
@@ -54,13 +60,23 @@ The outcomes mean:
 
 ## Options
 
+### --status STATUS
+
+The statuses to show, comma separated.
+Default is `failed,unconfirmed,sent`. Choose from `failed`, `unconfirmed`, `sent`, and `confirmed`.
+This filters the anchor row shown in the table; a later resend does not change the anchor’s status.
+
+`sent` rows are in flight: paho accepted the publish, but no acknowledgement has arrived yet. They
+become `confirmed` on acknowledgement, or `unconfirmed` on a disconnect or the startup sweep.
+`confirmed` rows are success history and can be numerous.
+
 ### --message ID
 
-Show one original message and its resends, in publish order.
+Show one message chain, in publish order.
 
-Use the id from the `ERROR` log line. The output shows the original and each resend, including its
-`attempt` and `origin_id`. If no row has that id or points at it, the command prints a message and
-exits `1`.
+Use any row id from the chain, including a resend id. The command resolves it to the chain and
+shows the anchor and each resend, with its `attempt` and `origin_id`. If no row has that id, the
+command prints a message and exits `1`.
 
 ### --unresolved
 
@@ -78,7 +94,7 @@ Default is `100`; `0` shows every message.
 
 ## The same information in SQL
 
-The status command runs these queries. They are useful when the tool is not installed, or for a
+These queries show the underlying rows. They are useful when the tool is not installed, or for a
 monitor that queries the database directly.
 
 For one message, starting from the id in the log:
@@ -108,7 +124,7 @@ For every message that is still unresolved:
 -- Failed or unconfirmed originals with no confirmed resend.
 SELECT o.id, o.topic, o.status, o.sent_ts
 FROM mqtt_message_tracker AS o
-WHERE o.status IN ('failed', 'unconfirmed')
+WHERE o.status IN ('failed', 'unconfirmed') AND o.origin_id IS NULL
   AND NOT EXISTS (
       SELECT 1 FROM mqtt_message_tracker AS r
       WHERE r.origin_id = o.id AND r.status = 'confirmed')
@@ -127,7 +143,7 @@ SELECT o.id, o.topic, o.status, o.sent_ts,
        SUM(r.status = 'confirmed') AS confirmed_attempts
 FROM mqtt_message_tracker AS o
 LEFT JOIN mqtt_message_tracker AS r ON r.origin_id = o.id
-WHERE o.status IN ('failed', 'unconfirmed')
+WHERE o.status IN ('failed', 'unconfirmed') AND o.origin_id IS NULL
 GROUP BY o.id
 ORDER BY o.sent_ts;
 ```
