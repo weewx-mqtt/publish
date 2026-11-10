@@ -48,7 +48,7 @@ if getattr(mqttcommon, 'MQTTCOMMON_API', (0, 0)) < (1, 1):
     raise ImportError("user.mqttcommon is too old. An older weewx-mqtt extension likely overwrote it during"
                       " install; reinstall or upgrade all the weewx-mqtt extensions.")
 
-VERSION = "1.3.0-rc02a"
+VERSION = "2.0.0-rc01a"
 
 # How long the feeder waits for the worker to stop, and then after each signal it sends, in seconds.
 PROCESSOR_SHUTDOWN_TIMEOUT = 5

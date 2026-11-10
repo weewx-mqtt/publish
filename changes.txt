@@ -27,9 +27,35 @@ Enhancements
   - Added `publish_fields` option.
   - Added more 'examples' to the configuration section that is 'installed' into weewx.conf.
 
-1.3.0 (draft)
+1.3.0
 Fixes
   - MQTTConfigHA no longer 'advertises' an availability topic when MQTTPublish is not publishing to it.
+
+Enhancements:
+  - Support additional data types when publishing ‘individual' topics.
+  - Empty the data queue as part of shutting down. This speeds up shut down when the queue has grown.
+  - Limit the publishing of redundant/duplicate data (#27).
+  - Move plugin config to top level (#32).
+  - Ability to configure a default value for all components belonging to a device (#33).
+  - Renamed the [[lwt]] section of MQTTPublish to [[availability_topic]]
+  - Options to monitor queue processing, see https://weewx-mqtt.github.io/publish/common-options/#monitor_queue
+
+Notes:
+The following have been deprecated and are scheduled to be removed in V2.
+- [PublishWeeWX] was replaced by [MQTTPublish] (prior to V1).
+- [MQTTPublish] / [[lwt]] has changed to [MQTTPublish] / [[availability_topic]].
+  See, https://weewx-mqtt.github.io/publish/common-options/availability-topic.html
+- [MQTTPublish] [[topics]] / [[[topic-name]]] / [[[[aggregates]]]] has been replaced witht plugin MQTTAggregateValues
+  See, https://weewx-mqtt.github.io/publish/plugins/aggregatevalues/
+
+Beta release of MQTTConfigHA has the breaking change of moving its configuration to the top level section, [MQTTConfigHA].
+  For help migrating from 1.2.0 and prior see, https://weewx-mqtt.github.io/publish/upgradeguides/from120/
+
+Alpha release support for ArchiveValues plugin, see https://weewx-mqtt.github.io/publish/plugins/archivevalues/
+Alpha release support for running the publishing code in a separate process, see https://weewx-mqtt.github.io/publish/common-options/#multiprocess
+
+2.0.0 (draft)
+Fixes
   - Fix random locks/ stalls when reading from the multiprocessing data queue (#39).
     The publishing sub-process is now wrapped in a feeder thread that shuffles data from a
     simple queue to the multiprocessing queue.
@@ -76,13 +102,6 @@ Enhancements:
     overwrite by another weewx-mqtt extension).
   - Log line prefixes use the format converged across the weewx-mqtt extensions, defined by the
     shared 'user.mqttcommon': (component-thread_id-archive_timestamp).
-  - Support additional data types when publishing ‘individual' topics.
-  - Empty the data queue as part of shutting down. This speeds up shut down when the queue has grown.
-  - Limit the publishing of redundant/duplicate data (#27).
-  - Move plugin config to top level (#32).
-  - Ability to configure a default value for all components belonging to a device (#33).
-  - Renamed the [[lwt]] section of MQTTPublish to [[availability_topic]]
-  - Options to monitor queue processing, see https://weewx-mqtt.github.io/publish/common-options/#monitor_queue
   - Added an on_publish plugin callback, and the monitor_on_publish option to monitor its execution time.
   - Added a mqtt_publish plugin callback. The immediate timing runs before the message is sent,
     the delay timing runs after and provides the message id.
@@ -137,18 +156,7 @@ Enhancements:
     Log output is unchanged.
 
 Notes:
-The following have been deprecated and are scheduled to be removed in V2.
-- [PublishWeeWX] was replaced by [MQTTPublish] (prior to V1).
+The following are deprecated and no longer used.
 - [MQTTPublish] max_retries, wait_between_retries, and wait_for_connection are deprecated and no longer used.
   Reconnection is handled by the paho mqtt network loop, configured with min_delay and max_delay.
   See, https://weewx-mqtt.github.io/publish/common-options/
-- [MQTTPublish] / [[lwt]] has changed to [MQTTPublish] / [[availability_topic]].
-  See, https://weewx-mqtt.github.io/publish/common-options/availability-topic.html
-- [MQTTPublish] [[topics]] / [[[topic-name]]] / [[[[aggregates]]]] has been replaced witht plugin MQTTAggregateValues
-  See, https://weewx-mqtt.github.io/publish/plugins/aggregatevalues/
-
-Beta release of MQTTConfigHA has the breaking change of moving its configuration to the top level section, [MQTTConfigHA].
-  For help migrating from 1.2.0 and prior see, https://weewx-mqtt.github.io/publish/upgradeguides/from120/
-
-Alpha release support for ArchiveValues plugin, see https://weewx-mqtt.github.io/publish/plugins/archivevalues/
-Alpha release support for running the publishing code in a separate process, see https://weewx-mqtt.github.io/publish/common-options/#multiprocess
