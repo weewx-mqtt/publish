@@ -282,8 +282,8 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
         if mqtt_message_info.rc != mqtt.MQTT_ERR_SUCCESS:
             self.logger_queue.put(mqttcommon.Logger.create_entry(
                 self.name, 'ERROR', None,
-                (f"The publish of {topic} is not accepted with "
-                 f"{mqtt.error_string(mqtt_message_info.rc)}, the message is dropped.")))
+                (f"The publish of {topic} failed: "
+                 f"{mqtt.error_string(mqtt_message_info.rc)}")))
 
     def _run_mqtt_publish_callbacks(self, callback_args, timing):
         """ Run the mqtt_publish plugin callbacks for one timing group.

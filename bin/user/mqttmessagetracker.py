@@ -816,8 +816,12 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
     def _log_failed_rows(self, action, failed):
         """ Log each failed row with the id it was stored under. """
         for row_id, topic, mid, rc in failed:
-            self._log('ERROR', f"Failed to {action} {topic}, rc {rc}; "
-                               f"stored as row {row_id} (mid {mid}).")
+            if action == 'publish':
+                self._log('INFO', f"Stored the failed publish of {topic} as row {row_id} "
+                                  f"(rc {rc}, mid {mid}).")
+            else:
+                self._log('ERROR', f"Failed to {action} {topic}, rc {rc}; "
+                                   f"stored as row {row_id} (mid {mid}).")
 
     def _log_unconfirmed_rows(self, rows, reason):
         """ Log each row that changed to unconfirmed, with the id it is stored under. """

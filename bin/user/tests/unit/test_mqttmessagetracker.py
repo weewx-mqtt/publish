@@ -564,10 +564,11 @@ class TestMQTTMessageTracker(unittest.TestCase):
 
         row = self._rows()[0]
         self._wait_for_log(logger_queue, row['id'])
-        messages = [call[0][0]['msg_text'] for call in logger_queue.put.call_args_list]
-        self.assertTrue(any('Failed to publish topic' in message and
-                            f"rc 1; stored as row {row['id']} (mid 5)" in message
-                            for message in messages))
+        entries = [call[0][0] for call in logger_queue.put.call_args_list]
+        self.assertTrue(any(entry['log_type'] == 'INFO' and
+                            'Stored the failed publish of topic' in entry['msg_text'] and
+                            f"as row {row['id']} (rc 1, mid 5)" in entry['msg_text']
+                            for entry in entries))
 
     def test_failed_resend_is_logged_with_its_row_id(self):
         plugin, logger_queue = self._make_plugin({'resend': {'on_startup': True}})
@@ -582,10 +583,11 @@ class TestMQTTMessageTracker(unittest.TestCase):
         rows = self._wait_for_rows(2)
         resend = [row for row in rows if row['origin_id']][0]
         self._wait_for_log(logger_queue, resend['id'])
-        messages = [call[0][0]['msg_text'] for call in logger_queue.put.call_args_list]
-        self.assertTrue(any('Failed to resend topic' in message and
-                            f"rc 1; stored as row {resend['id']} (mid 11)" in message
-                            for message in messages))
+        entries = [call[0][0] for call in logger_queue.put.call_args_list]
+        self.assertTrue(any(entry['log_type'] == 'ERROR' and
+                            'Failed to resend topic' in entry['msg_text'] and
+                            f"rc 1; stored as row {resend['id']} (mid 11)" in entry['msg_text']
+                            for entry in entries))
 
     def test_shutdown_logs_that_it_is_shutting_down(self):
         plugin, logger_queue = self._make_plugin()
