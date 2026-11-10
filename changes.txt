@@ -57,16 +57,8 @@ Alpha release support for running the publishing code in a separate process, see
 2.0.0 (draft)
 Fixes
   - Fix random locks/ stalls when reading from the multiprocessing data queue (#39).
-    The publishing sub-process is now wrapped in a feeder thread that shuffles data from a
-    simple queue to the multiprocessing queue.
   - Do not hang WeeWX on exit when the multiprocessing publishing worker does not stop.
-    The worker now ignores SIGINT and restores the default SIGTERM handler, and the service
-    terminates it (and kills it if that is not enough), so neither a Ctrl-C nor a missed
-    shutdown can leave WeeWX waiting for it.
   - Stop the publishing sub-process stalling when WeeWX logs from inside it.
-    The worker is now forked with the logging handler locks held, so it cannot inherit a
-    log stream whose internal lock was stuck. That deadlock stopped the worker draining its
-    queue, which is what made the shutdown wait for it.
   - Use the fork start method explicitly for the publishing sub-process.
     Python 3.14 makes 'forkserver' the default on Linux, which pickles the process object and
     fails because the worker is handed objects that are not picklable.
@@ -157,6 +149,14 @@ Enhancements:
 
 Notes:
 The following are deprecated and no longer used.
+- [PublishWeeWX] was replaced by [MQTTPublish] (prior to V1).
+- [MQTTPublish] / [[lwt]] has changed to [MQTTPublish] / [[availability_topic]].
+  See, https://weewx-mqtt.github.io/publish/common-options/availability-topic.html
+- [MQTTPublish] [[topics]] / [[[topic-name]]] / [[[[aggregates]]]] has been replaced witht plugin MQTTAggregateValues
+  See, https://weewx-mqtt.github.io/publish/plugins/aggregatevalues/
+
 - [MQTTPublish] max_retries, wait_between_retries, and wait_for_connection are deprecated and no longer used.
   Reconnection is handled by the paho mqtt network loop, configured with min_delay and max_delay.
   See, https://weewx-mqtt.github.io/publish/common-options/
+
+Alpha release support for MessageTracker plugin, see https://weewx-mqtt.github.io/publish/plugins/messagetracker/
