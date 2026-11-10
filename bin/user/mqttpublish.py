@@ -515,15 +515,6 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
         self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, self.monitor_on_message, None,
                                                              (f"monitor: {run_time:<12.10f} on_message (delay)")))
 
-class PublishWeeWX():  # pylint: disable=too-few-public-methods
-    """ Backwards compatibility class."""
-    def __init__(self, engine, config_dict):
-        self.mqtt_publish = MQTTPublish(engine, config_dict)
-
-    def shutDown(self):  # NOSONAR - Needed for backward compatibility pylint: disable=invalid-name
-        """Run when an engine shutdown is requested."""
-        self.mqtt_publish.shutDown()
-
 class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
     """ A service to publish WeeWX loop and/or archive data to MQTT. """
     def __init__(self, engine, config_dict):
@@ -547,8 +538,7 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
 
         #  backwards compatibility
         if 'PublishWeeWX' in service_dict.sections:
-            self.logger.error(None, "'PublishWeeWX' is deprecated, move its options to the top level '[MQTTPublish]'.")
-            service_dict = config_dict.get('MQTTPublish', {}).get('PublishWeeWX', {})
+            raise ValueError("'PublishWeeWX' is deprecated, move its options to the top level '[MQTTPublish]'.")
 
         self.enable = to_bool(service_dict.get('enable', True))
         if not self.enable:

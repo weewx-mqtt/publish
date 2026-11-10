@@ -67,26 +67,6 @@ class TestMQTTConnectionOptions(unittest.TestCase):
 
 
 class TestInit(unittest.TestCase):
-    def test_PublishWeeWX_stanza_is_deprecated(self):
-        mock_engine = mock.Mock()
-        config_dict = {
-            'StdReport': {},
-            'MQTTPublish': {
-                'PublishWeeWX': {
-                    'topics': {}
-                }
-            }
-        }
-        config = configobj.ConfigObj(config_dict)
-
-        # with mock.patch('user.mqttpublish.mqtt'):
-        with mock.patch('user.mqttpublish.weewx.manager'):
-            with mock.patch('user.mqttpublish.PublishWeeWXThread'):
-                with mock.patch('user.mqttcommon.Logger'):
-                    SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
-                    SUT.logger_queue.put(None)
-                    self.assertEqual(SUT.logger.error.call_count, 1)
-
     def test_log_mqtt_option(self):
         mock_engine = mock.Mock()
         config_dict = {
