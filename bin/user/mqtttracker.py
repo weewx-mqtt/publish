@@ -601,13 +601,16 @@ def _status_chains(rows):
         yield (anchor[0], anchor[1], anchor[2], anchor[3], attempts, confirmed)
 
 
-def status_summary(connection, table, statuses=None, unresolved=False, topic=None, limit=DEFAULT_LIMIT):
-    """ One row per message chain, with its resend outcome. """
+def status_summary(connection, table, statuses=None, include_confirmed=False,
+                   topic=None, limit=DEFAULT_LIMIT):
+    """ One row per message chain, with its resend outcome.
+
+        By default only chains with no confirmed resend are returned. """
     statuses = tuple(statuses or DEFAULT_SUMMARY_STATUSES)
     rows = [row for row in _status_chains(_rows(connection, _STATUS_ROWS_SQL.format(table=table)))
             if row[2] in statuses]
     rows.sort(key=lambda row: (row[3], row[0]))
-    if unresolved:
+    if not include_confirmed:
         rows = [row for row in rows if row[5] == 0]
     if topic:
         rows = [row for row in rows if fnmatch.fnmatchcase(row[1], topic)]
@@ -641,11 +644,14 @@ def _outcome(attempts, confirmed_attempts):
     return 'not resent'
 
 
-def print_status_summary(rows, out, statuses=DEFAULT_SUMMARY_STATUSES):
+def print_status_summary(rows, out, statuses=DEFAULT_SUMMARY_STATUSES, include_confirmed=False):
     """ Print the selected messages as a table. """
-    if tuple(statuses) == DEFAULT_SUMMARY_STATUSES:
-        empty = "No failed, unconfirmed, or sent messages."
-        label = "failed, unconfirmed, or sent message(s)"
+    if tuple(statuses) == DEFAULT_SUMMARY_STATUSES and not include_confirmed:
+        empty = "No not-confirmed messages."
+        label = "not confirmed message(s)"
+    elif tuple(statuses) == DEFAULT_SUMMARY_STATUSES:
+        empty = "No messages."
+        label = "message(s)"
     else:
         status_text = ', '.join(statuses)
         empty = f"No messages with status {status_text}."
@@ -694,10 +700,12 @@ def show_status(config_dict, options, out=None):
         if options.message:
             rows = status_message(connection, table, options.message)
             return print_status_message(rows, options.message, out)
+        include_confirmed = (options.include_confirmed or
+                             user.mqttmessagetracker.STATUS_CONFIRMED in options.status)
         rows = status_summary(connection, table, statuses=options.status,
-                              unresolved=options.unresolved,
+                              include_confirmed=include_confirmed,
                               topic=options.topic, limit=options.limit)
-        print_status_summary(rows, out, options.status)
+        print_status_summary(rows, out, options.status, include_confirmed)
         return True
     except weedb.DatabaseError as exception:
         raise StatusError(f"Unable to use the message tracker table {table}: {exception}") from exception
@@ -814,8 +822,8 @@ def _add_status_parser(subparsers):
                               f"{', '.join(SUMMARY_STATUSES)}."))
     parser.add_argument('--message', '--id', dest='message', default=None, metavar='ID',
                         help="Show one message and its resends, using the id from the log.")
-    parser.add_argument('--unresolved', action='store_true',
-                        help="Only messages with no confirmed resend.")
+    parser.add_argument('--include-confirmed', action='store_true',
+                        help="Also show messages that already have a confirmed resend.")
     parser.add_argument('--topic', default=None, metavar='GLOB',
                         help="Only messages whose topic matches the glob.")
     parser.add_argument('--limit', type=int, default=DEFAULT_LIMIT, metavar='COUNT',

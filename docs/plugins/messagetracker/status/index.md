@@ -6,17 +6,17 @@ nav_order: 4
 ---
 {% include messagetracker_warning.html %}
 
-`mqtttracker status` shows tracked messages and their resend outcome. By default it shows one row
-per message chain that is not `confirmed`: `failed`, `unconfirmed`, and `sent`. `--status` can
-also restrict the list or include `confirmed` rows. It reads the tracker database directly, so it
-does not need MQTTPublish to be running.
+`mqtttracker status` shows tracked messages and their resend outcome. By default it shows the
+outstanding work: one row per message chain with no confirmed resend. `--status` restricts the
+anchor statuses, and `--include-confirmed` also shows chains that were eventually confirmed. It
+reads the tracker database directly, so it does not need MQTTPublish to be running.
 
 `mqtttracker` is one tool with `resend`, `prune` and `status` subcommands. The config file is a
 global `--config` option, so it comes before the subcommand:
 
 ```shell
 python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf status
-python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf status --unresolved
+python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf status --include-confirmed
 python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf status --status sent
 python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf status --message 3f2a9c...
 ```
@@ -68,7 +68,8 @@ This filters the anchor row shown in the table; a later resend does not change t
 
 `sent` rows are in flight: paho accepted the publish, but no acknowledgement has arrived yet. They
 become `confirmed` on acknowledgement, or `unconfirmed` on a disconnect or the startup sweep.
-`confirmed` rows are success history and can be numerous.
+`confirmed` rows are success history and can be numerous. Selecting `confirmed` also implies
+`--include-confirmed`, since confirmed chains are hidden by default.
 
 ### --message ID
 
@@ -78,10 +79,10 @@ Use any row id from the chain, including a resend id. The command resolves it to
 shows the anchor and each resend, with its `attempt` and `origin_id`. If no row has that id, the
 command prints a message and exits `1`.
 
-### --unresolved
+### --include-confirmed
 
-Only show messages with no confirmed resend. This is the outstanding work: never resent, or
-resent without a confirmation.
+Also show message chains that already have a confirmed resend. By default those are hidden:
+the status command shows the outstanding work, meaning chains with no confirmed resend.
 
 ### --topic GLOB
 
