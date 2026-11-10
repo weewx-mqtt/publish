@@ -23,8 +23,7 @@ The tool imports WeeWX, so run it with the Python that WeeWX uses and with WeeWX
 A package install already has it there. For a source install, add its `src` directory:
 
 ```shell
-PYTHONPATH=~/weewx/src python ~/weewx-data/bin/user/mqtttracker.py \
-    --config ~/weewx-data/weewx.conf status
+PYTHONPATH=~/weewx/src python ~/weewx-data/bin/user/mqtttracker.py --config ~/weewx-data/weewx.conf status
 ```
 
 ## Reading the result

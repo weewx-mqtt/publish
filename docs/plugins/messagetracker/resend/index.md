@@ -119,8 +119,7 @@ The tool imports WeeWX, so run it with the Python that WeeWX uses and with WeeWX
 A package install already has it there. For a source install, add its `src` directory:
 
 ```shell
-PYTHONPATH=~/weewx/src python ~/weewx-data/bin/user/mqtttracker.py \
-    --config ~/weewx-data/weewx.conf resend
+PYTHONPATH=~/weewx/src python ~/weewx-data/bin/user/mqtttracker.py --config ~/weewx-data/weewx.conf resend
 ```
 
 ### What the tool selects
@@ -170,8 +169,7 @@ Use `--status failed` to resend only failed publishes, or `--status failed,uncon
 `sent` may still be in flight and `confirmed` does not need a resend, so both are refused.
 
 ```shell
-python /usr/share/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf resend \
-    --status failed,unconfirmed --publish
+python /usr/share/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf resend --status failed,unconfirmed --publish
 ```
 
 ### --since SECONDS
@@ -194,8 +192,7 @@ The selection is resent oldest first.
 Only resend topics that match the glob.
 
 ```shell
-python /usr/share/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf resend \
-    --topic 'weather/outTemp_*' --publish
+python /usr/share/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf resend --topic 'weather/outTemp_*' --publish
 ```
 
 ### --all
