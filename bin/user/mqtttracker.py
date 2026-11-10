@@ -16,16 +16,57 @@
 import argparse
 import collections
 import fnmatch
+import importlib.util
 import os
 import random
 import sys
 import threading
 import time
 
-# When run as a script, the 'user' package is not on the path.
+# When run as a script, neither the 'user' package nor WeeWX is necessarily on the path.
 _bin_root = os.getenv('BIN_ROOT') or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _bin_root not in sys.path:
     sys.path.append(_bin_root)
+
+
+def _defaults_bindirs(*paths):
+    """ The WEEWX_BINDIR values in the distro defaults files, if any. """
+    bindirs = []
+    for path in paths:
+        try:
+            with open(path, encoding='utf-8') as file_object:
+                for line in file_object:
+                    name, separator, value = line.partition('=')
+                    if separator and name.strip() == 'WEEWX_BINDIR':
+                        bindirs.append(os.path.expanduser(value.strip().strip('"\'')))
+        except OSError:
+            continue
+    return bindirs
+
+
+def _weewx_bindir():
+    """ Where the weewx package is, when the interpreter cannot already import it.
+
+        Extension files live in WEEWX_ROOT/bin/user (for example /etc/weewx/bin/user),
+        while the WeeWX code is in BIN_ROOT (/usr/share/weewx), which a script run by
+        absolute path does not put on sys.path. """
+    candidates = [os.environ.get('WEEWX_BINDIR')]
+    candidates.extend(_defaults_bindirs('/etc/default/weewx', '/etc/sysconfig/weewx'))
+    candidates.extend(['/usr/share/weewx', '/opt/weewx'])
+    for candidate in candidates:
+        if candidate and os.path.isdir(os.path.join(os.path.expanduser(candidate), 'weewx')):
+            return os.path.expanduser(candidate)
+    return None
+
+
+if importlib.util.find_spec('weewx') is None:
+    _bindir = _weewx_bindir()
+    if _bindir is None:
+        print("mqtttracker: WeeWX is not importable with this Python. Run it with the Python "
+              "that WeeWX uses, or set PYTHONPATH to the directory that contains the weewx "
+              "package (for a source install, its 'src' directory).", file=sys.stderr)
+        sys.exit(2)
+    sys.path.insert(0, _bindir)
 
 import weedb  # pylint: disable=wrong-import-position
 from weeutil.weeutil import to_bool, to_int  # pylint: disable=wrong-import-position

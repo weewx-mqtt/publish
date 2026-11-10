@@ -14,16 +14,18 @@ be running.
 global `--config` option, so it comes before the subcommand:
 
 ```shell
-python /usr/share/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf status
-python /usr/share/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf status --unresolved
-python /usr/share/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf status --message 3f2a9c...
+python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf status
+python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf status --unresolved
+python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf status --message 3f2a9c...
 ```
 
-The tool imports WeeWX, so run it with the Python that WeeWX uses and with WeeWX on the path.
-A package install already has it there. For a source install, add its `src` directory:
+The tool is in the tracker's user directory: `/etc/weewx/bin/user` on a package install (apt,
+rpm, openSUSE) and `~/weewx-data/bin/user` on a pip or git install. Run it with the Python that
+WeeWX uses. On a package install it finds WeeWX by itself; for an uninstalled source checkout,
+add WeeWX's `src` directory to `PYTHONPATH`:
 
 ```shell
-PYTHONPATH=~/weewx/src python ~/weewx-data/bin/user/mqtttracker.py --config ~/weewx-data/weewx.conf status
+PYTHONPATH=~/weewx/src python3 ~/weewx-data/bin/user/mqtttracker.py --config ~/weewx-data/weewx.conf status
 ```
 
 ## Reading the result

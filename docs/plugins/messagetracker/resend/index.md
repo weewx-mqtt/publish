@@ -108,18 +108,20 @@ involved and does not record the resend as a new publish.
 `mqtttracker` is one tool with three subcommands: `resend`, `prune` and `status`. The config file
 is a global `--config` option, so it comes before the subcommand.
 
-The tool is a dry run unless `--publish` is given:
+The tool is in the tracker's user directory: `/etc/weewx/bin/user` on a package install (apt,
+rpm, openSUSE) and `~/weewx-data/bin/user` on a pip or git install. Run it with the Python that
+WeeWX uses. `resend` is a dry run unless `--publish` is given:
 
 ```shell
-python /usr/share/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf resend
-python /usr/share/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf resend --publish
+python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf resend
+python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf resend --publish
 ```
 
-The tool imports WeeWX, so run it with the Python that WeeWX uses and with WeeWX on the path.
-A package install already has it there. For a source install, add its `src` directory:
+On a package install the tool finds WeeWX by itself; for an uninstalled source checkout, add
+WeeWX's `src` directory to `PYTHONPATH`:
 
 ```shell
-PYTHONPATH=~/weewx/src python ~/weewx-data/bin/user/mqtttracker.py --config ~/weewx-data/weewx.conf resend
+PYTHONPATH=~/weewx/src python3 ~/weewx-data/bin/user/mqtttracker.py --config ~/weewx-data/weewx.conf resend
 ```
 
 ### What the tool selects
@@ -169,7 +171,7 @@ Use `--status failed` to resend only failed publishes, or `--status failed,uncon
 `sent` may still be in flight and `confirmed` does not need a resend, so both are refused.
 
 ```shell
-python /usr/share/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf resend --status failed,unconfirmed --publish
+python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf resend --status failed,unconfirmed --publish
 ```
 
 ### --since SECONDS
@@ -192,7 +194,7 @@ The selection is resent oldest first.
 Only resend topics that match the glob.
 
 ```shell
-python /usr/share/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf resend --topic 'weather/outTemp_*' --publish
+python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf resend --topic 'weather/outTemp_*' --publish
 ```
 
 ### --all

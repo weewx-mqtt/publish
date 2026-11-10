@@ -26,6 +26,7 @@ discovery, aggregate values, archive values). Requires WeeWX 5.x and paho-mqtt 1
   optional plugin `shutdown` to flush its writer thread.
 - `bin/user/mqtttracker.py` — the tracker's CLI with `resend`, `prune` and `status`
   subcommands, run directly (see `docs/plugins/messagetracker/`). Never loaded by WeeWX.
+  It adds WeeWX to `sys.path` when it can find it, so packaged installs need no `PYTHONPATH`.
 - `install.py` — WeeWX `ExtensionInstaller`; the `MQTTPUBLISH_CONFIG` string is the template
   inserted into `weewx.conf`.
 - `docs/` — Jekyll site (GitHub Pages, baseurl `/publish`); the user-facing option reference.

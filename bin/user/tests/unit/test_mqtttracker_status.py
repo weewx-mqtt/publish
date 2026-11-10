@@ -13,6 +13,7 @@ import tempfile
 import unittest
 
 import configobj
+import mock
 import weedb
 
 import helpers
@@ -170,6 +171,25 @@ class TestBuildParser(unittest.TestCase):
         self.assertEqual(options.limit, 100)
         self.assertEqual(options.plugin_section, 'MQTTMessageTracker')
         self.assertEqual(options.command, 'status')
+
+
+class TestBootstrap(unittest.TestCase):
+    def test_defaults_bindirs_reads_weewx_bindir(self):
+        with tempfile.NamedTemporaryFile('w', delete=False) as file_object:
+            file_object.write('WEEWX_PYTHON=python3\n'
+                              'WEEWX_BINDIR=/usr/share/weewx\n')
+        self.addCleanup(os.unlink, file_object.name)
+
+        self.assertEqual(user.mqtttracker._defaults_bindirs(file_object.name), ['/usr/share/weewx'])
+
+    def test_defaults_bindirs_ignores_a_missing_file(self):
+        self.assertEqual(user.mqtttracker._defaults_bindirs('/does/not/exist'), [])
+
+    def test_weewx_bindir_prefers_the_environment(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            os.makedirs(os.path.join(temp_dir, 'weewx'))
+            with mock.patch.dict(os.environ, {'WEEWX_BINDIR': temp_dir}):
+                self.assertEqual(user.mqtttracker._weewx_bindir(), temp_dir)
 
 
 if __name__ == '__main__':

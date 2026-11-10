@@ -86,10 +86,15 @@ subcommands; the config file is a global `--config` option, so it comes before t
 
 ```shell
 # Select unconfirmed rows older than 30 days.
-python /usr/share/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune --older-than 2592000
+python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune --older-than 2592000
 # Add --delete to remove them.
-python /usr/share/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune --older-than 2592000 --delete
+python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune --older-than 2592000 --delete
 ```
+
+The tool is in the tracker's user directory: `/etc/weewx/bin/user` on a package install (apt,
+rpm, openSUSE) and `~/weewx-data/bin/user` on a pip or git install. Run it with the Python that
+WeeWX uses. On a package install it finds WeeWX by itself; for an uninstalled source checkout,
+add WeeWX's `src` directory to `PYTHONPATH`.
 
 Without `--delete` it only prints the selection.
 
@@ -128,7 +133,7 @@ Use `--status failed` to prune only failed publishes, or `--status failed,unconf
 `confirmed` is refused because the automatic prune handles it.
 
 ```shell
-python /usr/share/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune --status failed,unconfirmed --older-than 2592000 --delete
+python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune --status failed,unconfirmed --older-than 2592000 --delete
 ```
 
 ### --older-than SECONDS
@@ -142,7 +147,7 @@ regardless of the configured retention.
 
 ```shell
 # Every unconfirmed row, of any age.
-python /usr/share/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune --older-than 0 --delete
+python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune --older-than 0 --delete
 ```
 
 ### --topic GLOB
@@ -150,7 +155,7 @@ python /usr/share/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf p
 Only prune topics that match the glob.
 
 ```shell
-python /usr/share/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune --topic 'weather/outTemp_*' --older-than 2592000 --delete
+python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune --topic 'weather/outTemp_*' --older-than 2592000 --delete
 ```
 
 ### --limit COUNT
@@ -188,7 +193,7 @@ SHELL=/bin/sh
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 
 # Every day at 03:15, delete unconfirmed rows older than 30 days.
-15 3 * * * weewx /usr/bin/python3 /usr/share/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune --older-than 2592000 --delete >> /var/log/weewx/mqtttracker-prune.log 2>&1
+15 3 * * * weewx /usr/bin/python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune --older-than 2592000 --delete >> /var/log/weewx/mqtttracker-prune.log 2>&1
 ```
 
 The same line in the WeeWX user's crontab (`crontab -u weewx -e`) drops the `weewx` user field.
@@ -196,7 +201,7 @@ The same line in the WeeWX user's crontab (`crontab -u weewx -e`) drops the `wee
 To clear a backlog after an outage, widen the age, include `failed`, and raise the limit:
 
 ```cron
-15 3 * * * weewx /usr/bin/python3 /usr/share/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune --status unconfirmed,failed --older-than 2592000 --limit 1000 --delete >> /var/log/weewx/mqtttracker-prune.log 2>&1
+15 3 * * * weewx /usr/bin/python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune --status unconfirmed,failed --older-than 2592000 --limit 1000 --delete >> /var/log/weewx/mqtttracker-prune.log 2>&1
 ```
 
 - Run as the WeeWX user, not root, so the database permissions match.
@@ -220,7 +225,7 @@ Description=Prune the MQTT message tracker
 [Service]
 Type=oneshot
 User=weewx
-ExecStart=/usr/bin/python3 /usr/share/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune --older-than 2592000 --delete
+ExecStart=/usr/bin/python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune --older-than 2592000 --delete
 ```
 
 and `/etc/systemd/system/mqtttracker-prune.timer`:
