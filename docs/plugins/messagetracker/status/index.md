@@ -40,11 +40,11 @@ The default summary lists each message with:
 | --- | --- |
 | `ID` | the row id, the same id in the log line. |
 | `TOPIC` | the topic the message was published on. |
-| `ORIGINAL` | the original row's status, `failed` or `unconfirmed`. |
-| `SENT` | when the original was handed to paho. |
+| `ORIGINAL STATUS` | the original row's status, `failed` or `unconfirmed`. |
+| `ORIGINALLY SENT` | when the original was handed to paho. |
 | `ATTEMPTS` | the number of resend rows, whatever their status. |
 | `CONFIRMED` | how many of those resends the broker confirmed. |
-| `OUTCOME` | `sent`, `pending`, or `not resent`. |
+| `FINAL STATUS` | `sent`, `pending`, or `not resent`. |
 
 The outcomes mean:
 

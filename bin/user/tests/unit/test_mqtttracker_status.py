@@ -109,6 +109,9 @@ class TestStatus(DatabaseTestCase):
 
         self.assertIn(original['id'], self.out.getvalue())
         self.assertIn(unresolved['id'], self.out.getvalue())
+        self.assertIn('ORIGINAL STATUS', self.out.getvalue())
+        self.assertIn('ORIGINALLY SENT', self.out.getvalue())
+        self.assertIn('FINAL STATUS', self.out.getvalue())
         self.assertIn('sent', self.out.getvalue())
         self.assertIn('not resent', self.out.getvalue())
 
