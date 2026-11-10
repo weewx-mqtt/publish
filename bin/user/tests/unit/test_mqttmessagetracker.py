@@ -409,6 +409,9 @@ class TestMQTTMessageTracker(unittest.TestCase):
         self.assertTrue(any(f"Row {rows[0]['id']} for topic is unconfirmed: "
                             "the connection was lost (mid 42)" in message
                             for message in messages))
+        self.assertEqual(sum("is unconfirmed: the connection was lost" in message
+                             for message in messages), 1)
+        self.assertFalse(any(message.startswith("Marked ") for message in messages))
 
     def test_connection_loss_does_not_change_confirmed_rows(self):
         plugin, _ = self._make_plugin()
@@ -662,11 +665,14 @@ class TestMQTTMessageTracker(unittest.TestCase):
         self.assertEqual(leftover['status'], 'unconfirmed')
         self.assertIsNotNone(leftover['unconfirmed_ts'])
         self.assertIsNone(leftover['arrived_ts'])
-        self._wait_for_log(logger_queue, "Marked 1 message tracking rows from a previous run")
+        self._wait_for_log(logger_queue, "it was left sent by a previous run")
         messages = [call[0][0]['msg_text'] for call in logger_queue.put.call_args_list]
         self.assertTrue(any(f"Row {leftover['id']} for topic is unconfirmed: "
                             "it was left sent by a previous run (mid 2)" in message
                             for message in messages))
+        self.assertEqual(sum("is unconfirmed: it was left sent by a previous run" in message
+                             for message in messages), 1)
+        self.assertFalse(any(message.startswith("Marked ") for message in messages))
 
     def test_arrival_before_send(self):
         plugin, _ = self._make_plugin()

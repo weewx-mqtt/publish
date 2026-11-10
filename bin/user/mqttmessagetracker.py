@@ -578,7 +578,6 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
             marked += len(chunk)
             unconfirmed.extend((row_id, topic, mid) for mid, (row_id, _, topic) in chunk)
         if marked:
-            self._log('INFO', f"Marked {marked} message tracking rows as unconfirmed, {reason}.")
             self._log_unconfirmed_rows(unconfirmed, reason)
 
     def _apply_resend(self, connection, client, options, clientid):
@@ -727,7 +726,6 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
             self._log('ERROR', f"Unable to mark the message tracking rows of a previous run as unconfirmed: {exception}.")
             return
         if stale:
-            self._log('INFO', f"Marked {len(stale)} message tracking rows from a previous run as unconfirmed.")
             self._log_unconfirmed_rows(stale, "it was left sent by a previous run")
 
     def _write(self, connection, statements):
