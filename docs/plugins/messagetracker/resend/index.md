@@ -126,7 +126,7 @@ PYTHONPATH=~/weewx/src python3 ~/weewx-data/bin/user/mqtttracker.py --config ~/w
 
 ### What the tool selects
 
-By default the tool selects `unconfirmed` rows, whatever their age. It then:
+By default the tool selects `failed` and `unconfirmed` rows, whatever their age. It then:
 
 - resends only the newest row per topic, so an old value cannot overwrite a newer one; a message
   this hides is reported, and `--all` resends every selected message, oldest first;
@@ -165,13 +165,14 @@ nothing.
 ### --status STATUS
 
 A comma-separated list of statuses to resend.
-Default is `unconfirmed`.
+Default is `failed,unconfirmed`.
 
-Use `--status failed` to resend only failed publishes, or `--status failed,unconfirmed` for both.
-`sent` may still be in flight and `confirmed` does not need a resend, so both are refused.
+Use `--status unconfirmed` to resend only the ambiguous rows, or `--status failed` to resend only
+failed publishes. `sent` may still be in flight and `confirmed` does not need a resend, so both
+are refused.
 
 ```shell
-python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf resend --status failed,unconfirmed --publish
+python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf resend --status unconfirmed --publish
 ```
 
 ### --since SECONDS

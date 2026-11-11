@@ -135,15 +135,16 @@ then updated to `confirmed` or `unconfirmed`.
 ## Checking a message's outcome
 
 Use `mqtttracker status`, or the SQL queries on [Status](../status/index.md), to see whether
-failed and unconfirmed messages were eventually sent.
+failed and unconfirmed messages were eventually confirmed.
 
 ## Maintenance SQL
 
-`bin/user/mqtttracker.py prune` is the supported way to delete unconfirmed rows.
+`bin/user/mqtttracker.py prune` is the supported way to delete failed and unconfirmed rows.
 If the tool is not installed, the same can be done with SQL:
 
 ```sql
-DELETE FROM mqtt_message_tracker WHERE status = 'unconfirmed' AND sent_ts < ?;
+DELETE FROM mqtt_message_tracker
+WHERE status IN ('failed', 'unconfirmed') AND sent_ts < ?;
 ```
 
 Deleting an original row while a `confirmed` resend remains leaves that resend's `origin_id`

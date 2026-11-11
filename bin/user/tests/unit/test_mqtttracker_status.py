@@ -198,7 +198,7 @@ class TestStatus(DatabaseTestCase):
         self.assertIn(original['id'], output)
         self.assertNotIn(resend['id'], output)
         line = [row for row in output.splitlines() if original['id'] in row][0]
-        self.assertEqual(line.split()[-3:], ['1', '1', 'sent'])
+        self.assertEqual(line.split()[-3:], ['1', '1', 'confirmed'])
 
     def test_message_shows_the_original_and_its_resends(self):
         original = make_row(sent_ts=1000.0)

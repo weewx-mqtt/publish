@@ -85,8 +85,8 @@ next_attempt = user.mqttmessagetracker.next_attempt
 insert_attempt = user.mqttmessagetracker.insert_attempt
 
 # A 'sent' row may still be in flight, and a 'confirmed' row needs no resend or prune.
-RESEND_STATUSES = (user.mqttmessagetracker.STATUS_UNCONFIRMED,
-                   user.mqttmessagetracker.STATUS_FAILED)
+RESEND_STATUSES = (user.mqttmessagetracker.STATUS_FAILED,
+                   user.mqttmessagetracker.STATUS_UNCONFIRMED)
 PRUNE_STATUSES = RESEND_STATUSES
 
 # The status command can show any row; the default is every row that is not confirmed.
@@ -98,7 +98,8 @@ DEFAULT_SUMMARY_STATUSES = (user.mqttmessagetracker.STATUS_FAILED,
                             user.mqttmessagetracker.STATUS_UNCONFIRMED,
                             user.mqttmessagetracker.STATUS_SENT)
 
-DEFAULT_STATUS = user.mqttmessagetracker.STATUS_UNCONFIRMED
+# Both tools default to every recoverable status, as the tracker's own resend and prune do.
+DEFAULT_STATUSES = RESEND_STATUSES
 DEFAULT_PLUGIN_SECTION = user.mqttmessagetracker.DEFAULT_PLUGIN_SECTION
 # Every row is considered by default, so every unconfirmed message is resent.
 DEFAULT_SINCE = None
@@ -216,10 +217,24 @@ def _sort_key(row):
     return row['sent_ts'], row['id']
 
 
+def _dedupe(rows):
+    """ Keep the earliest row for each message chain, so a message is resent once. """
+    seen = set()
+    unique = []
+    # An original and its resend can share a timestamp; keep the original.
+    for row in sorted(rows, key=lambda item: (_sort_key(item), item['origin_id'] is not None)):
+        chain = _origin(row)
+        if chain in seen:
+            continue
+        seen.add(chain)
+        unique.append(row)
+    return unique
+
+
 # pylint: disable=too-many-arguments,too-many-positional-arguments
 def _candidates(rows, statuses, since, topic, force, now):
     """ The rows that pass the filters that do not depend on the other rows. """
-    statuses = tuple(statuses or (DEFAULT_STATUS,))
+    statuses = tuple(statuses or DEFAULT_STATUSES)
     oldest = _oldest(since, now)
     confirmed_origins = _confirmed_origins(rows)
     return [row for row in rows
@@ -254,7 +269,8 @@ def select_messages(rows, statuses=None, since=DEFAULT_SINCE, limit=DEFAULT_LIMI
         Every row is considered unless 'since' bounds its age. Only the newest row per topic
         is selected by default, so resent values cannot overwrite newer ones. A message that
         already has a confirmed resend is skipped unless 'force' is set. """
-    candidates = _candidates(rows, statuses, since, topic, force, time.time() if now is None else now)
+    candidates = _dedupe(_candidates(rows, statuses, since, topic, force,
+                                     time.time() if now is None else now))
     newest = _newest_per_topic(rows) if newest_per_topic else {}
     return _limit(_select(candidates, newest), limit)
 
@@ -266,8 +282,9 @@ def superseded(rows, statuses=None, since=DEFAULT_SINCE, topic=None, force=False
         Resending one would write an older value over a newer one, so they are only selected
         with '--all'. """
     newest = _newest_per_topic(rows)
-    return [row for row in _candidates(rows, statuses, since, topic, force, time.time() if now is None else now)
-            if _is_stale(row, newest)]
+    candidates = _dedupe(_candidates(rows, statuses, since, topic, force,
+                                     time.time() if now is None else now))
+    return [row for row in candidates if _is_stale(row, newest)]
 
 
 def update_attempt(connection, table, row_id, status, timestamp=None):
@@ -474,7 +491,7 @@ def select_rows(rows, statuses=None, topic_retention=None, default_retention=Non
         By default a row is selected when it is older than its topic's retention.
         An explicit 'older_than' overrides the configured retention; 'older_than=0'
         selects every matching row, unlike a configured retention of 0. """
-    statuses = tuple(statuses or (DEFAULT_STATUS,))
+    statuses = tuple(statuses or DEFAULT_STATUSES)
     topic_retention = topic_retention or {}
     if default_retention is None:
         default_retention = user.mqttmessagetracker.DEFAULT_ERROR_RETENTION
@@ -638,7 +655,7 @@ def _sent_at(timestamp):
 def _outcome(attempts, confirmed_attempts):
     """ A short description of what the resends show. """
     if confirmed_attempts > 0:
-        return 'sent'
+        return 'confirmed'
     if attempts > 0:
         return 'pending'
     return 'not resent'
@@ -762,9 +779,10 @@ def _add_resend_parser(subparsers):
     _add_tracker_options(parser)
     parser.add_argument('--clientid', default=None,
                         help="The clientid to connect with. Default is a unique MQTTPublish-resend id.")
-    parser.add_argument('--status', type=_resend_statuses, default=[DEFAULT_STATUS], metavar='STATUS',
+    parser.add_argument('--status', type=_resend_statuses, default=list(DEFAULT_STATUSES),
+                        metavar='STATUS',
                         help=(f"The statuses to resend, comma separated. "
-                              f"Default is {DEFAULT_STATUS}. Choose from "
+                              f"Default is {', '.join(DEFAULT_STATUSES)}. Choose from "
                               f"{', '.join(RESEND_STATUSES)}."))
     parser.add_argument('--since', type=int, default=DEFAULT_SINCE, metavar='SECONDS',
                         help="Only resend messages sent within the last SECONDS. "
@@ -794,9 +812,10 @@ def _add_prune_parser(subparsers):
         description="Delete message tracker rows before the retention policy does.",
         epilog="Without --delete the selection is only printed, nothing is removed.")
     _add_tracker_options(parser)
-    parser.add_argument('--status', type=_prune_statuses, default=[DEFAULT_STATUS], metavar='STATUS',
+    parser.add_argument('--status', type=_prune_statuses, default=list(DEFAULT_STATUSES),
+                        metavar='STATUS',
                         help=(f"The statuses to prune, comma separated. "
-                              f"Default is {DEFAULT_STATUS}. Choose from "
+                              f"Default is {', '.join(DEFAULT_STATUSES)}. Choose from "
                               f"{', '.join(PRUNE_STATUSES)}."))
     parser.add_argument('--older-than', type=int, default=None, metavar='SECONDS',
                         help="Only prune rows older than SECONDS. Default is the topic's error_retention.")

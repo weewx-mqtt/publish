@@ -32,9 +32,9 @@ PYTHONPATH=~/weewx/src python3 ~/weewx-data/bin/user/mqtttracker.py --config ~/w
 
 ## Reading the result
 
-The original `failed` or `unconfirmed` row is never changed, so "eventually sent" means that at
-least one row with `origin_id` equal to the original's `id` has status `confirmed`. A `confirmed`
-resend means the broker accepted it, not that a subscriber received it.
+The original `failed` or `unconfirmed` row is never changed, so "eventually confirmed" means that
+at least one row with `origin_id` equal to the original's `id` has status `confirmed`. A
+`confirmed` resend means the broker accepted it, not that a subscriber received it.
 
 A message with several resend attempts appears once. The row is anchored at the original, or at
 the oldest surviving resend when the original was pruned. `ATTEMPTS`, `CONFIRMED`, and
@@ -50,11 +50,11 @@ The default summary lists each message with:
 | `ORIGINALLY SENT` | when the anchor was handed to paho. |
 | `ATTEMPTS` | the number of resend rows in the chain, whatever their status. |
 | `CONFIRMED` | how many of those resends the broker confirmed. |
-| `FINAL STATUS` | `sent`, `pending`, or `not resent`. |
+| `FINAL STATUS` | `confirmed`, `pending`, or `not resent`. |
 
 The outcomes mean:
 
-- `sent`: at least one resend is `confirmed`;
+- `confirmed`: at least one resend is `confirmed`;
 - `pending`: resends exist, but none is confirmed yet (one may still be `sent`);
 - `not resent`: no resend has been recorded.
 
@@ -119,7 +119,7 @@ How to read the result:
 The resend row's own `sent_ts` and `arrived_ts` show when it was sent and when the broker
 confirmed it, which is later than the original's `sent_ts`.
 
-For every message that is still unresolved:
+For every message chain with no confirmed resend:
 
 ```sql
 -- Failed or unconfirmed originals with no confirmed resend.
@@ -154,8 +154,8 @@ How to read the counts:
 - `attempts` counts every resend row, whatever its status. `0` means nothing was resent.
 - `confirmed_attempts` counts the resends where `status = 'confirmed'`. It is empty (`NULL`) when
   `attempts` is `0`, because there are no rows to sum.
-- `confirmed_attempts > 0` means the message was eventually sent. A value lower than `attempts`
-  means some attempts failed but a later one succeeded.
+- `confirmed_attempts > 0` means the message was eventually confirmed. A value lower than
+  `attempts` means some attempts failed but a later one succeeded.
 
 For example, an original with `attempts = 1` and `confirmed_attempts = 1` was resent once and the
 broker accepted that resend. An original with `attempts = 0` and an empty `confirmed_attempts` has

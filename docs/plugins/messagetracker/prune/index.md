@@ -85,7 +85,7 @@ To remove rows sooner than their retention allows, or when `error_retention` is 
 subcommands; the config file is a global `--config` option, so it comes before the subcommand:
 
 ```shell
-# Select unconfirmed rows older than 30 days.
+# Select failed and unconfirmed rows older than 30 days.
 python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune --older-than 2592000
 # Add --delete to remove them.
 python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune --older-than 2592000 --delete
@@ -126,14 +126,14 @@ Run it once without `--delete` to see the selection before deleting anything.
 ### --status STATUS
 
 A comma-separated list of statuses to prune.
-Default is `unconfirmed`.
+Default is `failed,unconfirmed`.
 
-Use `--status failed` to prune only failed publishes, or `--status failed,unconfirmed` for both.
-`sent` is refused because it may still be in flight (restart WeeWX to mark it `unconfirmed`), and
-`confirmed` is refused because the automatic prune handles it.
+Use `--status unconfirmed` to prune only the ambiguous rows, or `--status failed` to prune only
+failed publishes. `sent` is refused because it may still be in flight (restart WeeWX to mark it
+`unconfirmed`), and `confirmed` is refused because the automatic prune handles it.
 
 ```shell
-python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune --status failed,unconfirmed --older-than 2592000 --delete
+python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune --status unconfirmed --older-than 2592000 --delete
 ```
 
 ### --older-than SECONDS
@@ -146,7 +146,7 @@ nothing.
 regardless of the configured retention.
 
 ```shell
-# Every unconfirmed row, of any age.
+# Every failed and unconfirmed row, of any age.
 python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune --older-than 0 --delete
 ```
 
@@ -192,7 +192,7 @@ A system cron entry in `/etc/cron.d/mqtttracker-prune`:
 SHELL=/bin/sh
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 
-# Every day at 03:15, delete unconfirmed rows older than 30 days.
+# Every day at 03:15, delete failed and unconfirmed rows older than 30 days.
 15 3 * * * weewx /usr/bin/python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune --older-than 2592000 --delete >> /var/log/weewx/mqtttracker-prune.log 2>&1
 ```
 

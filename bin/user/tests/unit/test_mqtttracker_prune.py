@@ -60,13 +60,14 @@ def tracker_config(temp_dir, database_dict, error_retention=100, topics=None):
 
 
 class TestSelectRows(unittest.TestCase):
-    def test_defaults_to_unconfirmed(self):
+    def test_defaults_to_error_statuses(self):
         rows = [make_row(sent_ts=100.0),
                 make_row(sent_ts=100.0, status=STATUS.STATUS_FAILED)]
 
         selected = user.mqtttracker.select_rows(rows, default_retention=100, now=1000)
 
-        self.assertEqual([row['status'] for row in selected], [STATUS.STATUS_UNCONFIRMED])
+        self.assertEqual(sorted(row['status'] for row in selected),
+                         sorted([STATUS.STATUS_UNCONFIRMED, STATUS.STATUS_FAILED]))
 
     def test_failed_status(self):
         rows = [make_row(sent_ts=100.0),
@@ -328,7 +329,7 @@ class TestBuildParser(unittest.TestCase):
 
         self.assertFalse(options.delete)
         self.assertEqual(options.plugin_section, 'MQTTMessageTracker')
-        self.assertEqual(options.status, [STATUS.STATUS_UNCONFIRMED])
+        self.assertEqual(options.status, [STATUS.STATUS_FAILED, STATUS.STATUS_UNCONFIRMED])
         self.assertIsNone(options.older_than)
         self.assertIsNone(options.topic)
         self.assertEqual(options.limit, 100)

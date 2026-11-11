@@ -204,14 +204,15 @@ class TestResendConfig(unittest.TestCase):
 
 
 class TestSelectMessages(unittest.TestCase):
-    def test_defaults_to_unconfirmed(self):
+    def test_defaults_to_error_statuses(self):
         rows = [make_row(sent_ts=1000.0),
                 make_row(sent_ts=1000.0, status=user.mqttmessagetracker.STATUS_FAILED)]
 
         selected = user.mqtttracker.select_messages(rows, now=2000)
 
-        self.assertEqual([row['status'] for row in selected],
-                         [user.mqttmessagetracker.STATUS_UNCONFIRMED])
+        self.assertEqual(sorted(row['status'] for row in selected),
+                         sorted([user.mqttmessagetracker.STATUS_UNCONFIRMED,
+                                 user.mqttmessagetracker.STATUS_FAILED]))
 
     def test_failed_status(self):
         rows = [make_row(sent_ts=1000.0),
@@ -292,7 +293,7 @@ class TestSelectMessages(unittest.TestCase):
 
         selected = user.mqtttracker.select_messages([unconfirmed, failed], now=2000)
 
-        self.assertEqual([row['id'] for row in selected], [unconfirmed['id']])
+        self.assertEqual([row['id'] for row in selected], [unconfirmed['id'], failed['id']])
 
     def test_confirmed_resend_excludes_the_origin(self):
         origin = make_row(sent_ts=1000.0)
@@ -662,7 +663,8 @@ class TestBuildParser(unittest.TestCase):
         self.assertFalse(options.all)
         self.assertFalse(options.force)
         self.assertEqual(options.plugin_section, 'MQTTMessageTracker')
-        self.assertEqual(options.status, [user.mqttmessagetracker.STATUS_UNCONFIRMED])
+        self.assertEqual(options.status, [user.mqttmessagetracker.STATUS_FAILED,
+                                          user.mqttmessagetracker.STATUS_UNCONFIRMED])
         self.assertIsNone(options.since)
         self.assertEqual(options.limit, 100)
         self.assertIsNone(options.topic)
