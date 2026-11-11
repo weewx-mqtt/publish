@@ -722,6 +722,13 @@ def _sent_at(timestamp):
     return time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(timestamp))
 
 
+def _message_id(value):
+    """ The row id, accepting the 'id=' label the plan and log print. """
+    if value[:3].lower() == 'id=':
+        return value[3:]
+    return value
+
+
 def print_status_summary(rows, out, statuses=DEFAULT_SUMMARY_STATUSES):
     """ Print the selected messages as a table. """
     if tuple(statuses) == DEFAULT_SUMMARY_STATUSES:
@@ -729,8 +736,8 @@ def print_status_summary(rows, out, statuses=DEFAULT_SUMMARY_STATUSES):
         label = "not confirmed message(s)"
     else:
         status_text = ', '.join(statuses)
-        empty = f"No messages with status {status_text}."
-        label = f"message(s) with status {status_text}"
+        empty = f"No messages with current status {status_text}."
+        label = f"message(s) with current status {status_text}"
     if not rows:
         print(empty, file=out)
         return
@@ -772,8 +779,9 @@ def show_status(config_dict, options, out=None):
 
     try:
         if options.message:
-            rows = status_message(connection, table, options.message)
-            return print_status_message(rows, options.message, out)
+            message_id = _message_id(options.message)
+            rows = status_message(connection, table, message_id)
+            return print_status_message(rows, message_id, out)
         rows = status_summary(connection, table, statuses=options.status,
                               topic=options.topic, limit=options.limit)
         print_status_summary(rows, out, options.status)

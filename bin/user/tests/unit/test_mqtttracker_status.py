@@ -124,14 +124,14 @@ class TestStatus(DatabaseTestCase):
 
         self.assertIn(sent['id'], self.out.getvalue())
         self.assertNotIn(failed['id'], self.out.getvalue())
-        self.assertIn('1 message(s) with status sent', self.out.getvalue())
+        self.assertIn('1 message(s) with current status sent', self.out.getvalue())
 
     def test_status_filter_can_show_no_rows(self):
         self.insert(make_row(status=STATUS.STATUS_FAILED))
 
         self.assertEqual(self.run_tool('--status', 'sent'), 0)
 
-        self.assertIn('No messages with status sent.', self.out.getvalue())
+        self.assertIn('No messages with current status sent.', self.out.getvalue())
 
     def test_default_includes_sent_and_excludes_confirmed(self):
         failed = make_row(status=STATUS.STATUS_FAILED)
@@ -209,7 +209,7 @@ class TestStatus(DatabaseTestCase):
 
         self.assertEqual(self.run_tool('--status', 'failed'), 0)
 
-        self.assertIn('No messages with status failed.', self.out.getvalue())
+        self.assertIn('No messages with current status failed.', self.out.getvalue())
 
     def test_message_shows_the_original_and_its_resends(self):
         original = make_row(sent_ts=1000.0)
@@ -236,6 +236,19 @@ class TestStatus(DatabaseTestCase):
         self.assertIn(original['id'], self.out.getvalue())
         self.assertIn(resend['id'], self.out.getvalue())
         self.assertIn('attempt=1', self.out.getvalue())
+
+    def test_message_accepts_the_id_label(self):
+        original = make_row(sent_ts=1000.0)
+        resend = make_row(sent_ts=1100.0, status=STATUS.STATUS_CONFIRMED,
+                          origin_id=original['id'], attempt=1, arrived_ts=1200.0)
+        self.insert(original)
+        self.insert(resend)
+
+        for label in ('id=', 'ID='):
+            self.out = io.StringIO()
+            self.assertEqual(self.run_tool('--message', f"{label}{original['id']}"), 0)
+            self.assertIn(original['id'], self.out.getvalue())
+            self.assertIn(resend['id'], self.out.getvalue())
 
     def test_unknown_message_exits_one(self):
         self.insert(make_row())

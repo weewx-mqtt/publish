@@ -95,7 +95,8 @@ Show one message chain, in publish order.
 
 Use any row id from the chain, including a resend id. The command resolves it to the chain and
 shows the anchor and each resend, with its `attempt` and `origin_id`. If no row has that id, the
-command prints a message and exits `1`.
+command prints a message and exits `1`. The plan prints the id as `id=<hex>`; either that form or
+the bare id is accepted.
 
 ### --topic GLOB
 
