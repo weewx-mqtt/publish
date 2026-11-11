@@ -223,6 +223,7 @@ class TestStatus(DatabaseTestCase):
         self.assertIn(original['id'], self.out.getvalue())
         self.assertIn(resend['id'], self.out.getvalue())
         self.assertIn('attempt=1', self.out.getvalue())
+        self.assertNotIn('payload=', self.out.getvalue())
 
     def test_message_accepts_a_resend_id(self):
         original = make_row(sent_ts=1000.0)

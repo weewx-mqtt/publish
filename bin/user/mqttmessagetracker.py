@@ -136,17 +136,20 @@ def fetch_chain_rows(connection, table):
         cursor.close()
 
 
-def describe_row(row):
+def describe_row(row, include_payload=True):
     """ A one line description of a row for a tool's plan. """
+    line = (f"{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(row['sent_ts']))} "
+            f"{row['topic']} qos={row['qos']} retain={row['retain']} "
+            f"status={row['status']} id={row['id']}")
+    if not include_payload:
+        return line
     payload = row['payload']
     if payload is None:
         preview = '<none>'
     else:
         preview = payload[:PREVIEW_LENGTH] + ('...' if len(payload) > PREVIEW_LENGTH else '')
         preview = preview.replace('\n', ' ')
-    return (f"{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(row['sent_ts']))} "
-            f"{row['topic']} qos={row['qos']} retain={row['retain']} "
-            f"status={row['status']} id={row['id']} payload={preview}")
+    return f"{line} payload={preview}"
 
 
 def print_plan(rows, out, row_count=None):

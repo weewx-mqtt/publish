@@ -756,7 +756,7 @@ def print_status_message(rows, message_id, out):
         return False
     print(f"Rows for message {message_id}:", file=out)
     for row in rows:
-        line = user.mqttmessagetracker.describe_row(row)
+        line = user.mqttmessagetracker.describe_row(row, include_payload=False)
         if row['origin_id']:
             line = f"{line} attempt={row['attempt']} origin={row['origin_id']}"
         print(f"  {line}", file=out)
