@@ -12,12 +12,27 @@ anchor statuses, and `--include-confirmed` also shows chains that were eventuall
 reads the tracker database directly, so it does not need MQTTPublish to be running.
 
 `mqtttracker` is one tool with `resend`, `prune` and `status` subcommands. The config file is a
-global `--config` option, so it comes before the subcommand:
+global `--config` option, so it comes before the subcommand. Show the outstanding work:
 
 ```shell
 python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf status
+```
+
+Include the chains that were eventually confirmed:
+
+```shell
 python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf status --include-confirmed
+```
+
+Show the rows still in flight:
+
+```shell
 python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf status --status sent
+```
+
+Show one message chain:
+
+```shell
 python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf status --message 3f2a9c...
 ```
 

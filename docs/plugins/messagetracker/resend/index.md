@@ -110,10 +110,17 @@ is a global `--config` option, so it comes before the subcommand.
 
 The tool is in the tracker's user directory: `/etc/weewx/bin/user` on a package install (apt,
 rpm, openSUSE) and `~/weewx-data/bin/user` on a pip or git install. Run it with the Python that
-WeeWX uses. `resend` is a dry run unless `--publish` is given:
+WeeWX uses.
+
+`resend` is a dry run unless `--publish` is given:
 
 ```shell
 python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf resend
+```
+
+Publish the selection:
+
+```shell
 python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf resend --publish
 ```
 

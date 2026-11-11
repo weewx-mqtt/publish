@@ -87,7 +87,12 @@ subcommands; the config file is a global `--config` option, so it comes before t
 ```shell
 # Select failed and unconfirmed rows older than 30 days.
 python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune --older-than 2592000
-# Add --delete to remove them.
+```
+
+Add `--delete` to remove them:
+
+```shell
+# Delete the selected rows.
 python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune --older-than 2592000 --delete
 ```
 
