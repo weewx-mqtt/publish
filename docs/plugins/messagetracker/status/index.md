@@ -86,8 +86,9 @@ Default is `failed,unconfirmed,inflight`. Choose from `failed`, `unconfirmed`, `
 This filters the message's current status, so a delivered message does not appear under
 `--status failed` just because its original row failed.
 
-`inflight` messages are in flight: paho accepted the publish, but no acknowledgement has arrived yet.
-They become `confirmed` on acknowledgement, or `unconfirmed` on a disconnect or the startup sweep.
+`inflight` messages are in flight: paho accepted the publish, but no acknowledgement has arrived
+yet. They become `confirmed` on acknowledgement, or `unconfirmed` when the tracker stops waiting:
+a disconnect, a shutdown, a reused message id, or the startup sweep.
 `confirmed` messages are success history and can be numerous; `--status confirmed` shows them.
 
 ### --message ID

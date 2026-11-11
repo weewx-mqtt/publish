@@ -77,9 +77,11 @@ See [Internals](internals/index.md#what-is-tracked) for the row fields and paylo
 | `confirmed` | the broker acknowledged the publish; `arrived_ts` is set. |
 | `unconfirmed` | no arrival was reported before the tracker stopped waiting; `unconfirmed_ts` is set. |
 
-`inflight` is transient: it moves to `confirmed` when paho reports the publish, or to `failed` when paho
-refuses it. `unconfirmed` is not proof that the message was not delivered; it means the tracker
-could not tell.
+`inflight` is transient. It becomes `confirmed` when paho reports the publish, or `unconfirmed`
+when the tracker can no longer tell: the connection is lost, the tracker shuts down, paho reuses
+the message id, or a previous run left the row behind. A publish that paho refuses is recorded as
+`failed` immediately; it is never `inflight`. `unconfirmed` is not proof that the message was not
+delivered; it means the tracker could not tell.
 
 A `confirmed` row means the broker accepted the publish:
 

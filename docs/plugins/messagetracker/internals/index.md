@@ -48,10 +48,11 @@ availability/LWT message are not tracked.
 
 ## Status lifecycle
 
-`inflight` is transient. While the tracker is running, a row is expected to move to `confirmed`, or to
-`failed` when paho refuses the publish. If the connection is lost, the rows in flight are marked
-`unconfirmed`; otherwise a row whose arrival never arrives is kept until the tracker stops, which
-marks it `unconfirmed`. The topic's `error_retention` then bounds it.
+`inflight` is transient. A row becomes `confirmed` when paho reports the publish, or `unconfirmed`
+when the tracker can no longer tell: the connection is lost, the tracker shuts down, paho reuses
+the message id, or a previous run left the row behind. A publish that paho refuses is recorded as
+`failed` immediately; it is never `inflight`. The topic's `error_retention` then bounds the
+`unconfirmed` row.
 
 A `failed` publish, and a republish that paho refuses, are logged at `ERROR` with the topic, `rc`,
 `mid` and the row's `id`. A row that changes to `unconfirmed` is also logged at `ERROR`, with its
