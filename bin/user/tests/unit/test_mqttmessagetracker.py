@@ -281,10 +281,10 @@ class TestMQTTMessageTracker(unittest.TestCase):
 
     def _insert_row(self, row):
         try:
-            connection = weedb.connect(self.database_dict)
-        except weedb.NoDatabaseError:
             weedb.create(self.database_dict)
-            connection = weedb.connect(self.database_dict)
+        except weedb.DatabaseExistsError:
+            pass
+        connection = weedb.connect(self.database_dict)
         try:
             connection.execute(user.mqttmessagetracker.CREATE_TABLE.format(
                 table='mqtt_message_tracker'))
