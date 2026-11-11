@@ -9,7 +9,7 @@ nav_order: 6
 Implementation notes for `MQTTMessageTracker`.
 They are not needed to install or use the plugin.
 The options are in [Configuration](../configuration/index.md), and the resend and prune behavior
-is in [Resending messages](../resend/index.md) and [Pruning](../prune/index.md).
+is in [Resending messages](../republish/index.md) and [Pruning](../prune/index.md).
 
 ## What is tracked
 

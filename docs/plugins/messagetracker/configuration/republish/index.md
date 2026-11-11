@@ -1,18 +1,18 @@
 ---
-title: resend
+title: republish
 parent: Configuration
 ancestor: MQTTMessageTracker
 nav_order: 2
 ---
 {% include messagetracker_warning.html %}
 
-## The `[[resend]]` section
+## The `[[republish]]` section
 
 The automatic resend options. Resending is off until `on_startup` or `on_reconnect` is `true`.
 
 ```ini
 [MQTTMessageTracker]
-    [[resend]]
+    [[republish]]
         on_startup = true
         on_reconnect = true
 ```
@@ -47,5 +47,5 @@ The maximum number of messages to resend per connection.
 Set to `0` to resend every message.
 Default is `0`.
 
-See [Resending](../../resend/index.md) for when messages are resent, and how
+See [Resending](../../republish/index.md) for when messages are resent, and how
 `include_before_last_success` changes the selection.

@@ -4,7 +4,7 @@
 #
 """ Operate on the MQTTMessageTracker database.
 
-    mqtttracker resend  - republish failed or unconfirmed messages
+    mqtttracker republish  - republish failed or unconfirmed messages
     mqtttracker prune   - delete delivered messages before the retention policy does
     mqtttracker status  - show failed and unconfirmed messages and their outcome
 
@@ -84,10 +84,10 @@ next_attempt = user.mqttmessagetracker.next_attempt
 insert_attempt = user.mqttmessagetracker.insert_attempt
 
 # A 'sent' row may still be in flight, and a 'confirmed' row needs no resend.
-RESEND_STATUSES = (user.mqttmessagetracker.STATUS_FAILED,
-                   user.mqttmessagetracker.STATUS_UNCONFIRMED)
+REPUBLISH_STATUSES = (user.mqttmessagetracker.STATUS_FAILED,
+                      user.mqttmessagetracker.STATUS_UNCONFIRMED)
 # A prune can also remove the confirmed history, but only when asked to.
-PRUNE_STATUSES = RESEND_STATUSES + (user.mqttmessagetracker.STATUS_CONFIRMED,)
+PRUNE_STATUSES = REPUBLISH_STATUSES + (user.mqttmessagetracker.STATUS_CONFIRMED,)
 
 # The status command can show any row; the default is every row that is not confirmed.
 SUMMARY_STATUSES = (user.mqttmessagetracker.STATUS_FAILED,
@@ -99,7 +99,7 @@ DEFAULT_SUMMARY_STATUSES = (user.mqttmessagetracker.STATUS_FAILED,
                             user.mqttmessagetracker.STATUS_SENT)
 
 # A resend works on the messages that are still unresolved.
-DEFAULT_STATUSES = RESEND_STATUSES
+DEFAULT_STATUSES = REPUBLISH_STATUSES
 # A prune cleans up the messages that were delivered and no longer need a record.
 DEFAULT_PRUNE_STATUSES = (user.mqttmessagetracker.STATUS_CONFIRMED,)
 DEFAULT_PLUGIN_SECTION = user.mqttmessagetracker.DEFAULT_PLUGIN_SECTION
@@ -115,18 +115,18 @@ _PRUNE_BATCH_SIZE = 100
 # What paho returns when it accepted the publish.
 _RC_SUCCESS = 0
 
-ResendOutcome = collections.namedtuple('ResendOutcome', 'row attempt mid status')
+RepublishOutcome = collections.namedtuple('RepublishOutcome', 'row attempt mid status')
 
 
-class ResendError(Exception):
+class RepublishError(Exception):
     """ A resend failure. """
 
 
-class ResendConfigError(ResendError):
+class RepublishConfigError(RepublishError):
     """ A configuration or database problem. """
 
 
-class ResendConnectError(ResendError):
+class RepublishConnectError(RepublishError):
     """ The tool could not connect to the broker, nothing was published. """
 
 
@@ -143,21 +143,21 @@ def read_config(config_file):
     try:
         return user.mqttmessagetracker.read_config(config_file)
     except user.mqttmessagetracker.TrackerConfigError as exception:
-        raise ResendConfigError(str(exception)) from exception
+        raise RepublishConfigError(str(exception)) from exception
 
 
 # ---------------------------------------------------------------------------
 # resend
 # ---------------------------------------------------------------------------
 
-def resend_config(config_dict, plugin_section=DEFAULT_PLUGIN_SECTION, data_binding=None, table=None,
-                  clientid=None):
+def republish_config(config_dict, plugin_section=DEFAULT_PLUGIN_SECTION, data_binding=None, table=None,
+                     clientid=None):
     """ Resolve the database, table and mqtt connection options for a resend. """
     try:
         _, database_dict, table_name = user.mqttmessagetracker.tool_config(
             config_dict, plugin_section, data_binding, table)
     except user.mqttmessagetracker.TrackerConfigError as exception:
-        raise ResendConfigError(str(exception)) from exception
+        raise RepublishConfigError(str(exception)) from exception
 
     service_dict = dict(config_dict.get('MQTTPublish', {}))
     # Never reuse the service's clientid, the broker would disconnect the running service.
@@ -165,7 +165,7 @@ def resend_config(config_dict, plugin_section=DEFAULT_PLUGIN_SECTION, data_bindi
     if clientid:
         service_dict['clientid'] = clientid
     options = user.mqttpublish.mqtt_connection_options(
-        service_dict, default_clientid=f'MQTTPublish-resend-{random.randint(1000, 9999)}')  # NOSONAR - just need a unique id
+        service_dict, default_clientid=f'MQTTPublish-republish-{random.randint(1000, 9999)}')  # NOSONAR - just need a unique id
     return database_dict, table_name, options
 
 
@@ -174,7 +174,7 @@ def _may_be_on_the_broker(row):
     return row['status'] != user.mqttmessagetracker.STATUS_FAILED
 
 
-def _resend_row(chain):
+def _republish_row(chain):
     """ The row whose payload a resend publishes. """
     return user.mqttmessagetracker.chain_anchor(chain)
 
@@ -224,7 +224,7 @@ def _candidates(rows, statuses, since, topic, force, now):
             continue
         if topic and not fnmatch.fnmatchcase(outcome['topic'], topic):
             continue
-        candidates.append(_resend_row(chain))
+        candidates.append(_republish_row(chain))
     return candidates
 
 
@@ -286,7 +286,7 @@ def update_attempt(connection, table, row_id, status, timestamp=None):
         cursor.execute(statement, (status, timestamp, row_id))
 
 
-class ResendClient:  # pylint: disable=too-many-instance-attributes
+class RepublishClient:  # pylint: disable=too-many-instance-attributes
     """ A paho client that records the message ids the broker acknowledged. """
 
     def __init__(self, options, ack_timeout=DEFAULT_ACK_TIMEOUT,
@@ -331,19 +331,19 @@ class ResendClient:  # pylint: disable=too-many-instance-attributes
                                     host=self.options['host'], port=self.options['port'],
                                     keepalive=self.options['keepalive'])
         except (OSError, ValueError) as exception:
-            raise ResendConnectError(
+            raise RepublishConnectError(
                 f"Unable to connect to {self.options['host']}:{self.options['port']}: "
                 f"{exception}") from exception
 
         self.client.loop_start()
         if not self.connected.wait(self.connect_timeout):
             self._close()
-            raise ResendConnectError(
+            raise RepublishConnectError(
                 f"No CONNACK from {self.options['host']}:{self.options['port']} within "
                 f"{self.connect_timeout} seconds.")
         if self.connect_rc != _RC_SUCCESS:
             self._close()
-            raise ResendConnectError(f"The broker refused the connection, rc {self.connect_rc}.")
+            raise RepublishConnectError(f"The broker refused the connection, rc {self.connect_rc}.")
 
     def publish(self, topic, payload, qos, retain):
         """ Hand a message to paho. """
@@ -365,12 +365,12 @@ class ResendClient:  # pylint: disable=too-many-instance-attributes
         self.client.loop_stop()
 
 
-def resend_message(client, connection, table, row, clientid):
+def republish_message(client, connection, table, row, clientid):
     """ Publish one message and record its outcome. """
     try:
         payload = decode_payload(row)
     except ValueError as exception:
-        raise ResendConfigError(
+        raise RepublishConfigError(
             f"Unable to decode the payload of {row['id']}: {exception}") from exception
 
     message_info = client.publish(row['topic'], payload, row['qos'], row['retain'])
@@ -378,7 +378,7 @@ def resend_message(client, connection, table, row, clientid):
         connection, table, row, message_info.mid, int(message_info.rc), time.time(), clientid)
 
     if status == user.mqttmessagetracker.STATUS_FAILED:
-        return ResendOutcome(row, attempt, message_info.mid, status)
+        return RepublishOutcome(row, attempt, message_info.mid, status)
 
     arrived_ts = client.wait_for_ack(message_info.mid)
     if arrived_ts is None:
@@ -387,7 +387,7 @@ def resend_message(client, connection, table, row, clientid):
     else:
         status = user.mqttmessagetracker.STATUS_CONFIRMED
         update_attempt(connection, table, row_id, status, arrived_ts)
-    return ResendOutcome(row, attempt, message_info.mid, status)
+    return RepublishOutcome(row, attempt, message_info.mid, status)
 
 
 def print_outcomes(outcomes, out):
@@ -398,9 +398,9 @@ def print_outcomes(outcomes, out):
 
 
 # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals
-def resend(database_dict, table, options, *, statuses=None, since=DEFAULT_SINCE,
-           limit=DEFAULT_LIMIT, topic=None, newest_per_topic=True, force=False, dry_run=True,
-           ack_timeout=DEFAULT_ACK_TIMEOUT, connect_timeout=DEFAULT_CONNECT_TIMEOUT, out=None):
+def republish(database_dict, table, options, *, statuses=None, since=DEFAULT_SINCE,
+              limit=DEFAULT_LIMIT, topic=None, newest_per_topic=True, force=False, dry_run=True,
+              ack_timeout=DEFAULT_ACK_TIMEOUT, connect_timeout=DEFAULT_CONNECT_TIMEOUT, out=None):
     """ Resend the selected messages, returning the selection and the outcomes.
 
         Nothing is published when 'dry_run' is set, or when nothing is selected. """
@@ -408,7 +408,7 @@ def resend(database_dict, table, options, *, statuses=None, since=DEFAULT_SINCE,
     try:
         connection = weedb.connect(database_dict)
     except weedb.DatabaseError as exception:
-        raise ResendConfigError(
+        raise RepublishConfigError(
             f"Unable to open the message tracker database: {exception}") from exception
 
     try:
@@ -424,15 +424,15 @@ def resend(database_dict, table, options, *, statuses=None, since=DEFAULT_SINCE,
         if dry_run or not selected:
             return selected, []
 
-        client = ResendClient(options, ack_timeout=ack_timeout, connect_timeout=connect_timeout)
+        client = RepublishClient(options, ack_timeout=ack_timeout, connect_timeout=connect_timeout)
         client.connect()
         try:
-            outcomes = [resend_message(client, connection, table, row, options['clientid'])
+            outcomes = [republish_message(client, connection, table, row, options['clientid'])
                         for row in selected]
         finally:
             client.close()
     except weedb.DatabaseError as exception:
-        raise ResendConfigError(
+        raise RepublishConfigError(
             f"Unable to use the message tracker table {table}: {exception}") from exception
     finally:
         connection.close()
@@ -806,9 +806,9 @@ def _status_list(value, allowed):
     return statuses
 
 
-def _resend_statuses(value):
+def _republish_statuses(value):
     """ Parse the statuses a message can be resent from. """
-    return _status_list(value, RESEND_STATUSES)
+    return _status_list(value, REPUBLISH_STATUSES)
 
 
 def _prune_statuses(value):
@@ -832,20 +832,20 @@ def _add_tracker_options(parser):
                         help="Override the tracker's table option.")
 
 
-def _add_resend_parser(subparsers):
+def _add_republish_parser(subparsers):
     """ The resend subcommand. """
     parser = subparsers.add_parser(
-        'resend',
+        'republish',
         description="Resend the MQTT messages the message tracker recorded.",
         epilog="Without --publish the selection is only printed, nothing is sent.")
     _add_tracker_options(parser)
     parser.add_argument('--clientid', default=None,
                         help="The clientid to connect with. Default is a unique MQTTPublish-resend id.")
-    parser.add_argument('--status', type=_resend_statuses, default=list(DEFAULT_STATUSES),
+    parser.add_argument('--status', type=_republish_statuses, default=list(DEFAULT_STATUSES),
                         metavar='STATUS',
                         help=(f"The statuses to resend, comma separated. "
                               f"Default is {', '.join(DEFAULT_STATUSES)}. Choose from "
-                              f"{', '.join(RESEND_STATUSES)}."))
+                              f"{', '.join(REPUBLISH_STATUSES)}."))
     parser.add_argument('--since', type=int, default=DEFAULT_SINCE, metavar='SECONDS',
                         help="Only resend messages sent within the last SECONDS. "
                              "Default is every message.")
@@ -922,28 +922,28 @@ def build_parser():
     parser.add_argument('--version', action='version', version=f'%(prog)s {VERSION}')
 
     subparsers = parser.add_subparsers(dest='command', required=True, title='commands')
-    _add_resend_parser(subparsers)
+    _add_republish_parser(subparsers)
     _add_prune_parser(subparsers)
     _add_status_parser(subparsers)
     return parser
 
 
-def _run_resend(options, out, err):
+def _run_republish(options, out, err):
     """ Run the resend command. """
     try:
         config_dict = read_config(options.config)
-        database_dict, table, mqtt_options = resend_config(
+        database_dict, table, mqtt_options = republish_config(
             config_dict, options.plugin_section, options.data_binding, options.table, options.clientid)
-        _, outcomes = resend(
+        _, outcomes = republish(
             database_dict, table, mqtt_options, out=out,
             statuses=options.status, since=options.since, limit=options.limit, topic=options.topic,
             newest_per_topic=not options.all, force=options.force, dry_run=not options.publish,
             ack_timeout=options.ack_timeout, connect_timeout=options.connect_timeout)
-    except ResendConnectError as exception:
-        print(f"mqtttracker resend: {exception}", file=err)
+    except RepublishConnectError as exception:
+        print(f"mqtttracker republish: {exception}", file=err)
         return 1
-    except ResendConfigError as exception:
-        print(f"mqtttracker resend: {exception}", file=err)
+    except RepublishConfigError as exception:
+        print(f"mqtttracker republish: {exception}", file=err)
         return 2
 
     if not outcomes:
@@ -978,8 +978,8 @@ def run(options, out=None, err=None):
     """ Run a command, returning the exit code. """
     out = sys.stdout if out is None else out
     err = sys.stderr if err is None else err
-    if options.command == 'resend':
-        return _run_resend(options, out, err)
+    if options.command == 'republish':
+        return _run_republish(options, out, err)
     if options.command == 'prune':
         return _run_prune(options, out, err)
     return _run_status(options, out, err)

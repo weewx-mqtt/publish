@@ -24,7 +24,7 @@ discovery, aggregate values, archive values). Requires WeeWX 5.x and paho-mqtt 1
 - `bin/user/mqttmessagetracker.py` — plugin that records published messages in a separate
   WeeWX database. Uses the `mqtt_publish` (delay) and `on_mqtt_publish` callbacks, and the
   optional plugin `shutdown` to flush its writer thread.
-- `bin/user/mqtttracker.py` — the tracker's CLI with `resend`, `prune` and `status`
+- `bin/user/mqtttracker.py` — the tracker's CLI with `republish`, `prune` and `status`
   subcommands, run directly (see `docs/plugins/messagetracker/`). Never loaded by WeeWX.
   It adds WeeWX to `sys.path` when it can find it, so packaged installs need no `PYTHONPATH`.
 - `install.py` — WeeWX `ExtensionInstaller`; the `MQTTPUBLISH_CONFIG` string is the template
@@ -32,7 +32,7 @@ discovery, aggregate values, archive values). Requires WeeWX 5.x and paho-mqtt 1
 - `docs/` — Jekyll site (GitHub Pages, baseurl `/publish`); the user-facing option reference.
   READMEs are docs-first: the project README lives under `docs/`, not at the repo root.
 - `bin/user/tests/unit/` — stubbed-paho unit tests. `bin/user/tests/integ/` — broker-backed
-  smoke tests (`test_reconnect.py`, `test_resend.py`) that spawn their own mosquitto on a free
+  smoke tests (`test_reconnect.py`, `test_republish.py`) that spawn their own mosquitto on a free
   port and are skipped when it is not installed. There are no func/e2e dirs; CI disables those
   suites.
 
@@ -73,7 +73,7 @@ pytest bin/user/tests/unit/test_mqtthaconfig.py::test_MQTTHomeAssistantConfig::t
 python bin/user/tests/unit/test_mqtthaconfig.py test_MQTTHomeAssistantConfig test_init
 
 # Integration smoke tests: real broker + real paho. test_reconnect kills and restarts the
-# broker to verify the loop_start reconnect; test_resend republishes tracker rows. Both spawn
+# broker to verify the loop_start reconnect; test_republish republishes tracker rows. Both spawn
 # their own mosquitto on a free port (the system broker on 1883 is untouched) and are skipped
 # when mosquitto is not installed.
 pytest bin/user/tests/integ

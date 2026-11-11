@@ -54,7 +54,7 @@ class FakeMessageInfo:
 
 
 class FakeClient:
-    """ Stands in for ResendClient. """
+    """ Stands in for RepublishClient. """
 
     def __init__(self, ack=True, rc=0):
         self.ack = ack
@@ -115,7 +115,7 @@ class DatabaseTestCase(unittest.TestCase):
                  row['qos'], row['retain'], row['payload'], row['payload_encoding']))
         return row['id']
 
-    def insert(self, row, mid=1, rc=0, sent_ts=None, clientid='resend'):
+    def insert(self, row, mid=1, rc=0, sent_ts=None, clientid='republish'):
         return user.mqtttracker.insert_attempt(
             self.connection, TABLE, row, mid, rc, time.time() if sent_ts is None else sent_ts, clientid)
 
@@ -128,7 +128,7 @@ class DatabaseTestCase(unittest.TestCase):
 
 class TestReadConfig(unittest.TestCase):
     def test_missing_file(self):
-        with self.assertRaises(user.mqtttracker.ResendConfigError):
+        with self.assertRaises(user.mqtttracker.RepublishConfigError):
             user.mqtttracker.read_config('/does/not/exist/weewx.conf')
 
     def test_reads_the_file(self):
@@ -142,7 +142,7 @@ class TestReadConfig(unittest.TestCase):
             self.assertEqual(config['MQTTPublish']['host'], 'broker')
 
 
-class TestResendConfig(unittest.TestCase):
+class TestRepublishConfig(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()  # pylint: disable=consider-using-with
         self.addCleanup(self.temp_dir.cleanup)
@@ -164,7 +164,7 @@ class TestResendConfig(unittest.TestCase):
         })
 
     def test_resolves_the_plugin_section(self):
-        database_dict, table, options = user.mqtttracker.resend_config(self.config_dict)
+        database_dict, table, options = user.mqtttracker.republish_config(self.config_dict)
 
         self.assertEqual(database_dict['database_name'], 'tracker.sdb')
         self.assertEqual(table, 'custom_tracker')
@@ -172,35 +172,35 @@ class TestResendConfig(unittest.TestCase):
         self.assertEqual(options['port'], 1884)
 
     def test_overrides_the_binding_and_table(self):
-        _, table, _ = user.mqtttracker.resend_config(
+        _, table, _ = user.mqtttracker.republish_config(
             self.config_dict, data_binding='other_binding', table='other_tracker')
 
         self.assertEqual(table, 'other_tracker')
 
     def test_missing_plugin_section(self):
-        with self.assertRaises(user.mqtttracker.ResendConfigError):
-            user.mqtttracker.resend_config(self.config_dict, plugin_section='Missing')
+        with self.assertRaises(user.mqtttracker.RepublishConfigError):
+            user.mqtttracker.republish_config(self.config_dict, plugin_section='Missing')
 
     def test_missing_data_binding(self):
         del self.config_dict['MQTTMessageTracker']['data_binding']
 
-        with self.assertRaises(user.mqtttracker.ResendConfigError):
-            user.mqtttracker.resend_config(self.config_dict)
+        with self.assertRaises(user.mqtttracker.RepublishConfigError):
+            user.mqtttracker.republish_config(self.config_dict)
 
     def test_invalid_table(self):
-        with self.assertRaises(user.mqtttracker.ResendConfigError):
-            user.mqtttracker.resend_config(self.config_dict, table='bad name')
+        with self.assertRaises(user.mqtttracker.RepublishConfigError):
+            user.mqtttracker.republish_config(self.config_dict, table='bad name')
 
     def test_never_reuses_the_service_clientid(self):
-        _, _, options = user.mqtttracker.resend_config(self.config_dict)
+        _, _, options = user.mqtttracker.republish_config(self.config_dict)
 
-        self.assertTrue(options['clientid'].startswith('MQTTPublish-resend-'))
+        self.assertTrue(options['clientid'].startswith('MQTTPublish-republish-'))
         self.assertNotEqual(options['clientid'], 'the-service')
 
     def test_clientid_override(self):
-        _, _, options = user.mqtttracker.resend_config(self.config_dict, clientid='resend-client')
+        _, _, options = user.mqtttracker.republish_config(self.config_dict, clientid='republish-client')
 
-        self.assertEqual(options['clientid'], 'resend-client')
+        self.assertEqual(options['clientid'], 'republish-client')
 
 
 class TestSelectMessages(unittest.TestCase):
@@ -394,7 +394,7 @@ class TestInsertAttempt(DatabaseTestCase):
             status=user.mqttmessagetracker.STATUS_SENT,
             origin_id=row['id'],
             attempt=1,
-            clientid='resend',
+            clientid='republish',
             topic=row['topic'],
             payload=row['payload'],
             payload_encoding='text')
@@ -454,12 +454,12 @@ class TestUpdateAttempt(DatabaseTestCase):
         self.assert_row(row_id, status=user.mqttmessagetracker.STATUS_UNCONFIRMED, unconfirmed_ts=1234.5)
 
 
-class TestResendMessage(DatabaseTestCase):
+class TestRepublishMessage(DatabaseTestCase):
     def test_confirmed(self):
         row = make_row()
         client = FakeClient(ack=True)
 
-        outcome = user.mqtttracker.resend_message(client, self.connection, TABLE, row, 'resend')
+        outcome = user.mqtttracker.republish_message(client, self.connection, TABLE, row, 'republish')
 
         self.assertEqual(outcome.status, user.mqttmessagetracker.STATUS_CONFIRMED)
         self.assertEqual(client.published, [('weather/outTemp_F', '72.5', 0, False)])
@@ -471,7 +471,7 @@ class TestResendMessage(DatabaseTestCase):
     def test_unconfirmed(self):
         client = FakeClient(ack=False)
 
-        outcome = user.mqtttracker.resend_message(client, self.connection, TABLE, make_row(), 'resend')
+        outcome = user.mqtttracker.republish_message(client, self.connection, TABLE, make_row(), 'republish')
 
         self.assertEqual(outcome.status, user.mqttmessagetracker.STATUS_UNCONFIRMED)
         stored = self.rows()[0]
@@ -481,7 +481,7 @@ class TestResendMessage(DatabaseTestCase):
     def test_failed_publish_does_not_wait_for_an_ack(self):
         client = FakeClient(ack=True, rc=4)
 
-        outcome = user.mqtttracker.resend_message(client, self.connection, TABLE, make_row(), 'resend')
+        outcome = user.mqtttracker.republish_message(client, self.connection, TABLE, make_row(), 'republish')
 
         self.assertEqual(outcome.status, user.mqttmessagetracker.STATUS_FAILED)
         self.assertEqual(self.rows()[0]['rc'], 4)
@@ -490,7 +490,7 @@ class TestResendMessage(DatabaseTestCase):
         row = make_row(payload='616263', payload_encoding='hex')
         client = FakeClient()
 
-        user.mqtttracker.resend_message(client, self.connection, TABLE, row, 'resend')
+        user.mqtttracker.republish_message(client, self.connection, TABLE, row, 'republish')
 
         self.assertEqual(client.published[0][1], b'abc')
 
@@ -498,22 +498,22 @@ class TestResendMessage(DatabaseTestCase):
         row = make_row(payload=None, payload_encoding=None)
         client = FakeClient()
 
-        user.mqtttracker.resend_message(client, self.connection, TABLE, row, 'resend')
+        user.mqtttracker.republish_message(client, self.connection, TABLE, row, 'republish')
 
         self.assertIsNone(client.published[0][1])
 
     def test_undecodable_payload(self):
         row = make_row(payload='not hex', payload_encoding='hex')
 
-        with self.assertRaises(user.mqtttracker.ResendConfigError):
-            user.mqtttracker.resend_message(FakeClient(), self.connection, TABLE, row, 'resend')
+        with self.assertRaises(user.mqtttracker.RepublishConfigError):
+            user.mqtttracker.republish_message(FakeClient(), self.connection, TABLE, row, 'republish')
 
 
-class TestResend(DatabaseTestCase):
+class TestRepublish(DatabaseTestCase):
     def setUp(self):
         super().setUp()
         self.options = {
-            'clientid': 'resend-client',
+            'clientid': 'republish-client',
             'protocol': 4,
         }
         self.out = io.StringIO()
@@ -521,7 +521,7 @@ class TestResend(DatabaseTestCase):
     def test_dry_run_writes_nothing(self):
         self.insert_original(make_row())
 
-        selected, outcomes = user.mqtttracker.resend(
+        selected, outcomes = user.mqtttracker.republish(
             self.database_dict, TABLE, self.options, dry_run=True, out=self.out)
 
         self.assertEqual(len(selected), 1)
@@ -530,7 +530,7 @@ class TestResend(DatabaseTestCase):
         self.assertIn('1 message(s) selected', self.out.getvalue())
 
     def test_nothing_selected(self):
-        selected, outcomes = user.mqtttracker.resend(
+        selected, outcomes = user.mqtttracker.republish(
             self.database_dict, TABLE, self.options, dry_run=False, out=self.out)
 
         self.assertEqual(selected, [])
@@ -543,7 +543,7 @@ class TestResend(DatabaseTestCase):
         self.insert_original(make_row(sent_ts=time.time(), payload='newer',
                                       status=user.mqttmessagetracker.STATUS_CONFIRMED))
 
-        selected, _ = user.mqtttracker.resend(
+        selected, _ = user.mqtttracker.republish(
             self.database_dict, TABLE, self.options, dry_run=True, out=self.out)
 
         self.assertEqual(selected, [])
@@ -554,7 +554,7 @@ class TestResend(DatabaseTestCase):
         self.insert_original(make_row(sent_ts=time.time(), payload='newer',
                                       status=user.mqttmessagetracker.STATUS_CONFIRMED))
 
-        selected, _ = user.mqtttracker.resend(
+        selected, _ = user.mqtttracker.republish(
             self.database_dict, TABLE, self.options, dry_run=True, newest_per_topic=False,
             out=self.out)
 
@@ -564,8 +564,8 @@ class TestResend(DatabaseTestCase):
         self.insert_original(make_row())
         client = FakeClient()
 
-        with mock.patch('user.mqtttracker.ResendClient', return_value=client) as client_class:
-            _, outcomes = user.mqtttracker.resend(
+        with mock.patch('user.mqtttracker.RepublishClient', return_value=client) as client_class:
+            _, outcomes = user.mqtttracker.republish(
                 self.database_dict, TABLE, self.options, dry_run=False, out=self.out)
 
         client_class.assert_called_once()
@@ -581,8 +581,8 @@ class TestResend(DatabaseTestCase):
     def test_missing_database_is_a_config_error(self):
         weedb.drop(self.database_dict)
 
-        with self.assertRaises(user.mqtttracker.ResendConfigError):
-            user.mqtttracker.resend(self.database_dict, TABLE, self.options, out=self.out)
+        with self.assertRaises(user.mqtttracker.RepublishConfigError):
+            user.mqtttracker.republish(self.database_dict, TABLE, self.options, out=self.out)
 
 
 class TestRun(unittest.TestCase):
@@ -617,14 +617,14 @@ class TestRun(unittest.TestCase):
         self.err = io.StringIO()
 
     def run_tool(self, *args):
-        options = user.mqtttracker.build_parser().parse_args(['--config', self.config_file, 'resend', *args])
+        options = user.mqtttracker.build_parser().parse_args(['--config', self.config_file, 'republish', *args])
         return user.mqtttracker.run(options, out=self.out, err=self.err)
 
     def add_unconfirmed(self):
         connection = weedb.connect(self.database_dict)
         try:
             row_id, _, _ = user.mqtttracker.insert_attempt(
-                connection, TABLE, make_row(), 1, 0, time.time(), 'resend')
+                connection, TABLE, make_row(), 1, 0, time.time(), 'republish')
             user.mqtttracker.update_attempt(
                 connection, TABLE, row_id,
                 user.mqttmessagetracker.STATUS_UNCONFIRMED)
@@ -641,28 +641,28 @@ class TestRun(unittest.TestCase):
         self.add_unconfirmed()
         client = FakeClient()
 
-        with mock.patch('user.mqtttracker.ResendClient', return_value=client):
+        with mock.patch('user.mqtttracker.RepublishClient', return_value=client):
             self.assertEqual(self.run_tool('--publish'), 0)
 
     def test_publish_exits_one_when_unconfirmed(self):
         self.add_unconfirmed()
         client = FakeClient(ack=False)
 
-        with mock.patch('user.mqtttracker.ResendClient', return_value=client):
+        with mock.patch('user.mqtttracker.RepublishClient', return_value=client):
             self.assertEqual(self.run_tool('--publish'), 1)
 
     def test_connect_failure_exits_one(self):
         self.add_unconfirmed()
         client = FakeClient()
-        client.connect = mock.Mock(side_effect=user.mqtttracker.ResendConnectError('no broker'))
+        client.connect = mock.Mock(side_effect=user.mqtttracker.RepublishConnectError('no broker'))
 
-        with mock.patch('user.mqtttracker.ResendClient', return_value=client):
+        with mock.patch('user.mqtttracker.RepublishClient', return_value=client):
             self.assertEqual(self.run_tool('--publish'), 1)
 
         self.assertIn('no broker', self.err.getvalue())
 
     def test_missing_config_exits_two(self):
-        options = user.mqtttracker.build_parser().parse_args(['--config', '/does/not/exist/weewx.conf', 'resend'])
+        options = user.mqtttracker.build_parser().parse_args(['--config', '/does/not/exist/weewx.conf', 'republish'])
 
         self.assertEqual(user.mqtttracker.run(options, out=self.out, err=self.err), 2)
         self.assertIn('Unable to read the config file', self.err.getvalue())
@@ -674,11 +674,11 @@ class TestRun(unittest.TestCase):
     def test_unconfirmed_exits_two(self):
         with self.assertRaises(SystemExit):
             with contextlib.redirect_stderr(io.StringIO()):
-                user.mqtttracker.build_parser().parse_args(['--config', self.config_file, 'resend', '--status', 'confirmed'])
+                user.mqtttracker.build_parser().parse_args(['--config', self.config_file, 'republish', '--status', 'confirmed'])
 
     def test_statuses(self):
         options = user.mqtttracker.build_parser().parse_args(
-            ['--config', self.config_file, 'resend', '--status', 'failed,unconfirmed'])
+            ['--config', self.config_file, 'republish', '--status', 'failed,unconfirmed'])
 
         self.assertEqual(options.status, [user.mqttmessagetracker.STATUS_FAILED,
                                           user.mqttmessagetracker.STATUS_UNCONFIRMED])
@@ -686,7 +686,7 @@ class TestRun(unittest.TestCase):
 
 class TestBuildParser(unittest.TestCase):
     def test_defaults(self):
-        options = user.mqtttracker.build_parser().parse_args(['--config', 'weewx.conf', 'resend'])
+        options = user.mqtttracker.build_parser().parse_args(['--config', 'weewx.conf', 'republish'])
 
         self.assertFalse(options.publish)
         self.assertFalse(options.all)

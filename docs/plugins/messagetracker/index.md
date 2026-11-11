@@ -98,7 +98,7 @@ retries, and it does not mean a subscriber received the message.
 
 A resend is a new publish with a new packet id. The broker cannot tell that it is a replay, so a
 subscriber can receive the same application message more than once, even when the topic uses
-QoS 2. This applies to both automatic resend and `mqtttracker resend`.
+QoS 2. This applies to both automatic resend and `mqtttracker republish`.
 
 The tracker therefore provides at-least-once delivery end to end. Consumers must be idempotent,
 for example by deduplicating on `dateTime`. `failed` rows are safe to resend: paho refused them,

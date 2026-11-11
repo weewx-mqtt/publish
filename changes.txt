@@ -118,7 +118,7 @@ Enhancements:
     Delivered messages are pruned by confirmed_retention. Unresolved messages are pruned by
     error_retention, which defaults to 0 so they can still be resent. A message is deleted as one
     whole chain, so a failed original ages out with the resend that delivered it.
-    The optional [[resend]] section resends the unresolved messages after the last confirmed
+    The optional [[republish]] section resends the unresolved messages after the last confirmed
     publish on each topic. on_startup and on_reconnect select the trigger and both default to
     false. The log says which trigger fired, or that there was nothing to resend.
     include_before_last_success resends them even when they are older than that publish.

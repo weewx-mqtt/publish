@@ -20,11 +20,11 @@ import user.mqttmessagetracker
 import user.mqtttracker
 
 TABLE = 'mqtt_message_tracker'
-TOPIC = 'weewx/integ/resend'
+TOPIC = 'weewx/integ/republish'
 
 
 @unittest.skipUnless(shutil.which('mosquitto'), 'mosquitto is not installed.')
-class TestResend(unittest.TestCase):
+class TestRepublish(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()  # pylint: disable=consider-using-with
         self.addCleanup(self.temp_dir.cleanup)
@@ -43,7 +43,7 @@ class TestResend(unittest.TestCase):
         self.broker.start()
 
         self.options = {
-            'clientid': f'resend-{random_string(8)}',
+            'clientid': f'republish-{random_string(8)}',
             'protocol': mqtt.MQTTv311,
             'host': BROKER_HOST,
             'port': self.broker.port,
@@ -86,7 +86,7 @@ class TestResend(unittest.TestCase):
         second = self.insert('second', time.time() + 0.001)
         received = self.observe()
 
-        selected, outcomes = user.mqtttracker.resend(
+        selected, outcomes = user.mqtttracker.republish(
             self.database_dict, TABLE, self.options, since=0, newest_per_topic=False,
             dry_run=False, ack_timeout=10, out=io.StringIO())
 
@@ -116,7 +116,7 @@ class TestResend(unittest.TestCase):
         newest = self.insert('newer', time.time() + 0.001)
         received = self.observe()
 
-        selected, outcomes = user.mqtttracker.resend(
+        selected, outcomes = user.mqtttracker.republish(
             self.database_dict, TABLE, self.options, since=0,
             dry_run=False, ack_timeout=10, out=io.StringIO())
 

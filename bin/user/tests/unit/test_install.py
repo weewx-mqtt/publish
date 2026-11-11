@@ -42,15 +42,15 @@ class TestInstallConfig(unittest.TestCase):
         self.assertEqual(self.config['MQTTMessageTracker']['error_retention'], '0')
         self.assertNotIn('retention', self.config['MQTTMessageTracker'])
 
-    def test_tracker_resend_is_seeded(self):
-        resend = self.config['MQTTMessageTracker']['resend']
+    def test_tracker_republish_is_seeded(self):
+        republish = self.config['MQTTMessageTracker']['republish']
 
-        self.assertNotIn('enable', resend)
-        self.assertEqual(resend['on_startup'], 'false')
-        self.assertEqual(resend['on_reconnect'], 'false')
-        self.assertEqual(resend['include_before_last_success'], 'false')
-        self.assertEqual(resend['since'], '0')
-        self.assertEqual(resend['limit'], '0')
+        self.assertNotIn('enable', republish)
+        self.assertEqual(republish['on_startup'], 'false')
+        self.assertEqual(republish['on_reconnect'], 'false')
+        self.assertEqual(republish['include_before_last_success'], 'false')
+        self.assertEqual(republish['since'], '0')
+        self.assertEqual(republish['limit'], '0')
 
     def test_tracker_topics_are_seeded(self):
         topics = self.config['MQTTMessageTracker']['topics']

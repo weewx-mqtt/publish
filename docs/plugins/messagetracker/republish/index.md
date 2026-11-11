@@ -7,7 +7,7 @@ nav_order: 2
 {% include messagetracker_warning.html %}
 
 A message that paho refused, or whose acknowledgement was never observed, can be published again.
-The tracker can do it automatically after a connection, or you can run `mqtttracker resend` yourself.
+The tracker can do it automatically after a connection, or you can run `mqtttracker republish` yourself.
 
 ## What gets resent
 
@@ -15,7 +15,7 @@ A resend publishes a message that was not delivered. A message is delivered when
 `confirmed` (see [Status](../status/index.md)); a delivered message is not resent unless you ask
 for it. Each message is resent once, even when it already has several attempts.
 
-Automatic resend and `mqtttracker resend` choose those messages differently. Automatic resend
+Automatic resend and `mqtttracker republish` choose those messages differently. Automatic resend
 applies the last confirmed publish on each topic as a boundary:
 
 - the boundary is the newest original row that is `confirmed`, or whose resend is `confirmed`.
@@ -29,17 +29,17 @@ applies the last confirmed publish on each topic as a boundary:
 The boundary is per topic. A successful publish on one topic says nothing about the delivery of
 another topic.
 
-`mqtttracker resend` ignores the boundary and has its own selection options; see
+`mqtttracker republish` ignores the boundary and has its own selection options; see
 [What the tool selects](#what-the-tool-selects).
 
 ## Automatic resend
 
-Automatic resend is configured in the `[[resend]]` section. It has two triggers, and both default
+Automatic resend is configured in the `[[republish]]` section. It has two triggers, and both default
 to `false`, so the section does nothing until one of them is `true`.
 
 ```ini
 [MQTTMessageTracker]
-    [[resend]]
+    [[republish]]
         on_startup = true
         on_reconnect = true
 ```
@@ -90,10 +90,10 @@ The maximum number of messages to resend per connection.
 Default is `0`, which resends every selected message.
 
 A capped run resends the oldest messages first. A later live publish can move the boundary past
-the remaining backlog, so use `mqtttracker resend` to clear an old backlog without that risk.
+the remaining backlog, so use `mqtttracker republish` to clear an old backlog without that risk.
 
 The full option and default reference is in
-[Configuration](../configuration/resend/index.md).
+[Configuration](../configuration/republish/index.md).
 
 ## What a resend does
 
@@ -105,7 +105,7 @@ Automatic resend is best-effort. A live publish that races the resend can still 
 older resent value; consumers are assumed to be idempotent on `dateTime`.
 See [QoS and duplicate delivery](../index.md#qos-and-duplicate-delivery).
 
-## Resending with mqtttracker resend
+## Resending with mqtttracker republish
 
 `failed` and `unconfirmed` rows can also be resent with `bin/user/mqtttracker.py resend`.
 It reads the tracker table and publishes through its own MQTT client; MQTTPublish is not
@@ -121,20 +121,20 @@ WeeWX uses.
 `resend` is a dry run unless `--publish` is given:
 
 ```shell
-python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf resend
+python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf republish
 ```
 
 Publish the selection:
 
 ```shell
-python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf resend --publish
+python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf republish --publish
 ```
 
 On a package install the tool finds WeeWX by itself; for an uninstalled source checkout, add
 WeeWX's `src` directory to `PYTHONPATH`:
 
 ```shell
-PYTHONPATH=~/weewx/src python3 ~/weewx-data/bin/user/mqtttracker.py --config ~/weewx-data/weewx.conf resend
+PYTHONPATH=~/weewx/src python3 ~/weewx-data/bin/user/mqtttracker.py --config ~/weewx-data/weewx.conf republish
 ```
 
 ### What the tool selects
@@ -187,7 +187,7 @@ only failed publishes. `sent` may still be in flight and `confirmed` does not ne
 both are refused.
 
 ```shell
-python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf resend --status unconfirmed --publish
+python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf republish --status unconfirmed --publish
 ```
 
 ### --since SECONDS
@@ -210,7 +210,7 @@ The selection is resent oldest first.
 Only resend topics that match the glob.
 
 ```shell
-python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf resend --topic 'weather/outTemp_*' --publish
+python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf republish --topic 'weather/outTemp_*' --publish
 ```
 
 ### --all

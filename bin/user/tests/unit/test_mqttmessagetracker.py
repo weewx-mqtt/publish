@@ -345,7 +345,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
         self.assertEqual(len(callbacks), 3)
 
     def test_get_callbacks_includes_connect_when_resend_is_enabled(self):
-        plugin, _ = self._make_plugin({'resend': {'on_startup': True}})
+        plugin, _ = self._make_plugin({'republish': {'on_startup': True}})
 
         callbacks = plugin.get_callbacks()
 
@@ -353,35 +353,35 @@ class TestMQTTMessageTracker(unittest.TestCase):
         self.assertEqual(callbacks[3]['on_mqtt_connect']['callback'], plugin.on_mqtt_connect)
 
     def test_resend_options_default(self):
-        plugin, _ = self._make_plugin({'resend': {'on_startup': True}})
+        plugin, _ = self._make_plugin({'republish': {'on_startup': True}})
 
-        self.assertEqual(plugin.resend,
+        self.assertEqual(plugin.republish_options,
                          {'on_startup': True, 'on_reconnect': False, 'include_before_last_success': False,
                           'since': 0, 'limit': 0})
 
     def test_resend_options_include_before_last_success(self):
         plugin, _ = self._make_plugin(
-            {'resend': {'on_startup': True, 'include_before_last_success': True}})
+            {'republish': {'on_startup': True, 'include_before_last_success': True}})
 
-        self.assertTrue(plugin.resend['include_before_last_success'])
+        self.assertTrue(plugin.republish_options['include_before_last_success'])
 
     def test_resend_disabled_by_default(self):
         plugin, _ = self._make_plugin()
 
-        self.assertIsNone(plugin.resend)
+        self.assertIsNone(plugin.republish_options)
 
     def test_resend_disabled_when_the_section_has_no_trigger(self):
-        plugin, _ = self._make_plugin({'resend': {}})
+        plugin, _ = self._make_plugin({'republish': {}})
 
-        self.assertIsNone(plugin.resend)
+        self.assertIsNone(plugin.republish_options)
 
     def test_resend_disabled_when_both_triggers_are_false(self):
-        plugin, _ = self._make_plugin({'resend': {'on_startup': False, 'on_reconnect': False}})
+        plugin, _ = self._make_plugin({'republish': {'on_startup': False, 'on_reconnect': False}})
 
-        self.assertIsNone(plugin.resend)
+        self.assertIsNone(plugin.republish_options)
 
     def test_startup_resend_is_logged(self):
-        plugin, logger_queue = self._make_plugin({'resend': {'on_startup': True}})
+        plugin, logger_queue = self._make_plugin({'republish': {'on_startup': True}})
 
         plugin.on_mqtt_connect(mock.Mock(), None, 0, 0, None)
 
@@ -390,7 +390,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
             logger_queue, "No messages need to be resent after the connection was established.")
 
     def test_reconnect_resend_is_logged(self):
-        plugin, logger_queue = self._make_plugin({'resend': {'on_reconnect': True}})
+        plugin, logger_queue = self._make_plugin({'republish': {'on_reconnect': True}})
         client = mock.Mock()
 
         plugin.on_mqtt_connect(client, None, 0, 0, None)
@@ -499,7 +499,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
         self.assertEqual(by_payload['sent']['status'], 'unconfirmed')
 
     def test_resend_after_connect(self):
-        plugin, logger_queue = self._make_plugin({'resend': {'on_startup': True}},
+        plugin, logger_queue = self._make_plugin({'republish': {'on_startup': True}},
                                                  mqtt_dict={'clientid': 'test-client'})
 
         plugin.mqtt_publish(None, 1, 0, 'topic', 'confirmed', 1, False, 1)
@@ -539,7 +539,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
         self.assertEqual(by_id[resent['id']]['status'], 'confirmed')
 
     def test_resend_uses_the_last_success_as_the_boundary(self):
-        plugin, _ = self._make_plugin({'resend': {'on_startup': True}})
+        plugin, _ = self._make_plugin({'republish': {'on_startup': True}})
 
         plugin.mqtt_publish(None, 1, 0, 'topic', 'confirmed-1', 1, False, 1)
         plugin.on_mqtt_publish(None, None, 1, None)
@@ -566,7 +566,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
 
     def test_resend_includes_messages_before_the_last_success(self):
         plugin, _ = self._make_plugin(
-            {'resend': {'on_startup': True, 'include_before_last_success': True}})
+            {'republish': {'on_startup': True, 'include_before_last_success': True}})
 
         plugin.mqtt_publish(None, 1, 0, 'topic', 'confirmed-1', 1, False, 1)
         plugin.on_mqtt_publish(None, None, 1, None)
@@ -593,7 +593,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
         self.assertEqual(len([row for row in rows if row['origin_id']]), 2)
 
     def test_resend_on_reconnect_only(self):
-        plugin, _ = self._make_plugin({'resend': {'on_reconnect': True}})
+        plugin, _ = self._make_plugin({'republish': {'on_reconnect': True}})
 
         plugin.mqtt_publish(None, 1, 1, 'topic', 'failed', 1, False, 1)
         self._wait_for_rows(1)
@@ -610,7 +610,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
         client.publish.assert_called_once_with('topic', 'failed', qos=1, retain=False)
 
     def test_resend_stops_when_the_connection_is_lost(self):
-        plugin, logger_queue = self._make_plugin({'resend': {'on_startup': True}})
+        plugin, logger_queue = self._make_plugin({'republish': {'on_startup': True}})
 
         plugin.mqtt_publish(None, 1, 1, 'topic', 'failed', 1, False, 1)
         self._wait_for_rows(1)
@@ -651,7 +651,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
                             for entry in entries))
 
     def test_failed_resend_is_logged_with_its_row_id(self):
-        plugin, logger_queue = self._make_plugin({'resend': {'on_startup': True}})
+        plugin, logger_queue = self._make_plugin({'republish': {'on_startup': True}})
 
         plugin.mqtt_publish(None, 1, 1, 'topic', 'failed', 1, False, 1)
         self._wait_for_rows(1)

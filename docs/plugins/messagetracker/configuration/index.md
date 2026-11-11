@@ -101,6 +101,6 @@ Default is `10`.
 
 See [topics](topics/index.md) for the `[[topics]]` section and its per-topic options.
 
-### resend
+### republish
 
-See [resend](resend/index.md) for the `[[resend]]` section.
+See [republish](republish/index.md) for the `[[republish]]` section.

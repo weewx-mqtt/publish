@@ -22,7 +22,7 @@ from integhelpers import BROKER_HOST, MosquittoBroker, make_observer, random_str
 import user.mqttpublish
 import user.mqttmessagetracker
 
-TOPIC = 'weewx/integ/resend-on-connect'
+TOPIC = 'weewx/integ/republish-on-connect'
 TABLE = 'mqtt_message_tracker'
 
 
@@ -59,7 +59,7 @@ def make_tracker(logger_queue, mqtt_config, temp_dir):
     })
     plugin_dict = configobj.ConfigObj({
         'data_binding': 'tracker_binding',
-        'resend': {'on_startup': True, 'on_reconnect': True},
+        'republish': {'on_startup': True, 'on_reconnect': True},
         'topics': {TOPIC: {}},
     })
     return user.mqttmessagetracker.MQTTMessageTracker(
@@ -98,7 +98,7 @@ def make_publisher(config, tracker, logger_queue):
 
 
 @unittest.skipUnless(shutil.which('mosquitto'), 'mosquitto is not installed.')
-class TestResendOnConnect(unittest.TestCase):
+class TestRepublishOnConnect(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()  # pylint: disable=consider-using-with
         self.addCleanup(self.temp_dir.cleanup)
