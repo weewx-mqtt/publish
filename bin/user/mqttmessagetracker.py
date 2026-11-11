@@ -297,69 +297,53 @@ def delete_chains(cursor, table, chain_ids):
     return cursor.rowcount
 
 
-def _confirmed_origins(rows):
-    """ The origin ids that already have a confirmed resend. """
-    return {row['origin_id'] for row in rows
-            if row['origin_id'] is not None and row['status'] == STATUS_CONFIRMED}
+def _last_success(rows):
+    """ The newest original publish time of a delivered message for each topic.
 
-
-def _last_success(rows, confirmed_origins):
-    """ The newest confirmed original publish time for each topic. """
+        A resend does not move the boundary, or a successful resend would hide an older
+        backlog. A chain whose original is gone does not move it either. """
     last_success = {}
-    for row in rows:
-        if row['origin_id'] is not None:
+    for chain in chain_rows(rows).values():
+        if outcome_row(chain)['status'] != STATUS_CONFIRMED:
             continue
-        if row['status'] != STATUS_CONFIRMED and row['id'] not in confirmed_origins:
+        anchor = chain_anchor(chain)
+        if anchor['origin_id'] is not None:
             continue
-        last_success[row['topic']] = max(last_success.get(row['topic'], row['sent_ts']), row['sent_ts'])
+        last_success[anchor['topic']] = max(last_success.get(anchor['topic'], anchor['sent_ts']),
+                                            anchor['sent_ts'])
     return last_success
 
 
-def _after_last_success(row, oldest, last_success, confirmed_origins):
-    """ Whether a row is a failed/unconfirmed message after its topic's last success. """
-    if row['status'] not in (STATUS_UNCONFIRMED, STATUS_FAILED):
-        return False
+def _is_after_last_success(row, oldest, last_success):
+    """ Whether a message is after its topic's last confirmed publish. """
     if oldest is not None and row['sent_ts'] < oldest:
         return False
     boundary = last_success.get(row['topic'])
-    if boundary is not None and row['sent_ts'] <= boundary:
-        return False
-    return origin_id(row) not in confirmed_origins
-
-
-def _dedupe(rows):
-    """ Keep the earliest row for each original message. """
-    # A message may have several resend attempts. Resend the original once, not each attempt;
-    # the earliest row is the original, or the oldest attempt when the original was pruned.
-    seen = set()
-    unique = []
-    for row in sorted(rows, key=lambda item: (item['sent_ts'], item['id'])):
-        row_origin_id = origin_id(row)
-        if row_origin_id in seen:
-            continue
-        seen.add(row_origin_id)
-        unique.append(row)
-    return unique
+    return boundary is None or row['sent_ts'] > boundary
 
 
 def select_after_last_success(rows, since=None, now=None, include_before_last_success=False):
-    """ Select the unconfirmed and failed rows to resend.
+    """ Select the unresolved messages to resend, one row per chain.
 
-        By default only rows after the last confirmed publish on their topic are selected.
-        The boundary is the newest confirmed original row on each topic. An original counts as
-        confirmed when its own status is confirmed, or when it has a confirmed resend. A resend's
-        own sent_ts does not move the boundary: a successful resend would otherwise hide an older
-        backlog.
+        A message is selected when its outcome is failed or unconfirmed. By default only
+        messages whose original publish is after the last confirmed publish on their topic are
+        selected. The boundary is the newest original row of a delivered message on each topic;
+        a resend does not move it, or a successful resend would hide an older backlog.
 
-        With include_before_last_success, every unconfirmed and failed row is a candidate,
-        including rows older than the topic's last confirmed publish. """
+        With include_before_last_success, every unresolved message is a candidate, including
+        those older than the topic's last confirmed publish. """
     now = time.time() if now is None else now
     oldest = None if since is None or since <= 0 else now - since
-    confirmed_origins = _confirmed_origins(rows)
-    last_success = {} if include_before_last_success else _last_success(rows, confirmed_origins)
-    selected = [row for row in rows
-                if _after_last_success(row, oldest, last_success, confirmed_origins)]
-    return _dedupe(selected)
+    last_success = {} if include_before_last_success else _last_success(rows)
+    selected = []
+    for chain in chain_rows(rows).values():
+        if outcome_row(chain)['status'] not in (STATUS_FAILED, STATUS_UNCONFIRMED):
+            continue
+        anchor = chain_anchor(chain)
+        if _is_after_last_success(anchor, oldest, last_success):
+            selected.append(anchor)
+    selected.sort(key=lambda row: (row['sent_ts'], row['id']))
+    return selected
 
 
 class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-attributes

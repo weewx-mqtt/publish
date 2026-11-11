@@ -65,9 +65,10 @@ class TestReadConfig(unittest.TestCase):
             self.assertEqual(table, 'mqtt_message_tracker')
 
 
-def make_row(row_id, topic, status, sent_ts, origin_id=None):
+def make_row(row_id, topic, status, sent_ts, origin_id=None, attempt=None):
     """ A row as the resend selection sees it. """
-    return {'id': row_id, 'topic': topic, 'status': status, 'sent_ts': sent_ts, 'origin_id': origin_id}
+    return {'id': row_id, 'topic': topic, 'status': status, 'sent_ts': sent_ts,
+            'origin_id': origin_id, 'attempt': attempt}
 
 
 class TestSelectAfterLastSuccess(unittest.TestCase):
@@ -152,6 +153,40 @@ class TestSelectAfterLastSuccess(unittest.TestCase):
         selected = user.mqttmessagetracker.select_after_last_success(rows, since=50, now=250)
 
         self.assertEqual([row['id'] for row in selected], ['new'])
+
+    def test_a_sent_resend_keeps_the_message_out_of_the_queue(self):
+        rows = [
+            make_row('origin', 'topic', user.mqttmessagetracker.STATUS_FAILED, 1),
+            make_row('resend', 'topic', user.mqttmessagetracker.STATUS_SENT, 2,
+                     origin_id='origin', attempt=1),
+        ]
+
+        selected = user.mqttmessagetracker.select_after_last_success(rows)
+
+        self.assertEqual(selected, [])
+
+    def test_a_forced_failed_resend_does_not_undo_delivery(self):
+        rows = [
+            make_row('origin', 'topic', user.mqttmessagetracker.STATUS_CONFIRMED, 1),
+            make_row('resend', 'topic', user.mqttmessagetracker.STATUS_FAILED, 2,
+                     origin_id='origin', attempt=1),
+        ]
+
+        selected = user.mqttmessagetracker.select_after_last_success(rows)
+
+        self.assertEqual(selected, [])
+
+    def test_a_message_is_positioned_by_its_original_publish(self):
+        rows = [
+            make_row('confirmed', 'topic', user.mqttmessagetracker.STATUS_CONFIRMED, 3),
+            make_row('origin', 'topic', user.mqttmessagetracker.STATUS_FAILED, 1),
+            make_row('resend', 'topic', user.mqttmessagetracker.STATUS_FAILED, 5,
+                     origin_id='origin', attempt=1),
+        ]
+
+        selected = user.mqttmessagetracker.select_after_last_success(rows)
+
+        self.assertEqual(selected, [])
 
 
 class TestMQTTMessageTracker(unittest.TestCase):
