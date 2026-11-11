@@ -33,7 +33,7 @@ def make_row(**overrides):
         'id': helpers.random_string(),
         'mid': 1,
         'dateTime': 1700000000,
-        'sent_ts': 1000.0,
+        'published_ts': 1000.0,
         'status': STATUS.STATUS_UNCONFIRMED,
         'topic': 'weather/outTemp_F',
         'qos': 0,
@@ -70,9 +70,9 @@ def tracker_config(temp_dir, database_dict, error_retention=100, confirmed_reten
 
 class TestSelectChains(unittest.TestCase):
     def test_defaults_to_confirmed(self):
-        rows = [confirmed_row(sent_ts=100.0),
-                make_row(sent_ts=100.0),
-                make_row(sent_ts=100.0, status=STATUS.STATUS_FAILED)]
+        rows = [confirmed_row(published_ts=100.0),
+                make_row(published_ts=100.0),
+                make_row(published_ts=100.0, status=STATUS.STATUS_FAILED)]
 
         selected = user.mqtttracker.select_chains(
             rows, confirmed_default_retention=100, now=1000)
@@ -80,8 +80,8 @@ class TestSelectChains(unittest.TestCase):
         self.assertEqual([row['status'] for row in selected], [STATUS.STATUS_CONFIRMED])
 
     def test_failed_status(self):
-        rows = [make_row(sent_ts=100.0),
-                make_row(sent_ts=100.0, status=STATUS.STATUS_FAILED)]
+        rows = [make_row(published_ts=100.0),
+                make_row(published_ts=100.0, status=STATUS.STATUS_FAILED)]
 
         selected = user.mqtttracker.select_chains(
             rows, statuses=[STATUS.STATUS_FAILED], default_retention=100, now=1000)
@@ -89,7 +89,7 @@ class TestSelectChains(unittest.TestCase):
         self.assertEqual([row['status'] for row in selected], [STATUS.STATUS_FAILED])
 
     def test_sent_is_never_selected(self):
-        rows = [make_row(sent_ts=100.0, status=STATUS.STATUS_SENT)]
+        rows = [make_row(published_ts=100.0, status=STATUS.STATUS_INFLIGHT)]
 
         selected = user.mqtttracker.select_chains(
             rows, statuses=[STATUS.STATUS_FAILED, STATUS.STATUS_UNCONFIRMED],
@@ -98,8 +98,8 @@ class TestSelectChains(unittest.TestCase):
         self.assertEqual(selected, [])
 
     def test_the_topic_retention_overrides_the_default(self):
-        rows = [confirmed_row(sent_ts=925.0, topic='default'),
-                confirmed_row(sent_ts=925.0, topic='short')]
+        rows = [confirmed_row(published_ts=925.0, topic='default'),
+                confirmed_row(published_ts=925.0, topic='short')]
 
         selected = user.mqtttracker.select_chains(
             rows, confirmed_topic_retention={'short': 50}, confirmed_default_retention=100, now=1000)
@@ -107,7 +107,7 @@ class TestSelectChains(unittest.TestCase):
         self.assertEqual([row['topic'] for row in selected], ['short'])
 
     def test_an_unlisted_topic_uses_the_default_retention(self):
-        rows = [confirmed_row(sent_ts=800.0, topic='unlisted')]
+        rows = [confirmed_row(published_ts=800.0, topic='unlisted')]
 
         selected = user.mqtttracker.select_chains(
             rows, confirmed_topic_retention={'other': 50}, confirmed_default_retention=100, now=1000)
@@ -115,7 +115,7 @@ class TestSelectChains(unittest.TestCase):
         self.assertEqual([row['topic'] for row in selected], ['unlisted'])
 
     def test_a_retention_of_zero_keeps_the_topic(self):
-        rows = [confirmed_row(sent_ts=1.0, topic='keep')]
+        rows = [confirmed_row(published_ts=1.0, topic='keep')]
 
         selected = user.mqtttracker.select_chains(
             rows, confirmed_topic_retention={'keep': 0}, confirmed_default_retention=100, now=1000)
@@ -123,7 +123,7 @@ class TestSelectChains(unittest.TestCase):
         self.assertEqual(selected, [])
 
     def test_older_than_overrides_the_configured_retention(self):
-        rows = [confirmed_row(sent_ts=500.0, topic='keep')]
+        rows = [confirmed_row(published_ts=500.0, topic='keep')]
 
         selected = user.mqtttracker.select_chains(
             rows, confirmed_topic_retention={'keep': 0}, confirmed_default_retention=100,
@@ -132,9 +132,9 @@ class TestSelectChains(unittest.TestCase):
         self.assertEqual([row['topic'] for row in selected], ['keep'])
 
     def test_older_than_zero_selects_every_matching_message(self):
-        rows = [confirmed_row(sent_ts=999.0, topic='keep'),
-                make_row(sent_ts=999.0, topic='keep', status=STATUS.STATUS_FAILED),
-                make_row(sent_ts=999.0, status=STATUS.STATUS_SENT)]
+        rows = [confirmed_row(published_ts=999.0, topic='keep'),
+                make_row(published_ts=999.0, topic='keep', status=STATUS.STATUS_FAILED),
+                make_row(published_ts=999.0, status=STATUS.STATUS_INFLIGHT)]
 
         selected = user.mqtttracker.select_chains(
             rows, statuses=[STATUS.STATUS_CONFIRMED, STATUS.STATUS_FAILED],
@@ -145,8 +145,8 @@ class TestSelectChains(unittest.TestCase):
                          sorted([STATUS.STATUS_CONFIRMED, STATUS.STATUS_FAILED]))
 
     def test_topic_glob(self):
-        rows = [confirmed_row(sent_ts=100.0, topic='weather/outTemp_F'),
-                confirmed_row(sent_ts=100.0, topic='weather/outHumidity')]
+        rows = [confirmed_row(published_ts=100.0, topic='weather/outTemp_F'),
+                confirmed_row(published_ts=100.0, topic='weather/outHumidity')]
 
         selected = user.mqtttracker.select_chains(
             rows, confirmed_default_retention=100, topic='weather/outTemp*', now=1000)
@@ -154,18 +154,19 @@ class TestSelectChains(unittest.TestCase):
         self.assertEqual([row['topic'] for row in selected], ['weather/outTemp_F'])
 
     def test_limit_keeps_the_oldest(self):
-        rows = [confirmed_row(sent_ts=float(index), topic=f'weather/{index}')
+        rows = [confirmed_row(published_ts=float(index), topic=f'weather/{index}')
                 for index in range(1, 6)]
 
         selected = user.mqtttracker.select_chains(
             rows, confirmed_default_retention=100, limit=2, now=1000)
 
-        self.assertEqual([row['sent_ts'] for row in selected], [1.0, 2.0])
+        self.assertEqual([row['published_ts'] for row in selected], [1.0, 2.0])
 
     def test_a_chain_is_one_message(self):
-        original = make_row(sent_ts=1000.0, status=STATUS.STATUS_FAILED)
-        republish = make_row(sent_ts=1100.0, **{'status': STATUS.STATUS_CONFIRMED,
-                                                'origin_id': original['id'], 'attempt': 1})
+        original = make_row(published_ts=1000.0, status=STATUS.STATUS_FAILED)
+        republish = make_row(
+            published_ts=1100.0,
+            **{'status': STATUS.STATUS_CONFIRMED, 'origin_id': original['id'], 'attempt': 1})
 
         selected = user.mqtttracker.select_chains(
             [original, republish], confirmed_default_retention=100, now=1300)
@@ -173,12 +174,13 @@ class TestSelectChains(unittest.TestCase):
         self.assertEqual(len(selected), 1)
         self.assertEqual(selected[0]['id'], original['id'])
         self.assertEqual(selected[0]['status'], STATUS.STATUS_CONFIRMED)
-        self.assertEqual(selected[0]['sent_ts'], republish['sent_ts'])
+        self.assertEqual(selected[0]['published_ts'], republish['published_ts'])
 
     def test_a_delivered_chain_ignores_the_error_retention(self):
-        original = make_row(sent_ts=1000.0, status=STATUS.STATUS_FAILED)
-        republish = make_row(sent_ts=1100.0, **{'status': STATUS.STATUS_CONFIRMED,
-                                                'origin_id': original['id'], 'attempt': 1})
+        original = make_row(published_ts=1000.0, status=STATUS.STATUS_FAILED)
+        republish = make_row(
+            published_ts=1100.0,
+            **{'status': STATUS.STATUS_CONFIRMED, 'origin_id': original['id'], 'attempt': 1})
 
         selected = user.mqtttracker.select_chains(
             [original, republish], confirmed_default_retention=100, default_retention=0, now=1300)
@@ -186,9 +188,10 @@ class TestSelectChains(unittest.TestCase):
         self.assertEqual([row['id'] for row in selected], [original['id']])
 
     def test_an_unresolved_chain_uses_its_last_attempt(self):
-        original = make_row(sent_ts=100.0, status=STATUS.STATUS_FAILED)
-        republish = make_row(sent_ts=1000.0, **{'status': STATUS.STATUS_FAILED,
-                                                'origin_id': original['id'], 'attempt': 1})
+        original = make_row(published_ts=100.0, status=STATUS.STATUS_FAILED)
+        republish = make_row(
+            published_ts=1000.0,
+            **{'status': STATUS.STATUS_FAILED, 'origin_id': original['id'], 'attempt': 1})
         args = {'statuses': [STATUS.STATUS_FAILED], 'default_retention': 100}
 
         kept = user.mqtttracker.select_chains([original, republish], now=1050, **args)
@@ -198,7 +201,7 @@ class TestSelectChains(unittest.TestCase):
         self.assertEqual([row['id'] for row in selected], [original['id']])
 
     def test_zero_limit_selects_everything(self):
-        rows = [confirmed_row(sent_ts=float(index), topic=f'weather/{index}')
+        rows = [confirmed_row(published_ts=float(index), topic=f'weather/{index}')
                 for index in range(1, 4)]
 
         selected = user.mqtttracker.select_chains(
@@ -239,7 +242,7 @@ class DatabaseTestCase(unittest.TestCase):
         cursor = self.connection.cursor()
         try:
             cursor.execute(f"SELECT {', '.join(user.mqttmessagetracker.MESSAGE_COLUMNS)} FROM {TABLE} "
-                           "ORDER BY sent_ts, id")
+                           "ORDER BY published_ts, id")
             return [dict(zip(user.mqttmessagetracker.MESSAGE_COLUMNS, row)) for row in cursor]
         finally:
             cursor.close()
@@ -250,8 +253,8 @@ class DatabaseTestCase(unittest.TestCase):
 
 class TestDeleteChains(DatabaseTestCase):
     def test_deletes_the_selected_messages(self):
-        old = confirmed_row(sent_ts=time.time() - 1000)
-        new = confirmed_row(sent_ts=time.time(), topic='weather/outHumidity')
+        old = confirmed_row(published_ts=time.time() - 1000)
+        new = confirmed_row(published_ts=time.time(), topic='weather/outHumidity')
         self.insert(old)
         self.insert(new)
 
@@ -263,10 +266,10 @@ class TestDeleteChains(DatabaseTestCase):
         self.assertEqual([row['id'] for row in self.rows()], [new['id']])
 
     def test_deletes_the_rest_of_the_chain(self):
-        original = make_row(sent_ts=time.time() - 1000, status=STATUS.STATUS_FAILED)
-        republish = make_row(sent_ts=time.time() - 900, **{
+        original = make_row(published_ts=time.time() - 1000, status=STATUS.STATUS_FAILED)
+        republish = make_row(published_ts=time.time() - 900, **{
             'status': STATUS.STATUS_CONFIRMED, 'origin_id': original['id'], 'attempt': 1})
-        newer = confirmed_row(sent_ts=time.time(), topic='weather/outHumidity')
+        newer = confirmed_row(published_ts=time.time(), topic='weather/outHumidity')
         self.insert(original)
         self.insert(republish)
         self.insert(newer)
@@ -279,9 +282,9 @@ class TestDeleteChains(DatabaseTestCase):
         self.assertEqual([row['id'] for row in self.rows()], [newer['id']])
 
     def test_leaves_a_sent_republish(self):
-        original = confirmed_row(sent_ts=time.time() - 1000)
-        republish = make_row(sent_ts=time.time() - 900, **{
-            'status': STATUS.STATUS_SENT, 'origin_id': original['id'], 'attempt': 1})
+        original = confirmed_row(published_ts=time.time() - 1000)
+        republish = make_row(published_ts=time.time() - 900, **{
+            'status': STATUS.STATUS_INFLIGHT, 'origin_id': original['id'], 'attempt': 1})
         self.insert(original)
         self.insert(republish)
 
@@ -293,7 +296,7 @@ class TestDeleteChains(DatabaseTestCase):
         self.assertEqual([row['id'] for row in self.rows()], [republish['id']])
 
     def test_deletes_an_orphaned_republish(self):
-        republish = make_row(sent_ts=time.time() - 1000, **{
+        republish = make_row(published_ts=time.time() - 1000, **{
             'status': STATUS.STATUS_CONFIRMED, 'origin_id': helpers.random_string(),
             'attempt': 1})
         self.insert(republish)
@@ -306,7 +309,7 @@ class TestDeleteChains(DatabaseTestCase):
         self.assertEqual(self.rows(), [])
 
     def test_skips_a_message_whose_outcome_changed(self):
-        row = make_row(sent_ts=time.time() - 1000, status=STATUS.STATUS_FAILED)
+        row = make_row(published_ts=time.time() - 1000, status=STATUS.STATUS_FAILED)
         self.insert(row)
         selected = user.mqtttracker.select_chains(
             self.rows(), statuses=[STATUS.STATUS_FAILED], default_retention=100)
@@ -320,7 +323,7 @@ class TestDeleteChains(DatabaseTestCase):
         self.assertEqual(len(self.rows()), 1)
 
     def test_is_idempotent(self):
-        self.insert(confirmed_row(sent_ts=time.time() - 1000))
+        self.insert(confirmed_row(published_ts=time.time() - 1000))
         selected = user.mqtttracker.select_chains(self.rows(), confirmed_default_retention=100)
 
         user.mqtttracker.delete_chains(self.connection, TABLE, selected)
@@ -335,7 +338,7 @@ class TestPrune(DatabaseTestCase):
         self.config_dict = tracker_config(self.temp_dir.name, self.database_dict)
 
     def test_dry_run_writes_nothing(self):
-        self.insert(confirmed_row(sent_ts=time.time() - 1000))
+        self.insert(confirmed_row(published_ts=time.time() - 1000))
 
         selected = user.mqtttracker.prune(self.config_dict, self.options(), out=self.out)
 
@@ -344,10 +347,10 @@ class TestPrune(DatabaseTestCase):
         self.assertIn('1 message(s) selected', self.out.getvalue())
 
     def test_dry_run_shows_the_row_count(self):
-        original = confirmed_row(sent_ts=time.time() - 1000)
-        republish = make_row(sent_ts=time.time() - 900, **{
+        original = confirmed_row(published_ts=time.time() - 1000)
+        republish = make_row(published_ts=time.time() - 900, **{
             'status': STATUS.STATUS_CONFIRMED, 'origin_id': original['id'], 'attempt': 1})
-        standalone = confirmed_row(sent_ts=time.time() - 800)
+        standalone = confirmed_row(published_ts=time.time() - 800)
         for row in (original, republish, standalone):
             self.insert(row)
 
@@ -357,7 +360,7 @@ class TestPrune(DatabaseTestCase):
         self.assertIn('2 message(s) selected (3 row(s)):', self.out.getvalue())
 
     def test_deletes_the_selection(self):
-        self.insert(confirmed_row(sent_ts=time.time() - 1000))
+        self.insert(confirmed_row(published_ts=time.time() - 1000))
 
         user.mqtttracker.prune(self.config_dict, self.options('--delete'), out=self.out)
 
@@ -365,7 +368,7 @@ class TestPrune(DatabaseTestCase):
         self.assertIn('Deleted 1 row(s).', self.out.getvalue())
 
     def test_nothing_selected(self):
-        self.insert(confirmed_row(sent_ts=time.time()))
+        self.insert(confirmed_row(published_ts=time.time()))
 
         selected = user.mqtttracker.prune(self.config_dict, self.options('--delete'), out=self.out)
 
@@ -375,7 +378,7 @@ class TestPrune(DatabaseTestCase):
 
     def test_limit_reports_the_remainder(self):
         for index in range(3):
-            self.insert(confirmed_row(sent_ts=time.time() - 1000 + index))
+            self.insert(confirmed_row(published_ts=time.time() - 1000 + index))
 
         selected = user.mqtttracker.prune(
             self.config_dict, self.options('--limit', '2'), out=self.out)
@@ -385,7 +388,7 @@ class TestPrune(DatabaseTestCase):
                       self.out.getvalue())
 
     def test_default_prune_keeps_unresolved_messages(self):
-        self.insert(make_row(sent_ts=time.time() - 1000, status=STATUS.STATUS_FAILED))
+        self.insert(make_row(published_ts=time.time() - 1000, status=STATUS.STATUS_FAILED))
 
         selected = user.mqtttracker.prune(
             self.config_dict, self.options('--delete'), out=self.out)
@@ -394,7 +397,7 @@ class TestPrune(DatabaseTestCase):
         self.assertEqual(len(self.rows()), 1)
 
     def test_failed_status_prunes_an_unresolved_message(self):
-        self.insert(make_row(sent_ts=time.time() - 1000, status=STATUS.STATUS_FAILED))
+        self.insert(make_row(published_ts=time.time() - 1000, status=STATUS.STATUS_FAILED))
 
         selected = user.mqtttracker.prune(
             self.config_dict, self.options('--status', 'failed', '--delete'), out=self.out)
@@ -403,8 +406,8 @@ class TestPrune(DatabaseTestCase):
         self.assertEqual(self.rows(), [])
 
     def test_failed_original_is_deleted_with_its_confirmed_republish(self):
-        original = make_row(sent_ts=time.time() - 1000, status=STATUS.STATUS_FAILED)
-        republish = make_row(sent_ts=time.time() - 900, **{
+        original = make_row(published_ts=time.time() - 1000, status=STATUS.STATUS_FAILED)
+        republish = make_row(published_ts=time.time() - 900, **{
             'status': STATUS.STATUS_CONFIRMED, 'origin_id': original['id'], 'attempt': 1})
         self.insert(original)
         self.insert(republish)
@@ -417,7 +420,7 @@ class TestPrune(DatabaseTestCase):
         self.assertIn('Deleted 2 row(s).', self.out.getvalue())
 
     def test_confirmed_retention(self):
-        old = confirmed_row(sent_ts=time.time() - 1000)
+        old = confirmed_row(published_ts=time.time() - 1000)
         self.insert(old)
 
         default_config = tracker_config(
@@ -435,7 +438,7 @@ class TestPrune(DatabaseTestCase):
         config_dict = tracker_config(self.temp_dir.name, self.database_dict,
                                      confirmed_retention=1000,
                                      topics={'weather/outTemp_F': {'confirmed_retention': 10}})
-        old = confirmed_row(sent_ts=time.time() - 1000)
+        old = confirmed_row(published_ts=time.time() - 1000)
         self.insert(old)
 
         selected = user.mqtttracker.prune(config_dict, self.options(), out=self.out)
@@ -446,7 +449,7 @@ class TestPrune(DatabaseTestCase):
         config_dict = tracker_config(self.temp_dir.name, self.database_dict,
                                      error_retention=1000,
                                      topics={'weather/outTemp_F': {'error_retention': 10}})
-        old = make_row(sent_ts=time.time() - 1000)
+        old = make_row(published_ts=time.time() - 1000)
         self.insert(old)
 
         selected = user.mqtttracker.prune(
@@ -468,13 +471,13 @@ class TestRun(DatabaseTestCase):
         return user.mqtttracker.run(options, out=self.out, err=self.err)
 
     def test_dry_run_exits_zero(self):
-        self.insert(confirmed_row(sent_ts=time.time() - 1000))
+        self.insert(confirmed_row(published_ts=time.time() - 1000))
 
         self.assertEqual(self.run_tool(), 0)
         self.assertEqual(len(self.rows()), 1)
 
     def test_delete_exits_zero(self):
-        self.insert(confirmed_row(sent_ts=time.time() - 1000))
+        self.insert(confirmed_row(published_ts=time.time() - 1000))
 
         self.assertEqual(self.run_tool('--delete'), 0)
         self.assertEqual(self.rows(), [])
@@ -492,7 +495,7 @@ class TestRun(DatabaseTestCase):
     def test_invalid_status_exits_two(self):
         with self.assertRaises(SystemExit):
             with contextlib.redirect_stderr(io.StringIO()):
-                user.mqtttracker.build_parser().parse_args(['--config', self.config_file, 'prune', '--status', 'sent'])
+                user.mqtttracker.build_parser().parse_args(['--config', self.config_file, 'prune', '--status', 'inflight'])
 
     def test_missing_table_exits_two(self):
         self.connection.execute(f"DROP TABLE {TABLE}")

@@ -35,12 +35,12 @@ PREVIEW_LENGTH = 60
 
 # The columns read from the tracker table, in the order they are fetched.
 # weedb's MySQL cursor has no 'description' and no 'rowcount', so the names are fixed here.
-MESSAGE_COLUMNS = ('id', 'mid', 'dateTime', 'sent_ts', 'arrived_ts', 'status', 'unconfirmed_ts',
+MESSAGE_COLUMNS = ('id', 'mid', 'dateTime', 'published_ts', 'arrived_ts', 'status', 'unconfirmed_ts',
                    'origin_id', 'attempt', 'clientid', 'topic', 'qos', 'retain', 'rc',
                    'payload', 'payload_encoding')
 
 # The columns needed to group the table into message chains.
-CHAIN_COLUMNS = ('id', 'status', 'sent_ts', 'origin_id', 'attempt', 'topic')
+CHAIN_COLUMNS = ('id', 'status', 'published_ts', 'origin_id', 'attempt', 'topic')
 
 
 class TrackerConfigError(Exception):
@@ -138,7 +138,7 @@ def fetch_chain_rows(connection, table):
 
 def describe_row(row, include_payload=True):
     """ A one line description of a row for a tool's plan. """
-    line = (f"{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(row['sent_ts']))} "
+    line = (f"{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(row['published_ts']))} "
             f"{row['topic']} qos={row['qos']} retain={row['retain']} "
             f"status={row['status']} id={row['id']}")
     if not include_payload:
@@ -171,7 +171,7 @@ CREATE TABLE IF NOT EXISTS {table} (
     id VARCHAR(32) NOT NULL PRIMARY KEY,
     mid INTEGER NOT NULL,
     dateTime INTEGER,
-    sent_ts DOUBLE NOT NULL,
+    published_ts DOUBLE NOT NULL,
     arrived_ts DOUBLE,
     status VARCHAR(16) NOT NULL,
     unconfirmed_ts DOUBLE,
@@ -191,7 +191,7 @@ CREATE TABLE IF NOT EXISTS {table} (
 _RC_SUCCESS = 0
 
 # The event tags.
-_EVENT_SENT = 'sent'
+_EVENT_PUBLISHED = 'published'
 _EVENT_ARRIVED = 'arrived'
 _EVENT_FINALIZE = 'finalize'
 _EVENT_DISCONNECT = 'disconnect'
@@ -200,7 +200,7 @@ _CONTROL_EVENTS = (_EVENT_FINALIZE, _EVENT_DISCONNECT, _EVENT_REPUBLISH)
 
 # The values of the status column.
 STATUS_FAILED = 'failed'
-STATUS_SENT = 'sent'
+STATUS_INFLIGHT = 'inflight'
 STATUS_CONFIRMED = 'confirmed'
 STATUS_UNCONFIRMED = 'unconfirmed'
 
@@ -225,7 +225,7 @@ def chain_rows(rows):
 
 def chain_anchor(chain):
     """ The original row, or the oldest surviving attempt when the original was pruned. """
-    return min(chain, key=lambda row: (attempt_number(row), row['sent_ts'], row['id']))
+    return min(chain, key=lambda row: (attempt_number(row), row['published_ts'], row['id']))
 
 
 def outcome_row(chain):
@@ -236,7 +236,7 @@ def outcome_row(chain):
         state. """
     confirmed = [row for row in chain if row['status'] == STATUS_CONFIRMED]
     return max(confirmed or chain,
-               key=lambda row: (attempt_number(row), row['sent_ts'], row['id']))
+               key=lambda row: (attempt_number(row), row['published_ts'], row['id']))
 
 
 def chain_outcomes(rows):
@@ -270,21 +270,21 @@ def next_attempt(cursor, table, row_origin_id):
 
 
 # pylint: disable=too-many-arguments,too-many-positional-arguments
-def insert_attempt(connection, table, row, mid, rc, sent_ts, clientid):
+def insert_attempt(connection, table, row, mid, rc, published_ts, clientid):
     """ Insert the row of a republish, returning its id, attempt and status. """
     row_origin_id = origin_id(row)
     status = STATUS_FAILED
     if rc == _RC_SUCCESS:
-        status = STATUS_SENT
+        status = STATUS_INFLIGHT
     row_id = uuid.uuid4().hex
     with weedb.Transaction(connection) as cursor:
         attempt = next_attempt(cursor, table, row_origin_id)
         cursor.execute(
             f"INSERT INTO {table} "
-            "(id, mid, dateTime, sent_ts, arrived_ts, status, unconfirmed_ts, "
+            "(id, mid, dateTime, published_ts, arrived_ts, status, unconfirmed_ts, "
             "origin_id, attempt, clientid, topic, qos, retain, rc, payload, payload_encoding) "
             "VALUES (?, ?, ?, ?, NULL, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (row_id, mid, row['dateTime'], sent_ts, status, row_origin_id, attempt, clientid,
+            (row_id, mid, row['dateTime'], published_ts, status, row_origin_id, attempt, clientid,
              row['topic'], row['qos'], row['retain'], rc, row['payload'], row['payload_encoding']))
     return row_id, attempt, status
 
@@ -299,7 +299,7 @@ def delete_chains(cursor, table, chain_ids):
     cursor.execute(
         f"DELETE FROM {table} WHERE (id IN ({placeholders}) OR origin_id IN ({placeholders})) "
         f"AND status != ?",
-        (*chain_ids, *chain_ids, STATUS_SENT))
+        (*chain_ids, *chain_ids, STATUS_INFLIGHT))
     return cursor.rowcount
 
 
@@ -315,17 +315,17 @@ def _last_success(rows):
         anchor = chain_anchor(chain)
         if anchor['origin_id'] is not None:
             continue
-        last_success[anchor['topic']] = max(last_success.get(anchor['topic'], anchor['sent_ts']),
-                                            anchor['sent_ts'])
+        last_success[anchor['topic']] = max(last_success.get(anchor['topic'], anchor['published_ts']),
+                                            anchor['published_ts'])
     return last_success
 
 
 def _is_after_last_success(row, oldest, last_success):
     """ Whether a message is after its topic's last confirmed publish. """
-    if oldest is not None and row['sent_ts'] < oldest:
+    if oldest is not None and row['published_ts'] < oldest:
         return False
     boundary = last_success.get(row['topic'])
-    return boundary is None or row['sent_ts'] > boundary
+    return boundary is None or row['published_ts'] > boundary
 
 
 def select_after_last_success(rows, since=None, now=None, include_before_last_success=False):
@@ -348,7 +348,7 @@ def select_after_last_success(rows, since=None, now=None, include_before_last_su
         anchor = chain_anchor(chain)
         if _is_after_last_success(anchor, oldest, last_success):
             selected.append(anchor)
-    selected.sort(key=lambda row: (row['sent_ts'], row['id']))
+    selected.sort(key=lambda row: (row['published_ts'], row['id']))
     return selected
 
 
@@ -380,14 +380,14 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
         self.accepting = True
         self.shutting_down = False
         self.dropped = 0
-        # mid -> (row id, sent timestamp) for the messages paho has not confirmed.
+        # mid -> (row id, published timestamp) for the messages paho has not confirmed.
         self.inflight = {}
         self.pending = {}
 
-    def sent(self, mid, rc, topic, payload, qos, retain, date_time):  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    def published(self, mid, rc, topic, payload, qos, retain, date_time):  # pylint: disable=too-many-arguments,too-many-positional-arguments
         """ Queue a message that was handed to paho. """
         payload_text, payload_encoding = self._payload(payload)
-        self._put((_EVENT_SENT, uuid.uuid4().hex, mid, rc, topic, payload_text, payload_encoding,
+        self._put((_EVENT_PUBLISHED, uuid.uuid4().hex, mid, rc, topic, payload_text, payload_encoding,
                    qos, int(retain), date_time, time.time()))
 
     def arrived(self, mid):
@@ -537,8 +537,8 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
         failed = []
         unconfirmed = []
         for event in batch:
-            if event[0] == _EVENT_SENT:
-                self._apply_sent(event, inflight, pending, statements, failed, unconfirmed, now)
+            if event[0] == _EVENT_PUBLISHED:
+                self._apply_published(event, inflight, pending, statements, failed, unconfirmed, now)
             else:
                 self._apply_arrived(event, inflight, pending, statements, now)
 
@@ -559,24 +559,24 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
         return pending
 
     # pylint: disable=too-many-arguments,too-many-positional-arguments
-    def _apply_sent(self, event, inflight, pending, statements, failed, unconfirmed, now):
+    def _apply_published(self, event, inflight, pending, statements, failed, unconfirmed, now):
         """ Add the statements for a publish event. """
         # pylint: disable=too-many-locals
-        _, row_id, mid, rc, topic, payload, payload_encoding, qos, retain, date_time, sent_ts = event
-        status = STATUS_SENT if rc == _RC_SUCCESS else STATUS_FAILED
+        _, row_id, mid, rc, topic, payload, payload_encoding, qos, retain, date_time, published_ts = event
+        status = STATUS_INFLIGHT if rc == _RC_SUCCESS else STATUS_FAILED
         if status == STATUS_FAILED:
             failed.append((row_id, topic, mid, rc))
         statements.append((f"INSERT INTO {self.table} "
-                           "(id, mid, dateTime, sent_ts, arrived_ts, status, unconfirmed_ts, "
+                           "(id, mid, dateTime, published_ts, arrived_ts, status, unconfirmed_ts, "
                            "origin_id, attempt, clientid, topic, qos, retain, rc, payload, payload_encoding) "
                            "VALUES (?, ?, ?, ?, NULL, ?, NULL, NULL, NULL, NULL, ?, ?, ?, ?, ?, ?)",
-                           (row_id, mid, date_time, sent_ts, status, topic, qos, retain, rc, payload,
+                           (row_id, mid, date_time, published_ts, status, topic, qos, retain, rc, payload,
                             payload_encoding)))
-        if status != STATUS_SENT:
+        if status != STATUS_INFLIGHT:
             return
 
         self._unconfirm_reused_mid(inflight, mid, statements, unconfirmed, now)
-        inflight[mid] = (row_id, sent_ts, topic)
+        inflight[mid] = (row_id, published_ts, topic)
         if mid in pending:
             arrived_ts = pending.pop(mid)[0]
             statements.append((f"UPDATE {self.table} SET arrived_ts = ?, status = ? WHERE id = ?",
@@ -592,7 +592,7 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
             return
         row_id, _, topic = previous
         statements.append((f"UPDATE {self.table} SET status = ?, unconfirmed_ts = ? WHERE id = ? AND status = ?",
-                           (STATUS_UNCONFIRMED, now, row_id, STATUS_SENT)))
+                           (STATUS_UNCONFIRMED, now, row_id, STATUS_INFLIGHT)))
         unconfirmed.append((row_id, topic, mid))
 
     def _apply_arrived(self, event, inflight, pending, statements, now):  # pylint: disable=too-many-positional-arguments
@@ -603,7 +603,7 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
             pending[mid] = (arrived_ts, now)
         else:
             statements.append((f"UPDATE {self.table} SET arrived_ts = ?, status = ? WHERE id = ? AND status = ?",
-                               (arrived_ts, STATUS_CONFIRMED, previous[0], STATUS_SENT)))
+                               (arrived_ts, STATUS_CONFIRMED, previous[0], STATUS_INFLIGHT)))
 
     def _apply_finalize(self, connection, unconfirmed_ts):
         """ Mark the rows whose arrival paho never reported as unconfirmed. """
@@ -618,13 +618,13 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
         self._mark_unconfirmed(connection, rows, unconfirmed_ts, "the connection was lost")
 
     def _mark_unconfirmed(self, connection, rows, unconfirmed_ts, reason):
-        """ Mark rows that are still sent as unconfirmed. """
+        """ Mark rows that are still in flight as unconfirmed. """
         marked = 0
         unconfirmed = []
         for start in range(0, len(rows), self.batch_size):
             chunk = rows[start:start + self.batch_size]
             statements = [(f"UPDATE {self.table} SET status = ?, unconfirmed_ts = ? WHERE id = ? AND status = ?",
-                           (STATUS_UNCONFIRMED, unconfirmed_ts, row_id, STATUS_SENT))
+                           (STATUS_UNCONFIRMED, unconfirmed_ts, row_id, STATUS_INFLIGHT))
                           for _, (row_id, _, _) in chunk]
             if not self._write(connection, statements):
                 break
@@ -713,20 +713,20 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
 
     def _finish_attempts(self, connection, inserted):
         """ Track the republished messages that are waiting for an arrival. """
-        for row_id, mid, status, sent_ts, topic in inserted:
-            if status != STATUS_SENT:
+        for row_id, mid, status, published_ts, topic in inserted:
+            if status != STATUS_INFLIGHT:
                 continue
             pending = self.pending.pop(mid, None)
             if pending is None:
-                self.inflight[mid] = (row_id, sent_ts, topic)
+                self.inflight[mid] = (row_id, published_ts, topic)
             else:
                 self._ack_pending(connection, row_id, pending[0])
 
     def _log_republish_summary(self, inserted):
         """ Log the republished messages, with the row ids to inspect. """
-        sent = sum(1 for _, _, status, _, _ in inserted if status == STATUS_SENT)
-        failed = len(inserted) - sent
-        sent_ids = [row_id for row_id, _, status, _, _ in inserted if status == STATUS_SENT]
+        inflight = sum(1 for _, _, status, _, _ in inserted if status == STATUS_INFLIGHT)
+        failed = len(inserted) - inflight
+        sent_ids = [row_id for row_id, _, status, _, _ in inserted if status == STATUS_INFLIGHT]
         rows = ''
         if sent_ids:
             label = 'row' if len(sent_ids) == 1 else 'rows'
@@ -740,23 +740,23 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
         failed = []
         with weedb.Transaction(connection) as cursor:
             attempts = {}
-            for row, mid, rc, sent_ts in published:
+            for row, mid, rc, published_ts in published:
                 row_origin_id = origin_id(row)
                 if row_origin_id not in attempts:
                     attempts[row_origin_id] = next_attempt(cursor, self.table, row_origin_id)
                 else:
                     attempts[row_origin_id] += 1
-                status = STATUS_SENT if rc == _RC_SUCCESS else STATUS_FAILED
+                status = STATUS_INFLIGHT if rc == _RC_SUCCESS else STATUS_FAILED
                 row_id = uuid.uuid4().hex
                 cursor.execute(
                     f"INSERT INTO {self.table} "
-                    "(id, mid, dateTime, sent_ts, arrived_ts, status, unconfirmed_ts, "
+                    "(id, mid, dateTime, published_ts, arrived_ts, status, unconfirmed_ts, "
                     "origin_id, attempt, clientid, topic, qos, retain, rc, payload, payload_encoding) "
                     "VALUES (?, ?, ?, ?, NULL, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    (row_id, mid, row['dateTime'], sent_ts, status, row_origin_id,
+                    (row_id, mid, row['dateTime'], published_ts, status, row_origin_id,
                      attempts[row_origin_id], clientid, row['topic'], row['qos'], row['retain'],
                      rc, row['payload'], row['payload_encoding']))
-                inserted.append((row_id, mid, status, sent_ts, row['topic']))
+                inserted.append((row_id, mid, status, published_ts, row['topic']))
                 if status == STATUS_FAILED:
                     failed.append((row_id, row['topic'], mid, rc))
         return inserted, failed
@@ -775,15 +775,15 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
         try:
             with weedb.Transaction(connection) as cursor:
                 cursor.execute(f"SELECT id, topic, mid FROM {self.table} WHERE status = ?",
-                               (STATUS_SENT,))
+                               (STATUS_INFLIGHT,))
                 stale = cursor.fetchall()
                 cursor.execute(f"UPDATE {self.table} SET status = ?, unconfirmed_ts = ? WHERE status = ?",
-                               (STATUS_UNCONFIRMED, time.time(), STATUS_SENT))
+                               (STATUS_UNCONFIRMED, time.time(), STATUS_INFLIGHT))
         except Exception as exception:  # pylint: disable=broad-exception-caught
             self._log('ERROR', f"Unable to mark the message tracking rows of a previous run as unconfirmed: {exception}.")
             return
         if stale:
-            self._log_unconfirmed_rows(stale, "it was left sent by a previous run")
+            self._log_unconfirmed_rows(stale, "it was left in flight by a previous run")
 
     def _write(self, connection, statements):
         """ Execute the batch, returning whether it was written. """
@@ -813,12 +813,12 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
 
     def _is_old_enough(self, outcome, now):
         """ Whether a chain's outcome is older than the retention for its status. """
-        if outcome['status'] == STATUS_SENT:
+        if outcome['status'] == STATUS_INFLIGHT:
             return False
         retention = chain_retention(
             outcome, self.confirmed_retention, self.topic_confirmed_retention,
             self.error_retention, self.topic_error_retention)
-        return retention > 0 and outcome['sent_ts'] < now - retention
+        return retention > 0 and outcome['published_ts'] < now - retention
 
     def _delete_chains(self, connection, chain_ids):
         """ Delete the selected message chains, in batches. """
@@ -1032,7 +1032,7 @@ class MQTTMessageTracker(user.mqttpublish.MQTTPlugin):  # pylint: disable=too-ma
         """ Record the message that was handed to paho. """
         if topic not in self.tracked_topics:
             return
-        self.tracker.sent(mid, rc, topic, payload, qos, retain, date_time)
+        self.tracker.published(mid, rc, topic, payload, qos, retain, date_time)
 
     def on_mqtt_publish(self, _client, _userdata, mid, _properties):
         """ Record that paho reported the message as published. """

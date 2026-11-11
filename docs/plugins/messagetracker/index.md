@@ -68,11 +68,11 @@ See [Internals](internals/index.md#what-is-tracked) for the row fields and paylo
 | status | meaning |
 | --- | --- |
 | `failed` | paho returned a non-success `rc`; the message was not published. |
-| `sent` | the message was handed to paho and its arrival has not been reported yet. |
+| `inflight` | the message was handed to paho and its arrival has not been reported yet. |
 | `confirmed` | the broker acknowledged the publish; `arrived_ts` is set. |
 | `unconfirmed` | no arrival was reported before the tracker stopped waiting; `unconfirmed_ts` is set. |
 
-`sent` is transient: it moves to `confirmed` when paho reports the publish, or to `failed` when paho
+`inflight` is transient: it moves to `confirmed` when paho reports the publish, or to `failed` when paho
 refuses it. `unconfirmed` is not proof that the message was not delivered; it means the tracker
 could not tell.
 

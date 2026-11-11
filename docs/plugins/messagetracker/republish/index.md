@@ -82,7 +82,7 @@ row as a candidate, which is useful when the backlog is more important than the 
 Only consider messages published within the last `since` seconds.
 Default is `0`, which applies no age limit.
 
-The age is measured from the original message's `sent_ts`, not from a republish attempt. Use this
+The age is measured from the original message's `published_ts`, not from a republish attempt. Use this
 to avoid republishing a very old value after a long outage.
 
 ### limit
@@ -163,7 +163,7 @@ A message published directly by a plugin, or to a topic that is not tracked, is 
 The exit code is `0` on success, `1` when the connection, a publish or an ack failed, and `2` for
 a config or database error. A connect failure stops the run before anything is published.
 
-A tool that is killed after publishing leaves a `sent` row, which the tracker marks `unconfirmed`
+A tool that is killed after publishing leaves an `inflight` row, which the tracker marks `unconfirmed`
 the next time it starts. See [Internals](../internals/index.md#republish-rows) for the write
 sequence.
 
@@ -186,7 +186,7 @@ A comma-separated list of message statuses to republish.
 Default is `failed,unconfirmed`.
 
 Use `--status unconfirmed` to republish only the ambiguous messages, or `--status failed` to
-republish only failed publishes. `sent` may still be in flight and `confirmed` does not need to be
+republish only failed publishes. `inflight` may still be in flight and `confirmed` does not need to be
 republished, so both are refused.
 
 ```shell

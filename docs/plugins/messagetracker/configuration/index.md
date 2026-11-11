@@ -56,7 +56,7 @@ The clock starts at the latest attempt. An unresolved message is one a republish
 so pruning it removes that opportunity. The default keeps them until they are resolved, which lets
 the table grow during an outage; set a finite value to bound it.
 
-A message whose outcome is still `sent` is not pruned by either option; the startup sweep and a
+A message whose outcome is still `inflight` is not pruned by either option; the startup sweep and a
 disconnect mark it `unconfirmed`, which `error_retention` then bounds.
 See [Pruning](../prune/index.md) for how the retentions work.
 

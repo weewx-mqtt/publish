@@ -55,16 +55,16 @@ class TestRepublish(unittest.TestCase):
             'max_delay': 4,
         }
 
-    def insert(self, payload, sent_ts, status=user.mqttmessagetracker.STATUS_UNCONFIRMED):
+    def insert(self, payload, published_ts, status=user.mqttmessagetracker.STATUS_UNCONFIRMED):
         """ Insert a row the way the service's tracker does. """
         row_id = random_string()
         with weedb.Transaction(self.connection) as cursor:
             cursor.execute(
                 f"INSERT INTO {TABLE} "
-                "(id, mid, dateTime, sent_ts, arrived_ts, status, unconfirmed_ts, "
+                "(id, mid, dateTime, published_ts, arrived_ts, status, unconfirmed_ts, "
                 "origin_id, attempt, clientid, topic, qos, retain, rc, payload, payload_encoding) "
                 "VALUES (?, ?, ?, ?, NULL, ?, NULL, NULL, NULL, NULL, ?, 1, 0, 0, ?, 'text')",
-                (row_id, 1, 1700000000, sent_ts, status, TOPIC, payload))
+                (row_id, 1, 1700000000, published_ts, status, TOPIC, payload))
         return row_id
 
     def rows(self):

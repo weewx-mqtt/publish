@@ -33,7 +33,7 @@ def make_row(**overrides):
         'id': helpers.random_string(),
         'mid': 1,
         'dateTime': 1700000000,
-        'sent_ts': time.time(),
+        'published_ts': time.time(),
         'status': user.mqttmessagetracker.STATUS_UNCONFIRMED,
         'topic': 'weather/outTemp_F',
         'qos': 0,
@@ -98,7 +98,7 @@ class DatabaseTestCase(unittest.TestCase):
         cursor = self.connection.cursor()
         try:
             cursor.execute(f"SELECT {', '.join(user.mqtttracker.MESSAGE_COLUMNS)} FROM {TABLE} "
-                           "ORDER BY sent_ts, id")
+                           "ORDER BY published_ts, id")
             return [dict(zip(user.mqtttracker.MESSAGE_COLUMNS, row)) for row in cursor]
         finally:
             cursor.close()
@@ -108,16 +108,16 @@ class DatabaseTestCase(unittest.TestCase):
         with weedb.Transaction(self.connection) as cursor:
             cursor.execute(
                 f"INSERT INTO {TABLE} "
-                "(id, mid, dateTime, sent_ts, arrived_ts, status, unconfirmed_ts, "
+                "(id, mid, dateTime, published_ts, arrived_ts, status, unconfirmed_ts, "
                 "origin_id, attempt, clientid, topic, qos, retain, rc, payload, payload_encoding) "
                 "VALUES (?, ?, ?, ?, NULL, ?, NULL, NULL, NULL, NULL, ?, ?, ?, 0, ?, ?)",
-                (row['id'], mid, row['dateTime'], row['sent_ts'], row['status'], row['topic'],
+                (row['id'], mid, row['dateTime'], row['published_ts'], row['status'], row['topic'],
                  row['qos'], row['retain'], row['payload'], row['payload_encoding']))
         return row['id']
 
-    def insert(self, row, mid=1, rc=0, sent_ts=None, clientid='republish'):
+    def insert(self, row, mid=1, rc=0, published_ts=None, clientid='republish'):
         return user.mqtttracker.insert_attempt(
-            self.connection, TABLE, row, mid, rc, time.time() if sent_ts is None else sent_ts, clientid)
+            self.connection, TABLE, row, mid, rc, time.time() if published_ts is None else published_ts, clientid)
 
     def assert_row(self, row_id, **expected):
         row = {candidate['id']: candidate for candidate in self.rows()}[row_id]
@@ -205,8 +205,8 @@ class TestRepublishConfig(unittest.TestCase):
 
 class TestSelectMessages(unittest.TestCase):
     def test_defaults_to_error_statuses(self):
-        rows = [make_row(sent_ts=1000.0),
-                make_row(sent_ts=1000.0, status=user.mqttmessagetracker.STATUS_FAILED)]
+        rows = [make_row(published_ts=1000.0),
+                make_row(published_ts=1000.0, status=user.mqttmessagetracker.STATUS_FAILED)]
 
         selected = user.mqtttracker.select_messages(rows, now=2000)
 
@@ -215,8 +215,8 @@ class TestSelectMessages(unittest.TestCase):
                                  user.mqttmessagetracker.STATUS_FAILED]))
 
     def test_failed_status(self):
-        rows = [make_row(sent_ts=1000.0),
-                make_row(sent_ts=1000.0, status=user.mqttmessagetracker.STATUS_FAILED)]
+        rows = [make_row(published_ts=1000.0),
+                make_row(published_ts=1000.0, status=user.mqttmessagetracker.STATUS_FAILED)]
 
         selected = user.mqtttracker.select_messages(
             rows, statuses=[user.mqttmessagetracker.STATUS_FAILED], now=2000)
@@ -225,55 +225,55 @@ class TestSelectMessages(unittest.TestCase):
                          [user.mqttmessagetracker.STATUS_FAILED])
 
     def test_since(self):
-        old = make_row(sent_ts=100.0)
-        new = make_row(sent_ts=1500.0)
+        old = make_row(published_ts=100.0)
+        new = make_row(published_ts=1500.0)
 
         selected = user.mqtttracker.select_messages([old, new], since=1000, now=2000)
 
         self.assertEqual([row['id'] for row in selected], [new['id']])
 
     def test_since_zero_selects_everything(self):
-        rows = [make_row(sent_ts=100.0), make_row(sent_ts=1500.0, topic='weather/outHumidity')]
+        rows = [make_row(published_ts=100.0), make_row(published_ts=1500.0, topic='weather/outHumidity')]
 
         selected = user.mqtttracker.select_messages(rows, since=0, now=2000)
 
         self.assertEqual(len(selected), 2)
 
     def test_default_selects_every_age(self):
-        rows = [make_row(sent_ts=100.0), make_row(sent_ts=1500.0, topic='weather/outHumidity')]
+        rows = [make_row(published_ts=100.0), make_row(published_ts=1500.0, topic='weather/outHumidity')]
 
         selected = user.mqtttracker.select_messages(rows, now=2000)
 
         self.assertEqual(len(selected), 2)
 
     def test_topic_glob(self):
-        out_temp = make_row(topic='weather/outTemp_F', sent_ts=1000.0)
-        out_humidity = make_row(topic='weather/outHumidity', sent_ts=1000.0)
+        out_temp = make_row(topic='weather/outTemp_F', published_ts=1000.0)
+        out_humidity = make_row(topic='weather/outHumidity', published_ts=1000.0)
 
         selected = user.mqtttracker.select_messages([out_temp, out_humidity], topic='weather/outTemp*', now=2000)
 
         self.assertEqual([row['id'] for row in selected], [out_temp['id']])
 
     def test_newest_per_topic(self):
-        older = make_row(sent_ts=1000.0)
-        newer = make_row(sent_ts=1500.0)
-        other_topic = make_row(sent_ts=900.0, topic='weather/outHumidity')
+        older = make_row(published_ts=1000.0)
+        newer = make_row(published_ts=1500.0)
+        other_topic = make_row(published_ts=900.0, topic='weather/outHumidity')
 
         selected = user.mqtttracker.select_messages([older, newer, other_topic], now=2000)
 
         self.assertEqual([row['id'] for row in selected], [other_topic['id'], newer['id']])
 
     def test_all_disables_newest_per_topic(self):
-        older = make_row(sent_ts=1000.0)
-        newer = make_row(sent_ts=1500.0)
+        older = make_row(published_ts=1000.0)
+        newer = make_row(published_ts=1500.0)
 
         selected = user.mqtttracker.select_messages([older, newer], newest_per_topic=False, now=2000)
 
         self.assertEqual([row['id'] for row in selected], [older['id'], newer['id']])
 
     def test_superseded_reports_the_rows_a_newer_publish_hides(self):
-        unconfirmed = make_row(sent_ts=1000.0)
-        confirmed = make_row(sent_ts=1500.0, status=user.mqttmessagetracker.STATUS_CONFIRMED)
+        unconfirmed = make_row(published_ts=1000.0)
+        confirmed = make_row(published_ts=1500.0, status=user.mqttmessagetracker.STATUS_CONFIRMED)
 
         selected = user.mqtttracker.select_messages([unconfirmed, confirmed], now=2000)
         stale = user.mqtttracker.superseded([unconfirmed, confirmed], now=2000)
@@ -282,22 +282,22 @@ class TestSelectMessages(unittest.TestCase):
         self.assertEqual([row['id'] for row in stale], [unconfirmed['id']])
 
     def test_superseded_ignores_a_failed_row(self):
-        unconfirmed = make_row(sent_ts=1000.0)
-        failed = make_row(sent_ts=1500.0, status=user.mqttmessagetracker.STATUS_FAILED)
+        unconfirmed = make_row(published_ts=1000.0)
+        failed = make_row(published_ts=1500.0, status=user.mqttmessagetracker.STATUS_FAILED)
 
         self.assertEqual(user.mqtttracker.superseded([unconfirmed, failed], now=2000), [])
 
     def test_a_failed_row_does_not_hide_an_older_unconfirmed_row(self):
-        unconfirmed = make_row(sent_ts=1000.0)
-        failed = make_row(sent_ts=1500.0, status=user.mqttmessagetracker.STATUS_FAILED)
+        unconfirmed = make_row(published_ts=1000.0)
+        failed = make_row(published_ts=1500.0, status=user.mqttmessagetracker.STATUS_FAILED)
 
         selected = user.mqtttracker.select_messages([unconfirmed, failed], now=2000)
 
         self.assertEqual([row['id'] for row in selected], [unconfirmed['id'], failed['id']])
 
     def test_confirmed_republish_excludes_the_origin(self):
-        origin = make_row(sent_ts=1000.0)
-        confirmed_republish = make_row(sent_ts=1000.0, origin_id=origin['id'], attempt=1,
+        origin = make_row(published_ts=1000.0)
+        confirmed_republish = make_row(published_ts=1000.0, origin_id=origin['id'], attempt=1,
                                        status=user.mqttmessagetracker.STATUS_CONFIRMED)
 
         selected = user.mqtttracker.select_messages([origin, confirmed_republish], now=2000)
@@ -305,8 +305,8 @@ class TestSelectMessages(unittest.TestCase):
         self.assertEqual(selected, [])
 
     def test_force_includes_the_origin(self):
-        origin = make_row(sent_ts=1000.0)
-        confirmed_republish = make_row(sent_ts=1000.0, origin_id=origin['id'], attempt=1,
+        origin = make_row(published_ts=1000.0)
+        confirmed_republish = make_row(published_ts=1000.0, origin_id=origin['id'], attempt=1,
                                        status=user.mqttmessagetracker.STATUS_CONFIRMED)
 
         selected = user.mqtttracker.select_messages([origin, confirmed_republish], force=True, now=2000)
@@ -314,8 +314,8 @@ class TestSelectMessages(unittest.TestCase):
         self.assertEqual([row['id'] for row in selected], [origin['id']])
 
     def test_failed_republish_does_not_exclude_the_origin(self):
-        origin = make_row(sent_ts=1000.0)
-        failed_republish = make_row(sent_ts=1000.0, origin_id=origin['id'], attempt=1,
+        origin = make_row(published_ts=1000.0)
+        failed_republish = make_row(published_ts=1000.0, origin_id=origin['id'], attempt=1,
                                     status=user.mqttmessagetracker.STATUS_FAILED)
 
         selected = user.mqtttracker.select_messages([origin, failed_republish], now=2000)
@@ -323,10 +323,10 @@ class TestSelectMessages(unittest.TestCase):
         self.assertEqual([row['id'] for row in selected], [origin['id']])
 
     def test_one_message_per_chain(self):
-        origin = make_row(sent_ts=1000.0)
-        first = make_row(sent_ts=1100.0, origin_id=origin['id'], attempt=1,
+        origin = make_row(published_ts=1000.0)
+        first = make_row(published_ts=1100.0, origin_id=origin['id'], attempt=1,
                          status=user.mqttmessagetracker.STATUS_FAILED)
-        second = make_row(sent_ts=1200.0, origin_id=origin['id'], attempt=2,
+        second = make_row(published_ts=1200.0, origin_id=origin['id'], attempt=2,
                           status=user.mqttmessagetracker.STATUS_FAILED)
 
         selected = user.mqtttracker.select_messages([origin, first, second], now=2000)
@@ -334,17 +334,17 @@ class TestSelectMessages(unittest.TestCase):
         self.assertEqual([row['id'] for row in selected], [origin['id']])
 
     def test_a_sent_republish_keeps_the_message_out_of_the_queue(self):
-        origin = make_row(sent_ts=1000.0)
-        sent_republish = make_row(sent_ts=1100.0, origin_id=origin['id'], attempt=1,
-                                  status=user.mqttmessagetracker.STATUS_SENT)
+        origin = make_row(published_ts=1000.0)
+        sent_republish = make_row(published_ts=1100.0, origin_id=origin['id'], attempt=1,
+                                  status=user.mqttmessagetracker.STATUS_INFLIGHT)
 
         selected = user.mqtttracker.select_messages([origin, sent_republish], now=2000)
 
         self.assertEqual(selected, [])
 
     def test_since_uses_the_last_attempt(self):
-        origin = make_row(sent_ts=100.0)
-        failed_republish = make_row(sent_ts=1500.0, origin_id=origin['id'], attempt=1,
+        origin = make_row(published_ts=100.0)
+        failed_republish = make_row(published_ts=1500.0, origin_id=origin['id'], attempt=1,
                                     status=user.mqttmessagetracker.STATUS_FAILED)
 
         selected = user.mqtttracker.select_messages([origin, failed_republish], since=1000, now=2000)
@@ -352,14 +352,14 @@ class TestSelectMessages(unittest.TestCase):
         self.assertEqual([row['id'] for row in selected], [origin['id']])
 
     def test_limit_keeps_the_newest_and_orders_oldest_first(self):
-        rows = [make_row(sent_ts=float(index), topic=f'weather/{index}') for index in range(1, 6)]
+        rows = [make_row(published_ts=float(index), topic=f'weather/{index}') for index in range(1, 6)]
 
         selected = user.mqtttracker.select_messages(rows, limit=2, now=2000)
 
-        self.assertEqual([row['sent_ts'] for row in selected], [4.0, 5.0])
+        self.assertEqual([row['published_ts'] for row in selected], [4.0, 5.0])
 
     def test_zero_limit_selects_everything(self):
-        rows = [make_row(sent_ts=float(index), topic=f'weather/{index}') for index in range(1, 4)]
+        rows = [make_row(published_ts=float(index), topic=f'weather/{index}') for index in range(1, 4)]
 
         selected = user.mqtttracker.select_messages(rows, limit=0, now=2000)
 
@@ -386,12 +386,12 @@ class TestInsertAttempt(DatabaseTestCase):
 
         row_id, attempt, status = self.insert(row, mid=7)
 
-        self.assertEqual(status, user.mqttmessagetracker.STATUS_SENT)
+        self.assertEqual(status, user.mqttmessagetracker.STATUS_INFLIGHT)
         self.assertEqual(attempt, 1)
         inserted = self.assert_row(
             row_id,
             mid=7,
-            status=user.mqttmessagetracker.STATUS_SENT,
+            status=user.mqttmessagetracker.STATUS_INFLIGHT,
             origin_id=row['id'],
             attempt=1,
             clientid='republish',
@@ -539,8 +539,8 @@ class TestRepublish(DatabaseTestCase):
 
     def test_a_stale_row_is_reported(self):
         # An unconfirmed message that a newer publish on the same topic made stale.
-        self.insert_original(make_row(sent_ts=time.time() - 86400, payload='stale'))
-        self.insert_original(make_row(sent_ts=time.time(), payload='newer',
+        self.insert_original(make_row(published_ts=time.time() - 86400, payload='stale'))
+        self.insert_original(make_row(published_ts=time.time(), payload='newer',
                                       status=user.mqttmessagetracker.STATUS_CONFIRMED))
 
         selected, _ = user.mqtttracker.republish(
@@ -550,8 +550,8 @@ class TestRepublish(DatabaseTestCase):
         self.assertIn('use --all to republish them', self.out.getvalue())
 
     def test_all_republishes_a_stale_row(self):
-        self.insert_original(make_row(sent_ts=time.time() - 86400, payload='stale'))
-        self.insert_original(make_row(sent_ts=time.time(), payload='newer',
+        self.insert_original(make_row(published_ts=time.time() - 86400, payload='stale'))
+        self.insert_original(make_row(published_ts=time.time(), payload='newer',
                                       status=user.mqttmessagetracker.STATUS_CONFIRMED))
 
         selected, _ = user.mqtttracker.republish(

@@ -83,7 +83,7 @@ decode_payload = user.mqttmessagetracker.decode_payload
 next_attempt = user.mqttmessagetracker.next_attempt
 insert_attempt = user.mqttmessagetracker.insert_attempt
 
-# A 'sent' row may still be in flight, and a 'confirmed' row needs no republish.
+# An 'inflight' row may still be in flight, and a 'confirmed' row needs no republish.
 REPUBLISH_STATUSES = (user.mqttmessagetracker.STATUS_FAILED,
                       user.mqttmessagetracker.STATUS_UNCONFIRMED)
 # A prune can also remove the confirmed history, but only when asked to.
@@ -92,11 +92,11 @@ PRUNE_STATUSES = REPUBLISH_STATUSES + (user.mqttmessagetracker.STATUS_CONFIRMED,
 # The status command can show any row; the default is every row that is not confirmed.
 SUMMARY_STATUSES = (user.mqttmessagetracker.STATUS_FAILED,
                     user.mqttmessagetracker.STATUS_UNCONFIRMED,
-                    user.mqttmessagetracker.STATUS_SENT,
+                    user.mqttmessagetracker.STATUS_INFLIGHT,
                     user.mqttmessagetracker.STATUS_CONFIRMED)
 DEFAULT_SUMMARY_STATUSES = (user.mqttmessagetracker.STATUS_FAILED,
                             user.mqttmessagetracker.STATUS_UNCONFIRMED,
-                            user.mqttmessagetracker.STATUS_SENT)
+                            user.mqttmessagetracker.STATUS_INFLIGHT)
 
 # Republishing works on the messages that are still unresolved.
 DEFAULT_STATUSES = REPUBLISH_STATUSES
@@ -183,7 +183,7 @@ def _eligible(chain, outcome, statuses, force):
     """ Whether a chain is in a state a republish can still fix.
 
         'force' also accepts a delivered chain, so a message with a confirmed attempt can be
-        sent again on request. """
+        published again on request. """
     if outcome['status'] in statuses:
         return True
     return force and any(row['status'] in statuses for row in chain)
@@ -194,12 +194,12 @@ def _newest_per_topic(rows):
     newest = {}
     for row in rows:
         if _may_be_on_the_broker(row):
-            newest[row['topic']] = max(newest.get(row['topic'], row['sent_ts']), row['sent_ts'])
+            newest[row['topic']] = max(newest.get(row['topic'], row['published_ts']), row['published_ts'])
     return newest
 
 
 def _oldest(since, now):
-    """ The oldest sent_ts to consider, None when every row is considered. """
+    """ The oldest published_ts to consider, None when every row is considered. """
     if since is None or since <= 0:
         return None
     return now - since
@@ -207,7 +207,7 @@ def _oldest(since, now):
 
 def _sort_key(row):
     """ The publish order of the selected rows. """
-    return row['sent_ts'], row['id']
+    return row['published_ts'], row['id']
 
 
 # pylint: disable=too-many-arguments,too-many-positional-arguments
@@ -220,7 +220,7 @@ def _candidates(rows, statuses, since, topic, force, now):
         outcome = user.mqttmessagetracker.outcome_row(chain)
         if not _eligible(chain, outcome, statuses, force):
             continue
-        if oldest is not None and outcome['sent_ts'] < oldest:
+        if oldest is not None and outcome['published_ts'] < oldest:
             continue
         if topic and not fnmatch.fnmatchcase(outcome['topic'], topic):
             continue
@@ -230,7 +230,7 @@ def _candidates(rows, statuses, since, topic, force, now):
 
 def _is_stale(row, newest):
     """ Whether a newer message was published on the row's topic. """
-    return row['sent_ts'] < newest.get(row['topic'], row['sent_ts'])
+    return row['published_ts'] < newest.get(row['topic'], row['published_ts'])
 
 
 def _select(candidates, newest):
@@ -449,13 +449,13 @@ def _is_old_enough(row, retention, now):
     """ Whether the row is older than its retention. A retention of 0 keeps it forever. """
     if retention <= 0:
         return False
-    return row['sent_ts'] < now - retention
+    return row['published_ts'] < now - retention
 
 
 def _chain_row(chain_id, chain, outcome):
     """ The row a prune plan shows for a message: the chain id, its outcome and the payload. """
     row = dict(user.mqttmessagetracker.chain_anchor(chain))
-    row.update(id=chain_id, status=outcome['status'], sent_ts=outcome['sent_ts'],
+    row.update(id=chain_id, status=outcome['status'], published_ts=outcome['published_ts'],
                row_count=len(chain))
     return row
 
@@ -532,7 +532,7 @@ def select_chains(rows, statuses=None, topic_retention=None, default_retention=N
                 _old_enough(outcome, older_than, topic_retention, default_retention,
                             confirmed_topic_retention, confirmed_default_retention, now)]
 
-    selected.sort(key=lambda row: (row['sent_ts'], row['id']))
+    selected.sort(key=lambda row: (row['published_ts'], row['id']))
     return _apply_limit(selected, limit)
 
 
@@ -562,7 +562,7 @@ def delete_chains(connection, table, rows):
     """ Delete the selected message chains.
 
         A chain is the original row and its republish attempts. A chain whose outcome changed after it
-        was selected is left alone, and a row still in flight ('sent') is left for the startup
+        was selected is left alone, and a row still in flight ('inflight') is left for the startup
         sweep. """
     deleted = 0
     for start in range(0, len(rows), _PRUNE_BATCH_SIZE):
@@ -651,16 +651,16 @@ def prune(config_dict, options, out=None):
 
 # The columns the status summary needs; the republish counts are computed per chain.
 _STATUS_ROWS_SQL = """
-SELECT id, topic, status, sent_ts, origin_id, attempt
+SELECT id, topic, status, published_ts, origin_id, attempt
 FROM {table}
 """
-_STATUS_COLUMNS = ('id', 'topic', 'status', 'sent_ts', 'origin_id', 'attempt')
+_STATUS_COLUMNS = ('id', 'topic', 'status', 'published_ts', 'origin_id', 'attempt')
 
 _STATUS_MESSAGE_SQL = """
 SELECT {columns}
 FROM {table}
 WHERE id = ? OR origin_id = ?
-ORDER BY sent_ts
+ORDER BY published_ts
 """
 
 
@@ -688,7 +688,7 @@ def _status_chains(rows):
         attempts = sum(1 for row in chain if row['attempt'] is not None)
         confirmed = sum(1 for row in chain if row['attempt'] is not None and
                         row['status'] == user.mqttmessagetracker.STATUS_CONFIRMED)
-        yield (anchor['id'], anchor['topic'], anchor['status'], anchor['sent_ts'],
+        yield (anchor['id'], anchor['topic'], anchor['status'], anchor['published_ts'],
                attempts, confirmed, outcome['status'])
 
 
@@ -717,8 +717,8 @@ def status_message(connection, table, message_id):
     return [dict(zip(MESSAGE_COLUMNS, row)) for row in rows]
 
 
-def _sent_at(timestamp):
-    """ A sent_ts as a readable local time. """
+def _published_at(timestamp):
+    """ A published_ts as a readable local time. """
     return time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(timestamp))
 
 
@@ -744,8 +744,8 @@ def print_status_summary(rows, out, statuses=DEFAULT_SUMMARY_STATUSES):
     print(f"{len(rows)} {label}:", file=out)
     print(f"  {'ID':<32} {'TOPIC':<30} {'ORIGINAL STATUS':<15} {'ORIGINALLY PUBLISHED':<20}  "
           f"{'ATTEMPTS':<8} {'CONFIRMED':<9}  CURRENT STATUS", file=out)
-    for row_id, topic, status, sent_ts, attempts, confirmed_attempts, current_status in rows:
-        print(f"  {row_id:<32} {topic[:30]:<30} {status:<15} {_sent_at(sent_ts):<20} "
+    for row_id, topic, status, published_ts, attempts, confirmed_attempts, current_status in rows:
+        print(f"  {row_id:<32} {topic[:30]:<30} {status:<15} {_published_at(published_ts):<20} "
               f"{attempts:<8} {confirmed_attempts:<9}  {current_status}", file=out)
 
 

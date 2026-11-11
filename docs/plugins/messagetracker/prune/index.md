@@ -19,7 +19,7 @@ the tracker checks. You can also delete messages yourself with `mqtttracker prun
 - a message whose latest attempt is `failed` or `unconfirmed` is **unresolved**, and is kept for
   `error_retention`.
 
-A message is deleted as one whole chain: the original row and every republish attempt. A `sent`
+A message is deleted as one whole chain: the original row and every republish attempt. A `inflight`
 message is still in flight and neither option prunes it; the startup sweep and a disconnect mark
 it `unconfirmed`.
 
@@ -85,7 +85,7 @@ check after its outcome becomes old enough, which can be up to one interval late
 `prune_interval = 0`, nothing is deleted automatically until you run the tool.
 
 The startup sweep is separate from pruning. It runs when the tracker starts and marks leftover
-`sent` rows as `unconfirmed`; it does not delete anything.
+`inflight` rows as `unconfirmed`; it does not delete anything.
 
 ## Pruning with mqtttracker prune
 
@@ -134,7 +134,7 @@ Deleting an unresolved message discards the only record that its delivery outcom
 Deleting a delivered message discards the record that it was delivered, but nothing that could be
 republished.
 
-A message whose outcome is still `sent` is in flight: the tracker marks it `unconfirmed` when it
+A message whose outcome is still `inflight` is in flight: the tracker marks it `unconfirmed` when it
 restarts, so the tool does not touch it.
 See [Internals](../internals/index.md#maintenance-sql) for the equivalent SQL.
 
@@ -156,7 +156,7 @@ Default is `confirmed`.
 
 A message is delivered when any attempt is `confirmed`, so `--status failed` does not select a
 message that a republish later delivered. Use `--status failed,unconfirmed` to prune unresolved
-messages. `sent` is refused because it may still be in flight (restart WeeWX to mark it
+messages. `inflight` is refused because it may still be in flight (restart WeeWX to mark it
 `unconfirmed`).
 
 ```shell

@@ -10,7 +10,7 @@ nav_order: 4
 recorded for it. The tracker stores a chain of rows for each message: the original publish, then
 one row per republish attempt. The message's status is the status of its outcome row — the latest
 confirmed attempt if there is one, otherwise the latest attempt. By default it shows the
-unresolved messages: those whose status is `failed`, `unconfirmed`, or `sent`. `--status` chooses
+unresolved messages: those whose status is `failed`, `unconfirmed`, or `inflight`. `--status` chooses
 the statuses to show. It reads the tracker database directly, so it does not need MQTTPublish to
 be running.
 
@@ -30,7 +30,7 @@ python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf status
 Show the messages still in flight:
 
 ```shell
-python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf status --status sent
+python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf status --status inflight
 ```
 
 Show one message chain:
@@ -65,28 +65,28 @@ The default summary lists each message with:
 | --- | --- |
 | `ID` | the anchor row id; `--message` also accepts a republish attempt id. |
 | `TOPIC` | the topic the message was published on. |
-| `ORIGINAL STATUS` | the anchor row's status: `failed`, `unconfirmed`, `sent`, or `confirmed`. |
+| `ORIGINAL STATUS` | the anchor row's status: `failed`, `unconfirmed`, `inflight`, or `confirmed`. |
 | `ORIGINALLY PUBLISHED` | when the anchor was handed to paho. |
 | `ATTEMPTS` | the number of republish attempts in the chain, whatever their status. |
 | `CONFIRMED` | how many of those attempts the broker confirmed. |
-| `CURRENT STATUS` | the outcome: `confirmed`, `failed`, `unconfirmed`, or `sent`. |
+| `CURRENT STATUS` | the outcome: `confirmed`, `failed`, `unconfirmed`, or `inflight`. |
 
 The outcomes mean:
 
 - `confirmed`: delivered — the broker accepted at least one attempt;
 - `failed` or `unconfirmed`: the latest attempt failed, or its outcome is unknown;
-- `sent`: an attempt is in flight.
+- `inflight`: an attempt is in flight.
 
 ## Options
 
 ### --status STATUS
 
 The statuses to show, comma separated.
-Default is `failed,unconfirmed,sent`. Choose from `failed`, `unconfirmed`, `sent`, and `confirmed`.
+Default is `failed,unconfirmed,inflight`. Choose from `failed`, `unconfirmed`, `inflight`, and `confirmed`.
 This filters the message's current status, so a delivered message does not appear under
 `--status failed` just because its original row failed.
 
-`sent` messages are in flight: paho accepted the publish, but no acknowledgement has arrived yet.
+`inflight` messages are in flight: paho accepted the publish, but no acknowledgement has arrived yet.
 They become `confirmed` on acknowledgement, or `unconfirmed` on a disconnect or the startup sweep.
 `confirmed` messages are success history and can be numerous; `--status confirmed` shows them.
 
@@ -117,10 +117,10 @@ For one message, starting from the id in the log:
 
 ```sql
 -- The original row, followed by every republish attempt.
-SELECT id, attempt, status, sent_ts, arrived_ts, rc
+SELECT id, attempt, status, published_ts, arrived_ts, rc
 FROM mqtt_message_tracker
 WHERE id = '3f2a9c...' OR origin_id = '3f2a9c...'
-ORDER BY sent_ts;
+ORDER BY published_ts;
 ```
 
 How to read the result:
@@ -131,37 +131,37 @@ How to read the result:
 - a republish row still `failed` or `unconfirmed`: that attempt did not confirm, and another
   republish is still possible.
 
-The republish row's own `sent_ts` and `arrived_ts` show when it was sent and when the broker
-confirmed it, which is later than the original's `sent_ts`.
+The republish row's own `published_ts` and `arrived_ts` show when it was published and when the broker
+confirmed it, which is later than the original's `published_ts`.
 
 For every message with no confirmed attempt (the tool's default):
 
 ```sql
--- Originals with no confirmed attempt, whose own status is failed, unconfirmed, or sent.
-SELECT o.id, o.topic, o.status, o.sent_ts
+-- Originals with no confirmed attempt, whose own status is failed, unconfirmed, or inflight.
+SELECT o.id, o.topic, o.status, o.published_ts
 FROM mqtt_message_tracker AS o
-WHERE o.status IN ('failed', 'unconfirmed', 'sent') AND o.origin_id IS NULL
+WHERE o.status IN ('failed', 'unconfirmed', 'inflight') AND o.origin_id IS NULL
   AND NOT EXISTS (
       SELECT 1 FROM mqtt_message_tracker AS r
       WHERE r.origin_id = o.id AND r.status = 'confirmed')
-ORDER BY o.sent_ts;
+ORDER BY o.published_ts;
 ```
 
 A row appears here when it was never republished, or when its republish attempts exist but none
-is `confirmed` yet (an attempt that is still `sent` has not finished).
+is `confirmed` yet (an attempt that is still `inflight` has not finished).
 
 For every message with its republish attempts and outcome:
 
 ```sql
 -- Every original, with its republish attempts and outcomes.
-SELECT o.id, o.topic, o.status, o.sent_ts,
+SELECT o.id, o.topic, o.status, o.published_ts,
        COUNT(r.id) AS attempts,
        SUM(r.status = 'confirmed') AS confirmed_attempts
 FROM mqtt_message_tracker AS o
 LEFT JOIN mqtt_message_tracker AS r ON r.origin_id = o.id
 WHERE o.origin_id IS NULL
 GROUP BY o.id
-ORDER BY o.sent_ts;
+ORDER BY o.published_ts;
 ```
 
 How to read the counts:
@@ -177,4 +177,4 @@ and the broker accepted that republish. An original with `attempts = 0` and an e
 `confirmed_attempts` has not been republished at all. When nothing was confirmed, the latest
 attempt's status is the message's current status.
 
-`ORDER BY o.sent_ts` lists the oldest first; use `DESC` for the newest first.
+`ORDER BY o.published_ts` lists the oldest first; use `DESC` for the newest first.

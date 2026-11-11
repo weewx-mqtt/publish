@@ -18,7 +18,7 @@ Each message published to a tracked topic records a row.
 - `id`: a unique id for the row.
 - `mid`: the MQTT message id.
 - `dateTime`: the WeeWX timestamp of the data.
-- `sent_ts`: when the message was handed to paho.
+- `published_ts`: when the message was handed to paho.
 - `arrived_ts`: when paho reported it published, `NULL` for anything that is not `confirmed`.
 - `status`: what is known about the message.
 - `unconfirmed_ts`: when the tracker stopped waiting for the arrival, `NULL` unless the status is
@@ -39,7 +39,7 @@ The payload is stored as text; binary payloads are hex-encoded and marked with
 `payload_encoding`. With MySQL, `MEDIUMTEXT` holds up to 16 MB; SQLite has no practical limit.
 A larger payload makes the insert fail and the batch is logged and dropped.
 
-A republish attempt is a copy of its row, with its own `mid`, `sent_ts`, `arrived_ts`, `status`
+A republish attempt is a copy of its row, with its own `mid`, `published_ts`, `arrived_ts`, `status`
 and `rc`. It keeps the original `topic`, `qos`, `retain`, `dateTime` and `payload`, and points at
 the original with `origin_id` and `attempt`. The original row is not changed.
 
@@ -48,7 +48,7 @@ availability/LWT message are not tracked.
 
 ## Status lifecycle
 
-`sent` is transient. While the tracker is running, a row is expected to move to `confirmed`, or to
+`inflight` is transient. While the tracker is running, a row is expected to move to `confirmed`, or to
 `failed` when paho refuses the publish. If the connection is lost, the rows in flight are marked
 `unconfirmed`; otherwise a row whose arrival never arrives is kept until the tracker stops, which
 marks it `unconfirmed`. The topic's `error_retention` then bounds it.
@@ -56,7 +56,7 @@ marks it `unconfirmed`. The topic's `error_retention` then bounds it.
 A `failed` publish, and a republish that paho refuses, are logged at `ERROR` with the topic, `rc`,
 `mid` and the row's `id`. A row that changes to `unconfirmed` is also logged at `ERROR`, with its
 `id`, topic, `mid` and the reason: the connection was lost, no arrival was reported, the message id
-was reused, or a previous run left it `sent`. A log monitor can follow a message straight to its
+was reused, or a previous run left it `inflight`. A log monitor can follow a message straight to its
 row without searching the table by topic and time.
 
 `unconfirmed` does not mean the message was not delivered. It means the tracker cannot tell: paho
@@ -73,7 +73,7 @@ Rows are marked `unconfirmed`:
   reported before the process stopped;
 - when paho reuses a message id before the arrival of the older message is reported, with
   `unconfirmed_ts` set to the time of the reuse;
-- at startup, for the rows a previous run left in `sent`, with `unconfirmed_ts` set to the startup
+- at startup, for the rows a previous run left in `inflight`, with `unconfirmed_ts` set to the startup
   time. This covers a process that stopped without shutting down cleanly. The sweep logs how many
   rows it marked, so a shutdown that did not complete is visible in the log.
 
@@ -97,7 +97,7 @@ CREATE TABLE IF NOT EXISTS mqtt_message_tracker (
     id VARCHAR(32) NOT NULL PRIMARY KEY,
     mid INTEGER NOT NULL,
     dateTime INTEGER,
-    sent_ts DOUBLE NOT NULL,
+    published_ts DOUBLE NOT NULL,
     arrived_ts DOUBLE,
     status VARCHAR(16) NOT NULL,
     unconfirmed_ts DOUBLE,
@@ -128,11 +128,11 @@ from 1.
 Republishing a message keeps the chain flat under the original, so that message's history is:
 
 ```sql
-SELECT id, attempt, mid, sent_ts, arrived_ts, status, rc
+SELECT id, attempt, mid, published_ts, arrived_ts, status, rc
 FROM mqtt_message_tracker WHERE origin_id = ? ORDER BY attempt;
 ```
 
-The write sequence matches the tracker: the republish is inserted as `sent` after paho accepts it,
+The write sequence matches the tracker: the republish is inserted as `inflight` after paho accepts it,
 then updated to `confirmed` or `unconfirmed`.
 
 ## Checking a message's outcome

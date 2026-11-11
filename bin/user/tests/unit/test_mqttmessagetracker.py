@@ -65,9 +65,9 @@ class TestReadConfig(unittest.TestCase):
             self.assertEqual(table, 'mqtt_message_tracker')
 
 
-def make_row(row_id, topic, status, sent_ts, origin_id=None, attempt=None):
+def make_row(row_id, topic, status, published_ts, origin_id=None, attempt=None):
     """ A row as the republish selection sees it. """
-    return {'id': row_id, 'topic': topic, 'status': status, 'sent_ts': sent_ts,
+    return {'id': row_id, 'topic': topic, 'status': status, 'published_ts': published_ts,
             'origin_id': origin_id, 'attempt': attempt}
 
 
@@ -89,7 +89,7 @@ class TestSelectAfterLastSuccess(unittest.TestCase):
         rows = [
             make_row('unconfirmed', 'topic', user.mqttmessagetracker.STATUS_UNCONFIRMED, 2),
             make_row('failed', 'topic', user.mqttmessagetracker.STATUS_FAILED, 1),
-            make_row('sent', 'topic', user.mqttmessagetracker.STATUS_SENT, 3),
+            make_row('inflight', 'topic', user.mqttmessagetracker.STATUS_INFLIGHT, 3),
         ]
 
         selected = user.mqttmessagetracker.select_after_last_success(rows)
@@ -117,7 +117,7 @@ class TestSelectAfterLastSuccess(unittest.TestCase):
 
         selected = user.mqttmessagetracker.select_after_last_success(rows)
 
-        # The republish's sent_ts must not hide the older failed row.
+        # The republish's published_ts must not hide the older failed row.
         self.assertEqual([row['id'] for row in selected], ['failed'])
 
     def test_an_origin_is_republished_once(self):
@@ -157,7 +157,7 @@ class TestSelectAfterLastSuccess(unittest.TestCase):
     def test_a_sent_republish_keeps_the_message_out_of_the_queue(self):
         rows = [
             make_row('origin', 'topic', user.mqttmessagetracker.STATUS_FAILED, 1),
-            make_row('republish', 'topic', user.mqttmessagetracker.STATUS_SENT, 2,
+            make_row('republish', 'topic', user.mqttmessagetracker.STATUS_INFLIGHT, 2,
                      origin_id='origin', attempt=1),
         ]
 
@@ -236,9 +236,9 @@ class TestMQTTMessageTracker(unittest.TestCase):
         connection = weedb.connect(self.database_dict)
         try:
             cursor = connection.cursor()
-            cursor.execute(f"SELECT id, mid, dateTime, sent_ts, arrived_ts, status, unconfirmed_ts, "
+            cursor.execute(f"SELECT id, mid, dateTime, published_ts, arrived_ts, status, unconfirmed_ts, "
                            f"origin_id, attempt, clientid, topic, qos, retain, rc, payload, payload_encoding "
-                           f"FROM {table} ORDER BY sent_ts, id")
+                           f"FROM {table} ORDER BY published_ts, id")
             columns = [description[0] for description in cursor.description]
             return [dict(zip(columns, row)) for row in cursor.fetchall()]
         finally:
@@ -272,10 +272,10 @@ class TestMQTTMessageTracker(unittest.TestCase):
         try:
             with weedb.Transaction(connection) as cursor:
                 cursor.execute("INSERT INTO mqtt_message_tracker "
-                               "(id, mid, dateTime, sent_ts, arrived_ts, status, unconfirmed_ts, "
+                               "(id, mid, dateTime, published_ts, arrived_ts, status, unconfirmed_ts, "
                                "topic, qos, retain, rc, payload) "
                                "VALUES (?, ?, ?, ?, NULL, ?, NULL, ?, ?, ?, ?, ?)",
-                               ('a' * 32, mid, 1, time.time(), 'sent', 'topic', 0, 0, 0, payload))
+                               ('a' * 32, mid, 1, time.time(), 'inflight', 'topic', 0, 0, 0, payload))
         finally:
             connection.close()
 
@@ -290,11 +290,11 @@ class TestMQTTMessageTracker(unittest.TestCase):
                 table='mqtt_message_tracker'))
             with weedb.Transaction(connection) as cursor:
                 cursor.execute("INSERT INTO mqtt_message_tracker "
-                               "(id, mid, dateTime, sent_ts, arrived_ts, status, unconfirmed_ts, "
+                               "(id, mid, dateTime, published_ts, arrived_ts, status, unconfirmed_ts, "
                                "origin_id, attempt, clientid, topic, qos, retain, rc, payload, "
                                "payload_encoding) "
                                "VALUES (?, ?, ?, ?, NULL, ?, NULL, ?, ?, NULL, ?, ?, ?, ?, ?, ?)",
-                               (row['id'], row['mid'], row['dateTime'], row['sent_ts'],
+                               (row['id'], row['mid'], row['dateTime'], row['published_ts'],
                                 row['status'], row['origin_id'], row['attempt'], row['topic'],
                                 row['qos'], row['retain'], row['rc'], row['payload'],
                                 row['payload_encoding']))
@@ -308,8 +308,8 @@ class TestMQTTMessageTracker(unittest.TestCase):
         finally:
             connection.close()
 
-    def _chain_row(self, row_id, sent_ts, status, origin_id=None, attempt=None):
-        return {'id': row_id, 'mid': 1, 'dateTime': 1700000000, 'sent_ts': sent_ts,
+    def _chain_row(self, row_id, published_ts, status, origin_id=None, attempt=None):
+        return {'id': row_id, 'mid': 1, 'dateTime': 1700000000, 'published_ts': published_ts,
                 'status': status, 'origin_id': origin_id, 'attempt': attempt,
                 'topic': 'topic', 'qos': 0, 'retain': 0, 'rc': 0, 'payload': 'payload',
                 'payload_encoding': 'text'}
@@ -434,7 +434,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
         self.assertEqual(len(row['id']), 32)
         self.assertEqual(row['mid'], 42)
         self.assertEqual(row['dateTime'], 123456)
-        self.assertIsNotNone(row['sent_ts'])
+        self.assertIsNotNone(row['published_ts'])
         self.assertIsNotNone(row['arrived_ts'])
         self.assertEqual(row['status'], 'confirmed')
         self.assertIsNone(row['unconfirmed_ts'])
@@ -454,7 +454,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
         plugin.mqtt_publish(None, 42, 0, 'topic', 'payload', 0, False, 1)
         rows = self._wait_for_rows(1)
 
-        self.assertEqual(rows[0]['status'], 'sent')
+        self.assertEqual(rows[0]['status'], 'inflight')
         self.assertIsNone(rows[0]['arrived_ts'])
         self.assertIsNone(rows[0]['unconfirmed_ts'])
 
@@ -488,7 +488,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
 
         plugin.mqtt_publish(None, 1, 0, 'topic', 'confirmed', 1, False, 1)
         plugin.on_mqtt_publish(None, None, 1, None)
-        plugin.mqtt_publish(None, 2, 0, 'topic', 'sent', 1, False, 2)
+        plugin.mqtt_publish(None, 2, 0, 'topic', 'inflight', 1, False, 2)
         self._wait_for(lambda rows: any(row['status'] == 'confirmed' for row in rows) and len(rows) == 2)
 
         plugin.on_mqtt_disconnect(None, None, 1, None)
@@ -496,7 +496,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
         rows = self._wait_for(lambda rows: any(row['status'] == 'unconfirmed' for row in rows))
         by_payload = {row['payload']: row for row in rows}
         self.assertEqual(by_payload['confirmed']['status'], 'confirmed')
-        self.assertEqual(by_payload['sent']['status'], 'unconfirmed')
+        self.assertEqual(by_payload['inflight']['status'], 'unconfirmed')
 
     def test_republish_after_connect(self):
         plugin, logger_queue = self._make_plugin({'republish': {'on_startup': True}},
@@ -519,7 +519,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
         republished = [row for row in rows if row['origin_id'] == failed['id']][0]
         self.assertEqual(republished['attempt'], 1)
         self.assertEqual(republished['clientid'], 'test-client')
-        self.assertEqual(republished['status'], 'sent')
+        self.assertEqual(republished['status'], 'inflight')
         self.assertEqual(republished['payload'], 'failed')
 
         self._wait_for_log(logger_queue, republished['id'])
@@ -715,7 +715,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
         by_payload = {row['payload']: row for row in rows}
         self.assertEqual(by_payload['payload-one']['status'], 'unconfirmed')
         self.assertIsNotNone(by_payload['payload-one']['unconfirmed_ts'])
-        self.assertEqual(by_payload['payload-two']['status'], 'sent')
+        self.assertEqual(by_payload['payload-two']['status'], 'inflight')
         self._wait_for_log(logger_queue, "paho reused the message id")
         messages = [call[0][0]['msg_text'] for call in logger_queue.put.call_args_list]
         self.assertTrue(any(f"Row {by_payload['payload-one']['id']} for first is unconfirmed: "
@@ -741,18 +741,18 @@ class TestMQTTMessageTracker(unittest.TestCase):
         # A new tracker marks the rows the previous run left waiting for an arrival.
         _, logger_queue = self._make_plugin()
 
-        rows = self._wait_for(lambda rows: all(row['status'] != 'sent' for row in rows))
+        rows = self._wait_for(lambda rows: all(row['status'] != 'inflight' for row in rows))
         self.assertEqual(len(rows), 2)
         leftover = [row for row in rows if row['payload'] == 'leftover'][0]
         self.assertEqual(leftover['status'], 'unconfirmed')
         self.assertIsNotNone(leftover['unconfirmed_ts'])
         self.assertIsNone(leftover['arrived_ts'])
-        self._wait_for_log(logger_queue, "it was left sent by a previous run")
+        self._wait_for_log(logger_queue, "it was left in flight by a previous run")
         messages = [call[0][0]['msg_text'] for call in logger_queue.put.call_args_list]
         self.assertTrue(any(f"Row {leftover['id']} for topic is unconfirmed: "
-                            "it was left sent by a previous run (mid 2)" in message
+                            "it was left in flight by a previous run (mid 2)" in message
                             for message in messages))
-        self.assertEqual(sum("is unconfirmed: it was left sent by a previous run" in message
+        self.assertEqual(sum("is unconfirmed: it was left in flight by a previous run" in message
                              for message in messages), 1)
         self.assertFalse(any(message.startswith("Marked ") for message in messages))
 
@@ -984,7 +984,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
                                        'prune_interval': 3600})
         plugin.mqtt_publish(None, 1, 0, 'topic', 'payload', 0, False, 1)
         rows = self._wait_for_rows(1)
-        self.assertEqual(rows[0]['status'], 'sent')
+        self.assertEqual(rows[0]['status'], 'inflight')
 
         connection = weedb.connect(self.database_dict)
         try:

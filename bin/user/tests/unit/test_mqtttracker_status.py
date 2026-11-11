@@ -32,7 +32,7 @@ def make_row(**overrides):
         'id': helpers.random_string(),
         'mid': 1,
         'dateTime': 1700000000,
-        'sent_ts': 1000.0,
+        'published_ts': 1000.0,
         'status': STATUS.STATUS_FAILED,
         'topic': 'weather/outTemp_F',
         'qos': 0,
@@ -97,10 +97,10 @@ class DatabaseTestCase(unittest.TestCase):
 
 class TestStatus(DatabaseTestCase):
     def test_summary_shows_the_unresolved_outcome(self):
-        original = make_row(sent_ts=1000.0)
-        republish = make_row(sent_ts=1100.0, status=STATUS.STATUS_CONFIRMED,
+        original = make_row(published_ts=1000.0)
+        republish = make_row(published_ts=1100.0, status=STATUS.STATUS_CONFIRMED,
                              origin_id=original['id'], attempt=1, arrived_ts=1200.0)
-        unresolved = make_row(sent_ts=2000.0, status=STATUS.STATUS_UNCONFIRMED)
+        unresolved = make_row(published_ts=2000.0, status=STATUS.STATUS_UNCONFIRMED)
         self.insert(original)
         self.insert(republish)
         self.insert(unresolved)
@@ -114,46 +114,46 @@ class TestStatus(DatabaseTestCase):
         self.assertIn('CURRENT STATUS', self.out.getvalue())
         self.assertIn('unconfirmed', self.out.getvalue())
 
-    def test_status_filter_shows_sent_rows(self):
+    def test_status_filter_shows_inflight_rows(self):
         failed = make_row(status=STATUS.STATUS_FAILED)
-        sent = make_row(status=STATUS.STATUS_SENT)
+        inflight = make_row(status=STATUS.STATUS_INFLIGHT)
         self.insert(failed)
-        self.insert(sent)
+        self.insert(inflight)
 
-        self.assertEqual(self.run_tool('--status', 'sent'), 0)
+        self.assertEqual(self.run_tool('--status', 'inflight'), 0)
 
-        self.assertIn(sent['id'], self.out.getvalue())
+        self.assertIn(inflight['id'], self.out.getvalue())
         self.assertNotIn(failed['id'], self.out.getvalue())
-        self.assertIn('1 message(s) with current status sent', self.out.getvalue())
+        self.assertIn('1 message(s) with current status inflight', self.out.getvalue())
 
     def test_status_filter_can_show_no_rows(self):
         self.insert(make_row(status=STATUS.STATUS_FAILED))
 
-        self.assertEqual(self.run_tool('--status', 'sent'), 0)
+        self.assertEqual(self.run_tool('--status', 'inflight'), 0)
 
-        self.assertIn('No messages with current status sent.', self.out.getvalue())
+        self.assertIn('No messages with current status inflight.', self.out.getvalue())
 
-    def test_default_includes_sent_and_excludes_confirmed(self):
+    def test_default_includes_inflight_and_excludes_confirmed(self):
         failed = make_row(status=STATUS.STATUS_FAILED)
         unconfirmed = make_row(status=STATUS.STATUS_UNCONFIRMED)
-        sent = make_row(status=STATUS.STATUS_SENT)
+        inflight = make_row(status=STATUS.STATUS_INFLIGHT)
         confirmed = make_row(status=STATUS.STATUS_CONFIRMED)
-        for row in (failed, unconfirmed, sent, confirmed):
+        for row in (failed, unconfirmed, inflight, confirmed):
             self.insert(row)
 
         self.assertEqual(self.run_tool(), 0)
 
         output = self.out.getvalue()
-        for row in (failed, unconfirmed, sent):
+        for row in (failed, unconfirmed, inflight):
             self.assertIn(row['id'], output)
         self.assertNotIn(confirmed['id'], output)
         self.assertIn('3 not confirmed message(s)', output)
 
     def test_summary_shows_one_row_per_chain(self):
-        original = make_row(status=STATUS.STATUS_FAILED, sent_ts=1000.0)
-        first = make_row(status=STATUS.STATUS_SENT, sent_ts=1100.0,
+        original = make_row(status=STATUS.STATUS_FAILED, published_ts=1000.0)
+        first = make_row(status=STATUS.STATUS_INFLIGHT, published_ts=1100.0,
                          origin_id=original['id'], attempt=1)
-        second = make_row(status=STATUS.STATUS_SENT, sent_ts=1200.0,
+        second = make_row(status=STATUS.STATUS_INFLIGHT, published_ts=1200.0,
                           origin_id=original['id'], attempt=2)
         for row in (original, first, second):
             self.insert(row)
@@ -166,13 +166,13 @@ class TestStatus(DatabaseTestCase):
         self.assertNotIn(first['id'], output)
         self.assertNotIn(second['id'], output)
         line = [row for row in output.splitlines() if original['id'] in row][0]
-        self.assertEqual(line.split()[-3:], ['2', '0', 'sent'])
+        self.assertEqual(line.split()[-3:], ['2', '0', 'inflight'])
 
     def test_summary_anchors_an_orphaned_chain_at_the_oldest_republish(self):
         original_id = helpers.random_string()
-        first = make_row(status=STATUS.STATUS_SENT, sent_ts=1100.0,
+        first = make_row(status=STATUS.STATUS_INFLIGHT, published_ts=1100.0,
                          origin_id=original_id, attempt=1)
-        second = make_row(status=STATUS.STATUS_SENT, sent_ts=1200.0,
+        second = make_row(status=STATUS.STATUS_INFLIGHT, published_ts=1200.0,
                           origin_id=original_id, attempt=2)
         self.insert(first)
         self.insert(second)
@@ -183,11 +183,11 @@ class TestStatus(DatabaseTestCase):
         self.assertIn(first['id'], output)
         self.assertNotIn(second['id'], output)
         line = [row for row in output.splitlines() if first['id'] in row][0]
-        self.assertEqual(line.split()[-3:], ['2', '0', 'sent'])
+        self.assertEqual(line.split()[-3:], ['2', '0', 'inflight'])
 
     def test_status_confirmed_shows_a_delivered_chain(self):
-        original = make_row(sent_ts=1000.0)
-        republish = make_row(sent_ts=1100.0, status=STATUS.STATUS_CONFIRMED,
+        original = make_row(published_ts=1000.0)
+        republish = make_row(published_ts=1100.0, status=STATUS.STATUS_CONFIRMED,
                              origin_id=original['id'], attempt=1, arrived_ts=1200.0)
         self.insert(original)
         self.insert(republish)
@@ -201,8 +201,8 @@ class TestStatus(DatabaseTestCase):
         self.assertEqual(line.split()[-3:], ['1', '1', 'confirmed'])
 
     def test_a_delivered_chain_is_not_a_failed_message(self):
-        original = make_row(sent_ts=1000.0, status=STATUS.STATUS_FAILED)
-        republish = make_row(sent_ts=1100.0, status=STATUS.STATUS_CONFIRMED,
+        original = make_row(published_ts=1000.0, status=STATUS.STATUS_FAILED)
+        republish = make_row(published_ts=1100.0, status=STATUS.STATUS_CONFIRMED,
                              origin_id=original['id'], attempt=1, arrived_ts=1200.0)
         self.insert(original)
         self.insert(republish)
@@ -212,8 +212,8 @@ class TestStatus(DatabaseTestCase):
         self.assertIn('No messages with current status failed.', self.out.getvalue())
 
     def test_message_shows_the_original_and_its_republishes(self):
-        original = make_row(sent_ts=1000.0)
-        republish = make_row(sent_ts=1100.0, status=STATUS.STATUS_CONFIRMED,
+        original = make_row(published_ts=1000.0)
+        republish = make_row(published_ts=1100.0, status=STATUS.STATUS_CONFIRMED,
                              origin_id=original['id'], attempt=1, arrived_ts=1200.0)
         self.insert(original)
         self.insert(republish)
@@ -226,8 +226,8 @@ class TestStatus(DatabaseTestCase):
         self.assertNotIn('payload=', self.out.getvalue())
 
     def test_message_accepts_a_republish_id(self):
-        original = make_row(sent_ts=1000.0)
-        republish = make_row(sent_ts=1100.0, status=STATUS.STATUS_CONFIRMED,
+        original = make_row(published_ts=1000.0)
+        republish = make_row(published_ts=1100.0, status=STATUS.STATUS_CONFIRMED,
                              origin_id=original['id'], attempt=1, arrived_ts=1200.0)
         self.insert(original)
         self.insert(republish)
@@ -239,8 +239,8 @@ class TestStatus(DatabaseTestCase):
         self.assertIn('attempt=1', self.out.getvalue())
 
     def test_message_accepts_the_id_label(self):
-        original = make_row(sent_ts=1000.0)
-        republish = make_row(sent_ts=1100.0, status=STATUS.STATUS_CONFIRMED,
+        original = make_row(published_ts=1000.0)
+        republish = make_row(published_ts=1100.0, status=STATUS.STATUS_CONFIRMED,
                              origin_id=original['id'], attempt=1, arrived_ts=1200.0)
         self.insert(original)
         self.insert(republish)
@@ -259,7 +259,7 @@ class TestStatus(DatabaseTestCase):
 
     def test_limit(self):
         for index in range(3):
-            self.insert(make_row(id=helpers.random_string(), sent_ts=float(index)))
+            self.insert(make_row(id=helpers.random_string(), published_ts=float(index)))
 
         self.assertEqual(self.run_tool('--limit', '2'), 0)
         self.assertIn('2 not confirmed message(s)', self.out.getvalue())
@@ -279,7 +279,7 @@ class TestBuildParser(unittest.TestCase):
 
         self.assertIsNone(options.message)
         self.assertIsNone(options.topic)
-        self.assertEqual(options.status, ['failed', 'unconfirmed', 'sent'])
+        self.assertEqual(options.status, ['failed', 'unconfirmed', 'inflight'])
         self.assertEqual(options.limit, 100)
         self.assertEqual(options.plugin_section, 'MQTTMessageTracker')
         self.assertEqual(options.command, 'status')
