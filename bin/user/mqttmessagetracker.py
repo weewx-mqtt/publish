@@ -149,12 +149,15 @@ def describe_row(row):
             f"status={row['status']} id={row['id']} payload={preview}")
 
 
-def print_plan(rows, out):
+def print_plan(rows, out, row_count=None):
     """ Print the rows a tool selected. """
     if not rows:
         print("No messages match the selection.", file=out)
         return
-    print(f"{len(rows)} message(s) selected:", file=out)
+    if row_count is None:
+        print(f"{len(rows)} message(s) selected:", file=out)
+    else:
+        print(f"{len(rows)} message(s) selected ({row_count} row(s)):", file=out)
     for row in rows:
         print(f"  {describe_row(row)}", file=out)
 

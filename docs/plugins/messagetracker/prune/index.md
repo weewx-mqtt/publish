@@ -123,6 +123,9 @@ Without `--delete` it only prints the selection. Each line is one message, shown
 its original row (or of the chain when the original was pruned), the status that decides its
 retention, and the time that decision was made.
 
+The plan reports both counts, because a message with resends is several rows:
+`11 message(s) selected (13 row(s)):`. `--delete` then reports the rows it removed.
+
 Pruning a message deletes its whole chain: the original and every resend. A message whose outcome
 changed between the plan and the delete is left alone. It is safe to run while WeeWX is running.
 

@@ -56,7 +56,7 @@ the publish, not that a subscriber received it.
 
 A message with several resend attempts appears once. The row is anchored at the original, or at
 the oldest surviving resend when the original was pruned. `ATTEMPTS`, `CONFIRMED`, and
-`FINAL STATUS` summarize the rest of the chain.
+`CURRENT STATUS` summarize the rest of the chain.
 
 The default summary lists each message with:
 
@@ -68,7 +68,7 @@ The default summary lists each message with:
 | `ORIGINALLY SENT` | when the anchor was handed to paho. |
 | `ATTEMPTS` | the number of resend rows in the chain, whatever their status. |
 | `CONFIRMED` | how many of those resends the broker confirmed. |
-| `FINAL STATUS` | the outcome: `confirmed`, `failed`, `unconfirmed`, or `sent`. |
+| `CURRENT STATUS` | the outcome: `confirmed`, `failed`, `unconfirmed`, or `sent`. |
 
 The outcomes mean:
 
@@ -82,7 +82,7 @@ The outcomes mean:
 
 The statuses to show, comma separated.
 Default is `failed,unconfirmed,sent`. Choose from `failed`, `unconfirmed`, `sent`, and `confirmed`.
-This filters the message's final status, so a delivered message does not appear under
+This filters the message's current status, so a delivered message does not appear under
 `--status failed` just because its original row failed.
 
 `sent` messages are in flight: paho accepted the publish, but no acknowledgement has arrived yet.
@@ -173,6 +173,6 @@ How to read the counts:
 For example, an original with `attempts = 1` and `confirmed_attempts = 1` was resent once and the
 broker accepted that resend. An original with `attempts = 0` and an empty `confirmed_attempts` has
 not been resent at all. When nothing was confirmed, the latest attempt's status is the message's
-final status.
+current status.
 
 `ORDER BY o.sent_ts` lists the oldest first; use `DESC` for the newest first.

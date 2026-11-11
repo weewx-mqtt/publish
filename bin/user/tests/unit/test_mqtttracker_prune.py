@@ -343,6 +343,19 @@ class TestPrune(DatabaseTestCase):
         self.assertEqual(len(self.rows()), 1)
         self.assertIn('1 message(s) selected', self.out.getvalue())
 
+    def test_dry_run_shows_the_row_count(self):
+        original = confirmed_row(sent_ts=time.time() - 1000)
+        resend = make_row(sent_ts=time.time() - 900, **{
+            'status': STATUS.STATUS_CONFIRMED, 'origin_id': original['id'], 'attempt': 1})
+        standalone = confirmed_row(sent_ts=time.time() - 800)
+        for row in (original, resend, standalone):
+            self.insert(row)
+
+        selected = user.mqtttracker.prune(self.config_dict, self.options(), out=self.out)
+
+        self.assertEqual(len(selected), 2)
+        self.assertIn('2 message(s) selected (3 row(s)):', self.out.getvalue())
+
     def test_deletes_the_selection(self):
         self.insert(confirmed_row(sent_ts=time.time() - 1000))
 

@@ -118,9 +118,9 @@ Enhancements:
     Delivered messages are pruned by confirmed_retention. Unresolved messages are pruned by
     error_retention, which defaults to 0 so they can still be resent. A message is deleted as one
     whole chain, so a failed original ages out with the resend that delivered it.
-    The optional [[resend]] section resends the failed and unconfirmed messages after the last
-    confirmed publish on each topic. on_startup and on_reconnect select the trigger and both
-    default to false. The log says which trigger fired, or that there was nothing to resend.
+    The optional [[resend]] section resends the unresolved messages after the last confirmed
+    publish on each topic. on_startup and on_reconnect select the trigger and both default to
+    false. The log says which trigger fired, or that there was nothing to resend.
     include_before_last_success resends them even when they are older than that publish.
   - Added an on_disconnect plugin callback, and the monitor_on_disconnect option to monitor
     its execution time.
@@ -130,9 +130,10 @@ Enhancements:
     delivered messages (those with a confirmed attempt) older than confirmed_retention by default,
     and deletes each message's whole chain with it; --status failed,unconfirmed prunes unresolved
     messages using error_retention, and --older-than overrides the configured age. When --limit
-    truncates the selection, prune reports how many of the matching messages it selected. status
-    shows one row per message and filters on the outcome status, so a message that was delivered
-    by a resend is not reported as failed; FINAL STATUS is confirmed, failed, unconfirmed, or sent.
+    truncates the selection, prune reports how many of the matching messages it selected, and the
+    plan reports how many rows those messages contain. status shows one row per message and
+    filters on the outcome status, so a message that was delivered by a resend is not reported as
+    failed; CURRENT STATUS is confirmed, failed, unconfirmed, or sent.
     On a package install the tool finds WeeWX by itself, so it runs by path without PYTHONPATH.
   - Document that resending is at-least-once: a resend is a new publish, so it can duplicate a
     message even on a qos 2 topic.

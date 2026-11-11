@@ -455,7 +455,8 @@ def _is_old_enough(row, retention, now):
 def _chain_row(chain_id, chain, outcome):
     """ The row a prune plan shows for a message: the chain id, its outcome and the payload. """
     row = dict(user.mqttmessagetracker.chain_anchor(chain))
-    row.update(id=chain_id, status=outcome['status'], sent_ts=outcome['sent_ts'])
+    row.update(id=chain_id, status=outcome['status'], sent_ts=outcome['sent_ts'],
+               row_count=len(chain))
     return row
 
 
@@ -627,7 +628,8 @@ def prune(config_dict, options, out=None):
                                 older_than=options.older_than,
                                 topic=options.topic, limit=0)
         selected = _apply_limit(matches, options.limit)
-        user.mqttmessagetracker.print_plan(selected, out)
+        row_count = sum(row['row_count'] for row in selected)
+        user.mqttmessagetracker.print_plan(selected, out, row_count)
         if len(selected) < len(matches):
             print(f"Selected the oldest {len(selected)} of {len(matches)} message(s); "
                   "use --limit 0 to select all.", file=out)
@@ -679,7 +681,7 @@ def _status_chains(rows):
     """ Yield one summary row per message chain.
 
         The chain is anchored at its original row; if the original was pruned, the oldest
-        surviving resend is the anchor. The final status is the outcome's status. """
+        surviving resend is the anchor. The current status is the outcome's status. """
     for chain in user.mqttmessagetracker.chain_rows(rows).values():
         anchor = user.mqttmessagetracker.chain_anchor(chain)
         outcome = user.mqttmessagetracker.outcome_row(chain)
@@ -734,10 +736,10 @@ def print_status_summary(rows, out, statuses=DEFAULT_SUMMARY_STATUSES):
         return
     print(f"{len(rows)} {label}:", file=out)
     print(f"  {'ID':<32} {'TOPIC':<30} {'ORIGINAL STATUS':<15} {'ORIGINALLY SENT':<19} "
-          f"{'ATTEMPTS':<8} {'CONFIRMED':<9}  FINAL STATUS", file=out)
-    for row_id, topic, status, sent_ts, attempts, confirmed_attempts, final_status in rows:
+          f"{'ATTEMPTS':<8} {'CONFIRMED':<9}  CURRENT STATUS", file=out)
+    for row_id, topic, status, sent_ts, attempts, confirmed_attempts, current_status in rows:
         print(f"  {row_id:<32} {topic[:30]:<30} {status:<15} {_sent_at(sent_ts):<19} "
-              f"{attempts:<8} {confirmed_attempts:<9}  {final_status}", file=out)
+              f"{attempts:<8} {confirmed_attempts:<9}  {current_status}", file=out)
 
 
 def print_status_message(rows, message_id, out):

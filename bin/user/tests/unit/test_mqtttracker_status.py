@@ -111,7 +111,7 @@ class TestStatus(DatabaseTestCase):
         self.assertIn(unresolved['id'], self.out.getvalue())
         self.assertIn('ORIGINAL STATUS', self.out.getvalue())
         self.assertIn('ORIGINALLY SENT', self.out.getvalue())
-        self.assertIn('FINAL STATUS', self.out.getvalue())
+        self.assertIn('CURRENT STATUS', self.out.getvalue())
         self.assertIn('unconfirmed', self.out.getvalue())
 
     def test_status_filter_shows_sent_rows(self):
