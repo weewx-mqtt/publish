@@ -7,7 +7,7 @@ nav_order: 3
 {% include messagetracker_warning.html %}
 
 The tracker deletes old messages so that its database does not grow without bound. A message is
-the original publish and every resend of it; the record that decides its status also decides when
+the original publish and every republish of it; the record that decides its status also decides when
 it is pruned. Two retention options bound the two kinds of message, and a third decides how often
 the tracker checks. You can also delete messages yourself with `mqtttracker prune`.
 
@@ -19,9 +19,9 @@ the tracker checks. You can also delete messages yourself with `mqtttracker prun
 - a message whose latest attempt is `failed` or `unconfirmed` is **unresolved**, and is kept for
   `error_retention`.
 
-A message is deleted as one whole chain: the original row and every resend. A `sent` message is
-still in flight and neither option prunes it; the startup sweep and a disconnect mark it
-`unconfirmed`.
+A message is deleted as one whole chain: the original row and every republish attempt. A `sent`
+message is still in flight and neither option prunes it; the startup sweep and a disconnect mark
+it `unconfirmed`.
 
 ### confirmed_retention
 
@@ -29,11 +29,11 @@ How long, in seconds, to keep a delivered message.
 Default is `604800` (7 days).
 Set to `0` to keep them forever.
 
-The clock starts when the message was confirmed, so a message that was resent and then confirmed
-is kept for the full period from that resend, not from the original failure.
+The clock starts when the message was confirmed, so a message that was republished and then
+confirmed is kept for the full period from that republish attempt, not from the original failure.
 
-Pruning a delivered message frees space and loses history, but nothing that can be resent. This is
-the safe retention to shorten when the table is large.
+Pruning a delivered message frees space and loses history, but nothing that can be republished.
+This is the safe retention to shorten when the table is large.
 
 ### error_retention
 
@@ -41,8 +41,8 @@ How long, in seconds, to keep an unresolved message.
 Default is `0`, which keeps them forever.
 Set it to a finite value to bound the table.
 
-The clock starts at the latest attempt, so a message that keeps failing, or that was just resent,
-is kept for the full period from that attempt.
+The clock starts at the latest attempt, so a message that keeps failing, or that was just
+republished, is kept for the full period from that attempt.
 
 Pruning one of these messages removes a message that could still be recovered, so this is the
 retention to keep generous. The default of `0` preserves the whole recovery window, which matters
@@ -90,7 +90,7 @@ The startup sweep is separate from pruning. It runs when the tracker starts and 
 ## Pruning with mqtttracker prune
 
 To remove messages sooner than their retention allows, or when `error_retention` is `0`, run
-`bin/user/mqtttracker.py prune`. `mqtttracker` is one tool with `resend`, `prune` and `status`
+`bin/user/mqtttracker.py prune`. `mqtttracker` is one tool with `republish`, `prune` and `status`
 subcommands; the config file is a global `--config` option, so it comes before the subcommand.
 By default it selects the delivered history: messages with a confirmed attempt, older than
 `confirmed_retention`:
@@ -123,15 +123,16 @@ Without `--delete` it only prints the selection. Each line is one message, shown
 its original row (or of the chain when the original was pruned), the status that decides its
 retention, and the time that decision was made.
 
-The plan reports both counts, because a message with resends is several rows:
+The plan reports both counts, because a message with republish attempts is several rows:
 `11 message(s) selected (13 row(s)):`. `--delete` then reports the rows it removed.
 
-Pruning a message deletes its whole chain: the original and every resend. A message whose outcome
-changed between the plan and the delete is left alone. It is safe to run while WeeWX is running.
+Pruning a message deletes its whole chain: the original and every republish attempt. A message
+whose outcome changed between the plan and the delete is left alone. It is safe to run while
+WeeWX is running.
 
 Deleting an unresolved message discards the only record that its delivery outcome is unknown.
 Deleting a delivered message discards the record that it was delivered, but nothing that could be
-resent.
+republished.
 
 A message whose outcome is still `sent` is in flight: the tracker marks it `unconfirmed` when it
 restarts, so the tool does not touch it.
@@ -154,7 +155,7 @@ A comma-separated list of statuses to prune.
 Default is `confirmed`.
 
 A message is delivered when any attempt is `confirmed`, so `--status failed` does not select a
-message that a resend later delivered. Use `--status failed,unconfirmed` to prune unresolved
+message that a republish later delivered. Use `--status failed,unconfirmed` to prune unresolved
 messages. `sent` is refused because it may still be in flight (restart WeeWX to mark it
 `unconfirmed`).
 

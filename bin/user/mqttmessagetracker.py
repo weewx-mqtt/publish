@@ -231,7 +231,7 @@ def chain_anchor(chain):
 def outcome_row(chain):
     """ The row that decides a message's status and age.
 
-        A confirmed attempt wins, so a delivered message is not undone by a later forced resend.
+        A confirmed attempt wins, so a delivered message is not undone by a later forced republish.
         Otherwise the latest attempt decides: the clock starts when the chain reached that
         state. """
     confirmed = [row for row in chain if row['status'] == STATUS_CONFIRMED]
@@ -263,7 +263,7 @@ def decode_payload(row):
 
 
 def next_attempt(cursor, table, row_origin_id):
-    """ The attempt number for the next resend of an original message. """
+    """ The attempt number for the next republish of an original message. """
     cursor.execute(f"SELECT attempt FROM {table} WHERE origin_id = ?", (row_origin_id,))
     attempts = [row[0] for row in cursor if row[0] is not None]
     return max(attempts, default=0) + 1
@@ -271,7 +271,7 @@ def next_attempt(cursor, table, row_origin_id):
 
 # pylint: disable=too-many-arguments,too-many-positional-arguments
 def insert_attempt(connection, table, row, mid, rc, sent_ts, clientid):
-    """ Insert the row of a resend, returning its id, attempt and status. """
+    """ Insert the row of a republish, returning its id, attempt and status. """
     row_origin_id = origin_id(row)
     status = STATUS_FAILED
     if rc == _RC_SUCCESS:
@@ -306,7 +306,7 @@ def delete_chains(cursor, table, chain_ids):
 def _last_success(rows):
     """ The newest original publish time of a delivered message for each topic.
 
-        A resend does not move the boundary, or a successful resend would hide an older
+        A republish attempt does not move the boundary, or a successful republish would hide an older
         backlog. A chain whose original is gone does not move it either. """
     last_success = {}
     for chain in chain_rows(rows).values():
@@ -329,12 +329,12 @@ def _is_after_last_success(row, oldest, last_success):
 
 
 def select_after_last_success(rows, since=None, now=None, include_before_last_success=False):
-    """ Select the unresolved messages to resend, one row per chain.
+    """ Select the unresolved messages to republish, one row per chain.
 
         A message is selected when its outcome is failed or unconfirmed. By default only
         messages whose original publish is after the last confirmed publish on their topic are
         selected. The boundary is the newest original row of a delivered message on each topic;
-        a resend does not move it, or a successful resend would hide an older backlog.
+        a republish attempt does not move it, or a successful republish would hide an older backlog.
 
         With include_before_last_success, every unresolved message is a candidate, including
         those older than the topic's last confirmed publish. """
@@ -399,7 +399,7 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
         self._put((_EVENT_DISCONNECT, timestamp))
 
     def republish(self, client, options, clientid):
-        """ Queue a resend for the messages after the last confirmed publish. """
+        """ Queue a republish for the messages after the last confirmed publish. """
         self._put((_EVENT_REPUBLISH, client, options, clientid))
 
     def shutdown(self):
@@ -551,7 +551,7 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
         self._log_unconfirmed_rows(unconfirmed, "paho reused the message id")
 
     def _prune_pending(self, now):
-        """ Drop arrivals that never matched a send event. """
+        """ Drop arrivals that never matched a publish event. """
         pending = dict(self.pending)
         for mid, (_, queued_at) in list(pending.items()):
             if now - queued_at > self.pending_ttl:
@@ -560,7 +560,7 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
 
     # pylint: disable=too-many-arguments,too-many-positional-arguments
     def _apply_sent(self, event, inflight, pending, statements, failed, unconfirmed, now):
-        """ Add the statements for a send event. """
+        """ Add the statements for a publish event. """
         # pylint: disable=too-many-locals
         _, row_id, mid, rc, topic, payload, payload_encoding, qos, retain, date_time, sent_ts = event
         status = STATUS_SENT if rc == _RC_SUCCESS else STATUS_FAILED
@@ -645,7 +645,7 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
         if options['limit'] > 0:
             selected = selected[:options['limit']]
         if not selected:
-            self._log('INFO', "No messages need to be resent after the connection was established.")
+            self._log('INFO', "No messages need to be republished after the connection was established.")
             return
 
         published = self._publish_selected(client, selected)
@@ -656,14 +656,14 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
             return
         inserted, failed = recorded
         self._log_republish_summary(inserted)
-        self._log_failed_rows('resend', failed)
+        self._log_failed_rows('republish', failed)
 
     def _fetch_for_republish(self, connection):
-        """ Read the rows for a resend, or None when they cannot be read. """
+        """ Read the rows for a republish, or None when they cannot be read. """
         try:
             return fetch_rows(connection, self.table)
         except Exception as exception:  # pylint: disable=broad-exception-caught
-            self._log('ERROR', f"Unable to read the message tracking rows for a resend: {exception}.")
+            self._log('ERROR', f"Unable to read the message tracking rows for a republish: {exception}.")
             return None
 
     def _publish_selected(self, client, selected):
@@ -671,7 +671,7 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
         published = []
         for row in selected:
             if self.shutting_down:
-                self._log('INFO', "Stopping the resend because the message tracker is shutting down.")
+                self._log('INFO', "Stopping the republish because the message tracker is shutting down.")
                 break
             published_row, stop = self._publish_row(client, row)
             if published_row is not None:
@@ -681,7 +681,7 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
         return published
 
     def _publish_row(self, client, row):
-        """ Publish one resend, returning the outcome and whether the resend must stop. """
+        """ Publish one message, returning the outcome and whether the selection must stop. """
         try:
             payload = decode_payload(row)
         except ValueError as exception:
@@ -691,12 +691,12 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
         try:
             message_info = client.publish(row['topic'], payload, qos=row['qos'], retain=bool(row['retain']))
         except Exception as exception:  # pylint: disable=broad-exception-caught
-            self._log('ERROR', f"Unable to resend {row['topic']}: {exception}.")
+            self._log('ERROR', f"Unable to republish {row['topic']}: {exception}.")
             return None, False
 
         rc = int(message_info.rc)
         if rc == mqtt.MQTT_ERR_NO_CONN:
-            self._log('ERROR', "The connection was lost while resending, "
+            self._log('ERROR', "The connection was lost while republishing, "
                                "the remaining messages are left for the next connection.")
             return None, True
         return (row, message_info.mid, rc, time.time()), False
@@ -706,13 +706,13 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
         try:
             inserted, failed = self._insert_attempts(connection, published, clientid)
         except Exception as exception:  # pylint: disable=broad-exception-caught
-            self._log('ERROR', f"Unable to record the resent messages: {exception}.")
+            self._log('ERROR', f"Unable to record the republished messages: {exception}.")
             return None
         self._finish_attempts(connection, inserted)
         return inserted, failed
 
     def _finish_attempts(self, connection, inserted):
-        """ Track the resent messages that are waiting for an arrival. """
+        """ Track the republished messages that are waiting for an arrival. """
         for row_id, mid, status, sent_ts, topic in inserted:
             if status != STATUS_SENT:
                 continue
@@ -723,7 +723,7 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
                 self._ack_pending(connection, row_id, pending[0])
 
     def _log_republish_summary(self, inserted):
-        """ Log what the resend published, with the row ids to inspect. """
+        """ Log the republished messages, with the row ids to inspect. """
         sent = sum(1 for _, _, status, _, _ in inserted if status == STATUS_SENT)
         failed = len(inserted) - sent
         sent_ids = [row_id for row_id, _, status, _, _ in inserted if status == STATUS_SENT]
@@ -731,11 +731,11 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
         if sent_ids:
             label = 'row' if len(sent_ids) == 1 else 'rows'
             rows = f" ({label} {', '.join(sent_ids)})"
-        self._log('INFO', f"Resent {len(inserted)} message(s) after the connection was established: "
+        self._log('INFO', f"Republished {len(inserted)} message(s) after the connection was established: "
                           f"{failed} failed{rows}.")
 
     def _insert_attempts(self, connection, published, clientid):
-        """ Insert the resend rows in one transaction, returning what was inserted. """
+        """ Insert the republish rows in one transaction, returning what was inserted. """
         inserted = []
         failed = []
         with weedb.Transaction(connection) as cursor:
@@ -762,13 +762,13 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
         return inserted, failed
 
     def _ack_pending(self, connection, row_id, arrived_ts):
-        """ Mark a resend as confirmed when its arrival was reported before it was recorded. """
+        """ Mark a republish as confirmed when its arrival was reported before it was recorded. """
         try:
             with weedb.Transaction(connection) as cursor:
                 cursor.execute(f"UPDATE {self.table} SET status = ?, arrived_ts = ? WHERE id = ?",
                                (STATUS_CONFIRMED, arrived_ts, row_id))
         except Exception as exception:  # pylint: disable=broad-exception-caught
-            self._log('ERROR', f"Unable to record the arrival of a resent message: {exception}.")
+            self._log('ERROR', f"Unable to record the arrival of a republished message: {exception}.")
 
     def _sweep(self, connection):
         """ Mark the rows a previous run left waiting for an arrival as unconfirmed. """
@@ -799,7 +799,7 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
     def _prune(self, connection, now):
         """ Delete the message chains that are older than their retention.
 
-            A chain is the original row and its resends; its outcome decides the status and age.
+            A chain is the original row and its republish attempts; its outcome decides the status and age.
             A confirmed chain is pruned by 'confirmed_retention', a failed or unconfirmed chain
             by 'error_retention'. A chain with a row still in flight is left for the startup
             sweep. """
@@ -969,7 +969,7 @@ class MQTTMessageTracker(user.mqttpublish.MQTTPlugin):  # pylint: disable=too-ma
         return None
 
     def _configure_republish(self, plugin_dict):
-        """ Resolve the automatic resend options, or None when no trigger is enabled. """
+        """ Resolve the automatic republish options, or None when no trigger is enabled. """
         republish_dict = plugin_dict.get('republish')
         if republish_dict is None:
             return None
@@ -1039,19 +1039,19 @@ class MQTTMessageTracker(user.mqttpublish.MQTTPlugin):  # pylint: disable=too-ma
         self.tracker.arrived(mid)
 
     def on_mqtt_connect(self, client, _userdata, _flags, _rc, _properties):
-        """ Queue a resend after a successful connect or reconnect. """
+        """ Queue a republish after a successful connect or reconnect. """
         if self.republish_options is None:
             return
         self.connect_count += 1
         is_startup = self.connect_count == 1
         if is_startup and not self.republish_options['on_startup']:
-            self._log('DEBUG', "Skipping the startup resend, on_startup is false.")
+            self._log('DEBUG', "Skipping the startup republish, on_startup is false.")
             return
         if not is_startup and not self.republish_options['on_reconnect']:
-            self._log('DEBUG', "Skipping the resend, on_reconnect is false.")
+            self._log('DEBUG', "Skipping the republish, on_reconnect is false.")
             return
-        self._log('INFO', "Startup resend requested after the first connection." if is_startup
-                          else "Resend requested after a reconnect.")
+        self._log('INFO', "Startup republish requested after the first connection." if is_startup
+                          else "Republish requested after a reconnect.")
         self.tracker.republish(client, self.republish_options, self.mqtt_dict.get('clientid'))
 
     def on_mqtt_disconnect(self, _client, _userdata, _rc, _properties):

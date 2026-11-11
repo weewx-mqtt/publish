@@ -8,12 +8,13 @@ nav_order: 4
 
 `mqtttracker status` shows one line per tracked message, with the status the tracker has
 recorded for it. The tracker stores a chain of rows for each message: the original publish, then
-one row per resend. The message's status is the status of its outcome row — the latest confirmed
-attempt if there is one, otherwise the latest attempt. By default it shows the unresolved
-messages: those whose status is `failed`, `unconfirmed`, or `sent`. `--status` chooses the statuses
-to show. It reads the tracker database directly, so it does not need MQTTPublish to be running.
+one row per republish attempt. The message's status is the status of its outcome row — the latest
+confirmed attempt if there is one, otherwise the latest attempt. By default it shows the
+unresolved messages: those whose status is `failed`, `unconfirmed`, or `sent`. `--status` chooses
+the statuses to show. It reads the tracker database directly, so it does not need MQTTPublish to
+be running.
 
-`mqtttracker` is one tool with `resend`, `prune` and `status` subcommands. The config file is a
+`mqtttracker` is one tool with `republish`, `prune` and `status` subcommands. The config file is a
 global `--config` option, so it comes before the subcommand. Show the unresolved messages:
 
 ```shell
@@ -49,25 +50,25 @@ PYTHONPATH=~/weewx/src python3 ~/weewx-data/bin/user/mqtttracker.py --config ~/w
 
 ## Reading the result
 
-The original row is never changed; each resend records its own outcome. A message is
+The original row is never changed; each republish attempt records its own outcome. A message is
 **confirmed** when any attempt was confirmed. A confirmed attempt wins, so a delivered message is
-never counted as failed again, even after a forced resend. "Confirmed" means the broker accepted
+never counted as failed again, even after a forced republish. "Confirmed" means the broker accepted
 the publish, not that a subscriber received it.
 
-A message with several resend attempts appears once. The row is anchored at the original, or at
-the oldest surviving resend when the original was pruned. `ATTEMPTS`, `CONFIRMED`, and
+A message with several republish attempts appears once. The row is anchored at the original, or at
+the oldest surviving attempt when the original was pruned. `ATTEMPTS`, `CONFIRMED`, and
 `CURRENT STATUS` summarize the rest of the chain.
 
 The default summary lists each message with:
 
 | column | meaning |
 | --- | --- |
-| `ID` | the anchor row id; `--message` also accepts a resend id. |
+| `ID` | the anchor row id; `--message` also accepts a republish attempt id. |
 | `TOPIC` | the topic the message was published on. |
 | `ORIGINAL STATUS` | the anchor row's status: `failed`, `unconfirmed`, `sent`, or `confirmed`. |
-| `ORIGINALLY SENT` | when the anchor was handed to paho. |
-| `ATTEMPTS` | the number of resend rows in the chain, whatever their status. |
-| `CONFIRMED` | how many of those resends the broker confirmed. |
+| `ORIGINALLY PUBLISHED` | when the anchor was handed to paho. |
+| `ATTEMPTS` | the number of republish attempts in the chain, whatever their status. |
+| `CONFIRMED` | how many of those attempts the broker confirmed. |
 | `CURRENT STATUS` | the outcome: `confirmed`, `failed`, `unconfirmed`, or `sent`. |
 
 The outcomes mean:
@@ -93,10 +94,10 @@ They become `confirmed` on acknowledgement, or `unconfirmed` on a disconnect or 
 
 Show one message chain, in publish order.
 
-Use any row id from the chain, including a resend id. The command resolves it to the chain and
-shows the anchor and each resend, with its `attempt` and `origin_id`. If no row has that id, the
-command prints a message and exits `1`. The plan prints the id as `id=<hex>`; either that form or
-the bare id is accepted.
+Use any row id from the chain, including a republish attempt id. The command resolves it to the
+chain and shows the anchor and each republish attempt, with its `attempt` and `origin_id`. If no
+row has that id, the command prints a message and exits `1`. The plan prints the id as `id=<hex>`;
+either that form or the bare id is accepted.
 
 ### --topic GLOB
 
@@ -115,7 +116,7 @@ monitor that queries the database directly.
 For one message, starting from the id in the log:
 
 ```sql
--- The original row, followed by every resend of it.
+-- The original row, followed by every republish attempt.
 SELECT id, attempt, status, sent_ts, arrived_ts, rc
 FROM mqtt_message_tracker
 WHERE id = '3f2a9c...' OR origin_id = '3f2a9c...'
@@ -124,13 +125,13 @@ ORDER BY sent_ts;
 
 How to read the result:
 
-- only the original row: no resend was recorded;
-- a second row with `origin_id` set and `status = 'confirmed'`: that resend was accepted by the
+- only the original row: no republish was recorded;
+- a second row with `origin_id` set and `status = 'confirmed'`: that republish was accepted by the
   broker;
-- a resend row still `failed` or `unconfirmed`: that attempt did not confirm, and another resend
-  is still possible.
+- a republish row still `failed` or `unconfirmed`: that attempt did not confirm, and another
+  republish is still possible.
 
-The resend row's own `sent_ts` and `arrived_ts` show when it was sent and when the broker
+The republish row's own `sent_ts` and `arrived_ts` show when it was sent and when the broker
 confirmed it, which is later than the original's `sent_ts`.
 
 For every message with no confirmed attempt (the tool's default):
@@ -146,13 +147,13 @@ WHERE o.status IN ('failed', 'unconfirmed', 'sent') AND o.origin_id IS NULL
 ORDER BY o.sent_ts;
 ```
 
-A row appears here when it was never resent, or when its resends exist but none is `confirmed`
-yet (a resend that is still `sent` has not finished).
+A row appears here when it was never republished, or when its republish attempts exist but none
+is `confirmed` yet (an attempt that is still `sent` has not finished).
 
-For every message with its resend attempts and outcome:
+For every message with its republish attempts and outcome:
 
 ```sql
--- Every original, with its resend attempts and outcomes.
+-- Every original, with its republish attempts and outcomes.
 SELECT o.id, o.topic, o.status, o.sent_ts,
        COUNT(r.id) AS attempts,
        SUM(r.status = 'confirmed') AS confirmed_attempts
@@ -165,15 +166,15 @@ ORDER BY o.sent_ts;
 
 How to read the counts:
 
-- `attempts` counts every resend row, whatever its status. `0` means nothing was resent.
-- `confirmed_attempts` counts the resends where `status = 'confirmed'`. It is empty (`NULL`) when
-  `attempts` is `0`, because there are no rows to sum.
+- `attempts` counts every republish row, whatever its status. `0` means nothing was republished.
+- `confirmed_attempts` counts the republish attempts where `status = 'confirmed'`. It is empty
+  (`NULL`) when `attempts` is `0`, because there are no rows to sum.
 - `confirmed_attempts > 0` means the message was delivered. A value lower than `attempts` means
   some attempts failed but a later one succeeded.
 
-For example, an original with `attempts = 1` and `confirmed_attempts = 1` was resent once and the
-broker accepted that resend. An original with `attempts = 0` and an empty `confirmed_attempts` has
-not been resent at all. When nothing was confirmed, the latest attempt's status is the message's
-current status.
+For example, an original with `attempts = 1` and `confirmed_attempts = 1` was republished once
+and the broker accepted that republish. An original with `attempts = 0` and an empty
+`confirmed_attempts` has not been republished at all. When nothing was confirmed, the latest
+attempt's status is the message's current status.
 
 `ORDER BY o.sent_ts` lists the oldest first; use `DESC` for the newest first.

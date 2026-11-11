@@ -81,7 +81,7 @@ class TestRepublish(unittest.TestCase):
         self.addCleanup(observer.loop_stop)
         return received
 
-    def test_resends_in_order_and_records_the_outcome(self):
+    def test_republishes_in_order_and_records_the_outcome(self):
         first = self.insert('first', time.time())
         second = self.insert('second', time.time() + 0.001)
         received = self.observe()
@@ -90,7 +90,7 @@ class TestRepublish(unittest.TestCase):
             self.database_dict, TABLE, self.options, since=0, newest_per_topic=False,
             dry_run=False, ack_timeout=10, out=io.StringIO())
 
-        wait_for(lambda: len(received) >= 2, 'The resent messages are not received.')
+        wait_for(lambda: len(received) >= 2, 'The republished messages are not received.')
         self.assertEqual(received, ['first', 'second'])
         self.assertEqual([row['id'] for row in selected], [first, second])
         self.assertEqual([outcome.status for outcome in outcomes],
@@ -99,19 +99,19 @@ class TestRepublish(unittest.TestCase):
 
         rows = {row['id']: row for row in self.rows()}
         for origin_id in (first, second):
-            resends = [row for row in rows.values() if row['origin_id'] == origin_id]
-            self.assertEqual(len(resends), 1)
-            self.assertEqual(resends[0]['status'], user.mqttmessagetracker.STATUS_CONFIRMED)
-            self.assertEqual(resends[0]['attempt'], 1)
-            self.assertEqual(resends[0]['clientid'], self.options['clientid'])
-            self.assertIsNotNone(resends[0]['arrived_ts'])
+            republishes = [row for row in rows.values() if row['origin_id'] == origin_id]
+            self.assertEqual(len(republishes), 1)
+            self.assertEqual(republishes[0]['status'], user.mqttmessagetracker.STATUS_CONFIRMED)
+            self.assertEqual(republishes[0]['attempt'], 1)
+            self.assertEqual(republishes[0]['clientid'], self.options['clientid'])
+            self.assertIsNotNone(republishes[0]['arrived_ts'])
 
         # The originals are never modified.
         self.assertEqual(rows[first]['status'], user.mqttmessagetracker.STATUS_UNCONFIRMED)
         self.assertIsNone(rows[first]['arrived_ts'])
         self.assertIsNone(rows[first]['attempt'])
 
-    def test_resends_only_the_newest_message_per_topic(self):
+    def test_republishes_only_the_newest_message_per_topic(self):
         self.insert('older', time.time())
         newest = self.insert('newer', time.time() + 0.001)
         received = self.observe()
@@ -120,7 +120,7 @@ class TestRepublish(unittest.TestCase):
             self.database_dict, TABLE, self.options, since=0,
             dry_run=False, ack_timeout=10, out=io.StringIO())
 
-        wait_for(lambda: received, 'The resent message is not received.')
+        wait_for(lambda: received, 'The republished message is not received.')
         self.assertEqual(received, ['newer'])
         self.assertEqual([row['id'] for row in selected], [newest])
         self.assertEqual(len(outcomes), 1)

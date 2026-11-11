@@ -8,7 +8,8 @@ nav_order: 2
 
 ## The `[[republish]]` section
 
-The automatic resend options. Resending is off until `on_startup` or `on_reconnect` is `true`.
+The automatic republishing options. Republishing is off until `on_startup` or `on_reconnect` is
+`true`.
 
 ```ini
 [MQTTMessageTracker]
@@ -19,33 +20,33 @@ The automatic resend options. Resending is off until `on_startup` or `on_reconne
 
 ### on_startup
 
-Whether to resend after the first successful connection of the tracker.
+Whether to republish after the first successful connection of the tracker.
 Default is `false`.
 
 ### on_reconnect
 
-Whether to resend after a reconnect.
+Whether to republish after a reconnect.
 Default is `false`.
 
 When both are `false`, the section does nothing.
 
 ### include_before_last_success
 
-Whether to resend every `unconfirmed` and `failed` message for a topic, including messages
+Whether to republish every `unconfirmed` and `failed` message for a topic, including messages
 older than that topic's last confirmed publish.
 Default is `false`.
 
 ### since
 
-Only resend messages sent within the last `since` seconds.
+Only republish messages published within the last `since` seconds.
 Set to `0` to consider every message after the last confirmed publish.
 Default is `0`.
 
 ### limit
 
-The maximum number of messages to resend per connection.
-Set to `0` to resend every message.
+The maximum number of messages to republish per connection.
+Set to `0` to republish every message.
 Default is `0`.
 
-See [Resending](../../republish/index.md) for when messages are resent, and how
+See [Republishing](../../republish/index.md) for when messages are republished, and how
 `include_before_last_success` changes the selection.

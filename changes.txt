@@ -108,35 +108,35 @@ Enhancements:
     A topic published with qos 0 is rejected with an error, because its delivery cannot be confirmed.
     A previous run's leftover 'sent' rows are marked unconfirmed at startup.
     Rows that were in flight when the connection was lost are marked unconfirmed at the disconnect.
-    Failed publishes are logged at INFO and failed resends at ERROR, both with the row id they
+    Failed publishes are logged at INFO and failed republishes at ERROR, both with the row id they
     were stored under.
-    A completed resend is logged once, with the new row ids and the failure count.
+    A completed republish is logged once, with the new row ids and the failure count.
     Rows that change to unconfirmed are logged at ERROR with the row id and the reason.
-    A message is one logical publish; the tracker stores its original row and one row per resend.
+    A message is one logical publish; the tracker stores its original row and one row per republish attempt.
     The outcome row (the latest confirmed attempt, or the latest attempt when nothing was
     confirmed) decides its status and its retention.
     Delivered messages are pruned by confirmed_retention. Unresolved messages are pruned by
-    error_retention, which defaults to 0 so they can still be resent. A message is deleted as one
-    whole chain, so a failed original ages out with the resend that delivered it.
-    The optional [[republish]] section resends the unresolved messages after the last confirmed
+    error_retention, which defaults to 0 so they can still be republished. A message is deleted as one
+    whole chain, so a failed original ages out with the republish that delivered it.
+    The optional [[republish]] section republishes the unresolved messages after the last confirmed
     publish on each topic. on_startup and on_reconnect select the trigger and both default to
-    false. The log says which trigger fired, or that there was nothing to resend.
-    include_before_last_success resends them even when they are older than that publish.
+    false. The log says which trigger fired, or that there was nothing to republish.
+    include_before_last_success republishes them even when they are older than that publish.
   - Added an on_disconnect plugin callback, and the monitor_on_disconnect option to monitor
     its execution time.
-  - Added the mqtttracker tool, with resend, prune and status subcommands. resend republishes the
-    messages whose outcome is failed or unconfirmed; a resend is a new row that points at the
+  - Added the mqtttracker tool, with republish, prune and status subcommands. republish publishes the
+    tracked messages that are unresolved; a republish adds a new row that points at the
     original, so the original is never changed, and a dry run is the default. prune deletes
     delivered messages (those with a confirmed attempt) older than confirmed_retention by default,
     and deletes each message's whole chain with it; --status failed,unconfirmed prunes unresolved
     messages using error_retention, and --older-than overrides the configured age. When --limit
     truncates the selection, prune reports how many of the matching messages it selected, and the
     plan reports how many rows those messages contain. status shows one row per message and
-    filters on the outcome status, so a message that was delivered by a resend is not reported as
+    filters on the outcome status, so a message that was delivered by a republish is not reported as
     failed; CURRENT STATUS is confirmed, failed, unconfirmed, or sent. --message accepts the
     id=<hex> label the plan prints, or the bare id.
     On a package install the tool finds WeeWX by itself, so it runs by path without PYTHONPATH.
-  - Document that resending is at-least-once: a resend is a new publish, so it can duplicate a
+  - Document that republishing is at-least-once: a republish is a new publish, so it can duplicate a
     message even on a qos 2 topic.
   - Improved shutdown logic flow, with timeouts when stopping threads/processes.
   - Consistent shutdown log messages: the same wording for a component starting and finishing its

@@ -1,5 +1,5 @@
 ---
-title: Resending messages
+title: Republishing messages
 parent: MQTTMessageTracker
 ancestor: MQTTMessageTracker
 nav_order: 2
@@ -7,24 +7,25 @@ nav_order: 2
 {% include messagetracker_warning.html %}
 
 A message that paho refused, or whose acknowledgement was never observed, can be published again.
-The tracker can do it automatically after a connection, or you can run `mqtttracker republish` yourself.
+The tracker can do it automatically after a connection, or you can run `mqtttracker republish`
+yourself.
 
-## What gets resent
+## What gets republished
 
-A resend publishes a message that was not delivered. A message is delivered when its outcome is
-`confirmed` (see [Status](../status/index.md)); a delivered message is not resent unless you ask
-for it. Each message is resent once, even when it already has several attempts.
+A message that was not delivered can be republished. A message is delivered when its outcome is
+`confirmed` (see [Status](../status/index.md)); a delivered message is not republished unless you
+ask for it. Each message is republished once, even when it already has several attempts.
 
-Automatic resend and `mqtttracker republish` choose those messages differently. Automatic resend
-applies the last confirmed publish on each topic as a boundary:
+Automatic republishing and `mqtttracker republish` choose those messages differently. Automatic
+republishing applies the last confirmed publish on each topic as a boundary:
 
-- the boundary is the newest original row that is `confirmed`, or whose resend is `confirmed`.
-  A resend's own time does not move it, otherwise a successful resend could hide an older
-  backlog;
-- every unresolved message after that boundary is resent, oldest first;
-- if a topic has no confirmed publish, every unresolved message on it is resent;
+- the boundary is the newest original row that is `confirmed`, or whose republish attempt is
+  `confirmed`. A republish attempt's own time does not move it, otherwise a successful republish
+  could hide an older backlog;
+- every unresolved message after that boundary is republished, oldest first;
+- if a topic has no confirmed publish, every unresolved message on it is republished;
 - with `include_before_last_success = true`, the boundary is ignored and every unresolved message
-  is resent.
+  is republished.
 
 The boundary is per topic. A successful publish on one topic says nothing about the delivery of
 another topic.
@@ -32,10 +33,10 @@ another topic.
 `mqtttracker republish` ignores the boundary and has its own selection options; see
 [What the tool selects](#what-the-tool-selects).
 
-## Automatic resend
+## Automatic republishing
 
-Automatic resend is configured in the `[[republish]]` section. It has two triggers, and both default
-to `false`, so the section does nothing until one of them is `true`.
+Automatic republishing is configured in the `[[republish]]` section. It has two triggers, and both
+default to `false`, so the section does nothing until one of them is `true`.
 
 ```ini
 [MQTTMessageTracker]
@@ -46,7 +47,7 @@ to `false`, so the section does nothing until one of them is `true`.
 
 ### on_startup
 
-Resend after the tracker's first successful connection after WeeWX starts.
+Republish after the tracker's first successful connection after WeeWX starts.
 Default is `false`.
 
 Use it for the backlog left by the previous run. It fires once per WeeWX start, not on every
@@ -54,71 +55,71 @@ reconnect.
 
 ### on_reconnect
 
-Resend after every later successful connection.
+Republish after every later successful connection.
 Default is `false`.
 
 Use it for a connection lost while WeeWX is running. If `on_startup` is `false` and this is `true`,
-the first connection is skipped and the next successful connection triggers the resend.
+the first connection is skipped and the next successful connection triggers the republish.
 
-Setting both to `false` turns automatic resend off, the same as omitting the section.
+Setting both to `false` turns automatic republishing off, the same as omitting the section.
 
-The log records each connection: `Startup resend requested after the first connection.` or
-`Resend requested after a reconnect.` when a resend is queued, and
-`No messages need to be resent after the connection was established.` when there is nothing to
-select. A trigger that is off is logged at `DEBUG`.
+The log records each connection: `Startup republish requested after the first connection.` or
+`Republish requested after a reconnect.` when a republish is queued, and
+`No messages need to be republished after the connection was established.` when there is nothing
+to select. A trigger that is off is logged at `DEBUG`.
 
 ### include_before_last_success
 
-Whether to resend rows older than the topic's last confirmed publish.
+Whether to republish messages older than the topic's last confirmed publish.
 Default is `false`.
 
 By default the last confirmed publish is a boundary: an older message is assumed to have been
-superseded, and is not resent. Set this to `true` to treat every `failed` and `unconfirmed` row as
-a candidate, which is useful when the backlog is more important than the newer value.
+superseded, and is not republished. Set this to `true` to treat every `failed` and `unconfirmed`
+row as a candidate, which is useful when the backlog is more important than the newer value.
 
 ### since
 
-Only consider rows sent within the last `since` seconds.
+Only consider messages published within the last `since` seconds.
 Default is `0`, which applies no age limit.
 
-The age is measured from the original message's `sent_ts`, not from the resend. Use this to avoid
-republishing a very old value after a long outage.
+The age is measured from the original message's `sent_ts`, not from a republish attempt. Use this
+to avoid republishing a very old value after a long outage.
 
 ### limit
 
-The maximum number of messages to resend per connection.
-Default is `0`, which resends every selected message.
+The maximum number of messages to republish per connection.
+Default is `0`, which republishes every selected message.
 
-A capped run resends the oldest messages first. A later live publish can move the boundary past
+A capped run republishes the oldest messages first. A later live publish can move the boundary past
 the remaining backlog, so use `mqtttracker republish` to clear an old backlog without that risk.
 
 The full option and default reference is in
 [Configuration](../configuration/republish/index.md).
 
-## What a resend does
+## What republishing does
 
-The tracker resends through its existing MQTT connection. It publishes each message and records a
-new resend row; a later `on_publish` marks the row `confirmed`. A message that was in flight when
-the connection was lost is marked `unconfirmed`, so it is part of the next resend.
+The tracker republishes through its existing MQTT connection. It publishes each message and records
+a new row; a later `on_publish` marks the row `confirmed`. A message that was in flight when the
+connection was lost is marked `unconfirmed`, so it is part of the next republish.
 
-Automatic resend is best-effort. A live publish that races the resend can still land after an
-older resent value; consumers are assumed to be idempotent on `dateTime`.
+Automatic republishing is best-effort. A live publish that races the republish can still land after
+an older republished value; consumers are assumed to be idempotent on `dateTime`.
 See [QoS and duplicate delivery](../index.md#qos-and-duplicate-delivery).
 
-## Resending with mqtttracker republish
+## Republishing with mqtttracker republish
 
-`failed` and `unconfirmed` rows can also be resent with `bin/user/mqtttracker.py resend`.
+`failed` and `unconfirmed` rows can also be republished with `bin/user/mqtttracker.py republish`.
 It reads the tracker table and publishes through its own MQTT client; MQTTPublish is not
-involved and does not record the resend as a new publish.
+involved and does not record it as a new publish.
 
-`mqtttracker` is one tool with three subcommands: `resend`, `prune` and `status`. The config file
-is a global `--config` option, so it comes before the subcommand.
+`mqtttracker` is one tool with three subcommands: `republish`, `prune` and `status`. The config
+file is a global `--config` option, so it comes before the subcommand.
 
 The tool is in the tracker's user directory: `/etc/weewx/bin/user` on a package install (apt,
 rpm, openSUSE) and `~/weewx-data/bin/user` on a pip or git install. Run it with the Python that
 WeeWX uses.
 
-`resend` is a dry run unless `--publish` is given:
+`republish` is a dry run unless `--publish` is given:
 
 ```shell
 python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf republish
@@ -142,49 +143,51 @@ PYTHONPATH=~/weewx/src python3 ~/weewx-data/bin/user/mqtttracker.py --config ~/w
 By default the tool selects the messages whose outcome is `failed` or `unconfirmed`, whatever
 their age. It then:
 
-- resends only the newest message per topic, so an old value cannot overwrite a newer one; a message
-  this hides is reported, and `--all` resends every selected message, oldest first;
+- republishes only the newest message per topic, so an old value cannot overwrite a newer one; a
+  message this hides is reported, and `--all` republishes every selected message, oldest first;
 - skips a message that is already delivered (one attempt is `confirmed`); `--force` overrides;
 - connects with a clientid of its own, so the running service is not disconnected;
 - waits for the connection before publishing, and for each publish to be confirmed.
 
-A resend is a new row, so the original is never changed. It copies the topic, QoS, retain flag,
-`dateTime` and payload of the original, and points at the original with `origin_id` and `attempt`.
-See [Internals](../internals/index.md#resend-rows) for the row layout and history query.
+A republish adds a new row, so the original is never changed. It copies the topic, QoS, retain
+flag, `dateTime` and payload of the original, and points at the original with `origin_id` and
+`attempt`.
+See [Internals](../internals/index.md#republish-rows) for the row layout and history query.
 
-A message can only be resent while the tracker has not pruned its chain, so the topic's
+A message can only be republished while the tracker has not pruned its chain, so the topic's
 `error_retention` sets the recovery window for an unresolved message. Keep it long enough to cover
 the outages you want to recover from.
 
-A message published directly by a plugin, or to a topic that is not tracked, is never resent.
+A message published directly by a plugin, or to a topic that is not tracked, is never republished.
 
 The exit code is `0` on success, `1` when the connection, a publish or an ack failed, and `2` for
 a config or database error. A connect failure stops the run before anything is published.
 
 A tool that is killed after publishing leaves a `sent` row, which the tracker marks `unconfirmed`
-the next time it starts. See [Internals](../internals/index.md#resend-rows) for the write sequence.
+the next time it starts. See [Internals](../internals/index.md#republish-rows) for the write
+sequence.
 
-Resend is not delivery: it cannot undo an earlier loss, and it may publish a duplicate.
+Republishing is not delivery: it cannot undo an earlier loss, and it may publish a duplicate.
 It assumes the consumer is idempotent on `dateTime`, which is true for InfluxDB and typical
 time-series stores.
 
-## resend options
+## republish options
 
 The first argument is the WeeWX config file. The rest are options.
 
 ### --publish
 
-Publish the selection. Without it the tool is a dry run: it prints what it would resend and sends
-nothing.
+Publish the selection. Without it the tool is a dry run: it prints what it would republish and
+publishes nothing.
 
 ### --status STATUS
 
-A comma-separated list of message statuses to resend.
+A comma-separated list of message statuses to republish.
 Default is `failed,unconfirmed`.
 
-Use `--status unconfirmed` to resend only the ambiguous messages, or `--status failed` to resend
-only failed publishes. `sent` may still be in flight and `confirmed` does not need a resend, so
-both are refused.
+Use `--status unconfirmed` to republish only the ambiguous messages, or `--status failed` to
+republish only failed publishes. `sent` may still be in flight and `confirmed` does not need to be
+republished, so both are refused.
 
 ```shell
 python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf republish --status unconfirmed --publish
@@ -192,22 +195,22 @@ python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf republ
 
 ### --since SECONDS
 
-Only resend messages whose outcome is within the last `SECONDS`.
+Only republish messages whose outcome is within the last `SECONDS`.
 Default is every message, whatever its age.
 
-The age is measured from the message's latest attempt, which is the original publish or a resend.
-Use it together with `error_retention` to bound an old backlog.
+The age is measured from the message's latest attempt, which is the original publish or a
+republish attempt. Use it together with `error_retention` to bound an old backlog.
 
 ### --limit COUNT
 
-The maximum number of messages to resend.
+The maximum number of messages to republish.
 Default is `100`; `0` removes the limit.
 
-The selection is resent oldest first.
+The selection is republished oldest first.
 
 ### --topic GLOB
 
-Only resend topics that match the glob.
+Only republish topics that match the glob.
 
 ```shell
 python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf republish --topic 'weather/outTemp_*' --publish
@@ -215,14 +218,14 @@ python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf republ
 
 ### --all
 
-Resend every selected message, not just the newest row per topic.
+Republish every selected message, not just the newest row per topic.
 
-By default only the newest message per topic is resent, so an old value cannot overwrite a newer
-one. A message this hides is reported; `--all` is how you publish it too, oldest first.
+By default only the newest message per topic is republished, so an old value cannot overwrite a
+newer one. A message this hides is reported; `--all` is how you publish it too, oldest first.
 
 ### --force
 
-Resend messages that are already delivered (they have a `confirmed` attempt).
+Republish messages that are already delivered (they have a `confirmed` attempt).
 
 The tool skips them by default because they were already delivered once. Use `--force` when you
 need another copy despite that.
@@ -232,7 +235,7 @@ need another copy despite that.
 How long to wait for each publish to be acknowledged.
 Default is `10`.
 
-If the wait expires, that resend row is marked `unconfirmed` and the run exits `1`. The other
+If the wait expires, that republish row is marked `unconfirmed` and the run exits `1`. The other
 selected messages are still attempted.
 
 ### --connect-timeout SECONDS
@@ -245,7 +248,7 @@ A connect failure stops the run before anything is published.
 ### --clientid ID
 
 The clientid to connect with.
-Default is a unique id starting with `MQTTPublish-resend`, so the tool does not disconnect the
+Default is a unique id starting with `MQTTPublish-republish`, so the tool does not disconnect the
 running service.
 
 ### --plugin-section NAME

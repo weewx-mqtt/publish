@@ -98,11 +98,11 @@ class DatabaseTestCase(unittest.TestCase):
 class TestStatus(DatabaseTestCase):
     def test_summary_shows_the_unresolved_outcome(self):
         original = make_row(sent_ts=1000.0)
-        resend = make_row(sent_ts=1100.0, status=STATUS.STATUS_CONFIRMED,
-                          origin_id=original['id'], attempt=1, arrived_ts=1200.0)
+        republish = make_row(sent_ts=1100.0, status=STATUS.STATUS_CONFIRMED,
+                             origin_id=original['id'], attempt=1, arrived_ts=1200.0)
         unresolved = make_row(sent_ts=2000.0, status=STATUS.STATUS_UNCONFIRMED)
         self.insert(original)
-        self.insert(resend)
+        self.insert(republish)
         self.insert(unresolved)
 
         self.assertEqual(self.run_tool(), 0)
@@ -110,7 +110,7 @@ class TestStatus(DatabaseTestCase):
         self.assertNotIn(original['id'], self.out.getvalue())
         self.assertIn(unresolved['id'], self.out.getvalue())
         self.assertIn('ORIGINAL STATUS', self.out.getvalue())
-        self.assertIn('ORIGINALLY SENT', self.out.getvalue())
+        self.assertIn('ORIGINALLY PUBLISHED', self.out.getvalue())
         self.assertIn('CURRENT STATUS', self.out.getvalue())
         self.assertIn('unconfirmed', self.out.getvalue())
 
@@ -168,7 +168,7 @@ class TestStatus(DatabaseTestCase):
         line = [row for row in output.splitlines() if original['id'] in row][0]
         self.assertEqual(line.split()[-3:], ['2', '0', 'sent'])
 
-    def test_summary_anchors_an_orphaned_chain_at_the_oldest_resend(self):
+    def test_summary_anchors_an_orphaned_chain_at_the_oldest_republish(self):
         original_id = helpers.random_string()
         first = make_row(status=STATUS.STATUS_SENT, sent_ts=1100.0,
                          origin_id=original_id, attempt=1)
@@ -187,69 +187,69 @@ class TestStatus(DatabaseTestCase):
 
     def test_status_confirmed_shows_a_delivered_chain(self):
         original = make_row(sent_ts=1000.0)
-        resend = make_row(sent_ts=1100.0, status=STATUS.STATUS_CONFIRMED,
-                          origin_id=original['id'], attempt=1, arrived_ts=1200.0)
+        republish = make_row(sent_ts=1100.0, status=STATUS.STATUS_CONFIRMED,
+                             origin_id=original['id'], attempt=1, arrived_ts=1200.0)
         self.insert(original)
-        self.insert(resend)
+        self.insert(republish)
 
         self.assertEqual(self.run_tool('--status', 'confirmed'), 0)
 
         output = self.out.getvalue()
         self.assertIn(original['id'], output)
-        self.assertNotIn(resend['id'], output)
+        self.assertNotIn(republish['id'], output)
         line = [row for row in output.splitlines() if original['id'] in row][0]
         self.assertEqual(line.split()[-3:], ['1', '1', 'confirmed'])
 
     def test_a_delivered_chain_is_not_a_failed_message(self):
         original = make_row(sent_ts=1000.0, status=STATUS.STATUS_FAILED)
-        resend = make_row(sent_ts=1100.0, status=STATUS.STATUS_CONFIRMED,
-                          origin_id=original['id'], attempt=1, arrived_ts=1200.0)
+        republish = make_row(sent_ts=1100.0, status=STATUS.STATUS_CONFIRMED,
+                             origin_id=original['id'], attempt=1, arrived_ts=1200.0)
         self.insert(original)
-        self.insert(resend)
+        self.insert(republish)
 
         self.assertEqual(self.run_tool('--status', 'failed'), 0)
 
         self.assertIn('No messages with current status failed.', self.out.getvalue())
 
-    def test_message_shows_the_original_and_its_resends(self):
+    def test_message_shows_the_original_and_its_republishes(self):
         original = make_row(sent_ts=1000.0)
-        resend = make_row(sent_ts=1100.0, status=STATUS.STATUS_CONFIRMED,
-                          origin_id=original['id'], attempt=1, arrived_ts=1200.0)
+        republish = make_row(sent_ts=1100.0, status=STATUS.STATUS_CONFIRMED,
+                             origin_id=original['id'], attempt=1, arrived_ts=1200.0)
         self.insert(original)
-        self.insert(resend)
+        self.insert(republish)
 
         self.assertEqual(self.run_tool('--message', original['id']), 0)
 
         self.assertIn(original['id'], self.out.getvalue())
-        self.assertIn(resend['id'], self.out.getvalue())
+        self.assertIn(republish['id'], self.out.getvalue())
         self.assertIn('attempt=1', self.out.getvalue())
         self.assertNotIn('payload=', self.out.getvalue())
 
-    def test_message_accepts_a_resend_id(self):
+    def test_message_accepts_a_republish_id(self):
         original = make_row(sent_ts=1000.0)
-        resend = make_row(sent_ts=1100.0, status=STATUS.STATUS_CONFIRMED,
-                          origin_id=original['id'], attempt=1, arrived_ts=1200.0)
+        republish = make_row(sent_ts=1100.0, status=STATUS.STATUS_CONFIRMED,
+                             origin_id=original['id'], attempt=1, arrived_ts=1200.0)
         self.insert(original)
-        self.insert(resend)
+        self.insert(republish)
 
-        self.assertEqual(self.run_tool('--message', resend['id']), 0)
+        self.assertEqual(self.run_tool('--message', republish['id']), 0)
 
         self.assertIn(original['id'], self.out.getvalue())
-        self.assertIn(resend['id'], self.out.getvalue())
+        self.assertIn(republish['id'], self.out.getvalue())
         self.assertIn('attempt=1', self.out.getvalue())
 
     def test_message_accepts_the_id_label(self):
         original = make_row(sent_ts=1000.0)
-        resend = make_row(sent_ts=1100.0, status=STATUS.STATUS_CONFIRMED,
-                          origin_id=original['id'], attempt=1, arrived_ts=1200.0)
+        republish = make_row(sent_ts=1100.0, status=STATUS.STATUS_CONFIRMED,
+                             origin_id=original['id'], attempt=1, arrived_ts=1200.0)
         self.insert(original)
-        self.insert(resend)
+        self.insert(republish)
 
         for label in ('id=', 'ID='):
             self.out = io.StringIO()
             self.assertEqual(self.run_tool('--message', f"{label}{original['id']}"), 0)
             self.assertIn(original['id'], self.out.getvalue())
-            self.assertIn(resend['id'], self.out.getvalue())
+            self.assertIn(republish['id'], self.out.getvalue())
 
     def test_unknown_message_exits_one(self):
         self.insert(make_row())

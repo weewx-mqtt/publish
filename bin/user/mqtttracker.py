@@ -8,7 +8,7 @@
     mqtttracker prune   - delete delivered messages before the retention policy does
     mqtttracker status  - show failed and unconfirmed messages and their outcome
 
-    resend and prune are dry runs unless --publish or --delete is given.
+    republish and prune are dry runs unless --publish or --delete is given.
     The tracker options are read from the WeeWX config file.
 """
 
@@ -83,7 +83,7 @@ decode_payload = user.mqttmessagetracker.decode_payload
 next_attempt = user.mqttmessagetracker.next_attempt
 insert_attempt = user.mqttmessagetracker.insert_attempt
 
-# A 'sent' row may still be in flight, and a 'confirmed' row needs no resend.
+# A 'sent' row may still be in flight, and a 'confirmed' row needs no republish.
 REPUBLISH_STATUSES = (user.mqttmessagetracker.STATUS_FAILED,
                       user.mqttmessagetracker.STATUS_UNCONFIRMED)
 # A prune can also remove the confirmed history, but only when asked to.
@@ -98,12 +98,12 @@ DEFAULT_SUMMARY_STATUSES = (user.mqttmessagetracker.STATUS_FAILED,
                             user.mqttmessagetracker.STATUS_UNCONFIRMED,
                             user.mqttmessagetracker.STATUS_SENT)
 
-# A resend works on the messages that are still unresolved.
+# Republishing works on the messages that are still unresolved.
 DEFAULT_STATUSES = REPUBLISH_STATUSES
 # A prune cleans up the messages that were delivered and no longer need a record.
 DEFAULT_PRUNE_STATUSES = (user.mqttmessagetracker.STATUS_CONFIRMED,)
 DEFAULT_PLUGIN_SECTION = user.mqttmessagetracker.DEFAULT_PLUGIN_SECTION
-# Every row is considered by default, so every unconfirmed message is resent.
+# Every row is considered by default, so every unconfirmed message is republished.
 DEFAULT_SINCE = None
 DEFAULT_LIMIT = 100
 DEFAULT_ACK_TIMEOUT = 10
@@ -119,7 +119,7 @@ RepublishOutcome = collections.namedtuple('RepublishOutcome', 'row attempt mid s
 
 
 class RepublishError(Exception):
-    """ A resend failure. """
+    """ A republish failure. """
 
 
 class RepublishConfigError(RepublishError):
@@ -147,12 +147,12 @@ def read_config(config_file):
 
 
 # ---------------------------------------------------------------------------
-# resend
+# republish
 # ---------------------------------------------------------------------------
 
 def republish_config(config_dict, plugin_section=DEFAULT_PLUGIN_SECTION, data_binding=None, table=None,
                      clientid=None):
-    """ Resolve the database, table and mqtt connection options for a resend. """
+    """ Resolve the database, table and mqtt connection options for a republish. """
     try:
         _, database_dict, table_name = user.mqttmessagetracker.tool_config(
             config_dict, plugin_section, data_binding, table)
@@ -175,12 +175,12 @@ def _may_be_on_the_broker(row):
 
 
 def _republish_row(chain):
-    """ The row whose payload a resend publishes. """
+    """ The row to republish for a chain. """
     return user.mqttmessagetracker.chain_anchor(chain)
 
 
 def _eligible(chain, outcome, statuses, force):
-    """ Whether a chain is in a state a resend can still fix.
+    """ Whether a chain is in a state a republish can still fix.
 
         'force' also accepts a delivered chain, so a message with a confirmed attempt can be
         sent again on request. """
@@ -251,11 +251,11 @@ def _limit(rows, limit):
 # pylint: disable=too-many-arguments,too-many-positional-arguments
 def select_messages(rows, statuses=None, since=DEFAULT_SINCE, limit=DEFAULT_LIMIT, topic=None,
                     newest_per_topic=True, force=False, now=None):
-    """ Select the messages to resend, one row per chain.
+    """ Select the messages to republish, one row per chain.
 
         A message is selected when the outcome of its chain has one of the statuses; 'since'
         bounds the age of that outcome. Only the newest message per topic is selected by
-        default, so resent values cannot overwrite newer ones. A delivered message is skipped
+        default, so republished values cannot overwrite newer ones. A delivered message is skipped
         unless 'force' is set. """
     candidates = _candidates(rows, statuses, since, topic, force,
                              time.time() if now is None else now)
@@ -265,9 +265,9 @@ def select_messages(rows, statuses=None, since=DEFAULT_SINCE, limit=DEFAULT_LIMI
 
 # pylint: disable=too-many-arguments,too-many-positional-arguments
 def superseded(rows, statuses=None, since=DEFAULT_SINCE, topic=None, force=False, now=None):
-    """ The messages a resend would keep, but for a newer message on the same topic.
+    """ The messages a republish would keep, but for a newer message on the same topic.
 
-        Resending one would write an older value over a newer one, so they are only selected
+        Republishing one would write an older value over a newer one, so they are only selected
         with '--all'. """
     newest = _newest_per_topic(rows)
     candidates = _candidates(rows, statuses, since, topic, force,
@@ -276,7 +276,7 @@ def superseded(rows, statuses=None, since=DEFAULT_SINCE, topic=None, force=False
 
 
 def update_attempt(connection, table, row_id, status, timestamp=None):
-    """ Record the outcome of a resend. """
+    """ Record the outcome of a republish. """
     timestamp = time.time() if timestamp is None else timestamp
     if status == user.mqttmessagetracker.STATUS_CONFIRMED:
         statement = f"UPDATE {table} SET status = ?, arrived_ts = ? WHERE id = ?"
@@ -401,7 +401,7 @@ def print_outcomes(outcomes, out):
 def republish(database_dict, table, options, *, statuses=None, since=DEFAULT_SINCE,
               limit=DEFAULT_LIMIT, topic=None, newest_per_topic=True, force=False, dry_run=True,
               ack_timeout=DEFAULT_ACK_TIMEOUT, connect_timeout=DEFAULT_CONNECT_TIMEOUT, out=None):
-    """ Resend the selected messages, returning the selection and the outcomes.
+    """ Republish the selected messages, returning the selection and the outcomes.
 
         Nothing is published when 'dry_run' is set, or when nothing is selected. """
     out = sys.stdout if out is None else out
@@ -420,7 +420,7 @@ def republish(database_dict, table, options, *, statuses=None, since=DEFAULT_SIN
             stale = superseded(rows, statuses=statuses, since=since, topic=topic, force=force)
             if stale:
                 print(f"{len(stale)} message(s) are older than a newer message on their topic, "
-                      "use --all to resend them.", file=out)
+                      "use --all to republish them.", file=out)
         if dry_run or not selected:
             return selected, []
 
@@ -561,7 +561,7 @@ def _outcome_status(connection, table, chain_id):
 def delete_chains(connection, table, rows):
     """ Delete the selected message chains.
 
-        A chain is the original row and its resends. A chain whose outcome changed after it
+        A chain is the original row and its republish attempts. A chain whose outcome changed after it
         was selected is left alone, and a row still in flight ('sent') is left for the startup
         sweep. """
     deleted = 0
@@ -649,7 +649,7 @@ def prune(config_dict, options, out=None):
 # status
 # ---------------------------------------------------------------------------
 
-# The columns the status summary needs; the resend counts are computed per chain.
+# The columns the status summary needs; the republish counts are computed per chain.
 _STATUS_ROWS_SQL = """
 SELECT id, topic, status, sent_ts, origin_id, attempt
 FROM {table}
@@ -681,7 +681,7 @@ def _status_chains(rows):
     """ Yield one summary row per message chain.
 
         The chain is anchored at its original row; if the original was pruned, the oldest
-        surviving resend is the anchor. The current status is the outcome's status. """
+        surviving attempt is the anchor. The current status is the outcome's status. """
     for chain in user.mqttmessagetracker.chain_rows(rows).values():
         anchor = user.mqttmessagetracker.chain_anchor(chain)
         outcome = user.mqttmessagetracker.outcome_row(chain)
@@ -693,7 +693,7 @@ def _status_chains(rows):
 
 
 def status_summary(connection, table, statuses=None, topic=None, limit=DEFAULT_LIMIT):
-    """ One row per message chain, with the outcome of its resends. """
+    """ One row per message chain, with the outcome of its republish attempts. """
     statuses = tuple(statuses or DEFAULT_SUMMARY_STATUSES)
     rows = [row for row in _status_chains(
         _rows(connection, _STATUS_ROWS_SQL.format(table=table), columns=_STATUS_COLUMNS))
@@ -742,15 +742,15 @@ def print_status_summary(rows, out, statuses=DEFAULT_SUMMARY_STATUSES):
         print(empty, file=out)
         return
     print(f"{len(rows)} {label}:", file=out)
-    print(f"  {'ID':<32} {'TOPIC':<30} {'ORIGINAL STATUS':<15} {'ORIGINALLY SENT':<19} "
+    print(f"  {'ID':<32} {'TOPIC':<30} {'ORIGINAL STATUS':<15} {'ORIGINALLY PUBLISHED':<20}  "
           f"{'ATTEMPTS':<8} {'CONFIRMED':<9}  CURRENT STATUS", file=out)
     for row_id, topic, status, sent_ts, attempts, confirmed_attempts, current_status in rows:
-        print(f"  {row_id:<32} {topic[:30]:<30} {status:<15} {_sent_at(sent_ts):<19} "
+        print(f"  {row_id:<32} {topic[:30]:<30} {status:<15} {_sent_at(sent_ts):<20} "
               f"{attempts:<8} {confirmed_attempts:<9}  {current_status}", file=out)
 
 
 def print_status_message(rows, message_id, out):
-    """ Print one message and its resends. """
+    """ Print one message and its republish attempts. """
     if not rows:
         print(f"No rows found for message {message_id}.", file=out)
         return False
@@ -764,7 +764,7 @@ def print_status_message(rows, message_id, out):
 
 
 def show_status(config_dict, options, out=None):
-    """ Show tracked messages and their resend outcome. """
+    """ Show tracked messages and their republish outcome. """
     out = sys.stdout if out is None else out
     try:
         _, database_dict, table = user.mqttmessagetracker.tool_config(
@@ -807,7 +807,7 @@ def _status_list(value, allowed):
 
 
 def _republish_statuses(value):
-    """ Parse the statuses a message can be resent from. """
+    """ Parse the statuses a message can be republished from. """
     return _status_list(value, REPUBLISH_STATUSES)
 
 
@@ -833,32 +833,32 @@ def _add_tracker_options(parser):
 
 
 def _add_republish_parser(subparsers):
-    """ The resend subcommand. """
+    """ The republish subcommand. """
     parser = subparsers.add_parser(
         'republish',
-        description="Resend the MQTT messages the message tracker recorded.",
-        epilog="Without --publish the selection is only printed, nothing is sent.")
+        description="Republish the MQTT messages the message tracker recorded.",
+        epilog="Without --publish the selection is only printed, nothing is published.")
     _add_tracker_options(parser)
     parser.add_argument('--clientid', default=None,
-                        help="The clientid to connect with. Default is a unique MQTTPublish-resend id.")
+                        help="The clientid to connect with. Default is a unique MQTTPublish-republish id.")
     parser.add_argument('--status', type=_republish_statuses, default=list(DEFAULT_STATUSES),
                         metavar='STATUS',
-                        help=(f"The statuses to resend, comma separated. "
+                        help=(f"The statuses to republish, comma separated. "
                               f"Default is {', '.join(DEFAULT_STATUSES)}. Choose from "
                               f"{', '.join(REPUBLISH_STATUSES)}."))
     parser.add_argument('--since', type=int, default=DEFAULT_SINCE, metavar='SECONDS',
-                        help="Only resend messages sent within the last SECONDS. "
+                        help="Only republish messages published within the last SECONDS. "
                              "Default is every message.")
     parser.add_argument('--limit', type=int, default=DEFAULT_LIMIT, metavar='COUNT',
-                        help=f"The maximum number of messages to resend. Default is {DEFAULT_LIMIT}.")
+                        help=f"The maximum number of messages to republish. Default is {DEFAULT_LIMIT}.")
     parser.add_argument('--topic', default=None, metavar='GLOB',
-                        help="Only resend topics that match the glob, for example 'weather/outTemp_*'.")
+                        help="Only republish topics that match the glob, for example 'weather/outTemp_*'.")
     parser.add_argument('--all', action='store_true',
-                        help="Resend every selected message, not just the newest per topic.")
+                        help="Republish every selected message, not just the newest per topic.")
     parser.add_argument('--force', action='store_true',
-                        help="Resend messages that already have a confirmed resend.")
+                        help="Republish messages that already have a confirmed attempt.")
     parser.add_argument('--publish', action='store_true',
-                        help="Publish the selected messages. Without it nothing is sent.")
+                        help="Publish the selected messages. Without it nothing is published.")
     parser.add_argument('--ack-timeout', type=float, default=DEFAULT_ACK_TIMEOUT, metavar='SECONDS',
                         help=f"How long to wait for each publish to be acknowledged. "
                              f"Default is {DEFAULT_ACK_TIMEOUT}.")
@@ -896,7 +896,7 @@ def _add_status_parser(subparsers):
     """ The status subcommand. """
     parser = subparsers.add_parser(
         'status',
-        description="Show tracked messages and their resend outcome.")
+        description="Show tracked messages and their republish outcome.")
     _add_tracker_options(parser)
     parser.add_argument('--status', type=_summary_statuses, default=list(DEFAULT_SUMMARY_STATUSES),
                         metavar='STATUS',
@@ -904,7 +904,7 @@ def _add_status_parser(subparsers):
                               f"Default is {', '.join(DEFAULT_SUMMARY_STATUSES)}. Choose from "
                               f"{', '.join(SUMMARY_STATUSES)}."))
     parser.add_argument('--message', '--id', dest='message', default=None, metavar='ID',
-                        help="Show one message and its resends, using the id from the log.")
+                        help="Show one message and its republish attempts, using the id from the log.")
     parser.add_argument('--topic', default=None, metavar='GLOB',
                         help="Only messages whose topic matches the glob.")
     parser.add_argument('--limit', type=int, default=DEFAULT_LIMIT, metavar='COUNT',
@@ -929,7 +929,7 @@ def build_parser():
 
 
 def _run_republish(options, out, err):
-    """ Run the resend command. """
+    """ Run the republish command. """
     try:
         config_dict = read_config(options.config)
         database_dict, table, mqtt_options = republish_config(

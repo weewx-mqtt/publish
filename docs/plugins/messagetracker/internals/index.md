@@ -8,8 +8,8 @@ nav_order: 6
 
 Implementation notes for `MQTTMessageTracker`.
 They are not needed to install or use the plugin.
-The options are in [Configuration](../configuration/index.md), and the resend and prune behavior
-is in [Resending messages](../republish/index.md) and [Pruning](../prune/index.md).
+The options are in [Configuration](../configuration/index.md), and the republish and prune behavior
+is in [Republishing messages](../republish/index.md) and [Pruning](../prune/index.md).
 
 ## What is tracked
 
@@ -23,21 +23,23 @@ Each message published to a tracked topic records a row.
 - `status`: what is known about the message.
 - `unconfirmed_ts`: when the tracker stopped waiting for the arrival, `NULL` unless the status is
   `unconfirmed`.
-- `origin_id`: the id of the original publish when this row is a resend, `NULL` otherwise.
-- `attempt`: the resend number when this row is a resend, `NULL` for the original publish.
-- `clientid`: the client that made a resend, `NULL` for the original publish.
+- `origin_id`: the id of the original publish when this row is a republish attempt, `NULL`
+  otherwise.
+- `attempt`: the republish attempt number when this row is a republish attempt, `NULL` for the
+  original publish.
+- `clientid`: the client that made the republish attempt, `NULL` for the original publish.
 - `topic`: the topic the message was published on.
 - `qos`: the quality of service level used.
 - `retain`: whether the message is retained.
 - `rc`: the paho result code.
-- `payload`: the payload that was sent.
+- `payload`: the payload that was published.
 - `payload_encoding`: `text` or `hex`, `NULL` when there is no payload.
 
 The payload is stored as text; binary payloads are hex-encoded and marked with
 `payload_encoding`. With MySQL, `MEDIUMTEXT` holds up to 16 MB; SQLite has no practical limit.
 A larger payload makes the insert fail and the batch is logged and dropped.
 
-A resend of a message is a copy of its row, with its own `mid`, `sent_ts`, `arrived_ts`, `status`
+A republish attempt is a copy of its row, with its own `mid`, `sent_ts`, `arrived_ts`, `status`
 and `rc`. It keeps the original `topic`, `qos`, `retain`, `dateTime` and `payload`, and points at
 the original with `origin_id` and `attempt`. The original row is not changed.
 
@@ -51,7 +53,7 @@ availability/LWT message are not tracked.
 `unconfirmed`; otherwise a row whose arrival never arrives is kept until the tracker stops, which
 marks it `unconfirmed`. The topic's `error_retention` then bounds it.
 
-A `failed` publish, and a resend that paho refuses, are logged at `ERROR` with the topic, `rc`,
+A `failed` publish, and a republish that paho refuses, are logged at `ERROR` with the topic, `rc`,
 `mid` and the row's `id`. A row that changes to `unconfirmed` is also logged at `ERROR`, with its
 `id`, topic, `mid` and the reason: the connection was lost, no arrival was reported, the message id
 was reused, or a previous run left it `sent`. A log monitor can follow a message straight to its
@@ -111,25 +113,26 @@ CREATE TABLE IF NOT EXISTS mqtt_message_tracker (
 );
 ```
 
-## Resend rows
+## Republish rows
 
-A resend is a new row, so the original is never changed:
+A republish adds a new row, so the original is never changed:
 
 | id | topic | status | origin_id | attempt |
 | --- | --- | --- | --- | --- |
 | A | weather/outTemp_F | unconfirmed | NULL | NULL |
 | B | weather/outTemp_F | confirmed | A | 1 |
 
-The resend copies the topic, QoS, retain flag, `dateTime` and payload of the original.
-Its `origin_id` is the original row and `attempt` counts the resends of that message from 1.
-Resending a resend keeps the chain flat under the original, so that message's history is:
+The republish copies the topic, QoS, retain flag, `dateTime` and payload of the original.
+Its `origin_id` is the original row and `attempt` counts the republish attempts of that message
+from 1.
+Republishing a message keeps the chain flat under the original, so that message's history is:
 
 ```sql
 SELECT id, attempt, mid, sent_ts, arrived_ts, status, rc
 FROM mqtt_message_tracker WHERE origin_id = ? ORDER BY attempt;
 ```
 
-The write sequence matches the tracker: the resend is inserted as `sent` after paho accepts it,
+The write sequence matches the tracker: the republish is inserted as `sent` after paho accepts it,
 then updated to `confirmed` or `unconfirmed`.
 
 ## Checking a message's outcome
@@ -140,7 +143,7 @@ failed and unconfirmed messages were eventually confirmed.
 ## Maintenance SQL
 
 `bin/user/mqtttracker.py prune` is the supported way to delete messages. It works on a whole
-message chain: the original row and every resend, chosen by the chain's outcome.
+message chain: the original row and every republish attempt, chosen by the chain's outcome.
 If the tool is not installed, delete a chain by its id with SQL:
 
 ```sql
@@ -149,7 +152,7 @@ WHERE id = '3f2a9c...' OR origin_id = '3f2a9c...';
 ```
 
 Do not delete rows by status alone. A delivered message keeps its failed original, and deleting
-only part of a chain leaves a later resend without the record that it was a resend.
+only part of a chain leaves a later attempt without the record that it was a republish.
 
 ## Writer thread and SQLite locking
 

@@ -7,11 +7,11 @@ has_children: true
 {% include messagetracker_warning.html %}
 
 MQTTMessageTracker records every message MQTTPublish sends to the topics you track in a separate
-WeeWX database. Each record holds the outcome of the publish. The tracker can resend the messages
+WeeWX database. Each record holds the outcome of the publish. The tracker can republish the messages
 that failed, or whose outcome is unknown, after the connection comes back.
 
-The plugin is optional. Enable it when you want delivery history, automatic resend, or the
-`mqtttracker` tool and its `resend`, `prune` and `status` subcommands.
+The plugin is optional. Enable it when you want delivery history, automatic republishing, or the
+`mqtttracker` tool and its `republish`, `prune` and `status` subcommands.
 
 ## Enabling it
 
@@ -55,7 +55,7 @@ See [Configuration](configuration/index.md) for every option.
 ## What is tracked
 
 Each message published to a tracked topic records a row in the tracker table.
-A resend is a new row that points at the original with `origin_id` and `attempt`; the original
+A republish adds a new row that points at the original with `origin_id` and `attempt`; the original
 row is never changed.
 
 Messages published directly by a plugin, such as the Home Assistant discovery messages, and the
@@ -96,12 +96,12 @@ QoS 2 is exactly-once between one client and the broker, and separately between 
 each subscriber. It is not an end-to-end guarantee across reconnects, restarts, or application
 retries, and it does not mean a subscriber received the message.
 
-A resend is a new publish with a new packet id. The broker cannot tell that it is a replay, so a
+Republishing is a new publish with a new packet id. The broker cannot tell that it is a replay, so a
 subscriber can receive the same application message more than once, even when the topic uses
-QoS 2. This applies to both automatic resend and `mqtttracker republish`.
+QoS 2. This applies to both automatic republishing and `mqtttracker republish`.
 
 The tracker therefore provides at-least-once delivery end to end. Consumers must be idempotent,
-for example by deduplicating on `dateTime`. `failed` rows are safe to resend: paho refused them,
+for example by deduplicating on `dateTime`. `failed` rows are safe to republish: paho refused them,
 so they were not published. `unconfirmed` rows are the ambiguous ones: the original may have
 reached the broker, but its acknowledgement was not observed.
 

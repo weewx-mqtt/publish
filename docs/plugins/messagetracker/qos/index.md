@@ -102,6 +102,7 @@ A `confirmed` row records the broker's acceptance of the publish, not delivery t
 The tracker therefore provides at-least-once delivery end to end, and consumers must be idempotent,
 for example by deduplicating on `dateTime`.
 
-A resend is a new publish with a new packet id, so even QoS 2 topics can deliver the same
-application message more than once. See [QoS and duplicate delivery](../index.md#qos-and-duplicate-delivery)
-for what that means when resending.
+Republishing is a new publish with a new packet id, so even QoS 2 topics can deliver the same
+application message more than once. See
+[QoS and duplicate delivery](../index.md#qos-and-duplicate-delivery) for what that means when
+republishing.

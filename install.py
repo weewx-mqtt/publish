@@ -379,7 +379,7 @@ MQTTPUBLISH_CONFIG = """
     confirmed_retention = 604800
 
     # How long, in seconds, to keep failed and unconfirmed rows in topics that do
-    # not set their own. These are the messages a resend can still recover.
+    # not set their own. These are the messages a republish can still recover.
     # Set to 0 to keep them forever.
     # Default is 0.
     error_retention = 0
@@ -405,30 +405,30 @@ MQTTPUBLISH_CONFIG = """
     # Default is 10.
     shutdown_timeout = 10
 
-    # Resend the messages that were not confirmed when the connection is (re)established.
-    # Only the messages after the last confirmed publish on each topic are resent.
-    # Automatic resending is off until one of the triggers below is true.
+    # Republish the messages that were not confirmed when the connection is (re)established.
+    # Only the messages after the last confirmed publish on each topic are republished.
+    # Automatic republishing is off until one of the triggers below is true.
     [[republish]]
-        # Resend after the first successful connection.
+        # Republish after the first successful connection.
         # Default is false.
         on_startup = false
 
-        # Resend after a reconnect.
+        # Republish after a reconnect.
         # Default is false.
         on_reconnect = false
 
-        # Resend every unconfirmed and failed message for the topic, including messages
+        # Republish every unconfirmed and failed message for the topic, including messages
         # that are older than the topic's last confirmed publish.
         # Default is false.
         include_before_last_success = false
 
-        # Only resend messages sent within the last SECONDS.
+        # Only republish messages published within the last SECONDS.
         # Set to 0 to consider every message after the last confirmed publish.
         # Default is 0.
         since = 0
 
-        # The maximum number of messages to resend per connection.
-        # Set to 0 to resend every message.
+        # The maximum number of messages to republish per connection.
+        # Set to 0 to republish every message.
         # Default is 0.
         limit = 0
 

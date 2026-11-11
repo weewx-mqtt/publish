@@ -2,7 +2,7 @@
 #
 #    See the file LICENSE.txt for your full rights.
 #
-""" An automatic resend after a reconnect, against a real broker. """
+""" An automatic republish after a reconnect, against a real broker. """
 
 # pylint: disable=wrong-import-order
 
@@ -131,7 +131,7 @@ class TestRepublishOnConnect(unittest.TestCase):
             time.sleep(0.1)
         self.fail("The tracker did not reach the expected state.")
 
-    def test_resends_a_failed_message_after_reconnect(self):
+    def test_republishes_a_failed_message_after_reconnect(self):
         broker = MosquittoBroker()
         self.addCleanup(broker.cleanup)
         broker.start()
@@ -166,22 +166,22 @@ class TestRepublishOnConnect(unittest.TestCase):
             row['payload'] == 'missed' and row['status'] == 'failed' for row in rows))
         missed = [row for row in rows if row['payload'] == 'missed'][0]
 
-        # The broker returns. Paho reconnects, the tracker resends the failed message, and
+        # The broker returns. Paho reconnects, the tracker republishes the failed message, and
         # its arrival is recorded as a new row that points at the original.
         broker.start()
         wait_for(lambda: publisher.connected, 'The publisher does not reconnect.')
 
         rows = self._wait_for_rows(lambda rows: any(row['origin_id'] == missed['id'] for row in rows))
-        resent = [row for row in rows if row['origin_id'] == missed['id']][0]
-        self.assertEqual(resent['payload'], 'missed')
-        self.assertEqual(resent['attempt'], 1)
-        self.assertEqual(resent['clientid'], config['clientid'])
-        self.assertEqual(resent['topic'], TOPIC)
+        republished = [row for row in rows if row['origin_id'] == missed['id']][0]
+        self.assertEqual(republished['payload'], 'missed')
+        self.assertEqual(republished['attempt'], 1)
+        self.assertEqual(republished['clientid'], config['clientid'])
+        self.assertEqual(republished['topic'], TOPIC)
 
         rows = self._wait_for_rows(lambda rows: any(
-            row['id'] == resent['id'] and row['status'] == 'confirmed' for row in rows))
+            row['id'] == republished['id'] and row['status'] == 'confirmed' for row in rows))
         by_id = {row['id']: row for row in rows}
-        self.assertEqual(by_id[resent['id']]['status'], 'confirmed')
+        self.assertEqual(by_id[republished['id']]['status'], 'confirmed')
         self.assertEqual(by_id[before['id']]['status'], 'confirmed')
 
 

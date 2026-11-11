@@ -43,7 +43,7 @@ Set to `0` to keep them forever.
 Default is `604800` (7 days).
 
 The clock starts at the attempt that confirmed the message. Pruning a delivered message frees
-space and loses history, but no message that a resend could recover.
+space and loses history, but no message that a republish could recover.
 
 ### error_retention
 
@@ -52,7 +52,7 @@ A message is unresolved while its latest attempt is `failed` or `unconfirmed`.
 Set to `0` to keep them forever.
 Default is `0`.
 
-The clock starts at the latest attempt. An unresolved message is one a resend can still recover,
+The clock starts at the latest attempt. An unresolved message is one a republish can still recover,
 so pruning it removes that opportunity. The default keeps them until they are resolved, which lets
 the table grow during an outage; set a finite value to bound it.
 

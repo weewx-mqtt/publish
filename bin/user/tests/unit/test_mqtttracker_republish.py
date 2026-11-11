@@ -27,7 +27,7 @@ TABLE = 'mqtt_message_tracker'
 
 
 def make_row(**overrides):
-    """ A row as the resend tool sees it. """
+    """ A row as the republish tool sees it. """
     row = {column: None for column in user.mqtttracker.MESSAGE_COLUMNS}
     row.update({
         'id': helpers.random_string(),
@@ -295,30 +295,30 @@ class TestSelectMessages(unittest.TestCase):
 
         self.assertEqual([row['id'] for row in selected], [unconfirmed['id'], failed['id']])
 
-    def test_confirmed_resend_excludes_the_origin(self):
+    def test_confirmed_republish_excludes_the_origin(self):
         origin = make_row(sent_ts=1000.0)
-        confirmed_resend = make_row(sent_ts=1000.0, origin_id=origin['id'], attempt=1,
-                                    status=user.mqttmessagetracker.STATUS_CONFIRMED)
+        confirmed_republish = make_row(sent_ts=1000.0, origin_id=origin['id'], attempt=1,
+                                       status=user.mqttmessagetracker.STATUS_CONFIRMED)
 
-        selected = user.mqtttracker.select_messages([origin, confirmed_resend], now=2000)
+        selected = user.mqtttracker.select_messages([origin, confirmed_republish], now=2000)
 
         self.assertEqual(selected, [])
 
     def test_force_includes_the_origin(self):
         origin = make_row(sent_ts=1000.0)
-        confirmed_resend = make_row(sent_ts=1000.0, origin_id=origin['id'], attempt=1,
-                                    status=user.mqttmessagetracker.STATUS_CONFIRMED)
+        confirmed_republish = make_row(sent_ts=1000.0, origin_id=origin['id'], attempt=1,
+                                       status=user.mqttmessagetracker.STATUS_CONFIRMED)
 
-        selected = user.mqtttracker.select_messages([origin, confirmed_resend], force=True, now=2000)
+        selected = user.mqtttracker.select_messages([origin, confirmed_republish], force=True, now=2000)
 
         self.assertEqual([row['id'] for row in selected], [origin['id']])
 
-    def test_failed_resend_does_not_exclude_the_origin(self):
+    def test_failed_republish_does_not_exclude_the_origin(self):
         origin = make_row(sent_ts=1000.0)
-        failed_resend = make_row(sent_ts=1000.0, origin_id=origin['id'], attempt=1,
-                                 status=user.mqttmessagetracker.STATUS_FAILED)
+        failed_republish = make_row(sent_ts=1000.0, origin_id=origin['id'], attempt=1,
+                                    status=user.mqttmessagetracker.STATUS_FAILED)
 
-        selected = user.mqtttracker.select_messages([origin, failed_resend], now=2000)
+        selected = user.mqtttracker.select_messages([origin, failed_republish], now=2000)
 
         self.assertEqual([row['id'] for row in selected], [origin['id']])
 
@@ -333,21 +333,21 @@ class TestSelectMessages(unittest.TestCase):
 
         self.assertEqual([row['id'] for row in selected], [origin['id']])
 
-    def test_a_sent_resend_keeps_the_message_out_of_the_queue(self):
+    def test_a_sent_republish_keeps_the_message_out_of_the_queue(self):
         origin = make_row(sent_ts=1000.0)
-        sent_resend = make_row(sent_ts=1100.0, origin_id=origin['id'], attempt=1,
-                               status=user.mqttmessagetracker.STATUS_SENT)
+        sent_republish = make_row(sent_ts=1100.0, origin_id=origin['id'], attempt=1,
+                                  status=user.mqttmessagetracker.STATUS_SENT)
 
-        selected = user.mqtttracker.select_messages([origin, sent_resend], now=2000)
+        selected = user.mqtttracker.select_messages([origin, sent_republish], now=2000)
 
         self.assertEqual(selected, [])
 
     def test_since_uses_the_last_attempt(self):
         origin = make_row(sent_ts=100.0)
-        failed_resend = make_row(sent_ts=1500.0, origin_id=origin['id'], attempt=1,
-                                 status=user.mqttmessagetracker.STATUS_FAILED)
+        failed_republish = make_row(sent_ts=1500.0, origin_id=origin['id'], attempt=1,
+                                    status=user.mqttmessagetracker.STATUS_FAILED)
 
-        selected = user.mqtttracker.select_messages([origin, failed_resend], since=1000, now=2000)
+        selected = user.mqtttracker.select_messages([origin, failed_republish], since=1000, now=2000)
 
         self.assertEqual([row['id'] for row in selected], [origin['id']])
 
@@ -410,13 +410,13 @@ class TestInsertAttempt(DatabaseTestCase):
         self.assertEqual(status, user.mqttmessagetracker.STATUS_FAILED)
         self.assertEqual([candidate['rc'] for candidate in self.rows()], [0, 4])
 
-    def test_flat_origin_across_resends(self):
+    def test_flat_origin_across_republishes(self):
         origin = make_row()
         self.insert_original(origin)
 
         _, first_attempt, _ = self.insert(origin)
-        resend = make_row(origin_id=origin['id'], attempt=1)
-        _, second_attempt, _ = self.insert(resend)
+        republish = make_row(origin_id=origin['id'], attempt=1)
+        _, second_attempt, _ = self.insert(republish)
 
         self.assertEqual(first_attempt, 1)
         self.assertEqual(second_attempt, 2)
@@ -547,9 +547,9 @@ class TestRepublish(DatabaseTestCase):
             self.database_dict, TABLE, self.options, dry_run=True, out=self.out)
 
         self.assertEqual(selected, [])
-        self.assertIn('use --all to resend them', self.out.getvalue())
+        self.assertIn('use --all to republish them', self.out.getvalue())
 
-    def test_all_resends_a_stale_row(self):
+    def test_all_republishes_a_stale_row(self):
         self.insert_original(make_row(sent_ts=time.time() - 86400, payload='stale'))
         self.insert_original(make_row(sent_ts=time.time(), payload='newer',
                                       status=user.mqttmessagetracker.STATUS_CONFIRMED))
@@ -573,9 +573,9 @@ class TestRepublish(DatabaseTestCase):
         self.assertTrue(client.closed)
         self.assertEqual([outcome.status for outcome in outcomes],
                          [user.mqttmessagetracker.STATUS_CONFIRMED])
-        resends = [row for row in self.rows() if row['origin_id'] is not None]
-        self.assertEqual(len(resends), 1)
-        self.assertEqual(resends[0]['status'], user.mqttmessagetracker.STATUS_CONFIRMED)
+        republishes = [row for row in self.rows() if row['origin_id'] is not None]
+        self.assertEqual(len(republishes), 1)
+        self.assertEqual(republishes[0]['status'], user.mqttmessagetracker.STATUS_CONFIRMED)
         self.assertIn('confirmed', self.out.getvalue())
 
     def test_missing_database_is_a_config_error(self):

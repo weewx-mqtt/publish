@@ -66,13 +66,13 @@ class TestReadConfig(unittest.TestCase):
 
 
 def make_row(row_id, topic, status, sent_ts, origin_id=None, attempt=None):
-    """ A row as the resend selection sees it. """
+    """ A row as the republish selection sees it. """
     return {'id': row_id, 'topic': topic, 'status': status, 'sent_ts': sent_ts,
             'origin_id': origin_id, 'attempt': attempt}
 
 
 class TestSelectAfterLastSuccess(unittest.TestCase):
-    def test_resends_the_tail_after_the_last_success(self):
+    def test_republishes_the_tail_after_the_last_success(self):
         rows = [
             make_row('confirmed-1', 'topic', user.mqttmessagetracker.STATUS_CONFIRMED, 1),
             make_row('failed', 'topic', user.mqttmessagetracker.STATUS_FAILED, 2),
@@ -85,7 +85,7 @@ class TestSelectAfterLastSuccess(unittest.TestCase):
 
         self.assertEqual([row['id'] for row in selected], ['unconfirmed', 'failed-2'])
 
-    def test_no_success_resends_every_failed_and_unconfirmed_row(self):
+    def test_no_success_republishes_every_failed_and_unconfirmed_row(self):
         rows = [
             make_row('unconfirmed', 'topic', user.mqttmessagetracker.STATUS_UNCONFIRMED, 2),
             make_row('failed', 'topic', user.mqttmessagetracker.STATUS_FAILED, 1),
@@ -108,30 +108,30 @@ class TestSelectAfterLastSuccess(unittest.TestCase):
 
         self.assertEqual([row['id'] for row in selected], ['a-failed', 'b-failed'])
 
-    def test_a_confirmed_resend_confirms_the_original_without_moving_the_boundary(self):
+    def test_a_confirmed_republish_confirms_the_original_without_moving_the_boundary(self):
         rows = [
             make_row('origin', 'topic', user.mqttmessagetracker.STATUS_UNCONFIRMED, 1),
-            make_row('resend', 'topic', user.mqttmessagetracker.STATUS_CONFIRMED, 10, origin_id='origin'),
+            make_row('republish', 'topic', user.mqttmessagetracker.STATUS_CONFIRMED, 10, origin_id='origin'),
             make_row('failed', 'topic', user.mqttmessagetracker.STATUS_FAILED, 2),
         ]
 
         selected = user.mqttmessagetracker.select_after_last_success(rows)
 
-        # The resend's sent_ts must not hide the older failed row.
+        # The republish's sent_ts must not hide the older failed row.
         self.assertEqual([row['id'] for row in selected], ['failed'])
 
-    def test_an_origin_is_resent_once(self):
+    def test_an_origin_is_republished_once(self):
         rows = [
             make_row('origin', 'topic', user.mqttmessagetracker.STATUS_UNCONFIRMED, 1),
-            make_row('resend-1', 'topic', user.mqttmessagetracker.STATUS_UNCONFIRMED, 2, origin_id='origin'),
-            make_row('resend-2', 'topic', user.mqttmessagetracker.STATUS_FAILED, 3, origin_id='origin'),
+            make_row('republish-1', 'topic', user.mqttmessagetracker.STATUS_UNCONFIRMED, 2, origin_id='origin'),
+            make_row('republish-2', 'topic', user.mqttmessagetracker.STATUS_FAILED, 3, origin_id='origin'),
         ]
 
         selected = user.mqttmessagetracker.select_after_last_success(rows)
 
         self.assertEqual([row['id'] for row in selected], ['origin'])
 
-    def test_include_before_last_success_resends_earlier_rows(self):
+    def test_include_before_last_success_republishes_earlier_rows(self):
         rows = [
             make_row('confirmed-1', 'topic', user.mqttmessagetracker.STATUS_CONFIRMED, 1),
             make_row('failed-before', 'topic', user.mqttmessagetracker.STATUS_FAILED, 2),
@@ -154,10 +154,10 @@ class TestSelectAfterLastSuccess(unittest.TestCase):
 
         self.assertEqual([row['id'] for row in selected], ['new'])
 
-    def test_a_sent_resend_keeps_the_message_out_of_the_queue(self):
+    def test_a_sent_republish_keeps_the_message_out_of_the_queue(self):
         rows = [
             make_row('origin', 'topic', user.mqttmessagetracker.STATUS_FAILED, 1),
-            make_row('resend', 'topic', user.mqttmessagetracker.STATUS_SENT, 2,
+            make_row('republish', 'topic', user.mqttmessagetracker.STATUS_SENT, 2,
                      origin_id='origin', attempt=1),
         ]
 
@@ -165,10 +165,10 @@ class TestSelectAfterLastSuccess(unittest.TestCase):
 
         self.assertEqual(selected, [])
 
-    def test_a_forced_failed_resend_does_not_undo_delivery(self):
+    def test_a_forced_failed_republish_does_not_undo_delivery(self):
         rows = [
             make_row('origin', 'topic', user.mqttmessagetracker.STATUS_CONFIRMED, 1),
-            make_row('resend', 'topic', user.mqttmessagetracker.STATUS_FAILED, 2,
+            make_row('republish', 'topic', user.mqttmessagetracker.STATUS_FAILED, 2,
                      origin_id='origin', attempt=1),
         ]
 
@@ -180,7 +180,7 @@ class TestSelectAfterLastSuccess(unittest.TestCase):
         rows = [
             make_row('confirmed', 'topic', user.mqttmessagetracker.STATUS_CONFIRMED, 3),
             make_row('origin', 'topic', user.mqttmessagetracker.STATUS_FAILED, 1),
-            make_row('resend', 'topic', user.mqttmessagetracker.STATUS_FAILED, 5,
+            make_row('republish', 'topic', user.mqttmessagetracker.STATUS_FAILED, 5,
                      origin_id='origin', attempt=1),
         ]
 
@@ -344,7 +344,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
         self.assertEqual(callbacks[2]['on_mqtt_disconnect']['callback'], plugin.on_mqtt_disconnect)
         self.assertEqual(len(callbacks), 3)
 
-    def test_get_callbacks_includes_connect_when_resend_is_enabled(self):
+    def test_get_callbacks_includes_connect_when_republish_is_enabled(self):
         plugin, _ = self._make_plugin({'republish': {'on_startup': True}})
 
         callbacks = plugin.get_callbacks()
@@ -352,52 +352,52 @@ class TestMQTTMessageTracker(unittest.TestCase):
         self.assertEqual(callbacks[3]['on_mqtt_connect']['timing'], 'immediate')
         self.assertEqual(callbacks[3]['on_mqtt_connect']['callback'], plugin.on_mqtt_connect)
 
-    def test_resend_options_default(self):
+    def test_republish_options_default(self):
         plugin, _ = self._make_plugin({'republish': {'on_startup': True}})
 
         self.assertEqual(plugin.republish_options,
                          {'on_startup': True, 'on_reconnect': False, 'include_before_last_success': False,
                           'since': 0, 'limit': 0})
 
-    def test_resend_options_include_before_last_success(self):
+    def test_republish_options_include_before_last_success(self):
         plugin, _ = self._make_plugin(
             {'republish': {'on_startup': True, 'include_before_last_success': True}})
 
         self.assertTrue(plugin.republish_options['include_before_last_success'])
 
-    def test_resend_disabled_by_default(self):
+    def test_republish_disabled_by_default(self):
         plugin, _ = self._make_plugin()
 
         self.assertIsNone(plugin.republish_options)
 
-    def test_resend_disabled_when_the_section_has_no_trigger(self):
+    def test_republish_disabled_when_the_section_has_no_trigger(self):
         plugin, _ = self._make_plugin({'republish': {}})
 
         self.assertIsNone(plugin.republish_options)
 
-    def test_resend_disabled_when_both_triggers_are_false(self):
+    def test_republish_disabled_when_both_triggers_are_false(self):
         plugin, _ = self._make_plugin({'republish': {'on_startup': False, 'on_reconnect': False}})
 
         self.assertIsNone(plugin.republish_options)
 
-    def test_startup_resend_is_logged(self):
+    def test_startup_republish_is_logged(self):
         plugin, logger_queue = self._make_plugin({'republish': {'on_startup': True}})
 
         plugin.on_mqtt_connect(mock.Mock(), None, 0, 0, None)
 
-        self._wait_for_log(logger_queue, "Startup resend requested after the first connection.")
+        self._wait_for_log(logger_queue, "Startup republish requested after the first connection.")
         self._wait_for_log(
-            logger_queue, "No messages need to be resent after the connection was established.")
+            logger_queue, "No messages need to be republished after the connection was established.")
 
-    def test_reconnect_resend_is_logged(self):
+    def test_reconnect_republish_is_logged(self):
         plugin, logger_queue = self._make_plugin({'republish': {'on_reconnect': True}})
         client = mock.Mock()
 
         plugin.on_mqtt_connect(client, None, 0, 0, None)
-        self._wait_for_log(logger_queue, "Skipping the startup resend, on_startup is false.")
+        self._wait_for_log(logger_queue, "Skipping the startup republish, on_startup is false.")
 
         plugin.on_mqtt_connect(client, None, 0, 0, None)
-        self._wait_for_log(logger_queue, "Resend requested after a reconnect.")
+        self._wait_for_log(logger_queue, "Republish requested after a reconnect.")
 
     def test_creates_missing_database(self):
         database_path = os.path.join(self.temp_dir.name, 'tracker.sdb')
@@ -498,7 +498,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
         self.assertEqual(by_payload['confirmed']['status'], 'confirmed')
         self.assertEqual(by_payload['sent']['status'], 'unconfirmed')
 
-    def test_resend_after_connect(self):
+    def test_republish_after_connect(self):
         plugin, logger_queue = self._make_plugin({'republish': {'on_startup': True}},
                                                  mqtt_dict={'clientid': 'test-client'})
 
@@ -516,29 +516,29 @@ class TestMQTTMessageTracker(unittest.TestCase):
 
         rows = self._wait_for_rows(3)
         client.publish.assert_called_once_with('topic', 'failed', qos=1, retain=False)
-        resent = [row for row in rows if row['origin_id'] == failed['id']][0]
-        self.assertEqual(resent['attempt'], 1)
-        self.assertEqual(resent['clientid'], 'test-client')
-        self.assertEqual(resent['status'], 'sent')
-        self.assertEqual(resent['payload'], 'failed')
+        republished = [row for row in rows if row['origin_id'] == failed['id']][0]
+        self.assertEqual(republished['attempt'], 1)
+        self.assertEqual(republished['clientid'], 'test-client')
+        self.assertEqual(republished['status'], 'sent')
+        self.assertEqual(republished['payload'], 'failed')
 
-        self._wait_for_log(logger_queue, resent['id'])
+        self._wait_for_log(logger_queue, republished['id'])
         entries = [call[0][0] for call in logger_queue.put.call_args_list]
         self.assertTrue(any(entry['log_type'] == 'INFO' and
-                            'Resent 1 message(s) after the connection was established' in entry['msg_text'] and
-                            f'0 failed (row {resent["id"]})' in entry['msg_text']
+                            'Republished 1 message(s) after the connection was established' in entry['msg_text'] and
+                            f'0 failed (row {republished["id"]})' in entry['msg_text']
                             for entry in entries))
         self.assertFalse(any('awaiting confirmation' in entry['msg_text'] for entry in entries))
-        self.assertFalse(any('Resending ' in entry['msg_text'] for entry in entries))
+        self.assertFalse(any('Republishing ' in entry['msg_text'] for entry in entries))
 
         plugin.on_mqtt_publish(None, None, 11, None)
-        rows = self._wait_for(lambda rows: any(row['id'] == resent['id'] and row['status'] == 'confirmed'
+        rows = self._wait_for(lambda rows: any(row['id'] == republished['id'] and row['status'] == 'confirmed'
                                                for row in rows))
         by_id = {row['id']: row for row in rows}
         self.assertEqual(by_id[failed['id']]['status'], 'failed')
-        self.assertEqual(by_id[resent['id']]['status'], 'confirmed')
+        self.assertEqual(by_id[republished['id']]['status'], 'confirmed')
 
-    def test_resend_uses_the_last_success_as_the_boundary(self):
+    def test_republish_uses_the_last_success_as_the_boundary(self):
         plugin, _ = self._make_plugin({'republish': {'on_startup': True}})
 
         plugin.mqtt_publish(None, 1, 0, 'topic', 'confirmed-1', 1, False, 1)
@@ -564,7 +564,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
         client.publish.assert_called_once_with('topic', 'failed-after', qos=1, retain=False)
         self.assertFalse(any(row['payload'] == 'failed-before' and row['origin_id'] for row in rows))
 
-    def test_resend_includes_messages_before_the_last_success(self):
+    def test_republish_includes_messages_before_the_last_success(self):
         plugin, _ = self._make_plugin(
             {'republish': {'on_startup': True, 'include_before_last_success': True}})
 
@@ -592,7 +592,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
                          ['failed-before', 'failed-after'])
         self.assertEqual(len([row for row in rows if row['origin_id']]), 2)
 
-    def test_resend_on_reconnect_only(self):
+    def test_republish_on_reconnect_only(self):
         plugin, _ = self._make_plugin({'republish': {'on_reconnect': True}})
 
         plugin.mqtt_publish(None, 1, 1, 'topic', 'failed', 1, False, 1)
@@ -609,7 +609,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
         self._wait_for_rows(2)
         client.publish.assert_called_once_with('topic', 'failed', qos=1, retain=False)
 
-    def test_resend_stops_when_the_connection_is_lost(self):
+    def test_republish_stops_when_the_connection_is_lost(self):
         plugin, logger_queue = self._make_plugin({'republish': {'on_startup': True}})
 
         plugin.mqtt_publish(None, 1, 1, 'topic', 'failed', 1, False, 1)
@@ -619,7 +619,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
         client.publish.return_value = mock.Mock(mid=11, rc=mqtt.MQTT_ERR_NO_CONN)
         plugin.on_mqtt_connect(client, None, 0, 0, None)
 
-        self._wait_for_log(logger_queue, "The connection was lost while resending")
+        self._wait_for_log(logger_queue, "The connection was lost while republishing")
         self.assertEqual(len(self._rows()), 1)
 
     def test_failed_publish(self):
@@ -650,7 +650,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
                             f"as row {row['id']} (rc 1, mid 5)" in entry['msg_text']
                             for entry in entries))
 
-    def test_failed_resend_is_logged_with_its_row_id(self):
+    def test_failed_republish_is_logged_with_its_row_id(self):
         plugin, logger_queue = self._make_plugin({'republish': {'on_startup': True}})
 
         plugin.mqtt_publish(None, 1, 1, 'topic', 'failed', 1, False, 1)
@@ -661,12 +661,12 @@ class TestMQTTMessageTracker(unittest.TestCase):
         plugin.on_mqtt_connect(client, None, 0, 0, None)
 
         rows = self._wait_for_rows(2)
-        resend = [row for row in rows if row['origin_id']][0]
-        self._wait_for_log(logger_queue, resend['id'])
+        republish = [row for row in rows if row['origin_id']][0]
+        self._wait_for_log(logger_queue, republish['id'])
         entries = [call[0][0] for call in logger_queue.put.call_args_list]
         self.assertTrue(any(entry['log_type'] == 'ERROR' and
-                            'Failed to resend topic' in entry['msg_text'] and
-                            f"rc 1; stored as row {resend['id']} (mid 11)" in entry['msg_text']
+                            'Failed to republish topic' in entry['msg_text'] and
+                            f"rc 1; stored as row {republish['id']} (mid 11)" in entry['msg_text']
                             for entry in entries))
 
     def test_shutdown_logs_that_it_is_shutting_down(self):
@@ -827,10 +827,10 @@ class TestMQTTMessageTracker(unittest.TestCase):
         plugin, _ = self._make_plugin({'confirmed_retention': 100, 'error_retention': 0})
         now = time.time()
         original = self._chain_row('a' * 32, now - 5000, 'failed')
-        resend = self._chain_row('b' * 32, now - 5000, 'confirmed',
-                                 origin_id=original['id'], attempt=1)
+        republish = self._chain_row('b' * 32, now - 5000, 'confirmed',
+                                    origin_id=original['id'], attempt=1)
         self._insert_row(original)
-        self._insert_row(resend)
+        self._insert_row(republish)
 
         self._prune(plugin, now)
 
@@ -840,10 +840,10 @@ class TestMQTTMessageTracker(unittest.TestCase):
         plugin, _ = self._make_plugin({'confirmed_retention': 100000, 'error_retention': 100})
         now = time.time()
         original = self._chain_row('a' * 32, now - 5000, 'failed')
-        resend = self._chain_row('b' * 32, now - 10, 'confirmed',
-                                 origin_id=original['id'], attempt=1)
+        republish = self._chain_row('b' * 32, now - 10, 'confirmed',
+                                    origin_id=original['id'], attempt=1)
         self._insert_row(original)
-        self._insert_row(resend)
+        self._insert_row(republish)
 
         self._prune(plugin, now)
 
@@ -853,18 +853,18 @@ class TestMQTTMessageTracker(unittest.TestCase):
         plugin, _ = self._make_plugin({'error_retention': 1000})
         now = time.time()
         recent_original = self._chain_row('a' * 32, now - 5000, 'failed')
-        recent_resend = self._chain_row('b' * 32, now - 10, 'failed',
-                                        origin_id=recent_original['id'], attempt=1)
+        recent_republish = self._chain_row('b' * 32, now - 10, 'failed',
+                                           origin_id=recent_original['id'], attempt=1)
         old_original = self._chain_row('c' * 32, now - 5000, 'failed')
-        old_resend = self._chain_row('d' * 32, now - 5000, 'failed',
-                                     origin_id=old_original['id'], attempt=1)
-        for row in (recent_original, recent_resend, old_original, old_resend):
+        old_republish = self._chain_row('d' * 32, now - 5000, 'failed',
+                                        origin_id=old_original['id'], attempt=1)
+        for row in (recent_original, recent_republish, old_original, old_republish):
             self._insert_row(row)
 
         self._prune(plugin, now)
 
         self.assertEqual([row['id'] for row in self._rows()],
-                         [recent_original['id'], recent_resend['id']])
+                         [recent_original['id'], recent_republish['id']])
 
     def test_qos_zero_topic_is_not_tracked(self):
         plugin, logger_queue = self._make_plugin(
