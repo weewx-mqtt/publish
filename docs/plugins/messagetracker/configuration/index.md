@@ -37,36 +37,38 @@ Default is `mqtt_message_tracker`.
 
 ### confirmed_retention
 
-How long, in seconds, to keep `confirmed` rows in topics that do not set their own.
+How long, in seconds, to keep a delivered message in topics that do not set their own.
+A message is delivered when any attempt is `confirmed`.
 Set to `0` to keep them forever.
 Default is `604800` (7 days).
 
-A `confirmed` row is a record of a publish the broker accepted. It is the only status the tracker
-will not resend, so pruning it frees space and loses history, but no recoverable message.
+The clock starts at the attempt that confirmed the message. Pruning a delivered message frees
+space and loses history, but no message that a resend could recover.
 
 ### error_retention
 
-How long, in seconds, to keep `failed` and `unconfirmed` rows in topics that do not set their own.
+How long, in seconds, to keep an unresolved message in topics that do not set their own.
+A message is unresolved while its latest attempt is `failed` or `unconfirmed`.
 Set to `0` to keep them forever.
 Default is `0`.
 
-A `failed` or `unconfirmed` row is a message a resend can still recover. Pruning it removes that
-opportunity. The default keeps them until they are resolved, which lets the table grow during an
-outage; set a finite value to bound it.
+The clock starts at the latest attempt. An unresolved message is one a resend can still recover,
+so pruning it removes that opportunity. The default keeps them until they are resolved, which lets
+the table grow during an outage; set a finite value to bound it.
 
-A `sent` row is not pruned by either option; the startup sweep and a disconnect mark it
-`unconfirmed`, which `error_retention` then bounds.
+A message whose outcome is still `sent` is not pruned by either option; the startup sweep and a
+disconnect mark it `unconfirmed`, which `error_retention` then bounds.
 See [Pruning](../prune/index.md) for how the retentions work.
 
 ### prune_interval
 
-How often, in seconds, to check for rows to delete.
+How often, in seconds, to check for messages to delete.
 Default is `3600`.
 Set to `0` to disable automatic pruning; the startup sweep still runs.
 
-A prune deletes `confirmed` rows older than `confirmed_retention`, and `failed` or `unconfirmed`
-rows older than `error_retention`. No pruning happens while every retention is `0`. See
-[Pruning](../prune/index.md) for the policy.
+A prune deletes delivered messages older than `confirmed_retention`, and unresolved messages older
+than `error_retention`. Each message is deleted with its whole chain. No pruning happens while
+every retention is `0`. See [Pruning](../prune/index.md) for the policy.
 
 ### Advanced options
 

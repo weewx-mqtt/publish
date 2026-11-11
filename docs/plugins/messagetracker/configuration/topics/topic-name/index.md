@@ -16,13 +16,14 @@ Default is `true`.
 
 ### confirmed_retention
 
-How long, in seconds, to keep this topic's `confirmed` rows.
+How long, in seconds, to keep this topic's delivered messages (those with a confirmed attempt).
 Set to `0` to keep them forever.
 Default is the plugin-level [confirmed_retention](../../index.md#confirmed_retention).
 
 ### error_retention
 
-How long, in seconds, to keep this topic's `failed` and `unconfirmed` rows.
+How long, in seconds, to keep this topic's unresolved messages (latest attempt `failed` or
+`unconfirmed`).
 Set to `0` to keep them forever.
 Default is the plugin-level [error_retention](../../index.md#error_retention).
 
@@ -30,7 +31,7 @@ Default is the plugin-level [error_retention](../../index.md#error_retention).
 [MQTTMessageTracker]
     [[topics]]
         [[[weather/outTemp_F]]]
-            # Keep a day of successful publishes, and every failure until it is recovered.
+            # Keep a day of delivered messages, and every unresolved message until it is recovered.
             confirmed_retention = 86400
             error_retention = 0
         [[[weather/outHumidity]]]

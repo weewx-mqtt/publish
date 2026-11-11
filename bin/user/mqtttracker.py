@@ -5,7 +5,7 @@
 """ Operate on the MQTTMessageTracker database.
 
     mqtttracker resend  - republish failed or unconfirmed messages
-    mqtttracker prune   - delete old rows before the retention policy does
+    mqtttracker prune   - delete delivered messages before the retention policy does
     mqtttracker status  - show failed and unconfirmed messages and their outcome
 
     resend and prune are dry runs unless --publish or --delete is given.
@@ -79,7 +79,6 @@ VERSION = user.mqttpublish.VERSION
 
 # The row helpers are shared with the tracker and the tools.
 MESSAGE_COLUMNS = user.mqttmessagetracker.MESSAGE_COLUMNS
-_origin = user.mqttmessagetracker.origin_id
 decode_payload = user.mqttmessagetracker.decode_payload
 next_attempt = user.mqttmessagetracker.next_attempt
 insert_attempt = user.mqttmessagetracker.insert_attempt
@@ -99,8 +98,10 @@ DEFAULT_SUMMARY_STATUSES = (user.mqttmessagetracker.STATUS_FAILED,
                             user.mqttmessagetracker.STATUS_UNCONFIRMED,
                             user.mqttmessagetracker.STATUS_SENT)
 
-# Both tools default to every recoverable status, as the tracker's own resend and prune do.
+# A resend works on the messages that are still unresolved.
 DEFAULT_STATUSES = RESEND_STATUSES
+# A prune cleans up the messages that were delivered and no longer need a record.
+DEFAULT_PRUNE_STATUSES = (user.mqttmessagetracker.STATUS_CONFIRMED,)
 DEFAULT_PLUGIN_SECTION = user.mqttmessagetracker.DEFAULT_PLUGIN_SECTION
 # Every row is considered by default, so every unconfirmed message is resent.
 DEFAULT_SINCE = None
@@ -173,18 +174,19 @@ def _may_be_on_the_broker(row):
     return row['status'] != user.mqttmessagetracker.STATUS_FAILED
 
 
-# pylint: disable=too-many-arguments,too-many-positional-arguments
-def _candidate(row, statuses, oldest, topic, confirmed_origins, force):
-    """ Whether a row passes the filters that do not depend on the other rows. """
-    if row['status'] not in statuses:
-        return False
-    if oldest is not None and row['sent_ts'] < oldest:
-        return False
-    if topic and not fnmatch.fnmatchcase(row['topic'], topic):
-        return False
-    if not force and _origin(row) in confirmed_origins:
-        return False
-    return True
+def _resend_row(chain):
+    """ The row whose payload a resend publishes. """
+    return user.mqttmessagetracker.chain_anchor(chain)
+
+
+def _eligible(chain, outcome, statuses, force):
+    """ Whether a chain is in a state a resend can still fix.
+
+        'force' also accepts a delivered chain, so a message with a confirmed attempt can be
+        sent again on request. """
+    if outcome['status'] in statuses:
+        return True
+    return force and any(row['status'] in statuses for row in chain)
 
 
 def _newest_per_topic(rows):
@@ -194,16 +196,6 @@ def _newest_per_topic(rows):
         if _may_be_on_the_broker(row):
             newest[row['topic']] = max(newest.get(row['topic'], row['sent_ts']), row['sent_ts'])
     return newest
-
-
-def _is_confirmed_resend(row):
-    """ Whether the row is a resend that paho reported as published. """
-    return row['origin_id'] is not None and row['status'] == user.mqttmessagetracker.STATUS_CONFIRMED
-
-
-def _confirmed_origins(rows):
-    """ The origin ids that already have a confirmed resend. """
-    return {row['origin_id'] for row in rows if _is_confirmed_resend(row)}
 
 
 def _oldest(since, now):
@@ -218,29 +210,22 @@ def _sort_key(row):
     return row['sent_ts'], row['id']
 
 
-def _dedupe(rows):
-    """ Keep the earliest row for each message chain, so a message is resent once. """
-    seen = set()
-    unique = []
-    # An original and its resend can share a timestamp; keep the original.
-    for row in sorted(rows, key=lambda item: (item['sent_ts'], item['origin_id'] is not None,
-                                              item['id'])):
-        chain = _origin(row)
-        if chain in seen:
-            continue
-        seen.add(chain)
-        unique.append(row)
-    return unique
-
-
 # pylint: disable=too-many-arguments,too-many-positional-arguments
 def _candidates(rows, statuses, since, topic, force, now):
-    """ The rows that pass the filters that do not depend on the other rows. """
+    """ One row per message chain that passes the filters. """
     statuses = tuple(statuses or DEFAULT_STATUSES)
     oldest = _oldest(since, now)
-    confirmed_origins = _confirmed_origins(rows)
-    return [row for row in rows
-            if _candidate(row, statuses, oldest, topic, confirmed_origins, force)]
+    candidates = []
+    for chain in user.mqttmessagetracker.chain_rows(rows).values():
+        outcome = user.mqttmessagetracker.outcome_row(chain)
+        if not _eligible(chain, outcome, statuses, force):
+            continue
+        if oldest is not None and outcome['sent_ts'] < oldest:
+            continue
+        if topic and not fnmatch.fnmatchcase(outcome['topic'], topic):
+            continue
+        candidates.append(_resend_row(chain))
+    return candidates
 
 
 def _is_stale(row, newest):
@@ -266,26 +251,27 @@ def _limit(rows, limit):
 # pylint: disable=too-many-arguments,too-many-positional-arguments
 def select_messages(rows, statuses=None, since=DEFAULT_SINCE, limit=DEFAULT_LIMIT, topic=None,
                     newest_per_topic=True, force=False, now=None):
-    """ Select the rows to resend.
+    """ Select the messages to resend, one row per chain.
 
-        Every row is considered unless 'since' bounds its age. Only the newest row per topic
-        is selected by default, so resent values cannot overwrite newer ones. A message that
-        already has a confirmed resend is skipped unless 'force' is set. """
-    candidates = _dedupe(_candidates(rows, statuses, since, topic, force,
-                                     time.time() if now is None else now))
+        A message is selected when the outcome of its chain has one of the statuses; 'since'
+        bounds the age of that outcome. Only the newest message per topic is selected by
+        default, so resent values cannot overwrite newer ones. A delivered message is skipped
+        unless 'force' is set. """
+    candidates = _candidates(rows, statuses, since, topic, force,
+                             time.time() if now is None else now)
     newest = _newest_per_topic(rows) if newest_per_topic else {}
     return _limit(_select(candidates, newest), limit)
 
 
 # pylint: disable=too-many-arguments,too-many-positional-arguments
 def superseded(rows, statuses=None, since=DEFAULT_SINCE, topic=None, force=False, now=None):
-    """ The rows a resend would keep, but for a newer message on the same topic.
+    """ The messages a resend would keep, but for a newer message on the same topic.
 
         Resending one would write an older value over a newer one, so they are only selected
         with '--all'. """
     newest = _newest_per_topic(rows)
-    candidates = _dedupe(_candidates(rows, statuses, since, topic, force,
-                                     time.time() if now is None else now))
+    candidates = _candidates(rows, statuses, since, topic, force,
+                             time.time() if now is None else now)
     return [row for row in candidates if _is_stale(row, newest)]
 
 
@@ -459,16 +445,6 @@ def resend(database_dict, table, options, *, statuses=None, since=DEFAULT_SINCE,
 # prune
 # ---------------------------------------------------------------------------
 
-def _retention_for(row, topic_retention, default_retention, confirmed_topic_retention,
-                   confirmed_default_retention, older_than):
-    """ The age a row must exceed to be pruned. """
-    if older_than is not None:
-        return older_than
-    if row['status'] == user.mqttmessagetracker.STATUS_CONFIRMED:
-        return confirmed_topic_retention.get(row['topic'], confirmed_default_retention)
-    return topic_retention.get(row['topic'], default_retention)
-
-
 def _is_old_enough(row, retention, now):
     """ Whether the row is older than its retention. A retention of 0 keeps it forever. """
     if retention <= 0:
@@ -476,76 +452,124 @@ def _is_old_enough(row, retention, now):
     return row['sent_ts'] < now - retention
 
 
+def _chain_row(chain_id, chain, outcome):
+    """ The row a prune plan shows for a message: the chain id, its outcome and the payload. """
+    row = dict(user.mqttmessagetracker.chain_anchor(chain))
+    row.update(id=chain_id, status=outcome['status'], sent_ts=outcome['sent_ts'])
+    return row
+
+
+def _wanted(outcome, statuses, topic):
+    """ Whether a chain outcome passes the status and topic filters. """
+    if outcome['status'] not in statuses:
+        return False
+    if topic and not fnmatch.fnmatchcase(outcome['topic'], topic):
+        return False
+    return True
+
+
 # pylint: disable=too-many-arguments,too-many-positional-arguments
-def _wanted(row, statuses, topic, retention, now, select_all=False):
-    """ Whether the row passes the filters. """
-    if row['status'] not in statuses:
-        return False
-    if topic and not fnmatch.fnmatchcase(row['topic'], topic):
-        return False
-    if select_all:
+def _configured_retention(outcome, topic_retention, default_retention,
+                          confirmed_topic_retention, confirmed_default_retention):
+    """ The retention configured for a chain outcome's status and topic. """
+    return user.mqttmessagetracker.chain_retention(
+        outcome, confirmed_default_retention, confirmed_topic_retention,
+        default_retention, topic_retention)
+
+
+# pylint: disable=too-many-arguments,too-many-positional-arguments
+def _old_enough(outcome, older_than, topic_retention, default_retention,
+                confirmed_topic_retention, confirmed_default_retention, now):
+    """ Whether a chain outcome is older than the retention that applies to it. """
+    if older_than == 0:
         return True
-    return _is_old_enough(row, retention, now)
+    if older_than is not None:
+        return _is_old_enough(outcome, older_than, now)
+    retention = _configured_retention(outcome, topic_retention, default_retention,
+                                      confirmed_topic_retention, confirmed_default_retention)
+    return _is_old_enough(outcome, retention, now)
+
+
+def _chain_outcomes(rows):
+    """ The chain id, its rows and its outcome for each message. """
+    for chain_id, chain in user.mqttmessagetracker.chain_rows(rows).items():
+        yield chain_id, chain, user.mqttmessagetracker.outcome_row(chain)
+
+
+def _prune_defaults(statuses, topic_retention, default_retention,
+                    confirmed_topic_retention, confirmed_default_retention):
+    """ Fill in the default statuses and retentions. """
+    return (tuple(statuses or DEFAULT_PRUNE_STATUSES),
+            topic_retention or {},
+            user.mqttmessagetracker.DEFAULT_ERROR_RETENTION
+            if default_retention is None else default_retention,
+            confirmed_topic_retention or {},
+            user.mqttmessagetracker.DEFAULT_CONFIRMED_RETENTION
+            if confirmed_default_retention is None else confirmed_default_retention)
 
 
 # pylint: disable=too-many-arguments,too-many-positional-arguments
-def select_rows(rows, statuses=None, topic_retention=None, default_retention=None,
-                confirmed_topic_retention=None, confirmed_default_retention=None,
-                older_than=None, topic=None, limit=DEFAULT_LIMIT, now=None):
-    """ Select the rows to delete, oldest first.
+def select_chains(rows, statuses=None, topic_retention=None, default_retention=None,
+                  confirmed_topic_retention=None, confirmed_default_retention=None,
+                  older_than=None, topic=None, limit=DEFAULT_LIMIT, now=None):
+    """ Select the messages to delete, oldest first.
 
-        By default a row is selected when it is older than the retention for its status:
-        'confirmed_retention' for confirmed rows, 'error_retention' otherwise. An explicit
-        'older_than' overrides the configured retention; 'older_than=0' selects every
-        matching row, unlike a configured retention of 0. """
-    statuses = tuple(statuses or DEFAULT_STATUSES)
-    topic_retention = topic_retention or {}
-    confirmed_topic_retention = confirmed_topic_retention or {}
-    if default_retention is None:
-        default_retention = user.mqttmessagetracker.DEFAULT_ERROR_RETENTION
-    if confirmed_default_retention is None:
-        confirmed_default_retention = user.mqttmessagetracker.DEFAULT_CONFIRMED_RETENTION
+        A message is selected when the outcome of its chain has one of the statuses and is
+        older than the retention for that status: 'confirmed_retention' for a delivered
+        message, 'error_retention' while it is unresolved. An explicit 'older_than' overrides
+        the configured retention; 'older_than=0' selects every matching message, unlike a
+        configured retention of 0. """
+    (statuses, topic_retention, default_retention,
+     confirmed_topic_retention, confirmed_default_retention) = _prune_defaults(
+         statuses, topic_retention, default_retention,
+         confirmed_topic_retention, confirmed_default_retention)
     now = time.time() if now is None else now
 
-    selected = [row for row in rows
-                if _wanted(row, statuses, topic,
-                           _retention_for(row, topic_retention, default_retention,
-                                          confirmed_topic_retention, confirmed_default_retention,
-                                          older_than),
-                           now, older_than == 0)]
+    selected = [_chain_row(chain_id, chain, outcome)
+                for chain_id, chain, outcome in _chain_outcomes(rows)
+                if _wanted(outcome, statuses, topic) and
+                _old_enough(outcome, older_than, topic_retention, default_retention,
+                            confirmed_topic_retention, confirmed_default_retention, now)]
+
     selected.sort(key=lambda row: (row['sent_ts'], row['id']))
-    if limit is not None and limit > 0:
-        selected = selected[:limit]
-    return selected
+    return _apply_limit(selected, limit)
 
 
 def _apply_limit(rows, limit):
-    """ The oldest rows up to the limit, or every row when the limit is unset. """
+    """ The oldest messages up to the limit, or every message when the limit is unset. """
     if limit is None or limit <= 0:
         return rows
     return rows[:limit]
 
 
-def delete_rows(connection, table, rows):
-    """ Delete the selected rows and the rest of their message chain.
+def _outcome_status(connection, table, chain_id):
+    """ The current outcome status of a chain, or None when it is gone. """
+    columns = ', '.join(user.mqttmessagetracker.CHAIN_COLUMNS)
+    cursor = connection.cursor()
+    try:
+        cursor.execute(f"SELECT {columns} FROM {table} WHERE id = ? OR origin_id = ?",
+                       (chain_id, chain_id))
+        rows = [dict(zip(user.mqttmessagetracker.CHAIN_COLUMNS, row)) for row in cursor]
+    finally:
+        cursor.close()
+    if not rows:
+        return None
+    return user.mqttmessagetracker.outcome_row(rows)['status']
 
-        A chain is the original row and its resends. A row still in flight ('sent') is
-        left for the startup sweep, and a row that changed after it was selected is left
-        alone. """
+
+def delete_chains(connection, table, rows):
+    """ Delete the selected message chains.
+
+        A chain is the original row and its resends. A chain whose outcome changed after it
+        was selected is left alone, and a row still in flight ('sent') is left for the startup
+        sweep. """
     deleted = 0
     for start in range(0, len(rows), _PRUNE_BATCH_SIZE):
         chunk = rows[start:start + _PRUNE_BATCH_SIZE]
         with weedb.Transaction(connection) as cursor:
-            for row in chunk:
-                cursor.execute(f"SELECT status FROM {table} WHERE id = ?", (row['id'],))
-                current = cursor.fetchone()
-                if current is None or current[0] != row['status']:
-                    continue
-                chain = _origin(row)
-                cursor.execute(
-                    f"DELETE FROM {table} WHERE (id = ? OR origin_id = ?) AND status != ?",
-                    (chain, chain, user.mqttmessagetracker.STATUS_SENT))
-                deleted += cursor.rowcount
+            unchanged = [row['id'] for row in chunk
+                         if _outcome_status(connection, table, row['id']) == row['status']]
+            deleted += user.mqttmessagetracker.delete_chains(cursor, table, unchanged)
     return deleted
 
 
@@ -582,7 +606,7 @@ def prune_config(config_dict, plugin_section=DEFAULT_PLUGIN_SECTION, data_bindin
 
 
 def prune(config_dict, options, out=None):
-    """ Select the rows and, when asked to, delete them. """
+    """ Select the messages and, when asked to, delete them. """
     out = sys.stdout if out is None else out
     (database_dict, table, topic_error_retention, error_retention,
      topic_confirmed_retention, confirmed_retention) = prune_config(
@@ -595,13 +619,13 @@ def prune(config_dict, options, out=None):
 
     try:
         rows = user.mqttmessagetracker.fetch_rows(connection, table)
-        matches = select_rows(rows, statuses=options.status,
-                              topic_retention=topic_error_retention,
-                              default_retention=error_retention,
-                              confirmed_topic_retention=topic_confirmed_retention,
-                              confirmed_default_retention=confirmed_retention,
-                              older_than=options.older_than,
-                              topic=options.topic, limit=0)
+        matches = select_chains(rows, statuses=options.status,
+                                topic_retention=topic_error_retention,
+                                default_retention=error_retention,
+                                confirmed_topic_retention=topic_confirmed_retention,
+                                confirmed_default_retention=confirmed_retention,
+                                older_than=options.older_than,
+                                topic=options.topic, limit=0)
         selected = _apply_limit(matches, options.limit)
         user.mqttmessagetracker.print_plan(selected, out)
         if len(selected) < len(matches):
@@ -609,7 +633,7 @@ def prune(config_dict, options, out=None):
                   "use --limit 0 to select all.", file=out)
         if not options.delete or not selected:
             return selected
-        deleted = delete_rows(connection, table, selected)
+        deleted = delete_chains(connection, table, selected)
     except weedb.DatabaseError as exception:
         raise PruneError(f"Unable to use the message tracker table {table}: {exception}") from exception
     finally:
@@ -625,9 +649,10 @@ def prune(config_dict, options, out=None):
 
 # The columns the status summary needs; the resend counts are computed per chain.
 _STATUS_ROWS_SQL = """
-SELECT id, topic, status, sent_ts, origin_id
+SELECT id, topic, status, sent_ts, origin_id, attempt
 FROM {table}
 """
+_STATUS_COLUMNS = ('id', 'topic', 'status', 'sent_ts', 'origin_id', 'attempt')
 
 _STATUS_MESSAGE_SQL = """
 SELECT {columns}
@@ -637,43 +662,41 @@ ORDER BY sent_ts
 """
 
 
-def _rows(connection, statement, args=()):
-    """ Run a query and return its rows. """
+def _rows(connection, statement, args=(), columns=None):
+    """ Run a query and return its rows, as mappings when the columns are given. """
     cursor = connection.cursor()
     try:
         cursor.execute(statement, args)
-        return cursor.fetchall()
+        rows = cursor.fetchall()
     finally:
         cursor.close()
+    if columns is None:
+        return rows
+    return [dict(zip(columns, row)) for row in rows]
 
 
 def _status_chains(rows):
     """ Yield one summary row per message chain.
 
-        The chain is anchored at its original row; if the original was pruned, the
-        oldest surviving resend is the anchor. """
-    chains = {}
-    for row in rows:
-        chains.setdefault(row[4] or row[0], []).append(row)
-    for chain in chains.values():
-        anchor = min(chain, key=lambda row: (row[3], row[0]))
-        attempts = sum(1 for row in chain if row[4] is not None)
-        confirmed = sum(1 for row in chain
-                        if row[4] is not None and row[2] == user.mqttmessagetracker.STATUS_CONFIRMED)
-        yield (anchor[0], anchor[1], anchor[2], anchor[3], attempts, confirmed)
+        The chain is anchored at its original row; if the original was pruned, the oldest
+        surviving resend is the anchor. The final status is the outcome's status. """
+    for chain in user.mqttmessagetracker.chain_rows(rows).values():
+        anchor = user.mqttmessagetracker.chain_anchor(chain)
+        outcome = user.mqttmessagetracker.outcome_row(chain)
+        attempts = sum(1 for row in chain if row['attempt'] is not None)
+        confirmed = sum(1 for row in chain if row['attempt'] is not None and
+                        row['status'] == user.mqttmessagetracker.STATUS_CONFIRMED)
+        yield (anchor['id'], anchor['topic'], anchor['status'], anchor['sent_ts'],
+               attempts, confirmed, outcome['status'])
 
 
-def status_summary(connection, table, statuses=None, include_confirmed=False,
-                   topic=None, limit=DEFAULT_LIMIT):
-    """ One row per message chain, with its resend outcome.
-
-        By default only chains with no confirmed resend are returned. """
+def status_summary(connection, table, statuses=None, topic=None, limit=DEFAULT_LIMIT):
+    """ One row per message chain, with the outcome of its resends. """
     statuses = tuple(statuses or DEFAULT_SUMMARY_STATUSES)
-    rows = [row for row in _status_chains(_rows(connection, _STATUS_ROWS_SQL.format(table=table)))
-            if row[2] in statuses]
+    rows = [row for row in _status_chains(
+        _rows(connection, _STATUS_ROWS_SQL.format(table=table), columns=_STATUS_COLUMNS))
+        if row[6] in statuses]
     rows.sort(key=lambda row: (row[3], row[0]))
-    if not include_confirmed:
-        rows = [row for row in rows if row[5] == 0]
     if topic:
         rows = [row for row in rows if fnmatch.fnmatchcase(row[1], topic)]
     if limit is not None and limit > 0:
@@ -697,23 +720,11 @@ def _sent_at(timestamp):
     return time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(timestamp))
 
 
-def _outcome(attempts, confirmed_attempts):
-    """ A short description of what the resends show. """
-    if confirmed_attempts > 0:
-        return 'confirmed'
-    if attempts > 0:
-        return 'pending'
-    return 'not resent'
-
-
-def print_status_summary(rows, out, statuses=DEFAULT_SUMMARY_STATUSES, include_confirmed=False):
+def print_status_summary(rows, out, statuses=DEFAULT_SUMMARY_STATUSES):
     """ Print the selected messages as a table. """
-    if tuple(statuses) == DEFAULT_SUMMARY_STATUSES and not include_confirmed:
+    if tuple(statuses) == DEFAULT_SUMMARY_STATUSES:
         empty = "No not-confirmed messages."
         label = "not confirmed message(s)"
-    elif tuple(statuses) == DEFAULT_SUMMARY_STATUSES:
-        empty = "No messages."
-        label = "message(s)"
     else:
         status_text = ', '.join(statuses)
         empty = f"No messages with status {status_text}."
@@ -724,10 +735,9 @@ def print_status_summary(rows, out, statuses=DEFAULT_SUMMARY_STATUSES, include_c
     print(f"{len(rows)} {label}:", file=out)
     print(f"  {'ID':<32} {'TOPIC':<30} {'ORIGINAL STATUS':<15} {'ORIGINALLY SENT':<19} "
           f"{'ATTEMPTS':<8} {'CONFIRMED':<9}  FINAL STATUS", file=out)
-    for row_id, topic, status, sent_ts, attempts, confirmed_attempts in rows:
+    for row_id, topic, status, sent_ts, attempts, confirmed_attempts, final_status in rows:
         print(f"  {row_id:<32} {topic[:30]:<30} {status:<15} {_sent_at(sent_ts):<19} "
-              f"{attempts:<8} {confirmed_attempts:<9}  {_outcome(attempts, confirmed_attempts)}",
-              file=out)
+              f"{attempts:<8} {confirmed_attempts:<9}  {final_status}", file=out)
 
 
 def print_status_message(rows, message_id, out):
@@ -762,12 +772,9 @@ def show_status(config_dict, options, out=None):
         if options.message:
             rows = status_message(connection, table, options.message)
             return print_status_message(rows, options.message, out)
-        include_confirmed = (options.include_confirmed or
-                             user.mqttmessagetracker.STATUS_CONFIRMED in options.status)
         rows = status_summary(connection, table, statuses=options.status,
-                              include_confirmed=include_confirmed,
                               topic=options.topic, limit=options.limit)
-        print_status_summary(rows, out, options.status, include_confirmed)
+        print_status_summary(rows, out, options.status)
         return True
     except weedb.DatabaseError as exception:
         raise StatusError(f"Unable to use the message tracker table {table}: {exception}") from exception
@@ -854,24 +861,24 @@ def _add_prune_parser(subparsers):
     """ The prune subcommand. """
     parser = subparsers.add_parser(
         'prune',
-        description="Delete message tracker rows before the retention policy does.",
+        description="Delete delivered messages before the retention policy does.",
         epilog="Without --delete the selection is only printed, nothing is removed.")
     _add_tracker_options(parser)
-    parser.add_argument('--status', type=_prune_statuses, default=list(DEFAULT_STATUSES),
+    parser.add_argument('--status', type=_prune_statuses, default=list(DEFAULT_PRUNE_STATUSES),
                         metavar='STATUS',
                         help=(f"The statuses to prune, comma separated. "
-                              f"Default is {', '.join(DEFAULT_STATUSES)}. Choose from "
+                              f"Default is {', '.join(DEFAULT_PRUNE_STATUSES)}. Choose from "
                               f"{', '.join(PRUNE_STATUSES)}."))
     parser.add_argument('--older-than', type=int, default=None, metavar='SECONDS',
-                        help=("Only prune rows older than SECONDS. Default is the retention for "
-                              "the row's status: confirmed_retention for confirmed rows, "
-                              "error_retention otherwise."))
+                        help=("Only prune messages older than SECONDS. Default is the retention "
+                              "for the message's status: confirmed_retention for delivered "
+                              "messages, error_retention otherwise."))
     parser.add_argument('--topic', default=None, metavar='GLOB',
                         help="Only prune topics that match the glob, for example 'weather/outTemp_*'.")
     parser.add_argument('--limit', type=int, default=DEFAULT_LIMIT, metavar='COUNT',
-                        help=f"The maximum number of rows to prune. Default is {DEFAULT_LIMIT}.")
+                        help=f"The maximum number of messages to prune. Default is {DEFAULT_LIMIT}.")
     parser.add_argument('--delete', action='store_true',
-                        help="Delete the selected rows. Without it nothing is removed.")
+                        help="Delete the selected messages. Without it nothing is removed.")
     return parser
 
 
@@ -888,8 +895,6 @@ def _add_status_parser(subparsers):
                               f"{', '.join(SUMMARY_STATUSES)}."))
     parser.add_argument('--message', '--id', dest='message', default=None, metavar='ID',
                         help="Show one message and its resends, using the id from the log.")
-    parser.add_argument('--include-confirmed', action='store_true',
-                        help="Also show messages that already have a confirmed resend.")
     parser.add_argument('--topic', default=None, metavar='GLOB',
                         help="Only messages whose topic matches the glob.")
     parser.add_argument('--limit', type=int, default=DEFAULT_LIMIT, metavar='COUNT',

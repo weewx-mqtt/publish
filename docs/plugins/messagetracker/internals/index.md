@@ -139,21 +139,17 @@ failed and unconfirmed messages were eventually confirmed.
 
 ## Maintenance SQL
 
-`bin/user/mqtttracker.py prune` is the supported way to delete failed and unconfirmed rows.
-It deletes each message's whole chain, including its resends.
-If the tool is not installed, the same can be done with SQL:
+`bin/user/mqtttracker.py prune` is the supported way to delete messages. It works on a whole
+message chain: the original row and every resend, chosen by the chain's outcome.
+If the tool is not installed, delete a chain by its id with SQL:
 
 ```sql
 DELETE FROM mqtt_message_tracker
-WHERE status IN ('failed', 'unconfirmed') AND sent_ts < ?;
-DELETE FROM mqtt_message_tracker
-WHERE origin_id IS NOT NULL
-  AND origin_id NOT IN (SELECT id FROM mqtt_message_tracker);
+WHERE id = '3f2a9c...' OR origin_id = '3f2a9c...';
 ```
 
-The automatic prune deletes rows by their own retention, so it can leave a `confirmed` resend whose
-`origin_id` points at a row that no longer exists. The resend row is self-contained, so it still
-resends and prunes normally.
+Do not delete rows by status alone. A delivered message keeps its failed original, and deleting
+only part of a chain leaves a later resend without the record that it was a resend.
 
 ## Writer thread and SQLite locking
 

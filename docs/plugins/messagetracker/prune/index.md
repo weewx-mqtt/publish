@@ -6,38 +6,47 @@ nav_order: 3
 ---
 {% include messagetracker_warning.html %}
 
-The tracker deletes old rows so that its database does not grow without bound. Two retention
-options decide how long a row is kept, and a third decides how often the tracker checks. You can
-also delete rows yourself with `mqtttracker prune`.
+The tracker deletes old messages so that its database does not grow without bound. A message is
+the original publish and every resend of it; the record that decides its status also decides when
+it is pruned. Two retention options bound the two kinds of message, and a third decides how often
+the tracker checks. You can also delete messages yourself with `mqtttracker prune`.
 
 ## Retention options
 
-`confirmed_retention` and `error_retention` group the statuses by what the row means:
+`confirmed_retention` and `error_retention` group messages by their outcome:
 
-- `confirmed` is success history — a publish the broker accepted.
-- `failed` and `unconfirmed` are the recoverable rows a resend can still use.
+- a message with a confirmed attempt is **delivered**, and is kept for `confirmed_retention`;
+- a message whose latest attempt is `failed` or `unconfirmed` is **unresolved**, and is kept for
+  `error_retention`.
 
-`sent` is transient and neither option prunes it; the startup sweep and a disconnect mark it
+A message is deleted as one whole chain: the original row and every resend. A `sent` message is
+still in flight and neither option prunes it; the startup sweep and a disconnect mark it
 `unconfirmed`.
 
 ### confirmed_retention
 
-How long, in seconds, to keep `confirmed` rows.
+How long, in seconds, to keep a delivered message.
 Default is `604800` (7 days).
 Set to `0` to keep them forever.
 
-Pruning a confirmed row frees space and loses history, but nothing that can be resent. This is the
-safe retention to shorten when the table is large.
+The clock starts when the message was confirmed, so a message that was resent and then confirmed
+is kept for the full period from that resend, not from the original failure.
+
+Pruning a delivered message frees space and loses history, but nothing that can be resent. This is
+the safe retention to shorten when the table is large.
 
 ### error_retention
 
-How long, in seconds, to keep `failed` and `unconfirmed` rows.
+How long, in seconds, to keep an unresolved message.
 Default is `0`, which keeps them forever.
 Set it to a finite value to bound the table.
 
-Pruning one of these rows removes a message that could still be recovered, so this is the retention
-to keep generous. The default of `0` preserves the whole recovery window, which matters after an
-outage when a backlog has built up.
+The clock starts at the latest attempt, so a message that keeps failing, or that was just resent,
+is kept for the full period from that attempt.
+
+Pruning one of these messages removes a message that could still be recovered, so this is the
+retention to keep generous. The default of `0` preserves the whole recovery window, which matters
+after an outage when a backlog has built up.
 
 ### Per-topic values
 
@@ -64,36 +73,45 @@ How often, in seconds, the tracker's writer thread checks for rows to delete.
 Default is `3600` (hourly).
 Set to `0` to disable automatic pruning; the startup sweep still runs.
 
-This is the schedule, not the age. A prune deletes `confirmed` rows older than
-`confirmed_retention`, and `failed` or `unconfirmed` rows older than `error_retention`. No pruning
+This is the schedule, not the age. A prune deletes delivered messages older than
+`confirmed_retention`, and unresolved messages older than `error_retention`. No pruning
 happens while every retention is `0`.
 
 ## How a prune runs
 
-The writer thread checks for old rows after it processes queued events, and when the queue has been
-idle for `prune_interval`. So retention is a minimum age: a row is deleted at the first check after
-it becomes old enough, which can be up to one interval later. With `prune_interval = 0`, nothing is
-deleted automatically until you run the tool.
+The writer thread checks for old messages after it processes queued events, and when the queue has
+been idle for `prune_interval`. So retention is a minimum age: a message is deleted at the first
+check after its outcome becomes old enough, which can be up to one interval later. With
+`prune_interval = 0`, nothing is deleted automatically until you run the tool.
 
 The startup sweep is separate from pruning. It runs when the tracker starts and marks leftover
 `sent` rows as `unconfirmed`; it does not delete anything.
 
 ## Pruning with mqtttracker prune
 
-To remove rows sooner than their retention allows, or when `error_retention` is `0`, run
+To remove messages sooner than their retention allows, or when `error_retention` is `0`, run
 `bin/user/mqtttracker.py prune`. `mqtttracker` is one tool with `resend`, `prune` and `status`
-subcommands; the config file is a global `--config` option, so it comes before the subcommand:
+subcommands; the config file is a global `--config` option, so it comes before the subcommand.
+By default it selects the delivered history: messages with a confirmed attempt, older than
+`confirmed_retention`:
 
 ```shell
-# Select failed and unconfirmed rows older than 30 days.
-python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune --older-than 2592000
+# Select delivered messages older than confirmed_retention.
+python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune
 ```
 
 Add `--delete` to remove them:
 
 ```shell
-# Delete the selected rows.
-python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune --older-than 2592000 --delete
+# Delete the selected messages.
+python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune --delete
+```
+
+To select unresolved messages, ask for those statuses and give them an age:
+
+```shell
+# Select unresolved messages older than 30 days.
+python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune --status failed,unconfirmed --older-than 2592000
 ```
 
 The tool is in the tracker's user directory: `/etc/weewx/bin/user` on a package install (apt,
@@ -101,22 +119,19 @@ rpm, openSUSE) and `~/weewx-data/bin/user` on a pip or git install. Run it with 
 WeeWX uses. On a package install it finds WeeWX by itself; for an uninstalled source checkout,
 add WeeWX's `src` directory to `PYTHONPATH`.
 
-Without `--delete` it only prints the selection.
+Without `--delete` it only prints the selection. Each line is one message, shown with the id of
+its original row (or of the chain when the original was pruned), the status that decides its
+retention, and the time that decision was made.
 
-By default a row is selected when it is older than the retention for its status:
-`error_retention` for `failed` and `unconfirmed` rows, and `confirmed_retention` for `confirmed`
-rows. Because `error_retention` defaults to `0`, a run without `--older-than` selects no error
-rows; the confirmed rows still age out at their configured retention.
+Pruning a message deletes its whole chain: the original and every resend. A message whose outcome
+changed between the plan and the delete is left alone. It is safe to run while WeeWX is running.
 
-Pruning a row also deletes the rest of its message chain, so a resent message leaves nothing
-behind. A row that changed between the plan and the delete is left alone. It is safe to run while
-WeeWX is running.
+Deleting an unresolved message discards the only record that its delivery outcome is unknown.
+Deleting a delivered message discards the record that it was delivered, but nothing that could be
+resent.
 
-Deleting an `unconfirmed` row discards the only record that its delivery outcome is unknown.
-Deleting a `confirmed` resend discards the record that the message was eventually delivered.
-
-A `sent` row is marked `unconfirmed` when the tracker restarts, so the tool does not touch it, or
-any other row in the chain that is still `sent`.
+A message whose outcome is still `sent` is in flight: the tracker marks it `unconfirmed` when it
+restarts, so the tool does not touch it.
 See [Internals](../internals/index.md#maintenance-sql) for the equivalent SQL.
 
 ## prune options
@@ -133,31 +148,31 @@ Run it once without `--delete` to see the selection before deleting anything.
 ### --status STATUS
 
 A comma-separated list of statuses to prune.
-Default is `failed,unconfirmed`.
+Default is `confirmed`.
 
-Use `--status unconfirmed` to prune only the ambiguous rows, or `--status failed` to prune only
-failed publishes. `sent` is refused because it may still be in flight (restart WeeWX to mark it
-`unconfirmed`). `confirmed` is not selected by default; `--status confirmed` prunes confirmed rows
-older than `confirmed_retention`, which is how you clean up the history between the automatic
-prunes or when `prune_interval` is `0`.
+A message is delivered when any attempt is `confirmed`, so `--status failed` does not select a
+message that a resend later delivered. Use `--status failed,unconfirmed` to prune unresolved
+messages. `sent` is refused because it may still be in flight (restart WeeWX to mark it
+`unconfirmed`).
 
 ```shell
-python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune --status confirmed --delete
+# Prune unresolved messages older than 30 days.
+python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune --status failed,unconfirmed --older-than 2592000 --delete
 ```
 
 ### --older-than SECONDS
 
-Select rows older than `SECONDS`.
-Default is the retention for the row's status: `error_retention` for `failed` and `unconfirmed`
-rows, `confirmed_retention` for `confirmed` rows. With the default `error_retention` of `0`, a run
-without this option selects no error rows.
+Select messages whose outcome is older than `SECONDS`.
+Default is the retention for the message's status: `confirmed_retention` for a delivered message,
+`error_retention` for an unresolved one. With the default `error_retention` of `0`, unresolved
+messages are selected only when this option, or a finite `error_retention`, gives them an age.
 
-`--older-than 0` selects every matching row, whatever its age. That is how you clear a backlog
+`--older-than 0` selects every matching message, whatever its age. That is how you clear a backlog
 regardless of the configured retention.
 
 ```shell
-# Every failed and unconfirmed row, of any age.
-python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune --older-than 0 --delete
+# Every unresolved message, of any age.
+python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune --status failed,unconfirmed --older-than 0 --delete
 ```
 
 ### --topic GLOB
@@ -170,11 +185,11 @@ python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune 
 
 ### --limit COUNT
 
-The maximum number of rows to select, oldest first.
+The maximum number of messages to select, oldest first.
 Default is `100`; `0` removes the limit.
-Each selected row also deletes the rest of its message chain, so the number of rows removed can be
-higher. When the limit truncates the selection, the tool reports how many of the matching messages
-it selected; use `--limit 0` to select them all.
+Each selected message also deletes its whole chain, so the number of rows removed can be higher.
+When the limit truncates the selection, the tool reports how many of the matching messages it
+selected; use `--limit 0` to select them all.
 
 ### --plugin-section NAME
 
@@ -195,7 +210,7 @@ Print the tool's version and exit.
 
 ## Scheduling
 
-`confirmed_retention` and `error_retention` prune rows automatically at the `prune_interval`
+`confirmed_retention` and `error_retention` prune messages automatically at the `prune_interval`
 cadence. Use the tool on a timer when you want a different age or cadence, or want to prune only
 some statuses.
 
@@ -205,21 +220,22 @@ A system cron entry in `/etc/cron.d/mqtttracker-prune`:
 SHELL=/bin/sh
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 
-# Every day at 03:15, delete failed and unconfirmed rows older than 30 days.
-15 3 * * * weewx /usr/bin/python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune --older-than 2592000 --delete >> /var/log/weewx/mqtttracker-prune.log 2>&1
+# Every day at 03:15, delete delivered messages older than confirmed_retention.
+15 3 * * * weewx /usr/bin/python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune --delete >> /var/log/weewx/mqtttracker-prune.log 2>&1
 ```
 
 The same line in the WeeWX user's crontab (`crontab -u weewx -e`) drops the `weewx` user field.
 
-To clear a backlog after an outage, widen the age, include `failed`, and raise the limit:
+To clear a backlog of unresolved messages after an outage, ask for those statuses explicitly:
 
 ```cron
-15 3 * * * weewx /usr/bin/python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune --status unconfirmed,failed --older-than 2592000 --limit 1000 --delete >> /var/log/weewx/mqtttracker-prune.log 2>&1
+15 3 * * * weewx /usr/bin/python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune --status failed,unconfirmed --older-than 2592000 --limit 1000 --delete >> /var/log/weewx/mqtttracker-prune.log 2>&1
 ```
 
 - Run as the WeeWX user, not root, so the database permissions match.
 - Use the Python that WeeWX uses.
 - `--delete` is required; without it the tool is a dry run.
+- `--status` defaults to `confirmed`, so a run without it never deletes an unresolved message.
 - `--limit` defaults to `100`, so a large backlog clears over several runs. `--limit 0` removes
   the limit.
 - The tool is safe while WeeWX is running.
@@ -238,7 +254,7 @@ Description=Prune the MQTT message tracker
 [Service]
 Type=oneshot
 User=weewx
-ExecStart=/usr/bin/python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune --older-than 2592000 --delete
+ExecStart=/usr/bin/python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune --delete
 ```
 
 and `/etc/systemd/system/mqtttracker-prune.timer`:

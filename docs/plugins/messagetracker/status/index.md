@@ -6,25 +6,27 @@ nav_order: 4
 ---
 {% include messagetracker_warning.html %}
 
-`mqtttracker status` shows tracked messages and their resend outcome. By default it shows the
-outstanding work: one row per message chain with no confirmed resend. `--status` restricts the
-anchor statuses, and `--include-confirmed` also shows chains that were eventually confirmed. It
-reads the tracker database directly, so it does not need MQTTPublish to be running.
+`mqtttracker status` shows one line per tracked message, with the status the tracker has
+recorded for it. The tracker stores a chain of rows for each message: the original publish, then
+one row per resend. The message's status is the status of its outcome row — the latest confirmed
+attempt if there is one, otherwise the latest attempt. By default it shows the unresolved
+messages: those whose status is `failed`, `unconfirmed`, or `sent`. `--status` chooses the statuses
+to show. It reads the tracker database directly, so it does not need MQTTPublish to be running.
 
 `mqtttracker` is one tool with `resend`, `prune` and `status` subcommands. The config file is a
-global `--config` option, so it comes before the subcommand. Show the outstanding work:
+global `--config` option, so it comes before the subcommand. Show the unresolved messages:
 
 ```shell
 python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf status
 ```
 
-Include the chains that were eventually confirmed:
+Show the delivered history:
 
 ```shell
-python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf status --include-confirmed
+python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf status --status confirmed
 ```
 
-Show the rows still in flight:
+Show the messages still in flight:
 
 ```shell
 python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf status --status sent
@@ -47,9 +49,10 @@ PYTHONPATH=~/weewx/src python3 ~/weewx-data/bin/user/mqtttracker.py --config ~/w
 
 ## Reading the result
 
-The original `failed` or `unconfirmed` row is never changed, so "eventually confirmed" means that
-at least one row with `origin_id` equal to the original's `id` has status `confirmed`. A
-`confirmed` resend means the broker accepted it, not that a subscriber received it.
+The original row is never changed; each resend records its own outcome. A message is
+**confirmed** when any attempt was confirmed. A confirmed attempt wins, so a delivered message is
+never counted as failed again, even after a forced resend. "Confirmed" means the broker accepted
+the publish, not that a subscriber received it.
 
 A message with several resend attempts appears once. The row is anchored at the original, or at
 the oldest surviving resend when the original was pruned. `ATTEMPTS`, `CONFIRMED`, and
@@ -65,13 +68,13 @@ The default summary lists each message with:
 | `ORIGINALLY SENT` | when the anchor was handed to paho. |
 | `ATTEMPTS` | the number of resend rows in the chain, whatever their status. |
 | `CONFIRMED` | how many of those resends the broker confirmed. |
-| `FINAL STATUS` | `confirmed`, `pending`, or `not resent`. |
+| `FINAL STATUS` | the outcome: `confirmed`, `failed`, `unconfirmed`, or `sent`. |
 
 The outcomes mean:
 
-- `confirmed`: at least one resend is `confirmed`;
-- `pending`: resends exist, but none is confirmed yet (one may still be `sent`);
-- `not resent`: no resend has been recorded.
+- `confirmed`: delivered — the broker accepted at least one attempt;
+- `failed` or `unconfirmed`: the latest attempt failed, or its outcome is unknown;
+- `sent`: an attempt is in flight.
 
 ## Options
 
@@ -79,12 +82,12 @@ The outcomes mean:
 
 The statuses to show, comma separated.
 Default is `failed,unconfirmed,sent`. Choose from `failed`, `unconfirmed`, `sent`, and `confirmed`.
-This filters the anchor row shown in the table; a later resend does not change the anchor’s status.
+This filters the message's final status, so a delivered message does not appear under
+`--status failed` just because its original row failed.
 
-`sent` rows are in flight: paho accepted the publish, but no acknowledgement has arrived yet. They
-become `confirmed` on acknowledgement, or `unconfirmed` on a disconnect or the startup sweep.
-`confirmed` rows are success history and can be numerous. Selecting `confirmed` also implies
-`--include-confirmed`, since confirmed chains are hidden by default.
+`sent` messages are in flight: paho accepted the publish, but no acknowledgement has arrived yet.
+They become `confirmed` on acknowledgement, or `unconfirmed` on a disconnect or the startup sweep.
+`confirmed` messages are success history and can be numerous; `--status confirmed` shows them.
 
 ### --message ID
 
@@ -93,11 +96,6 @@ Show one message chain, in publish order.
 Use any row id from the chain, including a resend id. The command resolves it to the chain and
 shows the anchor and each resend, with its `attempt` and `origin_id`. If no row has that id, the
 command prints a message and exits `1`.
-
-### --include-confirmed
-
-Also show message chains that already have a confirmed resend. By default those are hidden:
-the status command shows the outstanding work, meaning chains with no confirmed resend.
 
 ### --topic GLOB
 
@@ -134,13 +132,13 @@ How to read the result:
 The resend row's own `sent_ts` and `arrived_ts` show when it was sent and when the broker
 confirmed it, which is later than the original's `sent_ts`.
 
-For every message chain with no confirmed resend:
+For every message with no confirmed attempt (the tool's default):
 
 ```sql
--- Failed or unconfirmed originals with no confirmed resend.
+-- Originals with no confirmed attempt, whose own status is failed, unconfirmed, or sent.
 SELECT o.id, o.topic, o.status, o.sent_ts
 FROM mqtt_message_tracker AS o
-WHERE o.status IN ('failed', 'unconfirmed') AND o.origin_id IS NULL
+WHERE o.status IN ('failed', 'unconfirmed', 'sent') AND o.origin_id IS NULL
   AND NOT EXISTS (
       SELECT 1 FROM mqtt_message_tracker AS r
       WHERE r.origin_id = o.id AND r.status = 'confirmed')
@@ -153,13 +151,13 @@ yet (a resend that is still `sent` has not finished).
 For every message with its resend attempts and outcome:
 
 ```sql
--- Every failed or unconfirmed original, with its resend attempts and outcomes.
+-- Every original, with its resend attempts and outcomes.
 SELECT o.id, o.topic, o.status, o.sent_ts,
        COUNT(r.id) AS attempts,
        SUM(r.status = 'confirmed') AS confirmed_attempts
 FROM mqtt_message_tracker AS o
 LEFT JOIN mqtt_message_tracker AS r ON r.origin_id = o.id
-WHERE o.status IN ('failed', 'unconfirmed') AND o.origin_id IS NULL
+WHERE o.origin_id IS NULL
 GROUP BY o.id
 ORDER BY o.sent_ts;
 ```
@@ -169,11 +167,12 @@ How to read the counts:
 - `attempts` counts every resend row, whatever its status. `0` means nothing was resent.
 - `confirmed_attempts` counts the resends where `status = 'confirmed'`. It is empty (`NULL`) when
   `attempts` is `0`, because there are no rows to sum.
-- `confirmed_attempts > 0` means the message was eventually confirmed. A value lower than
-  `attempts` means some attempts failed but a later one succeeded.
+- `confirmed_attempts > 0` means the message was delivered. A value lower than `attempts` means
+  some attempts failed but a later one succeeded.
 
 For example, an original with `attempts = 1` and `confirmed_attempts = 1` was resent once and the
 broker accepted that resend. An original with `attempts = 0` and an empty `confirmed_attempts` has
-not been resent at all.
+not been resent at all. When nothing was confirmed, the latest attempt's status is the message's
+final status.
 
 `ORDER BY o.sent_ts` lists the oldest first; use `DESC` for the newest first.

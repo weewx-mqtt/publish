@@ -112,7 +112,7 @@ class TestStatus(DatabaseTestCase):
         self.assertIn('ORIGINAL STATUS', self.out.getvalue())
         self.assertIn('ORIGINALLY SENT', self.out.getvalue())
         self.assertIn('FINAL STATUS', self.out.getvalue())
-        self.assertIn('not resent', self.out.getvalue())
+        self.assertIn('unconfirmed', self.out.getvalue())
 
     def test_status_filter_shows_sent_rows(self):
         failed = make_row(status=STATUS.STATUS_FAILED)
@@ -166,7 +166,7 @@ class TestStatus(DatabaseTestCase):
         self.assertNotIn(first['id'], output)
         self.assertNotIn(second['id'], output)
         line = [row for row in output.splitlines() if original['id'] in row][0]
-        self.assertEqual(line.split()[-3:], ['2', '0', 'pending'])
+        self.assertEqual(line.split()[-3:], ['2', '0', 'sent'])
 
     def test_summary_anchors_an_orphaned_chain_at_the_oldest_resend(self):
         original_id = helpers.random_string()
@@ -183,22 +183,33 @@ class TestStatus(DatabaseTestCase):
         self.assertIn(first['id'], output)
         self.assertNotIn(second['id'], output)
         line = [row for row in output.splitlines() if first['id'] in row][0]
-        self.assertEqual(line.split()[-3:], ['2', '0', 'pending'])
+        self.assertEqual(line.split()[-3:], ['2', '0', 'sent'])
 
-    def test_include_confirmed_shows_a_sent_chain(self):
+    def test_status_confirmed_shows_a_delivered_chain(self):
         original = make_row(sent_ts=1000.0)
         resend = make_row(sent_ts=1100.0, status=STATUS.STATUS_CONFIRMED,
                           origin_id=original['id'], attempt=1, arrived_ts=1200.0)
         self.insert(original)
         self.insert(resend)
 
-        self.assertEqual(self.run_tool('--include-confirmed'), 0)
+        self.assertEqual(self.run_tool('--status', 'confirmed'), 0)
 
         output = self.out.getvalue()
         self.assertIn(original['id'], output)
         self.assertNotIn(resend['id'], output)
         line = [row for row in output.splitlines() if original['id'] in row][0]
         self.assertEqual(line.split()[-3:], ['1', '1', 'confirmed'])
+
+    def test_a_delivered_chain_is_not_a_failed_message(self):
+        original = make_row(sent_ts=1000.0, status=STATUS.STATUS_FAILED)
+        resend = make_row(sent_ts=1100.0, status=STATUS.STATUS_CONFIRMED,
+                          origin_id=original['id'], attempt=1, arrived_ts=1200.0)
+        self.insert(original)
+        self.insert(resend)
+
+        self.assertEqual(self.run_tool('--status', 'failed'), 0)
+
+        self.assertIn('No messages with status failed.', self.out.getvalue())
 
     def test_message_shows_the_original_and_its_resends(self):
         original = make_row(sent_ts=1000.0)
@@ -253,7 +264,6 @@ class TestBuildParser(unittest.TestCase):
             ['--config', 'weewx.conf', 'status'])
 
         self.assertIsNone(options.message)
-        self.assertFalse(options.include_confirmed)
         self.assertIsNone(options.topic)
         self.assertEqual(options.status, ['failed', 'unconfirmed', 'sent'])
         self.assertEqual(options.limit, 100)

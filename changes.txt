@@ -112,8 +112,12 @@ Enhancements:
     were stored under.
     A completed resend is logged once, with the new row ids and the failure count.
     Rows that change to unconfirmed are logged at ERROR with the row id and the reason.
-    Confirmed rows are pruned by confirmed_retention. Failed and unconfirmed rows are pruned by
-    error_retention, which defaults to 0 so they can still be resent.
+    A message is one logical publish; the tracker stores its original row and one row per resend.
+    The outcome row (the latest confirmed attempt, or the latest attempt when nothing was
+    confirmed) decides its status and its retention.
+    Delivered messages are pruned by confirmed_retention. Unresolved messages are pruned by
+    error_retention, which defaults to 0 so they can still be resent. A message is deleted as one
+    whole chain, so a failed original ages out with the resend that delivered it.
     The optional [[resend]] section resends the failed and unconfirmed messages after the last
     confirmed publish on each topic. on_startup and on_reconnect select the trigger and both
     default to false. The log says which trigger fired, or that there was nothing to resend.
@@ -121,17 +125,15 @@ Enhancements:
   - Added an on_disconnect plugin callback, and the monitor_on_disconnect option to monitor
     its execution time.
   - Added the mqtttracker tool, with resend, prune and status subcommands. resend republishes the
-    messages the tracker recorded as failed or unconfirmed; a resend is a new row that points at
-    the original, so the original is never changed, and a dry run is the default. prune deletes the
-    failed and unconfirmed rows the automatic prune keeps, and deletes the rest of each message's
-    chain with them. --status confirmed also prunes confirmed rows, using confirmed_retention as
-    the default age, so the history can be cleaned up on demand; when --limit truncates the
-    selection, prune reports how many of the matching messages it selected. Both tools default to
-    failed,unconfirmed, matching error_retention. status shows one row per message chain with no
-    confirmed resend by default; --include-confirmed also shows chains that were eventually
-    confirmed, and --status restricts the anchor statuses. FINAL STATUS is confirmed, pending, or
-    not resent. On a package install the tool finds WeeWX by itself, so it runs by path without
-    PYTHONPATH.
+    messages whose outcome is failed or unconfirmed; a resend is a new row that points at the
+    original, so the original is never changed, and a dry run is the default. prune deletes
+    delivered messages (those with a confirmed attempt) older than confirmed_retention by default,
+    and deletes each message's whole chain with it; --status failed,unconfirmed prunes unresolved
+    messages using error_retention, and --older-than overrides the configured age. When --limit
+    truncates the selection, prune reports how many of the matching messages it selected. status
+    shows one row per message and filters on the outcome status, so a message that was delivered
+    by a resend is not reported as failed; FINAL STATUS is confirmed, failed, unconfirmed, or sent.
+    On a package install the tool finds WeeWX by itself, so it runs by path without PYTHONPATH.
   - Document that resending is at-least-once: a resend is a new publish, so it can duplicate a
     message even on a qos 2 topic.
   - Improved shutdown logic flow, with timeouts when stopping threads/processes.

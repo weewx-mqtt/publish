@@ -322,6 +322,35 @@ class TestSelectMessages(unittest.TestCase):
 
         self.assertEqual([row['id'] for row in selected], [origin['id']])
 
+    def test_one_message_per_chain(self):
+        origin = make_row(sent_ts=1000.0)
+        first = make_row(sent_ts=1100.0, origin_id=origin['id'], attempt=1,
+                         status=user.mqttmessagetracker.STATUS_FAILED)
+        second = make_row(sent_ts=1200.0, origin_id=origin['id'], attempt=2,
+                          status=user.mqttmessagetracker.STATUS_FAILED)
+
+        selected = user.mqtttracker.select_messages([origin, first, second], now=2000)
+
+        self.assertEqual([row['id'] for row in selected], [origin['id']])
+
+    def test_a_sent_resend_keeps_the_message_out_of_the_queue(self):
+        origin = make_row(sent_ts=1000.0)
+        sent_resend = make_row(sent_ts=1100.0, origin_id=origin['id'], attempt=1,
+                               status=user.mqttmessagetracker.STATUS_SENT)
+
+        selected = user.mqtttracker.select_messages([origin, sent_resend], now=2000)
+
+        self.assertEqual(selected, [])
+
+    def test_since_uses_the_last_attempt(self):
+        origin = make_row(sent_ts=100.0)
+        failed_resend = make_row(sent_ts=1500.0, origin_id=origin['id'], attempt=1,
+                                 status=user.mqttmessagetracker.STATUS_FAILED)
+
+        selected = user.mqtttracker.select_messages([origin, failed_resend], since=1000, now=2000)
+
+        self.assertEqual([row['id'] for row in selected], [origin['id']])
+
     def test_limit_keeps_the_newest_and_orders_oldest_first(self):
         rows = [make_row(sent_ts=float(index), topic=f'weather/{index}') for index in range(1, 6)]
 

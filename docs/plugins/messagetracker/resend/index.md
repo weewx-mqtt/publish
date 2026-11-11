@@ -11,20 +11,26 @@ The tracker can do it automatically after a connection, or you can run `mqtttrac
 
 ## What gets resent
 
-Both automatic resend and `mqtttracker resend` start from the tracker's `failed` and `unconfirmed`
-rows. Automatic resend applies these rules:
+A resend publishes a message that was not delivered. A message is delivered when its outcome is
+`confirmed` (see [Status](../status/index.md)); a delivered message is not resent unless you ask
+for it. Each message is resent once, even when it already has several attempts.
 
-- the last confirmed publish on a topic is the newest original row that is `confirmed`, or whose
-  resend is `confirmed`. A resend's own time does not move the boundary, otherwise a successful
-  resend could hide an older backlog;
-- every `failed` and `unconfirmed` row after that boundary is resent, oldest first;
-- if a topic has no confirmed publish, every `failed` and `unconfirmed` row is resent;
-- with `include_before_last_success = true`, the boundary is ignored and every `failed` and
-  `unconfirmed` row for the topic is resent, even those before the last confirmed publish;
-- a message is resent once, even when it already has several resend attempts.
+Automatic resend and `mqtttracker resend` choose those messages differently. Automatic resend
+applies the last confirmed publish on each topic as a boundary:
+
+- the boundary is the newest original row that is `confirmed`, or whose resend is `confirmed`.
+  A resend's own time does not move it, otherwise a successful resend could hide an older
+  backlog;
+- every unresolved message after that boundary is resent, oldest first;
+- if a topic has no confirmed publish, every unresolved message on it is resent;
+- with `include_before_last_success = true`, the boundary is ignored and every unresolved message
+  is resent.
 
 The boundary is per topic. A successful publish on one topic says nothing about the delivery of
 another topic.
+
+`mqtttracker resend` ignores the boundary and has its own selection options; see
+[What the tool selects](#what-the-tool-selects).
 
 ## Automatic resend
 
@@ -133,11 +139,12 @@ PYTHONPATH=~/weewx/src python3 ~/weewx-data/bin/user/mqtttracker.py --config ~/w
 
 ### What the tool selects
 
-By default the tool selects `failed` and `unconfirmed` rows, whatever their age. It then:
+By default the tool selects the messages whose outcome is `failed` or `unconfirmed`, whatever
+their age. It then:
 
-- resends only the newest row per topic, so an old value cannot overwrite a newer one; a message
+- resends only the newest message per topic, so an old value cannot overwrite a newer one; a message
   this hides is reported, and `--all` resends every selected message, oldest first;
-- skips a message that already has a `confirmed` resend; `--force` overrides;
+- skips a message that is already delivered (one attempt is `confirmed`); `--force` overrides;
 - connects with a clientid of its own, so the running service is not disconnected;
 - waits for the connection before publishing, and for each publish to be confirmed.
 
@@ -145,8 +152,9 @@ A resend is a new row, so the original is never changed. It copies the topic, Qo
 `dateTime` and payload of the original, and points at the original with `origin_id` and `attempt`.
 See [Internals](../internals/index.md#resend-rows) for the row layout and history query.
 
-A row can only be resent while the tracker has not pruned it, so the topic's `error_retention` sets
-the recovery window. Keep it long enough to cover the outages you want to recover from.
+A message can only be resent while the tracker has not pruned its chain, so the topic's
+`error_retention` sets the recovery window for an unresolved message. Keep it long enough to cover
+the outages you want to recover from.
 
 A message published directly by a plugin, or to a topic that is not tracked, is never resent.
 
@@ -171,12 +179,12 @@ nothing.
 
 ### --status STATUS
 
-A comma-separated list of statuses to resend.
+A comma-separated list of message statuses to resend.
 Default is `failed,unconfirmed`.
 
-Use `--status unconfirmed` to resend only the ambiguous rows, or `--status failed` to resend only
-failed publishes. `sent` may still be in flight and `confirmed` does not need a resend, so both
-are refused.
+Use `--status unconfirmed` to resend only the ambiguous messages, or `--status failed` to resend
+only failed publishes. `sent` may still be in flight and `confirmed` does not need a resend, so
+both are refused.
 
 ```shell
 python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf resend --status unconfirmed --publish
@@ -184,11 +192,11 @@ python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf resend
 
 ### --since SECONDS
 
-Only resend messages sent within the last `SECONDS`.
+Only resend messages whose outcome is within the last `SECONDS`.
 Default is every message, whatever its age.
 
-The age is measured from the original's `sent_ts`, not from the resend. Use it together with
-`error_retention` to bound an old backlog.
+The age is measured from the message's latest attempt, which is the original publish or a resend.
+Use it together with `error_retention` to bound an old backlog.
 
 ### --limit COUNT
 
@@ -214,7 +222,7 @@ one. A message this hides is reported; `--all` is how you publish it too, oldest
 
 ### --force
 
-Resend messages that already have a `confirmed` resend.
+Resend messages that are already delivered (they have a `confirmed` attempt).
 
 The tool skips them by default because they were already delivered once. Use `--force` when you
 need another copy despite that.

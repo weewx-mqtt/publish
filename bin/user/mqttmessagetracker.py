@@ -39,6 +39,9 @@ MESSAGE_COLUMNS = ('id', 'mid', 'dateTime', 'sent_ts', 'arrived_ts', 'status', '
                    'origin_id', 'attempt', 'clientid', 'topic', 'qos', 'retain', 'rc',
                    'payload', 'payload_encoding')
 
+# The columns needed to group the table into message chains.
+CHAIN_COLUMNS = ('id', 'status', 'sent_ts', 'origin_id', 'attempt', 'topic')
+
 
 class TrackerConfigError(Exception):
     """ A tracker option that prevents writing to the database. """
@@ -123,6 +126,16 @@ def fetch_rows(connection, table):
         cursor.close()
 
 
+def fetch_chain_rows(connection, table):
+    """ Read the columns needed to group the table into message chains. """
+    cursor = connection.cursor()
+    try:
+        cursor.execute(f"SELECT {', '.join(CHAIN_COLUMNS)} FROM {table}")
+        return [dict(zip(CHAIN_COLUMNS, row)) for row in cursor]
+    finally:
+        cursor.close()
+
+
 def describe_row(row):
     """ A one line description of a row for a tool's plan. """
     payload = row['payload']
@@ -185,16 +198,52 @@ STATUS_SENT = 'sent'
 STATUS_CONFIRMED = 'confirmed'
 STATUS_UNCONFIRMED = 'unconfirmed'
 
-# The status groups that pruning treats differently. Confirmed rows are success history; failed
-# and unconfirmed rows are the recoverable messages a resend can still use. 'sent' is left to
-# the startup sweep, which marks a row that may still be in flight as unconfirmed.
-CONFIRMED_STATUSES = (STATUS_CONFIRMED,)
-ERROR_STATUSES = (STATUS_FAILED, STATUS_UNCONFIRMED)
-
 
 def origin_id(row):
     """ The id of the original message a row belongs to. """
     return row['origin_id'] or row['id']
+
+
+def attempt_number(row):
+    """ The attempt number of a row, with the original counted as attempt 0. """
+    return row['attempt'] or 0
+
+
+def chain_rows(rows):
+    """ Group rows by the message they belong to. """
+    chains = {}
+    for row in rows:
+        chains.setdefault(origin_id(row), []).append(row)
+    return chains
+
+
+def chain_anchor(chain):
+    """ The original row, or the oldest surviving attempt when the original was pruned. """
+    return min(chain, key=lambda row: (attempt_number(row), row['sent_ts'], row['id']))
+
+
+def outcome_row(chain):
+    """ The row that decides a message's status and age.
+
+        A confirmed attempt wins, so a delivered message is not undone by a later forced resend.
+        Otherwise the latest attempt decides: the clock starts when the chain reached that
+        state. """
+    confirmed = [row for row in chain if row['status'] == STATUS_CONFIRMED]
+    return max(confirmed or chain,
+               key=lambda row: (attempt_number(row), row['sent_ts'], row['id']))
+
+
+def chain_outcomes(rows):
+    """ The outcome row of each message, keyed by origin id. """
+    return {chain_id: outcome_row(chain) for chain_id, chain in chain_rows(rows).items()}
+
+
+def chain_retention(outcome, confirmed_retention, topic_confirmed_retention,
+                    error_retention, topic_error_retention):
+    """ The retention that applies to a message chain. """
+    if outcome['status'] == STATUS_CONFIRMED:
+        return topic_confirmed_retention.get(outcome['topic'], confirmed_retention)
+    return topic_error_retention.get(outcome['topic'], error_retention)
 
 
 def decode_payload(row):
@@ -232,6 +281,20 @@ def insert_attempt(connection, table, row, mid, rc, sent_ts, clientid):
             (row_id, mid, row['dateTime'], sent_ts, status, row_origin_id, attempt, clientid,
              row['topic'], row['qos'], row['retain'], rc, row['payload'], row['payload_encoding']))
     return row_id, attempt, status
+
+
+def delete_chains(cursor, table, chain_ids):
+    """ Delete the rows of the given message chains, leaving any row still in flight.
+
+        Returns the number of rows removed. """
+    if not chain_ids:
+        return 0
+    placeholders = ', '.join('?' for _ in chain_ids)
+    cursor.execute(
+        f"DELETE FROM {table} WHERE (id IN ({placeholders}) OR origin_id IN ({placeholders})) "
+        f"AND status != ?",
+        (*chain_ids, *chain_ids, STATUS_SENT))
+    return cursor.rowcount
 
 
 def _confirmed_origins(rows):
@@ -744,48 +807,35 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
         return True
 
     def _prune(self, connection, now):
-        """ Delete rows that are older than their retention period.
+        """ Delete the message chains that are older than their retention.
 
-            Confirmed rows are pruned by 'confirmed_retention', the failed and unconfirmed
-            rows by 'error_retention'. A sent row is left for the startup sweep. """
+            A chain is the original row and its resends; its outcome decides the status and age.
+            A confirmed chain is pruned by 'confirmed_retention', a failed or unconfirmed chain
+            by 'error_retention'. A chain with a row still in flight is left for the startup
+            sweep. """
         try:
-            self._prune_statuses(connection, now, self.confirmed_retention,
-                                 self.topic_confirmed_retention, CONFIRMED_STATUSES)
-            self._prune_statuses(connection, now, self.error_retention,
-                                 self.topic_error_retention, ERROR_STATUSES)
+            rows = fetch_chain_rows(connection, self.table)
+            selected = [chain_id for chain_id, outcome in chain_outcomes(rows).items()
+                        if self._is_old_enough(outcome, now)]
+            self._delete_chains(connection, selected)
         except Exception as exception:  # pylint: disable=broad-exception-caught
             self._log('ERROR', f"Unable to prune message tracking data: {exception}.")
 
-    def _prune_statuses(self, connection, now, retention, topic_retention, statuses):
-        """ Prune the rows of the given statuses, by topic. """
-        self._delete_unlisted(connection, now, retention, topic_retention, statuses)
-        for topic, topic_retention_value in topic_retention.items():
-            if topic_retention_value > 0:
-                self._delete_topic(connection, topic, now, topic_retention_value, statuses)
+    def _is_old_enough(self, outcome, now):
+        """ Whether a chain's outcome is older than the retention for its status. """
+        if outcome['status'] == STATUS_SENT:
+            return False
+        retention = chain_retention(
+            outcome, self.confirmed_retention, self.topic_confirmed_retention,
+            self.error_retention, self.topic_error_retention)
+        return retention > 0 and outcome['sent_ts'] < now - retention
 
-    def _delete_topic(self, connection, topic, now, retention, statuses):
-        """ Delete the rows of one topic. """
-        placeholders = ', '.join('?' for _ in statuses)
-        connection.execute(
-            f"DELETE FROM {self.table} WHERE topic = ? AND sent_ts < ? AND status IN ({placeholders})",
-            (topic, now - retention, *statuses))
-
-    def _delete_unlisted(self, connection, now, retention, topic_retention, statuses):
-        """ Delete the rows of topics that are no longer tracked, with the table-wide retention. """
-        if retention <= 0:
-            return
-        topics = list(topic_retention)
-        status_placeholders = ', '.join('?' for _ in statuses)
-        if not topics:
-            connection.execute(
-                f"DELETE FROM {self.table} WHERE sent_ts < ? AND status IN ({status_placeholders})",
-                (now - retention, *statuses))
-            return
-        topic_placeholders = ', '.join('?' for _ in topics)
-        connection.execute(
-            f"DELETE FROM {self.table} WHERE topic NOT IN ({topic_placeholders}) AND sent_ts < ? "
-            f"AND status IN ({status_placeholders})",
-            (*topics, now - retention, *statuses))
+    def _delete_chains(self, connection, chain_ids):
+        """ Delete the selected message chains, in batches. """
+        for start in range(0, len(chain_ids), self.batch_size):
+            chunk = chain_ids[start:start + self.batch_size]
+            with weedb.Transaction(connection) as cursor:
+                delete_chains(cursor, self.table, chunk)
 
     def _put(self, event):
         """ Queue an event, dropping it rather than blocking the caller. """

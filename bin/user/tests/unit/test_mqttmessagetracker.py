@@ -244,6 +244,41 @@ class TestMQTTMessageTracker(unittest.TestCase):
         finally:
             connection.close()
 
+    def _insert_row(self, row):
+        try:
+            connection = weedb.connect(self.database_dict)
+        except weedb.NoDatabaseError:
+            weedb.create(self.database_dict)
+            connection = weedb.connect(self.database_dict)
+        try:
+            connection.execute(user.mqttmessagetracker.CREATE_TABLE.format(
+                table='mqtt_message_tracker'))
+            with weedb.Transaction(connection) as cursor:
+                cursor.execute("INSERT INTO mqtt_message_tracker "
+                               "(id, mid, dateTime, sent_ts, arrived_ts, status, unconfirmed_ts, "
+                               "origin_id, attempt, clientid, topic, qos, retain, rc, payload, "
+                               "payload_encoding) "
+                               "VALUES (?, ?, ?, ?, NULL, ?, NULL, ?, ?, NULL, ?, ?, ?, ?, ?, ?)",
+                               (row['id'], row['mid'], row['dateTime'], row['sent_ts'],
+                                row['status'], row['origin_id'], row['attempt'], row['topic'],
+                                row['qos'], row['retain'], row['rc'], row['payload'],
+                                row['payload_encoding']))
+        finally:
+            connection.close()
+
+    def _prune(self, plugin, now):
+        connection = weedb.connect(self.database_dict)
+        try:
+            plugin.tracker._prune(connection, now)  # pylint: disable=protected-access
+        finally:
+            connection.close()
+
+    def _chain_row(self, row_id, sent_ts, status, origin_id=None, attempt=None):
+        return {'id': row_id, 'mid': 1, 'dateTime': 1700000000, 'sent_ts': sent_ts,
+                'status': status, 'origin_id': origin_id, 'attempt': attempt,
+                'topic': 'topic', 'qos': 0, 'retain': 0, 'rc': 0, 'payload': 'payload',
+                'payload_encoding': 'text'}
+
     def test_resolve_tracker_config(self):
         database_dict, table = user.mqttmessagetracker.resolve_tracker_config(
             {'data_binding': 'tracker_binding'}, self.config_dict)
@@ -752,6 +787,49 @@ class TestMQTTMessageTracker(unittest.TestCase):
         self.assertEqual(plugin.tracked_topics, {'default', 'custom'})
         self.assertEqual(plugin.topic_confirmed_retentions, {'default': 60, 'custom': 120})
         self.assertEqual(plugin.topic_error_retentions, {'default': 90, 'custom': 180})
+
+    def test_prune_deletes_a_delivered_chain_with_its_failed_original(self):
+        plugin, _ = self._make_plugin({'confirmed_retention': 100, 'error_retention': 0})
+        now = time.time()
+        original = self._chain_row('a' * 32, now - 5000, 'failed')
+        resend = self._chain_row('b' * 32, now - 5000, 'confirmed',
+                                 origin_id=original['id'], attempt=1)
+        self._insert_row(original)
+        self._insert_row(resend)
+
+        self._prune(plugin, now)
+
+        self.assertEqual(self._rows(), [])
+
+    def test_error_retention_does_not_prune_a_delivered_chain(self):
+        plugin, _ = self._make_plugin({'confirmed_retention': 100000, 'error_retention': 100})
+        now = time.time()
+        original = self._chain_row('a' * 32, now - 5000, 'failed')
+        resend = self._chain_row('b' * 32, now - 10, 'confirmed',
+                                 origin_id=original['id'], attempt=1)
+        self._insert_row(original)
+        self._insert_row(resend)
+
+        self._prune(plugin, now)
+
+        self.assertEqual(len(self._rows()), 2)
+
+    def test_prune_uses_the_last_attempt_of_an_unresolved_chain(self):
+        plugin, _ = self._make_plugin({'error_retention': 1000})
+        now = time.time()
+        recent_original = self._chain_row('a' * 32, now - 5000, 'failed')
+        recent_resend = self._chain_row('b' * 32, now - 10, 'failed',
+                                        origin_id=recent_original['id'], attempt=1)
+        old_original = self._chain_row('c' * 32, now - 5000, 'failed')
+        old_resend = self._chain_row('d' * 32, now - 5000, 'failed',
+                                     origin_id=old_original['id'], attempt=1)
+        for row in (recent_original, recent_resend, old_original, old_resend):
+            self._insert_row(row)
+
+        self._prune(plugin, now)
+
+        self.assertEqual([row['id'] for row in self._rows()],
+                         [recent_original['id'], recent_resend['id']])
 
     def test_qos_zero_topic_is_not_tracked(self):
         plugin, logger_queue = self._make_plugin(
