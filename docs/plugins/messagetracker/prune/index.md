@@ -98,18 +98,20 @@ add WeeWX's `src` directory to `PYTHONPATH`.
 
 Without `--delete` it only prints the selection.
 
-By default a row is selected when it is older than its topic's `error_retention`. Because that
-defaults to `0`, a run without `--older-than` selects nothing.
+By default a row is selected when it is older than the retention for its status:
+`error_retention` for `failed` and `unconfirmed` rows, and `confirmed_retention` for `confirmed`
+rows. Because `error_retention` defaults to `0`, a run without `--older-than` selects no error
+rows; the confirmed rows still age out at their configured retention.
 
-The tool deletes by id and status, so a row that changed between the plan and the delete is left
-alone. It is safe to run while WeeWX is running.
+Pruning a row also deletes the rest of its message chain, so a resent message leaves nothing
+behind. A row that changed between the plan and the delete is left alone. It is safe to run while
+WeeWX is running.
 
 Deleting an `unconfirmed` row discards the only record that its delivery outcome is unknown.
-Deleting an original row while a `confirmed` resend remains leaves that resend's `origin_id`
-pointing at a row that no longer exists; the resend row is self-contained, so it still resends
-and prunes normally.
+Deleting a `confirmed` resend discards the record that the message was eventually delivered.
 
-A `sent` row is marked `unconfirmed` when the tracker restarts, so the tool does not touch it.
+A `sent` row is marked `unconfirmed` when the tracker restarts, so the tool does not touch it, or
+any other row in the chain that is still `sent`.
 See [Internals](../internals/index.md#maintenance-sql) for the equivalent SQL.
 
 ## prune options
@@ -130,17 +132,20 @@ Default is `failed,unconfirmed`.
 
 Use `--status unconfirmed` to prune only the ambiguous rows, or `--status failed` to prune only
 failed publishes. `sent` is refused because it may still be in flight (restart WeeWX to mark it
-`unconfirmed`), and `confirmed` is refused because the automatic prune handles it.
+`unconfirmed`). `confirmed` is not selected by default; `--status confirmed` prunes confirmed rows
+older than `confirmed_retention`, which is how you clean up the history between the automatic
+prunes or when `prune_interval` is `0`.
 
 ```shell
-python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune --status unconfirmed --older-than 2592000 --delete
+python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune --status confirmed --delete
 ```
 
 ### --older-than SECONDS
 
 Select rows older than `SECONDS`.
-Default is the topic's `error_retention`, so with the default `0` a run without this option selects
-nothing.
+Default is the retention for the row's status: `error_retention` for `failed` and `unconfirmed`
+rows, `confirmed_retention` for `confirmed` rows. With the default `error_retention` of `0`, a run
+without this option selects no error rows.
 
 `--older-than 0` selects every matching row, whatever its age. That is how you clear a backlog
 regardless of the configured retention.
@@ -160,8 +165,11 @@ python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune 
 
 ### --limit COUNT
 
-The maximum number of rows to delete, oldest first.
+The maximum number of rows to select, oldest first.
 Default is `100`; `0` removes the limit.
+Each selected row also deletes the rest of its message chain, so the number of rows removed can be
+higher. When the limit truncates the selection, the tool reports how many of the matching messages
+it selected; use `--limit 0` to select them all.
 
 ### --plugin-section NAME
 
