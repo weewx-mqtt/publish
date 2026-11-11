@@ -35,20 +35,25 @@ To use another database, change these entries and point `data_binding` at the bi
 The database is created if it does not exist, unless `create_database` is `false`.
 If it is created, an empty database is made; the tracker then creates its table.
 
-Then enable the plugin:
+The install adds the `[MQTTMessageTracker]` section with `enable = false` and a placeholder topic
+named `REPLACE_ME`. To turn it on:
+
+1. Change `enable = false` to `enable = true` in `[MQTTMessageTracker]`.
+2. In `[[topics]]`, replace `REPLACE_ME` with the topic to track, one `[[[topic-name]]]` section
+   per topic.
+3. Leave `MQTTMessageTracker` in the `[MQTTPublish] plugins` option; the install adds it.
 
 ```ini
-[MQTTPublish]
-    plugins = MQTTAggregateValues, MQTTConfigHA, MQTTArchiveValues, MQTTMessageTracker
-
 [MQTTMessageTracker]
-    plugin = user.mqttmessagetracker.MQTTMessageTracker
     enable = true
     data_binding = message_tracker_binding
+
     [[topics]]
-        [[[weather/outTemp_F]]]
-        [[[weather/outHumidity]]]
+        [[[weather/archive]]]
 ```
+
+Only the topics listed under `[[topics]]` are tracked. Each is enabled by default; set
+`enable = false` in a topic section to leave it listed but untracked.
 
 See [Configuration](configuration/index.md) for every option.
 
