@@ -147,7 +147,7 @@ class TestStatus(DatabaseTestCase):
         for row in (failed, unconfirmed, inflight):
             self.assertIn(row['id'], output)
         self.assertNotIn(confirmed['id'], output)
-        self.assertIn('3 not confirmed message(s)', output)
+        self.assertIn('3 unresolved message(s)', output)
 
     def test_summary_shows_one_row_per_chain(self):
         original = make_row(status=STATUS.STATUS_FAILED, published_ts=1000.0)
@@ -161,7 +161,7 @@ class TestStatus(DatabaseTestCase):
         self.assertEqual(self.run_tool(), 0)
 
         output = self.out.getvalue()
-        self.assertIn('1 not confirmed message(s)', output)
+        self.assertIn('1 unresolved message(s)', output)
         self.assertIn(original['id'], output)
         self.assertNotIn(first['id'], output)
         self.assertNotIn(second['id'], output)
@@ -262,7 +262,7 @@ class TestStatus(DatabaseTestCase):
             self.insert(make_row(id=helpers.random_string(), published_ts=float(index)))
 
         self.assertEqual(self.run_tool('--limit', '2'), 0)
-        self.assertIn('2 not confirmed message(s)', self.out.getvalue())
+        self.assertIn('2 unresolved message(s)', self.out.getvalue())
 
     def test_missing_config_exits_two(self):
         options = user.mqtttracker.build_parser().parse_args(
@@ -279,7 +279,7 @@ class TestBuildParser(unittest.TestCase):
 
         self.assertIsNone(options.message)
         self.assertIsNone(options.topic)
-        self.assertEqual(options.status, ['failed', 'unconfirmed', 'inflight'])
+        self.assertEqual(options.status, ['failed', 'inflight', 'unconfirmed'])
         self.assertEqual(options.limit, 100)
         self.assertEqual(options.plugin_section, 'MQTTMessageTracker')
         self.assertEqual(options.command, 'status')

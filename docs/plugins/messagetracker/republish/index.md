@@ -6,7 +6,7 @@ nav_order: 2
 ---
 {% include messagetracker_warning.html %}
 
-A message that paho refused, or whose acknowledgement was never observed, can be published again.
+A message that paho refused, or whose outcome was never confirmed, can be published again.
 The tracker can do it automatically after a connection, or you can run `mqtttracker republish`
 yourself.
 
@@ -150,8 +150,9 @@ the outages you want to recover from.
 
 A message published directly by a plugin, or to a topic that is not tracked, is never republished.
 
-The exit code is `0` on success, `1` when the connection, a publish or an ack failed, and `2` for
-a config or database error. A connect failure stops the run before anything is published.
+The exit code is `0` on success, `1` when the connection failed, a publish failed, or its
+confirmation did not arrive, and `2` for a config or database error. A connect failure stops the
+run before anything is published.
 
 A tool that is killed after publishing leaves the message `inflight`, which the tracker marks
 `unconfirmed`
@@ -215,7 +216,7 @@ when you need another copy despite that.
 
 ### --ack-timeout SECONDS
 
-How long to wait for each publish to be acknowledged.
+How long to wait for paho to confirm each publish before it is marked `unconfirmed`.
 Default is `10`.
 
 If the wait expires, that message is marked `unconfirmed` and the run exits `1`. The other

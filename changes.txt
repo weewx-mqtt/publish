@@ -115,7 +115,7 @@ Enhancements:
     A message is one logical publish; the tracker stores its original row and one row per republish attempt.
     The outcome row (the latest confirmed attempt, or the latest attempt when nothing was
     confirmed) decides its status and its retention.
-    Delivered messages are pruned by confirmed_retention. Unresolved messages are pruned by
+    Confirmed messages are pruned by confirmed_retention. Unresolved messages are pruned by
     error_retention, which defaults to 0 so they can still be republished. A message is deleted as one
     whole chain, so a failed original ages out with the republish that confirmed it.
     The optional [[republish]] section republishes the unresolved messages after the last confirmed
@@ -136,7 +136,7 @@ Enhancements:
     truncates the selection, prune reports how many of the matching messages it selected, and the
     plan reports how many rows those messages contain. status shows one row per message and
     filters on the outcome status, so a message that was confirmed by a republish is not reported as
-    failed; CURRENT STATUS is confirmed, failed, unconfirmed, or inflight. --message accepts the
+    failed; CURRENT STATUS is failed, inflight, confirmed, or unconfirmed. --message accepts the
     id=<hex> label the plan prints, or the bare id.
     On a package install the tool finds WeeWX by itself, so it runs by path without PYTHONPATH.
   - Document that republishing is at-least-once: a republish is a new publish, so it can duplicate a

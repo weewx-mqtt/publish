@@ -74,8 +74,8 @@ See [Internals](internals/index.md#what-is-tracked) for the stored fields and pa
 | --- | --- |
 | `failed` | paho returned a non-success `rc`; the message was not published. |
 | `inflight` | the message was handed to paho and its arrival has not been reported yet. |
-| `confirmed` | the broker acknowledged the publish; the acknowledgement time is recorded. |
-| `unconfirmed` | no acknowledgement was reported before the tracker stopped waiting; the time it stopped is recorded. |
+| `confirmed` | the broker accepted the publish; the time is recorded. |
+| `unconfirmed` | no confirmation was reported before the tracker stopped waiting; the time it stopped is recorded. |
 
 `inflight` is transient. It becomes `confirmed` when paho reports the publish, or `unconfirmed`
 when the tracker can no longer tell: the connection is lost, the tracker shuts down, paho reuses
@@ -110,7 +110,7 @@ QoS 2. This applies to both automatic republishing and `mqtttracker republish`.
 The tracker therefore provides at-least-once delivery end to end. Consumers must be idempotent,
 for example by deduplicating on `dateTime`. `failed` messages are safe to republish: paho refused them,
 so they were not published. `unconfirmed` messages are the ambiguous ones: the original may have
-reached the broker, but its acknowledgement was not observed.
+reached the broker, but its confirmation was not observed.
 
 See [QoS in detail](qos/index.md) for the packet-level handshakes, the per-leg guarantees, and a
 worked example with a subscriber that never acknowledges.

@@ -714,17 +714,17 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
             if pending is None:
                 self.inflight[mid] = (row_id, published_ts, topic)
             else:
-                self._ack_pending(connection, row_id, pending[0])
+                self._confirm_pending(connection, row_id, pending[0])
 
     def _log_republish_summary(self, inserted):
         """ Log the republished messages, with the row ids to inspect. """
         inflight = sum(1 for _, _, status, _, _ in inserted if status == STATUS_INFLIGHT)
         failed = len(inserted) - inflight
-        sent_ids = [row_id for row_id, _, status, _, _ in inserted if status == STATUS_INFLIGHT]
+        inflight_ids = [row_id for row_id, _, status, _, _ in inserted if status == STATUS_INFLIGHT]
         rows = ''
-        if sent_ids:
-            label = 'row' if len(sent_ids) == 1 else 'rows'
-            rows = f" ({label} {', '.join(sent_ids)})"
+        if inflight_ids:
+            label = 'row' if len(inflight_ids) == 1 else 'rows'
+            rows = f" ({label} {', '.join(inflight_ids)})"
         self._log('INFO', f"Republished {len(inserted)} message(s) after the connection was established: "
                           f"{failed} failed{rows}.")
 
@@ -755,7 +755,7 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
                     failed.append((row_id, row['topic'], mid, rc))
         return inserted, failed
 
-    def _ack_pending(self, connection, row_id, arrived_ts):
+    def _confirm_pending(self, connection, row_id, arrived_ts):
         """ Mark a republish as confirmed when its arrival was reported before it was recorded. """
         try:
             with weedb.Transaction(connection) as cursor:

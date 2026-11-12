@@ -6,7 +6,7 @@
 
     mqtttracker republish  - republish failed or unconfirmed messages
     mqtttracker prune   - delete confirmed messages before the retention policy does
-    mqtttracker status  - show failed and unconfirmed messages and their outcome
+    mqtttracker status  - show failed, inflight and unconfirmed messages and their outcome
 
     republish and prune are dry runs unless --publish or --delete is given.
     The tracker options are read from the WeeWX config file.
@@ -89,14 +89,14 @@ REPUBLISH_STATUSES = (user.mqttmessagetracker.STATUS_FAILED,
 # A prune can also remove the confirmed history, but only when asked to.
 PRUNE_STATUSES = REPUBLISH_STATUSES + (user.mqttmessagetracker.STATUS_CONFIRMED,)
 
-# The status command can show any row; the default is every row that is not confirmed.
+# The status command can show any row; the default is the unresolved statuses.
 SUMMARY_STATUSES = (user.mqttmessagetracker.STATUS_FAILED,
-                    user.mqttmessagetracker.STATUS_UNCONFIRMED,
                     user.mqttmessagetracker.STATUS_INFLIGHT,
-                    user.mqttmessagetracker.STATUS_CONFIRMED)
+                    user.mqttmessagetracker.STATUS_CONFIRMED,
+                    user.mqttmessagetracker.STATUS_UNCONFIRMED)
 DEFAULT_SUMMARY_STATUSES = (user.mqttmessagetracker.STATUS_FAILED,
-                            user.mqttmessagetracker.STATUS_UNCONFIRMED,
-                            user.mqttmessagetracker.STATUS_INFLIGHT)
+                            user.mqttmessagetracker.STATUS_INFLIGHT,
+                            user.mqttmessagetracker.STATUS_UNCONFIRMED)
 
 # Republishing works on the messages that are still unresolved.
 DEFAULT_STATUSES = REPUBLISH_STATUSES
@@ -308,7 +308,7 @@ def update_attempt(connection, table, row_id, status, timestamp=None):
 
 
 class RepublishClient:  # pylint: disable=too-many-instance-attributes
-    """ A paho client that records the message ids the broker acknowledged. """
+    """ A paho client that records when paho confirmed each publish. """
 
     def __init__(self, options, ack_timeout=DEFAULT_ACK_TIMEOUT,
                  connect_timeout=DEFAULT_CONNECT_TIMEOUT):
@@ -319,7 +319,7 @@ class RepublishClient:  # pylint: disable=too-many-instance-attributes
         self.connected = threading.Event()
         self.connect_rc = None
         self.condition = threading.Condition()
-        self.acked = {}
+        self.confirmed = {}
 
         self.client = user.mqttcommon.create_client(
             self.api, client_id=options['clientid'], protocol=options['protocol'],
@@ -340,7 +340,7 @@ class RepublishClient:  # pylint: disable=too-many-instance-attributes
 
     def _on_publish(self, _client, _userdata, mid, _properties):
         with self.condition:
-            self.acked[mid] = time.time()
+            self.confirmed[mid] = time.time()
             self.condition.notify_all()
 
     def connect(self):
@@ -370,11 +370,11 @@ class RepublishClient:  # pylint: disable=too-many-instance-attributes
         """ Hand a message to paho. """
         return self.client.publish(topic, payload, qos=qos, retain=bool(retain))
 
-    def wait_for_ack(self, mid):
-        """ Wait for paho to report the message as published, returning when it did or None. """
+    def wait_for_confirmation(self, mid):
+        """ Wait for paho to confirm the publish, returning the confirmation time or None. """
         with self.condition:
-            if self.condition.wait_for(lambda: mid in self.acked, self.ack_timeout):
-                return self.acked[mid]
+            if self.condition.wait_for(lambda: mid in self.confirmed, self.ack_timeout):
+                return self.confirmed[mid]
             return None
 
     def close(self):
@@ -401,7 +401,7 @@ def republish_message(client, connection, table, row, clientid):
     if status == user.mqttmessagetracker.STATUS_FAILED:
         return RepublishOutcome(row, attempt, message_info.mid, status)
 
-    arrived_ts = client.wait_for_ack(message_info.mid)
+    arrived_ts = client.wait_for_confirmation(message_info.mid)
     if arrived_ts is None:
         status = user.mqttmessagetracker.STATUS_UNCONFIRMED
         update_attempt(connection, table, row_id, status)
@@ -412,7 +412,7 @@ def republish_message(client, connection, table, row, clientid):
 
 
 def print_outcomes(outcomes, out):
-    """ Print what the broker acknowledged. """
+    """ Print the outcome of each republish. """
     for outcome in outcomes:
         print(f"  {outcome.status:<12} {outcome.row['topic']} attempt={outcome.attempt} "
               f"mid={outcome.mid}", file=out)
@@ -763,8 +763,8 @@ def _message_id(value):
 def print_status_summary(rows, out, statuses=DEFAULT_SUMMARY_STATUSES):
     """ Print the selected messages as a table. """
     if tuple(statuses) == DEFAULT_SUMMARY_STATUSES:
-        empty = "No not-confirmed messages."
-        label = "not confirmed message(s)"
+        empty = "No unresolved messages."
+        label = "unresolved message(s)"
     else:
         status_text = ', '.join(statuses)
         empty = f"No messages with current status {status_text}."
@@ -890,8 +890,8 @@ def _add_republish_parser(subparsers):
     parser.add_argument('--publish', action='store_true',
                         help="Publish the selected messages. Without it nothing is published.")
     parser.add_argument('--ack-timeout', type=float, default=DEFAULT_ACK_TIMEOUT, metavar='SECONDS',
-                        help=f"How long to wait for each publish to be acknowledged. "
-                             f"Default is {DEFAULT_ACK_TIMEOUT}.")
+                        help="How long to wait for paho to confirm each publish before it is "
+                             f"marked unconfirmed. Default is {DEFAULT_ACK_TIMEOUT}.")
     parser.add_argument('--connect-timeout', type=float, default=DEFAULT_CONNECT_TIMEOUT, metavar='SECONDS',
                         help=f"How long to wait for the connection. Default is {DEFAULT_CONNECT_TIMEOUT}.")
     return parser

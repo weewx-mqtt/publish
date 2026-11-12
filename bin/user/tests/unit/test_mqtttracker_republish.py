@@ -70,7 +70,7 @@ class FakeClient:
         self.published.append((topic, payload, qos, retain))
         return FakeMessageInfo(len(self.published), self.rc)
 
-    def wait_for_ack(self, _mid):
+    def wait_for_confirmation(self, _mid):
         return time.time() if self.ack else None
 
     def close(self):

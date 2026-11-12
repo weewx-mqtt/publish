@@ -9,9 +9,9 @@ nav_order: 4
 `mqtttracker status` shows one line per tracked message, with the status the tracker has
 recorded for it. The tracker stores the original publish and each republish attempt. The message's
 status is that of its latest confirmed attempt if there is one, otherwise the latest attempt. By
-default it shows the unresolved messages: those whose status is `failed`, `unconfirmed`, or
-`inflight`. `--status` chooses the statuses to show. It reads the tracker database directly, so it
-does not need MQTTPublish to be running.
+default it shows the unresolved messages: those whose status is `failed`, `inflight`, or
+`unconfirmed`. `--status` chooses the statuses to show. It reads the tracker database
+directly, so it does not need MQTTPublish to be running.
 
 `mqtttracker` is one tool with `republish`, `prune` and `status` subcommands. The config file is a
 global `--config` option, so it comes before the subcommand. Show the unresolved messages:
@@ -64,33 +64,34 @@ The default summary lists each message with:
 | --- | --- |
 | `ID` | the id of the original (or oldest surviving attempt); `--message` also accepts a republish attempt id. |
 | `TOPIC` | the topic the message was published on. |
-| `ORIGINAL STATUS` | the original's status: `failed`, `unconfirmed`, `inflight`, or `confirmed`. |
+| `ORIGINAL STATUS` | the original's status: `failed`, `inflight`, `confirmed`, or `unconfirmed`. |
 | `ORIGINALLY PUBLISHED` | when the message was first published. |
 | `ATTEMPTS` | the number of republish attempts for the message, whatever their status. |
 | `CONFIRMED` | how many of those attempts the broker confirmed. |
-| `CURRENT STATUS` | the message's status: `confirmed`, `failed`, `unconfirmed`, or `inflight`. |
+| `CURRENT STATUS` | the message's status: `failed`, `inflight`, `confirmed`, or `unconfirmed`. |
 
 See [Internals](../internals/index.md#what-is-tracked) for the stored fields and how each attempt
 is recorded.
 
 The outcomes mean:
 
+- `failed`: the latest attempt failed;
+- `inflight`: the latest attempt is in flight;
 - `confirmed`: the broker accepted at least one attempt;
-- `failed` or `unconfirmed`: the latest attempt failed, or its outcome is unknown;
-- `inflight`: an attempt is in flight.
+- `unconfirmed`: the latest attempt's outcome is unknown.
 
 ## Options
 
 ### --status STATUS
 
 The statuses to show, comma separated.
-Default is `failed,unconfirmed,inflight`. Choose from `failed`, `unconfirmed`, `inflight`, and `confirmed`.
-This filters the message's current status, so a confirmed message does not appear under
-`--status failed` just because its original publish failed.
+Default is `failed,inflight,unconfirmed`. Choose from `failed`, `inflight`, `confirmed`, and
+`unconfirmed`. This filters the message's current status, so a confirmed message does not appear
+under `--status failed` just because its original publish failed.
 
-`inflight` messages are in flight: paho accepted the publish, but no acknowledgement has arrived
-yet. They become `confirmed` on acknowledgement, or `unconfirmed` when the tracker stops waiting:
-a disconnect, a shutdown, a reused message id, or the startup sweep.
+`inflight` messages are in flight: paho accepted the publish, but no confirmation has arrived
+yet. They become `confirmed` when paho reports the publish, or `unconfirmed` when the tracker stops
+waiting: a disconnect, a shutdown, a reused message id, or the startup sweep.
 `confirmed` messages are success history and can be numerous; `--status confirmed` shows them.
 
 ### --message ID
@@ -139,7 +140,7 @@ confirmed it, which is later than the original's `published_ts`.
 For every message with no confirmed attempt (the tool's default):
 
 ```sql
--- Originals with no confirmed attempt, whose own status is failed, unconfirmed, or inflight.
+-- Originals with no confirmed attempt, whose own status is failed, inflight, or unconfirmed.
 SELECT o.id, o.topic, o.status, o.published_ts
 FROM mqtt_message_tracker AS o
 WHERE o.status IN ('failed', 'unconfirmed', 'inflight') AND o.origin_id IS NULL

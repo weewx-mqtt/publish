@@ -154,10 +154,10 @@ Run it once without `--delete` to see the selection before deleting anything.
 A comma-separated list of statuses to prune.
 Default is `confirmed`.
 
-A message is confirmed when any of its attempts is, so `--status failed` does not select a message
-that a republish later confirmed. Use `--status failed,unconfirmed` to prune unresolved
-messages. `inflight` is refused because it may still be in flight (restart WeeWX to mark it
-`unconfirmed`).
+A message is confirmed when any of its attempts is `confirmed`, so `--status failed` does not
+select a message that a republish later confirmed. Use `--status failed,unconfirmed` to prune
+unresolved messages. `inflight` is refused because it may still be in flight (restart WeeWX to mark
+it `unconfirmed`).
 
 ```shell
 # Prune unresolved messages older than 30 days.
