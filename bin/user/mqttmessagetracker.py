@@ -321,15 +321,13 @@ def last_success(rows):
     return last_success_by_topic
 
 
-def is_after_last_success(row, oldest, last_success_by_topic):
+def is_after_last_success(row, last_success_by_topic):
     """ Whether a message is after its topic's last confirmed publish. """
-    if oldest is not None and row['published_ts'] < oldest:
-        return False
     boundary = last_success_by_topic.get(row['topic'])
     return boundary is None or row['published_ts'] > boundary
 
 
-def select_after_last_success(rows, since=None, now=None, include_before_last_success=False):
+def select_after_last_success(rows, include_before_last_success=False):
     """ Select the unresolved messages to republish, one row per chain.
 
         A message is selected when its outcome is failed or unconfirmed. By default only
@@ -339,15 +337,13 @@ def select_after_last_success(rows, since=None, now=None, include_before_last_su
 
         With include_before_last_success, every unresolved message is a candidate, including
         those older than the topic's last confirmed publish. """
-    now = time.time() if now is None else now
-    oldest = None if since is None or since <= 0 else now - since
     last_success_by_topic = {} if include_before_last_success else last_success(rows)
     selected = []
     for chain in chain_rows(rows).values():
         if outcome_row(chain)['status'] not in (STATUS_FAILED, STATUS_UNCONFIRMED):
             continue
         anchor = chain_anchor(chain)
-        if is_after_last_success(anchor, oldest, last_success_by_topic):
+        if is_after_last_success(anchor, last_success_by_topic):
             selected.append(anchor)
     selected.sort(key=lambda row: (row['published_ts'], row['id']))
     return selected
@@ -641,8 +637,7 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
             return
 
         selected = select_after_last_success(
-            rows, since=options['since'],
-            include_before_last_success=options['include_before_last_success'])
+            rows, include_before_last_success=options['include_before_last_success'])
         if not selected:
             self._log('INFO', "No messages need to be republished after the connection was established.")
             return
@@ -977,7 +972,6 @@ class MQTTMessageTracker(user.mqttpublish.MQTTPlugin):  # pylint: disable=too-ma
             'on_startup': to_bool(republish_dict.get('on_startup', False)),
             'on_reconnect': to_bool(republish_dict.get('on_reconnect', False)),
             'include_before_last_success': to_bool(republish_dict.get('include_before_last_success', False)),
-            'since': max(0, self._config_int(republish_dict, 'since', 0)),
         }
         if not options['on_startup'] and not options['on_reconnect']:
             return None

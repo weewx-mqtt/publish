@@ -36,11 +36,5 @@ Whether to republish every `unconfirmed` and `failed` message for a topic, inclu
 older than that topic's last confirmed publish.
 Default is `false`.
 
-### since
-
-Only republish messages published within the last `since` seconds.
-Set to `0` to consider every message after the last confirmed publish.
-Default is `0`.
-
 See [Republishing](../../republish/index.md) for when messages are republished, and how
 `include_before_last_success` changes the selection.

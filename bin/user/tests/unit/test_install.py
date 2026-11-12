@@ -49,7 +49,6 @@ class TestInstallConfig(unittest.TestCase):
         self.assertEqual(republish['on_startup'], 'false')
         self.assertEqual(republish['on_reconnect'], 'false')
         self.assertEqual(republish['include_before_last_success'], 'false')
-        self.assertEqual(republish['since'], '0')
 
     def test_tracker_topics_are_seeded(self):
         topics = self.config['MQTTMessageTracker']['topics']

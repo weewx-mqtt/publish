@@ -144,16 +144,6 @@ class TestSelectAfterLastSuccess(unittest.TestCase):
 
         self.assertEqual([row['id'] for row in selected], ['failed-before', 'failed-after'])
 
-    def test_since_bounds_the_age(self):
-        rows = [
-            make_row('old', 'topic', user.mqttmessagetracker.STATUS_FAILED, 100),
-            make_row('new', 'topic', user.mqttmessagetracker.STATUS_FAILED, 200),
-        ]
-
-        selected = user.mqttmessagetracker.select_after_last_success(rows, since=50, now=250)
-
-        self.assertEqual([row['id'] for row in selected], ['new'])
-
     def test_a_sent_republish_keeps_the_message_out_of_the_queue(self):
         rows = [
             make_row('origin', 'topic', user.mqttmessagetracker.STATUS_FAILED, 1),
@@ -356,8 +346,8 @@ class TestMQTTMessageTracker(unittest.TestCase):
         plugin, _ = self._make_plugin({'republish': {'on_startup': True}})
 
         self.assertEqual(plugin.republish_options,
-                         {'on_startup': True, 'on_reconnect': False, 'include_before_last_success': False,
-                          'since': 0})
+                         {'on_startup': True, 'on_reconnect': False,
+                          'include_before_last_success': False})
 
     def test_republish_options_include_before_last_success(self):
         plugin, _ = self._make_plugin(

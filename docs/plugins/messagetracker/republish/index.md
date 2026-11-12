@@ -79,14 +79,6 @@ By default, an older message is assumed to have been superseded and is not repub
 to `true` to treat every unresolved message as a candidate, which is useful when the backlog is
 more important than the newer value.
 
-### since
-
-Only consider messages published within the last `since` seconds.
-Default is `0`, which applies no age limit.
-
-The age is measured from the original message's `published_ts`, not from a republish attempt. Use this
-to avoid republishing a very old value after a long outage.
-
 The full option and default reference is in
 [Configuration](../configuration/republish/index.md).
 
@@ -135,7 +127,7 @@ PYTHONPATH=~/weewx/src python3 ~/weewx-data/bin/user/mqtttracker.py --config ~/w
 ### What the tool selects
 
 By default the tool selects the unresolved messages published after the last delivered message on
-their topic, whatever their age. It then:
+their topic. It then:
 
 - republishes them oldest first;
 - with `--newest`, republishes only the newest unresolved message per topic, so an old value
@@ -189,14 +181,6 @@ republished, so both are refused.
 ```shell
 python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf republish --status unconfirmed --publish
 ```
-
-### --since SECONDS
-
-Only republish messages whose outcome is within the last `SECONDS`.
-Default is every message, whatever its age.
-
-The age is measured from the message's latest attempt, which is the original publish or a
-republish attempt. Use it together with `error_retention` to bound an old backlog.
 
 ### --topic GLOB
 

@@ -422,11 +422,6 @@ MQTTPUBLISH_CONFIG = """
         # Default is false.
         include_before_last_success = false
 
-        # Only republish messages published within the last SECONDS.
-        # Set to 0 to consider every message after the last confirmed publish.
-        # Default is 0.
-        since = 0
-
     [[topics]]
         # The topics to track.
         # Only the topics listed here are tracked.
