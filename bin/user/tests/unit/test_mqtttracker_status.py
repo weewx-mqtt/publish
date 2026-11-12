@@ -185,7 +185,7 @@ class TestStatus(DatabaseTestCase):
         line = [row for row in output.splitlines() if first['id'] in row][0]
         self.assertEqual(line.split()[-3:], ['2', '0', 'inflight'])
 
-    def test_status_confirmed_shows_a_delivered_chain(self):
+    def test_status_confirmed_shows_a_confirmed_chain(self):
         original = make_row(published_ts=1000.0)
         republish = make_row(published_ts=1100.0, status=STATUS.STATUS_CONFIRMED,
                              origin_id=original['id'], attempt=1, arrived_ts=1200.0)
@@ -200,7 +200,7 @@ class TestStatus(DatabaseTestCase):
         line = [row for row in output.splitlines() if original['id'] in row][0]
         self.assertEqual(line.split()[-3:], ['1', '1', 'confirmed'])
 
-    def test_a_delivered_chain_is_not_a_failed_message(self):
+    def test_a_confirmed_chain_is_not_a_failed_message(self):
         original = make_row(published_ts=1000.0, status=STATUS.STATUS_FAILED)
         republish = make_row(published_ts=1100.0, status=STATUS.STATUS_CONFIRMED,
                              origin_id=original['id'], attempt=1, arrived_ts=1200.0)

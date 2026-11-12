@@ -20,7 +20,7 @@ global `--config` option, so it comes before the subcommand. Show the unresolved
 python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf status
 ```
 
-Show the delivered history:
+Show the confirmed history:
 
 ```shell
 python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf status --status confirmed
@@ -50,7 +50,7 @@ PYTHONPATH=~/weewx/src python3 ~/weewx-data/bin/user/mqtttracker.py --config ~/w
 ## Reading the result
 
 The original message is never changed; each republish attempt records its own outcome. A message is
-**confirmed** when any attempt was confirmed. A confirmed attempt wins, so a delivered message is
+**confirmed** when any attempt was confirmed. A confirmed attempt wins, so the message is
 never counted as failed again, even after a forced republish. "Confirmed" means the broker accepted
 the publish, not that a subscriber received it.
 
@@ -75,7 +75,7 @@ is recorded.
 
 The outcomes mean:
 
-- `confirmed`: delivered — the broker accepted at least one attempt;
+- `confirmed`: the broker accepted at least one attempt;
 - `failed` or `unconfirmed`: the latest attempt failed, or its outcome is unknown;
 - `inflight`: an attempt is in flight.
 
@@ -85,7 +85,7 @@ The outcomes mean:
 
 The statuses to show, comma separated.
 Default is `failed,unconfirmed,inflight`. Choose from `failed`, `unconfirmed`, `inflight`, and `confirmed`.
-This filters the message's current status, so a delivered message does not appear under
+This filters the message's current status, so a confirmed message does not appear under
 `--status failed` just because its original publish failed.
 
 `inflight` messages are in flight: paho accepted the publish, but no acknowledgement has arrived
@@ -171,7 +171,7 @@ How to read the counts:
 - `attempts` counts every republish row, whatever its status. `0` means nothing was republished.
 - `confirmed_attempts` counts the republish attempts where `status = 'confirmed'`. It is empty
   (`NULL`) when `attempts` is `0`, because there are no rows to sum.
-- `confirmed_attempts > 0` means the message was delivered. A value lower than `attempts` means
+- `confirmed_attempts > 0` means one attempt was confirmed. A value lower than `attempts` means
   some attempts failed but a later one succeeded.
 
 For example, an original with `attempts = 1` and `confirmed_attempts = 1` was republished once

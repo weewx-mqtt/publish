@@ -15,7 +15,7 @@ the tracker checks. You can also delete messages yourself with `mqtttracker prun
 
 `confirmed_retention` and `error_retention` group messages by their outcome:
 
-- a message with a confirmed attempt is **delivered**, and is kept for `confirmed_retention`;
+- a message with a confirmed attempt is **confirmed**, and is kept for `confirmed_retention`;
 - a message whose latest attempt is `failed` or `unconfirmed` is **unresolved**, and is kept for
   `error_retention`.
 
@@ -24,14 +24,14 @@ neither option prunes it; the startup sweep and a disconnect mark it `unconfirme
 
 ### confirmed_retention
 
-How long, in seconds, to keep a delivered message.
+How long, in seconds, to keep a confirmed message.
 Default is `604800` (7 days).
 Set to `0` to keep them forever.
 
 The clock starts when the message was confirmed, so a message that was republished and then
 confirmed is kept for the full period from that republish attempt, not from the original failure.
 
-Pruning a delivered message frees space and loses history, but nothing that can be republished.
+Pruning a confirmed message frees space and loses history, but nothing that can be republished.
 This is the safe retention to shorten when the table is large.
 
 ### error_retention
@@ -72,7 +72,7 @@ How often, in seconds, the tracker's writer thread checks for messages to delete
 Default is `3600` (hourly).
 Set to `0` to disable automatic pruning; the startup sweep still runs.
 
-This is the schedule, not the age. A prune deletes delivered messages older than
+This is the schedule, not the age. A prune deletes confirmed messages older than
 `confirmed_retention`, and unresolved messages older than `error_retention`. No pruning
 happens while every retention is `0`.
 
@@ -91,11 +91,11 @@ The startup sweep is separate from pruning. It runs when the tracker starts and 
 To remove messages sooner than their retention allows, or when `error_retention` is `0`, run
 `bin/user/mqtttracker.py prune`. `mqtttracker` is one tool with `republish`, `prune` and `status`
 subcommands; the config file is a global `--config` option, so it comes before the subcommand.
-By default it selects the delivered history: messages with a confirmed attempt, older than
+By default it selects the confirmed history: messages with a confirmed attempt, older than
 `confirmed_retention`:
 
 ```shell
-# Select delivered messages older than confirmed_retention.
+# Select confirmed messages older than confirmed_retention.
 python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune
 ```
 
@@ -130,8 +130,8 @@ Pruning a message also deletes its republish attempts. A message whose outcome c
 the plan and the delete is left alone. It is safe to run while
 WeeWX is running.
 
-Deleting an unresolved message discards the only record that its delivery outcome is unknown.
-Deleting a delivered message discards the record that it was delivered, but nothing that could be
+Deleting an unresolved message discards the only record that its outcome is unknown.
+Deleting a confirmed message discards the record that it was confirmed, but nothing that could be
 republished.
 
 A message whose outcome is still `inflight` is in flight: the tracker marks it `unconfirmed` when it
@@ -154,8 +154,8 @@ Run it once without `--delete` to see the selection before deleting anything.
 A comma-separated list of statuses to prune.
 Default is `confirmed`.
 
-A message is delivered when any attempt is `confirmed`, so `--status failed` does not select a
-message that a republish later delivered. Use `--status failed,unconfirmed` to prune unresolved
+A message is confirmed when any of its attempts is, so `--status failed` does not select a message
+that a republish later confirmed. Use `--status failed,unconfirmed` to prune unresolved
 messages. `inflight` is refused because it may still be in flight (restart WeeWX to mark it
 `unconfirmed`).
 
@@ -167,7 +167,7 @@ python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune 
 ### --older-than SECONDS
 
 Select messages whose outcome is older than `SECONDS`.
-Default is the retention for the message's status: `confirmed_retention` for a delivered message,
+Default is the retention for the message's status: `confirmed_retention` for a confirmed message,
 `error_retention` for an unresolved one. With the default `error_retention` of `0`, unresolved
 messages are selected only when this option, or a finite `error_retention`, gives them an age.
 
@@ -225,7 +225,7 @@ A system cron entry in `/etc/cron.d/mqtttracker-prune`:
 SHELL=/bin/sh
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 
-# Every day at 03:15, delete delivered messages older than confirmed_retention.
+# Every day at 03:15, delete confirmed messages older than confirmed_retention.
 15 3 * * * weewx /usr/bin/python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune --delete >> /var/log/weewx/mqtttracker-prune.log 2>&1
 ```
 

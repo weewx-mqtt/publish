@@ -10,7 +10,7 @@ MQTTMessageTracker records every message MQTTPublish publishes to the topics you
 WeeWX database. Each record holds the outcome of the publish. The tracker can republish the messages
 that failed, or whose outcome is unknown, after the connection comes back.
 
-The plugin is optional. Enable it when you want delivery history, automatic republishing, or the
+The plugin is optional. Enable it when you want confirmation history, automatic republishing, or the
 `mqtttracker` tool and its `republish`, `prune` and `status` subcommands.
 
 ## Enabling it
@@ -80,8 +80,8 @@ See [Internals](internals/index.md#what-is-tracked) for the stored fields and pa
 `inflight` is transient. It becomes `confirmed` when paho reports the publish, or `unconfirmed`
 when the tracker can no longer tell: the connection is lost, the tracker shuts down, paho reuses
 the message id, or a previous run left the message in flight. A publish that paho refuses is recorded as
-`failed` immediately; it is never `inflight`. `unconfirmed` is not proof that the message was not
-delivered; it means the tracker could not tell.
+`failed` immediately; it is never `inflight`. `unconfirmed` is not proof that the publish failed;
+it means the tracker could not tell whether the broker accepted it.
 
 A `confirmed` message means the broker accepted the publish:
 

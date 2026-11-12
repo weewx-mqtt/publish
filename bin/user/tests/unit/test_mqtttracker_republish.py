@@ -258,25 +258,25 @@ class TestSelectMessages(unittest.TestCase):
 
         self.assertEqual([row['id'] for row in selected], [older['id'], newer['id']])
 
-    def test_default_republishes_everything_after_the_last_delivered_message(self):
-        delivered = make_row(published_ts=1000.0,
+    def test_default_republishes_everything_after_the_last_confirmed_message(self):
+        confirmed = make_row(published_ts=1000.0,
                              status=user.mqttmessagetracker.STATUS_CONFIRMED)
         first = make_row(published_ts=1100.0)
         second = make_row(published_ts=1200.0)
 
-        selected = user.mqtttracker.select_messages([delivered, first, second])
+        selected = user.mqtttracker.select_messages([confirmed, first, second])
 
         self.assertEqual([row['id'] for row in selected], [first['id'], second['id']])
 
-    def test_default_leaves_out_messages_before_the_last_delivered_message(self):
+    def test_default_leaves_out_messages_before_the_last_confirmed_message(self):
         older = make_row(published_ts=1000.0)
-        delivered = make_row(published_ts=1500.0,
+        confirmed = make_row(published_ts=1500.0,
                              status=user.mqttmessagetracker.STATUS_CONFIRMED)
 
-        selected = user.mqtttracker.select_messages([older, delivered])
-        left_out = user.mqtttracker.superseded([older, delivered])
+        selected = user.mqtttracker.select_messages([older, confirmed])
+        left_out = user.mqtttracker.superseded([older, confirmed])
         everything = user.mqtttracker.select_messages(
-            [older, delivered], mode=user.mqtttracker.MODE_ALL)
+            [older, confirmed], mode=user.mqtttracker.MODE_ALL)
 
         self.assertEqual(selected, [])
         self.assertEqual([row['id'] for row in left_out], [older['id']])
@@ -302,7 +302,7 @@ class TestSelectMessages(unittest.TestCase):
 
         self.assertEqual([row['id'] for row in left_out], [older['id']])
 
-    def test_superseded_reports_messages_before_the_last_delivered(self):
+    def test_superseded_reports_messages_before_the_last_confirmed(self):
         unconfirmed = make_row(published_ts=1000.0)
         confirmed = make_row(published_ts=1500.0, status=user.mqttmessagetracker.STATUS_CONFIRMED)
 

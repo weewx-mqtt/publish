@@ -60,9 +60,9 @@ A `failed` publish, and a republish that paho refuses, are logged at `ERROR` wit
 was reused, or a previous run left it `inflight`. A log monitor can follow a message straight to its
 row without searching the table by topic and time.
 
-`unconfirmed` does not mean the message was not delivered. It means the tracker cannot tell: paho
-never reported the arrival, and no further report can arrive. That is why it is recorded as its
-own status instead of an empty `arrived_ts`.
+`unconfirmed` does not mean the publish failed. It means the tracker cannot tell whether the
+broker accepted it: paho never reported the arrival, and no further report can arrive. That is why
+it is recorded as its own status instead of an empty `arrived_ts`.
 
 Rows are marked `unconfirmed`:
 
@@ -70,8 +70,8 @@ Rows are marked `unconfirmed`:
   to the disconnect time. No arrival can be reported for a message that was in flight when the
   connection went away;
 - when the publishing thread stops and paho has not reported the arrival, with `unconfirmed_ts`
-  set to the shutdown time. This includes messages that were delivered but whose arrival was not
-  reported before the process stopped;
+  set to the shutdown time. This includes messages whose arrival was not reported before the
+  process stopped;
 - when paho reuses a message id before the arrival of the older message is reported, with
   `unconfirmed_ts` set to the time of the reuse;
 - at startup, for the rows a previous run left in `inflight`, with `unconfirmed_ts` set to the startup
@@ -152,7 +152,7 @@ DELETE FROM mqtt_message_tracker
 WHERE id = '3f2a9c...' OR origin_id = '3f2a9c...';
 ```
 
-Do not delete rows by status alone. A delivered message keeps its failed original, and deleting
+Do not delete rows by status alone. A confirmed message keeps its failed original, and deleting
 only part of a chain leaves a later attempt without the record that it was a republish.
 
 ## Writer thread and SQLite locking

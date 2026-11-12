@@ -231,7 +231,7 @@ def chain_anchor(chain):
 def outcome_row(chain):
     """ The row that decides a message's status and age.
 
-        A confirmed attempt wins, so a delivered message is not undone by a later forced republish.
+        A confirmed attempt wins, so a confirmed message is not undone by a later forced republish.
         Otherwise the latest attempt decides: the clock starts when the chain reached that
         state. """
     confirmed = [row for row in chain if row['status'] == STATUS_CONFIRMED]
@@ -304,7 +304,7 @@ def delete_chains(cursor, table, chain_ids):
 
 
 def last_success(rows):
-    """ The newest original publish time of a delivered message for each topic.
+    """ The newest original publish time of a confirmed message for each topic.
 
         A republish attempt does not move the boundary, or a successful republish would hide an
         older backlog. A chain whose original is gone does not move it either. """
@@ -332,7 +332,7 @@ def select_after_last_success(rows, include_before_last_success=False):
 
         A message is selected when its outcome is failed or unconfirmed. By default only
         messages whose original publish is after the last confirmed publish on their topic are
-        selected. The boundary is the newest original row of a delivered message on each topic;
+        selected. The boundary is the newest original row of a confirmed message on each topic;
         a republish attempt does not move it, or a successful republish would hide an older backlog.
 
         With include_before_last_success, every unresolved message is a candidate, including
@@ -583,7 +583,7 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
         """ Mark the row of a message id that paho has reused as unconfirmed.
 
             The arrival of the older message will never be reported, so it is
-            unconfirmed, not undelivered. """
+            recorded as unconfirmed rather than failed. """
         previous = inflight.pop(mid, None)
         if previous is None:
             return
@@ -923,8 +923,8 @@ class MQTTMessageTracker(user.mqttpublish.MQTTPlugin):  # pylint: disable=too-ma
     def _configure_topics(self, plugin_dict):
         """ Resolve the topics to track, with the retention to prune each one by.
 
-            A message published with qos 0 is never acknowledged, so its delivery cannot be
-            confirmed. Recording it would either leave a row that can never become 'confirmed',
+            A message published with qos 0 is never acknowledged, so the broker's acceptance
+            cannot be confirmed. Recording it would either leave a row that can never become 'confirmed',
             or - worse - mark it 'confirmed' when paho has only written it to the socket. Such a
             topic is rejected with an error.
         """
@@ -937,8 +937,8 @@ class MQTTMessageTracker(user.mqttpublish.MQTTPlugin):  # pylint: disable=too-ma
         errors = topic_error_retentions(topic_dicts, self.error_retention)
         for topic in list(confirmed):
             if self._published_qos(topic) == 0:
-                self._log('ERROR', f"{topic} is published with qos 0, so its delivery cannot be confirmed. "
-                                   "It is not tracked.")
+                self._log('ERROR', f"{topic} is published with qos 0, so the broker's acceptance "
+                                   "cannot be confirmed. It is not tracked.")
                 del confirmed[topic]
                 errors.pop(topic, None)
 

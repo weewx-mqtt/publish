@@ -105,7 +105,7 @@ Enhancements:
     The install adds a message_tracker_binding and message_tracker database for it.
     The topics to track are configured in a [[topics]] section, with optional per-topic
     confirmed_retention and error_retention.
-    A topic published with qos 0 is rejected with an error, because its delivery cannot be confirmed.
+    A topic published with qos 0 is rejected with an error, because the broker's acceptance cannot be confirmed.
     A previous run's leftover 'inflight' rows are marked unconfirmed at startup.
     Rows that were in flight when the connection was lost are marked unconfirmed at the disconnect.
     Failed publishes are logged at INFO and failed republishes at ERROR, both with the row id they
@@ -117,7 +117,7 @@ Enhancements:
     confirmed) decides its status and its retention.
     Delivered messages are pruned by confirmed_retention. Unresolved messages are pruned by
     error_retention, which defaults to 0 so they can still be republished. A message is deleted as one
-    whole chain, so a failed original ages out with the republish that delivered it.
+    whole chain, so a failed original ages out with the republish that confirmed it.
     The optional [[republish]] section republishes the unresolved messages after the last confirmed
     publish on each topic. on_startup and on_reconnect select the trigger and both default to
     false. The log says which trigger fired, or that there was nothing to republish.
@@ -126,16 +126,16 @@ Enhancements:
     its execution time.
   - Added the mqtttracker tool, with republish, prune and status subcommands. republish publishes the
     tracked messages that are unresolved; by default it recovers every unresolved message after the
-    last delivered message on its topic, matching automatic republishing. --newest republishes only
+    last confirmed message on its topic, matching automatic republishing. --newest republishes only
     the newest unresolved message per topic, and --all includes messages older than the last
-    delivered message. A republish adds a new attempt and leaves the original unchanged, and a dry
+    confirmed message. A republish adds a new attempt and leaves the original unchanged, and a dry
     run is the default. prune deletes
-    delivered messages (those with a confirmed attempt) older than confirmed_retention by default,
+    confirmed messages older than confirmed_retention by default,
     and deletes each message's whole chain with it; --status failed,unconfirmed prunes unresolved
     messages using error_retention, and --older-than overrides the configured age. When --limit
     truncates the selection, prune reports how many of the matching messages it selected, and the
     plan reports how many rows those messages contain. status shows one row per message and
-    filters on the outcome status, so a message that was delivered by a republish is not reported as
+    filters on the outcome status, so a message that was confirmed by a republish is not reported as
     failed; CURRENT STATUS is confirmed, failed, unconfirmed, or inflight. --message accepts the
     id=<hex> label the plan prints, or the bare id.
     On a package install the tool finds WeeWX by itself, so it runs by path without PYTHONPATH.

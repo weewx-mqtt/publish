@@ -37,12 +37,12 @@ Default is `mqtt_message_tracker`.
 
 ### confirmed_retention
 
-How long, in seconds, to keep a delivered message in topics that do not set their own.
-A message is delivered when any attempt is `confirmed`.
+How long, in seconds, to keep a confirmed message in topics that do not set their own.
+A message is confirmed when any of its attempts is `confirmed`.
 Set to `0` to keep them forever.
 Default is `604800` (7 days).
 
-The clock starts at the attempt that confirmed the message. Pruning a delivered message frees
+The clock starts at the attempt that confirmed the message. Pruning a confirmed message frees
 space and loses history, but no message that a republish could recover.
 
 ### error_retention
@@ -66,7 +66,7 @@ How often, in seconds, to check for messages to delete.
 Default is `3600`.
 Set to `0` to disable automatic pruning; the startup sweep still runs.
 
-A prune deletes delivered messages older than `confirmed_retention`, and unresolved messages older
+A prune deletes confirmed messages older than `confirmed_retention`, and unresolved messages older
 than `error_retention`. Each message is deleted with its whole chain. No pruning happens while
 every retention is `0`. See [Pruning](../prune/index.md) for the policy.
 

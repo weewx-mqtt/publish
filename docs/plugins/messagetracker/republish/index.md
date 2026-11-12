@@ -12,28 +12,30 @@ yourself.
 
 ## What gets republished
 
-A message that was not delivered can be republished. A message is delivered when its outcome is
-`confirmed` (see [Status](../status/index.md)); a delivered message is not republished unless you
-ask for it. Each message is republished once, even when it already has several attempts.
+A message that was not confirmed can be republished. A message is confirmed when the broker
+accepted one of its attempts (see [Status](../status/index.md)); a confirmed message is not
+republished unless you ask for it. Each message is republished once, even when it already has
+several attempts.
 
-Both automatic republishing and `mqtttracker republish` treat the last delivered message on each
+Both automatic republishing and `mqtttracker republish` treat the last confirmed message on each
 topic as a boundary: by default they republish every unresolved message published after it. The
 tool also has `--newest` to republish only the newest unresolved message per topic, and `--all` to
 republish every unresolved message, including those before the boundary.
 
-The last delivered message on a topic is the newest original message that is `confirmed`, either
-directly or through a republish attempt. A confirmed republish attempt does not update that point
-in time; otherwise, republishing an old message could hide a newer unresolved one.
+The last confirmed message on a topic is the newest original message whose outcome is `confirmed`,
+whether the confirmation came from the original publish or from a republish attempt. A confirmed
+republish attempt does not update that point in time; otherwise, republishing an old message could
+hide a newer unresolved one.
 
 So by default:
 
-- every unresolved message published after the last delivered message on its topic is republished,
+- every unresolved message published after the last confirmed message on its topic is republished,
   oldest first;
-- every unresolved message on a topic with no delivered message is republished;
+- every unresolved message on a topic with no confirmed message is republished;
 - with `include_before_last_success = true` (automatic) or `--all` (the tool), the boundary is
   ignored and every unresolved message is republished.
 
-The last delivered message is per topic: a publish on one topic says nothing about another.
+The last confirmed message is per topic: a publish on one topic says nothing about another.
 
 ## Automatic republishing
 
@@ -72,7 +74,7 @@ to select. A trigger that is off is logged at `DEBUG`.
 
 ### include_before_last_success
 
-Whether to republish messages older than the topic's last delivered message.
+Whether to republish messages older than the topic's last confirmed message.
 Default is `false`.
 
 By default, an older message is assumed to have been superseded and is not republished. Set this
@@ -126,15 +128,15 @@ PYTHONPATH=~/weewx/src python3 ~/weewx-data/bin/user/mqtttracker.py --config ~/w
 
 ### What the tool selects
 
-By default the tool selects the unresolved messages published after the last delivered message on
+By default the tool selects the unresolved messages published after the last confirmed message on
 their topic. It then:
 
 - republishes them oldest first;
 - with `--newest`, republishes only the newest unresolved message per topic, so an old value
   cannot overwrite a newer one; a message this hides is reported;
-- with `--all`, republishes every unresolved message, including those before the last delivered
+- with `--all`, republishes every unresolved message, including those before the last confirmed
   message;
-- skips a message that is already delivered (one attempt is `confirmed`); `--force` overrides;
+- skips a message that already has a `confirmed` attempt; `--force` overrides;
 - connects with a clientid of its own, so the running service is not disconnected;
 - waits for the connection before publishing, and for each publish to be confirmed.
 
@@ -192,7 +194,7 @@ python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf republ
 
 ### --all
 
-Republish every unresolved message, including those older than the last delivered message on their
+Republish every unresolved message, including those older than the last confirmed message on their
 topic.
 
 Automatic republishing has the same effect with `include_before_last_success = true`.
@@ -206,10 +208,10 @@ reported; run without this option, or with `--all`, to republish the others.
 
 ### --force
 
-Republish messages that are already delivered (they have a `confirmed` attempt).
+Republish messages that already have a `confirmed` attempt.
 
-The tool skips them by default because they were already delivered once. Use `--force` when you
-need another copy despite that.
+The tool skips them by default because the broker has already confirmed one attempt. Use `--force`
+when you need another copy despite that.
 
 ### --ack-timeout SECONDS
 

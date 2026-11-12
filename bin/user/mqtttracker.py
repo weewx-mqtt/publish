@@ -5,7 +5,7 @@
 """ Operate on the MQTTMessageTracker database.
 
     mqtttracker republish  - republish failed or unconfirmed messages
-    mqtttracker prune   - delete delivered messages before the retention policy does
+    mqtttracker prune   - delete confirmed messages before the retention policy does
     mqtttracker status  - show failed and unconfirmed messages and their outcome
 
     republish and prune are dry runs unless --publish or --delete is given.
@@ -100,7 +100,7 @@ DEFAULT_SUMMARY_STATUSES = (user.mqttmessagetracker.STATUS_FAILED,
 
 # Republishing works on the messages that are still unresolved.
 DEFAULT_STATUSES = REPUBLISH_STATUSES
-# A prune cleans up the messages that were delivered and no longer need a record.
+# A prune cleans up the messages that were confirmed and no longer need a record.
 DEFAULT_PRUNE_STATUSES = (user.mqttmessagetracker.STATUS_CONFIRMED,)
 
 # The republish selection modes.
@@ -188,7 +188,7 @@ def _republish_row(chain):
 def _eligible(chain, outcome, statuses, force):
     """ Whether a chain is in a state a republish can still fix.
 
-        'force' also accepts a delivered chain, so a message with a confirmed attempt can be
+        'force' also accepts a confirmed chain, so a message with a confirmed attempt can be
         published again on request. """
     if outcome['status'] in statuses:
         return True
@@ -224,7 +224,7 @@ def _candidates(rows, statuses, topic, force):
 
 
 def _forced_origins(rows, statuses, force):
-    """ The chains selected only because 'force' accepts a delivered message. """
+    """ The chains selected only because 'force' accepts a confirmed message. """
     if not force:
         return set()
     statuses = tuple(statuses or DEFAULT_STATUSES)
@@ -263,9 +263,9 @@ def select_messages(rows, statuses=None, topic=None, mode=DEFAULT_MODE, force=Fa
     """ Select the messages to republish, one row per chain.
 
         The rows are returned in publish order, oldest first. By default every unresolved message
-        published after the last delivered message on its topic is selected. 'newest' selects only
+        published after the last confirmed message on its topic is selected. 'newest' selects only
         the newest unresolved message per topic; 'all' includes messages older than the last
-        delivered message. A delivered message is skipped unless 'force' is set. """
+        confirmed message. A confirmed message is skipped unless 'force' is set. """
     candidates = _candidates(rows, statuses, topic, force)
     forced = _forced_origins(rows, statuses, force)
     if mode == MODE_NEWEST:
@@ -282,7 +282,7 @@ def superseded(rows, statuses=None, topic=None, force=False, mode=DEFAULT_MODE):
     """ The messages a republish would leave behind.
 
         In 'newest' mode they are older than a newer message on their topic; in the default
-        mode they are older than the last delivered message. 'all' leaves nothing behind. """
+        mode they are older than the last confirmed message. 'all' leaves nothing behind. """
     candidates = _candidates(rows, statuses, topic, force)
     forced = _forced_origins(rows, statuses, force)
     if mode == MODE_ALL:
@@ -428,7 +428,7 @@ def _print_hidden(rows, statuses, topic, force, mode, out):
     if mode == MODE_NEWEST:
         reason = "are older than a newer message on their topic"
     else:
-        reason = "are older than the last delivered message on their topic"
+        reason = "are older than the last confirmed message on their topic"
     print(f"{len(hidden)} message(s) {reason}, use --all to republish them.", file=out)
 
 
@@ -547,7 +547,7 @@ def select_chains(rows, statuses=None, topic_retention=None, default_retention=N
     """ Select the messages to delete, oldest first.
 
         A message is selected when the outcome of its chain has one of the statuses and is
-        older than the retention for that status: 'confirmed_retention' for a delivered
+        older than the retention for that status: 'confirmed_retention' for a confirmed
         message, 'error_retention' while it is unresolved. An explicit 'older_than' overrides
         the configured retention; 'older_than=0' selects every matching message, unlike a
         configured retention of 0. """
@@ -882,7 +882,7 @@ def _add_republish_parser(subparsers):
     mode_group = parser.add_mutually_exclusive_group()
     mode_group.add_argument('--all', action='store_true',
                             help=("Republish every unresolved message, including those older "
-                                  "than the last delivered message on their topic."))
+                                  "than the last confirmed message on their topic."))
     mode_group.add_argument('--newest', action='store_true',
                             help="Republish only the newest unresolved message per topic.")
     parser.add_argument('--force', action='store_true',
@@ -901,7 +901,7 @@ def _add_prune_parser(subparsers):
     """ The prune subcommand. """
     parser = subparsers.add_parser(
         'prune',
-        description="Delete delivered messages before the retention policy does.",
+        description="Delete confirmed messages before the retention policy does.",
         epilog="Without --delete the selection is only printed, nothing is removed.")
     _add_tracker_options(parser)
     parser.add_argument('--status', type=_prune_statuses, default=list(DEFAULT_PRUNE_STATUSES),
@@ -911,7 +911,7 @@ def _add_prune_parser(subparsers):
                               f"{', '.join(PRUNE_STATUSES)}."))
     parser.add_argument('--older-than', type=int, default=None, metavar='SECONDS',
                         help=("Only prune messages older than SECONDS. Default is the retention "
-                              "for the message's status: confirmed_retention for delivered "
+                              "for the message's status: confirmed_retention for confirmed "
                               "messages, error_retention otherwise."))
     parser.add_argument('--topic', default=None, metavar='GLOB',
                         help="Only prune topics that match the glob, for example 'weather/outTemp_*'.")

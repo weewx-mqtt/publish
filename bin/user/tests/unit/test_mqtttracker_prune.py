@@ -46,7 +46,7 @@ def make_row(**overrides):
 
 
 def confirmed_row(**overrides):
-    """ A row as the prune tool sees a delivered message. """
+    """ A row as the prune tool sees a confirmed message. """
     options = {'status': STATUS.STATUS_CONFIRMED}
     options.update(overrides)
     return make_row(**options)
@@ -176,7 +176,7 @@ class TestSelectChains(unittest.TestCase):
         self.assertEqual(selected[0]['status'], STATUS.STATUS_CONFIRMED)
         self.assertEqual(selected[0]['published_ts'], republish['published_ts'])
 
-    def test_a_delivered_chain_ignores_the_error_retention(self):
+    def test_a_confirmed_chain_ignores_the_error_retention(self):
         original = make_row(published_ts=1000.0, status=STATUS.STATUS_FAILED)
         republish = make_row(
             published_ts=1100.0,

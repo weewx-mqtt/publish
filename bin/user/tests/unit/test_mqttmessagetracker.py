@@ -155,7 +155,7 @@ class TestSelectAfterLastSuccess(unittest.TestCase):
 
         self.assertEqual(selected, [])
 
-    def test_a_forced_failed_republish_does_not_undo_delivery(self):
+    def test_a_forced_failed_republish_does_not_undo_confirmation(self):
         rows = [
             make_row('origin', 'topic', user.mqttmessagetracker.STATUS_CONFIRMED, 1),
             make_row('republish', 'topic', user.mqttmessagetracker.STATUS_FAILED, 2,
@@ -813,7 +813,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
         self.assertEqual(plugin.topic_confirmed_retentions, {'default': 60, 'custom': 120})
         self.assertEqual(plugin.topic_error_retentions, {'default': 90, 'custom': 180})
 
-    def test_prune_deletes_a_delivered_chain_with_its_failed_original(self):
+    def test_prune_deletes_a_confirmed_chain_with_its_failed_original(self):
         plugin, _ = self._make_plugin({'confirmed_retention': 100, 'error_retention': 0})
         now = time.time()
         original = self._chain_row('a' * 32, now - 5000, 'failed')
@@ -826,7 +826,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
 
         self.assertEqual(self._rows(), [])
 
-    def test_error_retention_does_not_prune_a_delivered_chain(self):
+    def test_error_retention_does_not_prune_a_confirmed_chain(self):
         plugin, _ = self._make_plugin({'confirmed_retention': 100000, 'error_retention': 100})
         now = time.time()
         original = self._chain_row('a' * 32, now - 5000, 'failed')
