@@ -125,8 +125,11 @@ Enhancements:
   - Added an on_disconnect plugin callback, and the monitor_on_disconnect option to monitor
     its execution time.
   - Added the mqtttracker tool, with republish, prune and status subcommands. republish publishes the
-    tracked messages that are unresolved; a republish adds a new row that points at the
-    original, so the original is never changed, and a dry run is the default. prune deletes
+    tracked messages that are unresolved; by default it recovers every unresolved message after the
+    last delivered message on its topic, matching automatic republishing. --newest republishes only
+    the newest unresolved message per topic, and --all includes messages older than the last
+    delivered message. A republish adds a new attempt and leaves the original unchanged, and a dry
+    run is the default. prune deletes
     delivered messages (those with a confirmed attempt) older than confirmed_retention by default,
     and deletes each message's whole chain with it; --status failed,unconfirmed prunes unresolved
     messages using error_retention, and --older-than overrides the configured age. When --limit

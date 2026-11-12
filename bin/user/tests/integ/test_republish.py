@@ -87,7 +87,7 @@ class TestRepublish(unittest.TestCase):
         received = self.observe()
 
         selected, outcomes = user.mqtttracker.republish(
-            self.database_dict, TABLE, self.options, since=0, newest_per_topic=False,
+            self.database_dict, TABLE, self.options, since=0,
             dry_run=False, ack_timeout=10, out=io.StringIO())
 
         wait_for(lambda: len(received) >= 2, 'The republished messages are not received.')
@@ -118,6 +118,7 @@ class TestRepublish(unittest.TestCase):
 
         selected, outcomes = user.mqtttracker.republish(
             self.database_dict, TABLE, self.options, since=0,
+            mode=user.mqtttracker.MODE_NEWEST,
             dry_run=False, ack_timeout=10, out=io.StringIO())
 
         wait_for(lambda: received, 'The republished message is not received.')

@@ -102,6 +102,13 @@ DEFAULT_SUMMARY_STATUSES = (user.mqttmessagetracker.STATUS_FAILED,
 DEFAULT_STATUSES = REPUBLISH_STATUSES
 # A prune cleans up the messages that were delivered and no longer need a record.
 DEFAULT_PRUNE_STATUSES = (user.mqttmessagetracker.STATUS_CONFIRMED,)
+
+# The republish selection modes.
+MODE_AFTER_LAST_SUCCESS = 'after_last_success'
+MODE_NEWEST = 'newest'
+MODE_ALL = 'all'
+DEFAULT_MODE = MODE_AFTER_LAST_SUCCESS
+
 DEFAULT_PLUGIN_SECTION = user.mqttmessagetracker.DEFAULT_PLUGIN_SECTION
 # Every row is considered by default, so every unconfirmed message is republished.
 DEFAULT_SINCE = None
@@ -228,16 +235,32 @@ def _candidates(rows, statuses, since, topic, force, now):
     return candidates
 
 
+def _forced_origins(rows, statuses, force):
+    """ The chains selected only because 'force' accepts a delivered message. """
+    if not force:
+        return set()
+    statuses = tuple(statuses or DEFAULT_STATUSES)
+    forced = set()
+    for chain in user.mqttmessagetracker.chain_rows(rows).values():
+        outcome = user.mqttmessagetracker.outcome_row(chain)
+        if outcome['status'] in statuses:
+            continue
+        if any(row['status'] in statuses for row in chain):
+            forced.add(user.mqttmessagetracker.origin_id(chain[0]))
+    return forced
+
+
 def _is_stale(row, newest):
     """ Whether a newer message was published on the row's topic. """
     return row['published_ts'] < newest.get(row['topic'], row['published_ts'])
 
 
-def _select(candidates, newest):
+def _select(candidates, newest, forced=frozenset()):
     """ The candidates that a newer message on the same topic does not make stale.
 
-        'newest' is empty when every candidate is kept. """
-    return [row for row in candidates if not _is_stale(row, newest)]
+        'newest' is empty when every candidate is kept. A forced message is always kept. """
+    return [row for row in candidates
+            if user.mqttmessagetracker.origin_id(row) in forced or not _is_stale(row, newest)]
 
 
 def _limit(rows, limit):
@@ -248,31 +271,53 @@ def _limit(rows, limit):
     return sorted(newest, key=_sort_key)
 
 
+def _after_last_success(row, forced, last_success_by_topic):
+    """ Whether a candidate is kept by the default mode. """
+    if user.mqttmessagetracker.origin_id(row) in forced:
+        return True
+    return user.mqttmessagetracker.is_after_last_success(row, None, last_success_by_topic)
+
+
 # pylint: disable=too-many-arguments,too-many-positional-arguments
 def select_messages(rows, statuses=None, since=DEFAULT_SINCE, limit=DEFAULT_LIMIT, topic=None,
-                    newest_per_topic=True, force=False, now=None):
+                    mode=DEFAULT_MODE, force=False, now=None):
     """ Select the messages to republish, one row per chain.
 
-        A message is selected when the outcome of its chain has one of the statuses; 'since'
-        bounds the age of that outcome. Only the newest message per topic is selected by
-        default, so republished values cannot overwrite newer ones. A delivered message is skipped
-        unless 'force' is set. """
+        By default every unresolved message published after the last delivered message on its
+        topic is selected. 'newest' selects only the newest unresolved message per topic; 'all'
+        includes messages older than the last delivered message. 'since' bounds the age of the
+        message's outcome. A delivered message is skipped unless 'force' is set. """
     candidates = _candidates(rows, statuses, since, topic, force,
                              time.time() if now is None else now)
-    newest = _newest_per_topic(rows) if newest_per_topic else {}
-    return _limit(_select(candidates, newest), limit)
+    forced = _forced_origins(rows, statuses, force)
+    if mode == MODE_NEWEST:
+        candidates = _select(candidates, _newest_per_topic(rows), forced)
+    elif mode == MODE_AFTER_LAST_SUCCESS:
+        last_success_by_topic = user.mqttmessagetracker.last_success(rows)
+        candidates = [row for row in candidates
+                      if _after_last_success(row, forced, last_success_by_topic)]
+    return _limit(candidates, limit)
 
 
 # pylint: disable=too-many-arguments,too-many-positional-arguments
-def superseded(rows, statuses=None, since=DEFAULT_SINCE, topic=None, force=False, now=None):
-    """ The messages a republish would keep, but for a newer message on the same topic.
+def superseded(rows, statuses=None, since=DEFAULT_SINCE, topic=None, force=False,
+               mode=DEFAULT_MODE, now=None):
+    """ The messages a republish would leave behind.
 
-        Republishing one would write an older value over a newer one, so they are only selected
-        with '--all'. """
-    newest = _newest_per_topic(rows)
+        In 'newest' mode they are older than a newer message on their topic; in the default
+        mode they are older than the last delivered message. 'all' leaves nothing behind. """
     candidates = _candidates(rows, statuses, since, topic, force,
                              time.time() if now is None else now)
-    return [row for row in candidates if _is_stale(row, newest)]
+    forced = _forced_origins(rows, statuses, force)
+    if mode == MODE_ALL:
+        return []
+    if mode == MODE_NEWEST:
+        newest = _newest_per_topic(rows)
+        return [row for row in candidates
+                if user.mqttmessagetracker.origin_id(row) not in forced and _is_stale(row, newest)]
+    last_success_by_topic = user.mqttmessagetracker.last_success(rows)
+    return [row for row in candidates
+            if not _after_last_success(row, forced, last_success_by_topic)]
 
 
 def update_attempt(connection, table, row_id, status, timestamp=None):
@@ -397,9 +442,23 @@ def print_outcomes(outcomes, out):
               f"mid={outcome.mid}", file=out)
 
 
+def _print_hidden(rows, statuses, since, topic, force, mode, out):
+    """ Print the messages the selection mode leaves behind. """
+    if mode == MODE_ALL:
+        return
+    hidden = superseded(rows, statuses=statuses, since=since, topic=topic, force=force, mode=mode)
+    if not hidden:
+        return
+    if mode == MODE_NEWEST:
+        reason = "are older than a newer message on their topic"
+    else:
+        reason = "are older than the last delivered message on their topic"
+    print(f"{len(hidden)} message(s) {reason}, use --all to republish them.", file=out)
+
+
 # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals
 def republish(database_dict, table, options, *, statuses=None, since=DEFAULT_SINCE,
-              limit=DEFAULT_LIMIT, topic=None, newest_per_topic=True, force=False, dry_run=True,
+              limit=DEFAULT_LIMIT, topic=None, mode=DEFAULT_MODE, force=False, dry_run=True,
               ack_timeout=DEFAULT_ACK_TIMEOUT, connect_timeout=DEFAULT_CONNECT_TIMEOUT, out=None):
     """ Republish the selected messages, returning the selection and the outcomes.
 
@@ -414,13 +473,9 @@ def republish(database_dict, table, options, *, statuses=None, since=DEFAULT_SIN
     try:
         rows = user.mqttmessagetracker.fetch_rows(connection, table)
         selected = select_messages(rows, statuses=statuses, since=since, limit=limit, topic=topic,
-                                   newest_per_topic=newest_per_topic, force=force)
+                                   mode=mode, force=force)
         user.mqttmessagetracker.print_plan(selected, out)
-        if newest_per_topic:
-            stale = superseded(rows, statuses=statuses, since=since, topic=topic, force=force)
-            if stale:
-                print(f"{len(stale)} message(s) are older than a newer message on their topic, "
-                      "use --all to republish them.", file=out)
+        _print_hidden(rows, statuses, since, topic, force, mode, out)
         if dry_run or not selected:
             return selected, []
 
@@ -853,8 +908,12 @@ def _add_republish_parser(subparsers):
                         help=f"The maximum number of messages to republish. Default is {DEFAULT_LIMIT}.")
     parser.add_argument('--topic', default=None, metavar='GLOB',
                         help="Only republish topics that match the glob, for example 'weather/outTemp_*'.")
-    parser.add_argument('--all', action='store_true',
-                        help="Republish every selected message, not just the newest per topic.")
+    mode_group = parser.add_mutually_exclusive_group()
+    mode_group.add_argument('--all', action='store_true',
+                            help=("Republish every unresolved message, including those older "
+                                  "than the last delivered message on their topic."))
+    mode_group.add_argument('--newest', action='store_true',
+                            help="Republish only the newest unresolved message per topic.")
     parser.add_argument('--force', action='store_true',
                         help="Republish messages that already have a confirmed attempt.")
     parser.add_argument('--publish', action='store_true',
@@ -937,7 +996,10 @@ def _run_republish(options, out, err):
         _, outcomes = republish(
             database_dict, table, mqtt_options, out=out,
             statuses=options.status, since=options.since, limit=options.limit, topic=options.topic,
-            newest_per_topic=not options.all, force=options.force, dry_run=not options.publish,
+            mode=(MODE_ALL if options.all else
+                  MODE_NEWEST if options.newest else
+                  MODE_AFTER_LAST_SUCCESS),
+            force=options.force, dry_run=not options.publish,
             ack_timeout=options.ack_timeout, connect_timeout=options.connect_timeout)
     except RepublishConnectError as exception:
         print(f"mqtttracker republish: {exception}", file=err)

@@ -16,29 +16,24 @@ A message that was not delivered can be republished. A message is delivered when
 `confirmed` (see [Status](../status/index.md)); a delivered message is not republished unless you
 ask for it. Each message is republished once, even when it already has several attempts.
 
-`mqtttracker republish` starts from the unresolved messages and, by default, republishes only the
-newest one on each topic, so an old value cannot overwrite a newer one. `--all` republishes every
-unresolved message, subject to the tool's other options.
-
-Automatic republishing uses the last delivered message on each topic as a boundary instead. It
-republishes every unresolved message published after it, not just the newest.
+Both automatic republishing and `mqtttracker republish` treat the last delivered message on each
+topic as a boundary: by default they republish every unresolved message published after it. The
+tool also has `--newest` to republish only the newest unresolved message per topic, and `--all` to
+republish every unresolved message, including those before the boundary.
 
 The last delivered message on a topic is the newest original message that is `confirmed`, either
 directly or through a republish attempt. A confirmed republish attempt does not update that point
 in time; otherwise, republishing an old message could hide a newer unresolved one.
 
-So automatic republishing:
+So by default:
 
-- republishes every unresolved message published after the last delivered message on its topic,
+- every unresolved message published after the last delivered message on its topic is republished,
   oldest first;
-- republishes every unresolved message on a topic with no delivered message;
-- with `include_before_last_success = true`, ignores the last delivered message and republishes
-  every unresolved message.
+- every unresolved message on a topic with no delivered message is republished;
+- with `include_before_last_success = true` (automatic) or `--all` (the tool), the boundary is
+  ignored and every unresolved message is republished.
 
 The last delivered message is per topic: a publish on one topic says nothing about another.
-
-`mqtttracker republish` does not use that boundary; see
-[What the tool selects](#what-the-tool-selects).
 
 ## Automatic republishing
 
@@ -147,11 +142,14 @@ PYTHONPATH=~/weewx/src python3 ~/weewx-data/bin/user/mqtttracker.py --config ~/w
 
 ### What the tool selects
 
-By default the tool selects the messages whose outcome is `failed` or `unconfirmed`, whatever
-their age. It then:
+By default the tool selects the unresolved messages published after the last delivered message on
+their topic, whatever their age. It then:
 
-- republishes only the newest message per topic, so an old value cannot overwrite a newer one; a
-  message this hides is reported, and `--all` republishes every selected message, oldest first;
+- republishes them oldest first;
+- with `--newest`, republishes only the newest unresolved message per topic, so an old value
+  cannot overwrite a newer one; a message this hides is reported;
+- with `--all`, republishes every unresolved message, including those before the last delivered
+  message;
 - skips a message that is already delivered (one attempt is `confirmed`); `--force` overrides;
 - connects with a clientid of its own, so the running service is not disconnected;
 - waits for the connection before publishing, and for each publish to be confirmed.
@@ -225,10 +223,17 @@ python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf republ
 
 ### --all
 
-Republish every selected message, not just the newest message per topic.
+Republish every unresolved message, including those older than the last delivered message on their
+topic.
 
-By default only the newest message per topic is republished, so an old value cannot overwrite a
-newer one. A message this hides is reported; `--all` is how you publish it too, oldest first.
+Automatic republishing has the same effect with `include_before_last_success = true`.
+
+### --newest
+
+Republish only the newest unresolved message per topic.
+
+Use this for state-style topics, where only the latest value matters. A message this hides is
+reported; run without this option, or with `--all`, to republish the others.
 
 ### --force
 

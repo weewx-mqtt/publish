@@ -254,24 +254,70 @@ class TestSelectMessages(unittest.TestCase):
 
         self.assertEqual([row['id'] for row in selected], [out_temp['id']])
 
-    def test_newest_per_topic(self):
+    def test_newest_mode_keeps_the_newest_per_topic(self):
         older = make_row(published_ts=1000.0)
         newer = make_row(published_ts=1500.0)
         other_topic = make_row(published_ts=900.0, topic='weather/outHumidity')
 
-        selected = user.mqtttracker.select_messages([older, newer, other_topic], now=2000)
+        selected = user.mqtttracker.select_messages(
+            [older, newer, other_topic], mode=user.mqtttracker.MODE_NEWEST, now=2000)
 
         self.assertEqual([row['id'] for row in selected], [other_topic['id'], newer['id']])
 
-    def test_all_disables_newest_per_topic(self):
+    def test_all_mode_selects_everything(self):
         older = make_row(published_ts=1000.0)
         newer = make_row(published_ts=1500.0)
 
-        selected = user.mqtttracker.select_messages([older, newer], newest_per_topic=False, now=2000)
+        selected = user.mqtttracker.select_messages(
+            [older, newer], mode=user.mqtttracker.MODE_ALL, now=2000)
 
         self.assertEqual([row['id'] for row in selected], [older['id'], newer['id']])
 
-    def test_superseded_reports_the_rows_a_newer_publish_hides(self):
+    def test_default_republishes_everything_after_the_last_delivered_message(self):
+        delivered = make_row(published_ts=1000.0,
+                             status=user.mqttmessagetracker.STATUS_CONFIRMED)
+        first = make_row(published_ts=1100.0)
+        second = make_row(published_ts=1200.0)
+
+        selected = user.mqtttracker.select_messages([delivered, first, second], now=2000)
+
+        self.assertEqual([row['id'] for row in selected], [first['id'], second['id']])
+
+    def test_default_leaves_out_messages_before_the_last_delivered_message(self):
+        older = make_row(published_ts=1000.0)
+        delivered = make_row(published_ts=1500.0,
+                             status=user.mqttmessagetracker.STATUS_CONFIRMED)
+
+        selected = user.mqtttracker.select_messages([older, delivered], now=2000)
+        left_out = user.mqtttracker.superseded([older, delivered], now=2000)
+        everything = user.mqtttracker.select_messages(
+            [older, delivered], mode=user.mqtttracker.MODE_ALL, now=2000)
+
+        self.assertEqual(selected, [])
+        self.assertEqual([row['id'] for row in left_out], [older['id']])
+        self.assertEqual([row['id'] for row in everything], [older['id']])
+
+    def test_newest_mode_keeps_only_the_newest_unresolved_message(self):
+        first = make_row(published_ts=1000.0)
+        second = make_row(published_ts=1500.0)
+
+        selected = user.mqtttracker.select_messages(
+            [first, second], mode=user.mqtttracker.MODE_NEWEST, now=2000)
+        everything = user.mqtttracker.select_messages([first, second], now=2000)
+
+        self.assertEqual([row['id'] for row in selected], [second['id']])
+        self.assertEqual([row['id'] for row in everything], [first['id'], second['id']])
+
+    def test_newest_mode_reports_messages_hidden_by_a_newer_message(self):
+        older = make_row(published_ts=1000.0)
+        newer = make_row(published_ts=1500.0)
+
+        left_out = user.mqtttracker.superseded(
+            [older, newer], mode=user.mqtttracker.MODE_NEWEST, now=2000)
+
+        self.assertEqual([row['id'] for row in left_out], [older['id']])
+
+    def test_superseded_reports_messages_before_the_last_delivered(self):
         unconfirmed = make_row(published_ts=1000.0)
         confirmed = make_row(published_ts=1500.0, status=user.mqttmessagetracker.STATUS_CONFIRMED)
 
@@ -555,8 +601,8 @@ class TestRepublish(DatabaseTestCase):
                                       status=user.mqttmessagetracker.STATUS_CONFIRMED))
 
         selected, _ = user.mqtttracker.republish(
-            self.database_dict, TABLE, self.options, dry_run=True, newest_per_topic=False,
-            out=self.out)
+            self.database_dict, TABLE, self.options, dry_run=True,
+            mode=user.mqtttracker.MODE_ALL, out=self.out)
 
         self.assertEqual([row['payload'] for row in selected], ['stale'])
 
@@ -690,6 +736,7 @@ class TestBuildParser(unittest.TestCase):
 
         self.assertFalse(options.publish)
         self.assertFalse(options.all)
+        self.assertFalse(options.newest)
         self.assertFalse(options.force)
         self.assertEqual(options.plugin_section, 'MQTTMessageTracker')
         self.assertEqual(options.status, [user.mqttmessagetracker.STATUS_FAILED,
@@ -698,6 +745,12 @@ class TestBuildParser(unittest.TestCase):
         self.assertEqual(options.limit, 100)
         self.assertIsNone(options.topic)
         self.assertIsNone(options.clientid)
+
+    def test_newest_and_all_are_mutually_exclusive(self):
+        with self.assertRaises(SystemExit):
+            with contextlib.redirect_stderr(io.StringIO()):
+                user.mqtttracker.build_parser().parse_args(
+                    ['--config', 'weewx.conf', 'republish', '--newest', '--all'])
 
 
 if __name__ == '__main__':

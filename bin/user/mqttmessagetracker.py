@@ -303,28 +303,29 @@ def delete_chains(cursor, table, chain_ids):
     return cursor.rowcount
 
 
-def _last_success(rows):
+def last_success(rows):
     """ The newest original publish time of a delivered message for each topic.
 
-        A republish attempt does not move the boundary, or a successful republish would hide an older
-        backlog. A chain whose original is gone does not move it either. """
-    last_success = {}
+        A republish attempt does not move the boundary, or a successful republish would hide an
+        older backlog. A chain whose original is gone does not move it either. """
+    last_success_by_topic = {}
     for chain in chain_rows(rows).values():
         if outcome_row(chain)['status'] != STATUS_CONFIRMED:
             continue
         anchor = chain_anchor(chain)
         if anchor['origin_id'] is not None:
             continue
-        last_success[anchor['topic']] = max(last_success.get(anchor['topic'], anchor['published_ts']),
-                                            anchor['published_ts'])
-    return last_success
+        last_success_by_topic[anchor['topic']] = max(
+            last_success_by_topic.get(anchor['topic'], anchor['published_ts']),
+            anchor['published_ts'])
+    return last_success_by_topic
 
 
-def _is_after_last_success(row, oldest, last_success):
+def is_after_last_success(row, oldest, last_success_by_topic):
     """ Whether a message is after its topic's last confirmed publish. """
     if oldest is not None and row['published_ts'] < oldest:
         return False
-    boundary = last_success.get(row['topic'])
+    boundary = last_success_by_topic.get(row['topic'])
     return boundary is None or row['published_ts'] > boundary
 
 
@@ -340,13 +341,13 @@ def select_after_last_success(rows, since=None, now=None, include_before_last_su
         those older than the topic's last confirmed publish. """
     now = time.time() if now is None else now
     oldest = None if since is None or since <= 0 else now - since
-    last_success = {} if include_before_last_success else _last_success(rows)
+    last_success_by_topic = {} if include_before_last_success else last_success(rows)
     selected = []
     for chain in chain_rows(rows).values():
         if outcome_row(chain)['status'] not in (STATUS_FAILED, STATUS_UNCONFIRMED):
             continue
         anchor = chain_anchor(chain)
-        if _is_after_last_success(anchor, oldest, last_success):
+        if is_after_last_success(anchor, oldest, last_success_by_topic):
             selected.append(anchor)
     selected.sort(key=lambda row: (row['published_ts'], row['id']))
     return selected
