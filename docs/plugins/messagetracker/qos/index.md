@@ -48,7 +48,7 @@ that packet id. It does **not** mean the broker has forwarded the message, and i
 about any subscriber.
 
 A QoS 0 publish has no acknowledgement at all. Paho reports it once the bytes are written, so a
-`confirmed` row would only mean "written to the socket". That is why the tracker rejects topics
+`confirmed` message would only mean "written to the socket". That is why the tracker rejects topics
 published with QoS 0.
 
 ## Broker to subscriber
@@ -74,7 +74,7 @@ Whether an undelivered message survives depends on the subscriber's session and 
 the broker accepts the publish, independently of any subscriber. A future subscriber receives the
 retained value when it subscribes, even if no subscriber received the original publish.
 
-The retained value outlives the tracker row. Pruning a `confirmed` row does not remove it; clear it
+The retained value outlives the tracked message. Pruning a `confirmed` message does not remove it; clear it
 with a retained publish that has an empty payload.
 
 ## Example: QoS 2, retain, and a subscriber that never acknowledges
@@ -84,21 +84,21 @@ acknowledges anything.
 
 1. The publisher sends the PUBLISH with QoS 2 and the retain flag.
 2. The broker performs its handshake with the publisher (PUBREC, PUBREL, PUBCOMP).
-3. Paho reports the publish on PUBCOMP, and the tracker marks the row `confirmed`.
+3. Paho reports the publish on PUBCOMP, and the tracker marks the message `confirmed`.
 4. The broker stores the message as the topic's retained value.
 5. The broker separately tries to deliver to the subscriber. That leg never completes, because
    the subscriber never answers.
 
-The row stays `confirmed` throughout. It records steps 2–4, all of which are publisher-side or
+The message stays `confirmed` throughout. It records steps 2–4, all of which are publisher-side or
 broker-side facts. Step 5 is invisible to the tracker, and the broker does not wait for it: a
 stuck subscriber does not delay or retract the PUBCOMP.
 
-The retained value outlives the row and the subscriber. Any future subscriber to the topic
+The retained value outlives the message and the subscriber. Any future subscriber to the topic
 receives it on subscribe, even if this subscriber never did.
 
 ## What this means for the tracker
 
-A `confirmed` row records the broker's acceptance of the publish, not delivery to a subscriber.
+A `confirmed` message records the broker's acceptance of the publish, not delivery to a subscriber.
 The tracker therefore provides at-least-once delivery end to end, and consumers must be idempotent,
 for example by deduplicating on `dateTime`.
 

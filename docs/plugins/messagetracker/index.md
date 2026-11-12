@@ -6,7 +6,7 @@ has_children: true
 ---
 {% include messagetracker_warning.html %}
 
-MQTTMessageTracker records every message MQTTPublish sends to the topics you track in a separate
+MQTTMessageTracker records every message MQTTPublish publishes to the topics you track in a separate
 WeeWX database. Each record holds the outcome of the publish. The tracker can republish the messages
 that failed, or whose outcome is unknown, after the connection comes back.
 
@@ -59,14 +59,14 @@ See [Configuration](configuration/index.md) for every option.
 
 ## What is tracked
 
-Each message published to a tracked topic records a row in the tracker table.
-A republish adds a new row that points at the original with `origin_id` and `attempt`; the original
-row is never changed.
+MQTTMessageTracker keeps a record of each message published to a tracked topic and what happened
+to it. Republishing a message adds another attempt to its history without changing the original
+record.
 
 Messages published directly by a plugin, such as the Home Assistant discovery messages, and the
 availability/LWT message are not tracked.
 
-See [Internals](internals/index.md#what-is-tracked) for the row fields and payload storage.
+See [Internals](internals/index.md#what-is-tracked) for the stored fields and payload storage.
 
 ## What the status means
 
@@ -74,16 +74,16 @@ See [Internals](internals/index.md#what-is-tracked) for the row fields and paylo
 | --- | --- |
 | `failed` | paho returned a non-success `rc`; the message was not published. |
 | `inflight` | the message was handed to paho and its arrival has not been reported yet. |
-| `confirmed` | the broker acknowledged the publish; `arrived_ts` is set. |
-| `unconfirmed` | no arrival was reported before the tracker stopped waiting; `unconfirmed_ts` is set. |
+| `confirmed` | the broker acknowledged the publish; the acknowledgement time is recorded. |
+| `unconfirmed` | no acknowledgement was reported before the tracker stopped waiting; the time it stopped is recorded. |
 
 `inflight` is transient. It becomes `confirmed` when paho reports the publish, or `unconfirmed`
 when the tracker can no longer tell: the connection is lost, the tracker shuts down, paho reuses
-the message id, or a previous run left the row behind. A publish that paho refuses is recorded as
+the message id, or a previous run left the message in flight. A publish that paho refuses is recorded as
 `failed` immediately; it is never `inflight`. `unconfirmed` is not proof that the message was not
 delivered; it means the tracker could not tell.
 
-A `confirmed` row means the broker accepted the publish:
+A `confirmed` message means the broker accepted the publish:
 
 - with QoS 1, paho reported a PUBACK: the broker received the message;
 - with QoS 2, paho reported a PUBCOMP: the broker accepted the message and took ownership of it.
@@ -94,7 +94,7 @@ A `confirmed` row means the broker accepted the publish:
 None of these mean that a subscriber received it. QoS is enforced between one client and the
 broker, not from publisher to subscriber. See [QoS in detail](qos/index.md).
 
-See [Internals](internals/index.md#status-lifecycle) for when rows are marked `unconfirmed`, and
+See [Internals](internals/index.md#status-lifecycle) for when messages are marked `unconfirmed`, and
 for the message-id reuse behavior.
 
 ## QoS and duplicate delivery
@@ -108,8 +108,8 @@ subscriber can receive the same application message more than once, even when th
 QoS 2. This applies to both automatic republishing and `mqtttracker republish`.
 
 The tracker therefore provides at-least-once delivery end to end. Consumers must be idempotent,
-for example by deduplicating on `dateTime`. `failed` rows are safe to republish: paho refused them,
-so they were not published. `unconfirmed` rows are the ambiguous ones: the original may have
+for example by deduplicating on `dateTime`. `failed` messages are safe to republish: paho refused them,
+so they were not published. `unconfirmed` messages are the ambiguous ones: the original may have
 reached the broker, but its acknowledgement was not observed.
 
 See [QoS in detail](qos/index.md) for the packet-level handshakes, the per-leg guarantees, and a

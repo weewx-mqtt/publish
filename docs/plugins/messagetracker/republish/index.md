@@ -16,21 +16,28 @@ A message that was not delivered can be republished. A message is delivered when
 `confirmed` (see [Status](../status/index.md)); a delivered message is not republished unless you
 ask for it. Each message is republished once, even when it already has several attempts.
 
-Automatic republishing and `mqtttracker republish` choose those messages differently. Automatic
-republishing applies the last confirmed publish on each topic as a boundary:
+`mqtttracker republish` starts from the unresolved messages and, by default, republishes only the
+newest one on each topic, so an old value cannot overwrite a newer one. `--all` republishes every
+unresolved message, subject to the tool's other options.
 
-- the boundary is the newest original row that is `confirmed`, or whose republish attempt is
-  `confirmed`. A republish attempt's own time does not move it, otherwise a successful republish
-  could hide an older backlog;
-- every unresolved message after that boundary is republished, oldest first;
-- if a topic has no confirmed publish, every unresolved message on it is republished;
-- with `include_before_last_success = true`, the boundary is ignored and every unresolved message
-  is republished.
+Automatic republishing uses the last delivered message on each topic as a boundary instead. It
+republishes every unresolved message published after it, not just the newest.
 
-The boundary is per topic. A successful publish on one topic says nothing about the delivery of
-another topic.
+The last delivered message on a topic is the newest original message that is `confirmed`, either
+directly or through a republish attempt. A confirmed republish attempt does not update that point
+in time; otherwise, republishing an old message could hide a newer unresolved one.
 
-`mqtttracker republish` ignores the boundary and has its own selection options; see
+So automatic republishing:
+
+- republishes every unresolved message published after the last delivered message on its topic,
+  oldest first;
+- republishes every unresolved message on a topic with no delivered message;
+- with `include_before_last_success = true`, ignores the last delivered message and republishes
+  every unresolved message.
+
+The last delivered message is per topic: a publish on one topic says nothing about another.
+
+`mqtttracker republish` does not use that boundary; see
 [What the tool selects](#what-the-tool-selects).
 
 ## Automatic republishing
@@ -70,12 +77,12 @@ to select. A trigger that is off is logged at `DEBUG`.
 
 ### include_before_last_success
 
-Whether to republish messages older than the topic's last confirmed publish.
+Whether to republish messages older than the topic's last delivered message.
 Default is `false`.
 
-By default the last confirmed publish is a boundary: an older message is assumed to have been
-superseded, and is not republished. Set this to `true` to treat every `failed` and `unconfirmed`
-row as a candidate, which is useful when the backlog is more important than the newer value.
+By default, an older message is assumed to have been superseded and is not republished. Set this
+to `true` to treat every unresolved message as a candidate, which is useful when the backlog is
+more important than the newer value.
 
 ### since
 
@@ -99,7 +106,7 @@ The full option and default reference is in
 ## What republishing does
 
 The tracker republishes through its existing MQTT connection. It publishes each message and records
-a new row; a later `on_publish` marks the row `confirmed`. A message that was in flight when the
+a new attempt; a later `on_publish` marks it `confirmed`. A message that was in flight when the
 connection was lost is marked `unconfirmed`, so it is part of the next republish.
 
 Automatic republishing is best-effort. A live publish that races the republish can still land after
@@ -108,7 +115,7 @@ See [QoS and duplicate delivery](../index.md#qos-and-duplicate-delivery).
 
 ## Republishing with mqtttracker republish
 
-`failed` and `unconfirmed` rows can also be republished with `bin/user/mqtttracker.py republish`.
+`failed` and `unconfirmed` messages can also be republished with `bin/user/mqtttracker.py republish`.
 It reads the tracker table and publishes through its own MQTT client; MQTTPublish is not
 involved and does not record it as a new publish.
 
@@ -149,12 +156,11 @@ their age. It then:
 - connects with a clientid of its own, so the running service is not disconnected;
 - waits for the connection before publishing, and for each publish to be confirmed.
 
-A republish adds a new row, so the original is never changed. It copies the topic, QoS, retain
-flag, `dateTime` and payload of the original, and points at the original with `origin_id` and
-`attempt`.
-See [Internals](../internals/index.md#republish-rows) for the row layout and history query.
+Republishing never changes the original message. It publishes the same topic, QoS, retain flag,
+`dateTime` and payload again.
+See [Internals](../internals/index.md#republish-rows) for the stored layout and history query.
 
-A message can only be republished while the tracker has not pruned its chain, so the topic's
+A message can only be republished while the tracker has not pruned it, so the topic's
 `error_retention` sets the recovery window for an unresolved message. Keep it long enough to cover
 the outages you want to recover from.
 
@@ -163,7 +169,8 @@ A message published directly by a plugin, or to a topic that is not tracked, is 
 The exit code is `0` on success, `1` when the connection, a publish or an ack failed, and `2` for
 a config or database error. A connect failure stops the run before anything is published.
 
-A tool that is killed after publishing leaves an `inflight` row, which the tracker marks `unconfirmed`
+A tool that is killed after publishing leaves the message `inflight`, which the tracker marks
+`unconfirmed`
 the next time it starts. See [Internals](../internals/index.md#republish-rows) for the write
 sequence.
 
@@ -218,7 +225,7 @@ python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf republ
 
 ### --all
 
-Republish every selected message, not just the newest row per topic.
+Republish every selected message, not just the newest message per topic.
 
 By default only the newest message per topic is republished, so an old value cannot overwrite a
 newer one. A message this hides is reported; `--all` is how you publish it too, oldest first.
@@ -235,7 +242,7 @@ need another copy despite that.
 How long to wait for each publish to be acknowledged.
 Default is `10`.
 
-If the wait expires, that republish row is marked `unconfirmed` and the run exits `1`. The other
+If the wait expires, that message is marked `unconfirmed` and the run exits `1`. The other
 selected messages are still attempted.
 
 ### --connect-timeout SECONDS

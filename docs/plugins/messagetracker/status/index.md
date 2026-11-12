@@ -7,12 +7,11 @@ nav_order: 4
 {% include messagetracker_warning.html %}
 
 `mqtttracker status` shows one line per tracked message, with the status the tracker has
-recorded for it. The tracker stores a chain of rows for each message: the original publish, then
-one row per republish attempt. The message's status is the status of its outcome row — the latest
-confirmed attempt if there is one, otherwise the latest attempt. By default it shows the
-unresolved messages: those whose status is `failed`, `unconfirmed`, or `inflight`. `--status` chooses
-the statuses to show. It reads the tracker database directly, so it does not need MQTTPublish to
-be running.
+recorded for it. The tracker stores the original publish and each republish attempt. The message's
+status is that of its latest confirmed attempt if there is one, otherwise the latest attempt. By
+default it shows the unresolved messages: those whose status is `failed`, `unconfirmed`, or
+`inflight`. `--status` chooses the statuses to show. It reads the tracker database directly, so it
+does not need MQTTPublish to be running.
 
 `mqtttracker` is one tool with `republish`, `prune` and `status` subcommands. The config file is a
 global `--config` option, so it comes before the subcommand. Show the unresolved messages:
@@ -33,7 +32,7 @@ Show the messages still in flight:
 python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf status --status inflight
 ```
 
-Show one message chain:
+Show one message:
 
 ```shell
 python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf status --message 3f2a9c...
@@ -50,26 +49,29 @@ PYTHONPATH=~/weewx/src python3 ~/weewx-data/bin/user/mqtttracker.py --config ~/w
 
 ## Reading the result
 
-The original row is never changed; each republish attempt records its own outcome. A message is
+The original message is never changed; each republish attempt records its own outcome. A message is
 **confirmed** when any attempt was confirmed. A confirmed attempt wins, so a delivered message is
 never counted as failed again, even after a forced republish. "Confirmed" means the broker accepted
 the publish, not that a subscriber received it.
 
-A message with several republish attempts appears once. The row is anchored at the original, or at
-the oldest surviving attempt when the original was pruned. `ATTEMPTS`, `CONFIRMED`, and
-`CURRENT STATUS` summarize the rest of the chain.
+A message with several republish attempts appears once, shown by its original or by the oldest
+surviving attempt when the original was pruned. `ATTEMPTS`, `CONFIRMED`, and
+`CURRENT STATUS` summarize the message's attempts.
 
 The default summary lists each message with:
 
 | column | meaning |
 | --- | --- |
-| `ID` | the anchor row id; `--message` also accepts a republish attempt id. |
+| `ID` | the id of the original (or oldest surviving attempt); `--message` also accepts a republish attempt id. |
 | `TOPIC` | the topic the message was published on. |
-| `ORIGINAL STATUS` | the anchor row's status: `failed`, `unconfirmed`, `inflight`, or `confirmed`. |
-| `ORIGINALLY PUBLISHED` | when the anchor was handed to paho. |
-| `ATTEMPTS` | the number of republish attempts in the chain, whatever their status. |
+| `ORIGINAL STATUS` | the original's status: `failed`, `unconfirmed`, `inflight`, or `confirmed`. |
+| `ORIGINALLY PUBLISHED` | when the message was first published. |
+| `ATTEMPTS` | the number of republish attempts for the message, whatever their status. |
 | `CONFIRMED` | how many of those attempts the broker confirmed. |
-| `CURRENT STATUS` | the outcome: `confirmed`, `failed`, `unconfirmed`, or `inflight`. |
+| `CURRENT STATUS` | the message's status: `confirmed`, `failed`, `unconfirmed`, or `inflight`. |
+
+See [Internals](../internals/index.md#what-is-tracked) for the stored fields and how each attempt
+is recorded.
 
 The outcomes mean:
 
@@ -84,7 +86,7 @@ The outcomes mean:
 The statuses to show, comma separated.
 Default is `failed,unconfirmed,inflight`. Choose from `failed`, `unconfirmed`, `inflight`, and `confirmed`.
 This filters the message's current status, so a delivered message does not appear under
-`--status failed` just because its original row failed.
+`--status failed` just because its original publish failed.
 
 `inflight` messages are in flight: paho accepted the publish, but no acknowledgement has arrived
 yet. They become `confirmed` on acknowledgement, or `unconfirmed` when the tracker stops waiting:
@@ -93,12 +95,11 @@ a disconnect, a shutdown, a reused message id, or the startup sweep.
 
 ### --message ID
 
-Show one message chain, in publish order.
+Show one message, in publish order.
 
-Use any row id from the chain, including a republish attempt id. The command resolves it to the
-chain and shows the anchor and each republish attempt, with its `attempt` and `origin_id`. If no
-row has that id, the command prints a message and exits `1`. The plan prints the id as `id=<hex>`;
-either that form or the bare id is accepted.
+Use the id of the original or of any republish attempt. The command shows the original and each
+republish attempt. If no message has that id, the command prints a message and exits `1`. An id
+copied from the plan includes an `id=` label; either form is accepted.
 
 ### --topic GLOB
 

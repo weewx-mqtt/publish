@@ -19,9 +19,8 @@ the tracker checks. You can also delete messages yourself with `mqtttracker prun
 - a message whose latest attempt is `failed` or `unconfirmed` is **unresolved**, and is kept for
   `error_retention`.
 
-A message is deleted as one whole chain: the original row and every republish attempt. A `inflight`
-message is still in flight and neither option prunes it; the startup sweep and a disconnect mark
-it `unconfirmed`.
+A message is deleted with every republish attempt. An `inflight` message is still in flight and
+neither option prunes it; the startup sweep and a disconnect mark it `unconfirmed`.
 
 ### confirmed_retention
 
@@ -65,11 +64,11 @@ Both options can be set per topic:
 ```
 
 A topic without its own value uses the plugin-level value. A topic that is no longer configured
-also uses the plugin-level value, so its rows still age out.
+also uses the plugin-level value, so its messages still age out.
 
 ### prune_interval
 
-How often, in seconds, the tracker's writer thread checks for rows to delete.
+How often, in seconds, the tracker's writer thread checks for messages to delete.
 Default is `3600` (hourly).
 Set to `0` to disable automatic pruning; the startup sweep still runs.
 
@@ -85,7 +84,7 @@ check after its outcome becomes old enough, which can be up to one interval late
 `prune_interval = 0`, nothing is deleted automatically until you run the tool.
 
 The startup sweep is separate from pruning. It runs when the tracker starts and marks leftover
-`inflight` rows as `unconfirmed`; it does not delete anything.
+`inflight` messages as `unconfirmed`; it does not delete anything.
 
 ## Pruning with mqtttracker prune
 
@@ -120,14 +119,15 @@ WeeWX uses. On a package install it finds WeeWX by itself; for an uninstalled so
 add WeeWX's `src` directory to `PYTHONPATH`.
 
 Without `--delete` it only prints the selection. Each line is one message, shown with the id of
-its original row (or of the chain when the original was pruned), the status that decides its
+its original (or of the oldest surviving attempt when the original was pruned), the status that
+decides its
 retention, and the time that decision was made.
 
 The plan reports both counts, because a message with republish attempts is several rows:
 `11 message(s) selected (13 row(s)):`. `--delete` then reports the rows it removed.
 
-Pruning a message deletes its whole chain: the original and every republish attempt. A message
-whose outcome changed between the plan and the delete is left alone. It is safe to run while
+Pruning a message also deletes its republish attempts. A message whose outcome changed between
+the plan and the delete is left alone. It is safe to run while
 WeeWX is running.
 
 Deleting an unresolved message discards the only record that its delivery outcome is unknown.
@@ -191,7 +191,8 @@ python3 /etc/weewx/bin/user/mqtttracker.py --config /etc/weewx/weewx.conf prune 
 
 The maximum number of messages to select, oldest first.
 Default is `100`; `0` removes the limit.
-Each selected message also deletes its whole chain, so the number of rows removed can be higher.
+Each selected message also deletes its republish attempts, so the number of rows removed can be
+higher.
 When the limit truncates the selection, the tool reports how many of the matching messages it
 selected; use `--limit 0` to select them all.
 
