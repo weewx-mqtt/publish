@@ -87,14 +87,6 @@ Default is `0`, which applies no age limit.
 The age is measured from the original message's `published_ts`, not from a republish attempt. Use this
 to avoid republishing a very old value after a long outage.
 
-### limit
-
-The maximum number of messages to republish per connection.
-Default is `0`, which republishes every selected message.
-
-A capped run republishes the oldest messages first. A later live publish can move the boundary past
-the remaining backlog, so use `mqtttracker republish` to clear an old backlog without that risk.
-
 The full option and default reference is in
 [Configuration](../configuration/republish/index.md).
 
@@ -205,13 +197,6 @@ Default is every message, whatever its age.
 
 The age is measured from the message's latest attempt, which is the original publish or a
 republish attempt. Use it together with `error_retention` to bound an old backlog.
-
-### --limit COUNT
-
-The maximum number of messages to republish.
-Default is `100`; `0` removes the limit.
-
-The selection is republished oldest first.
 
 ### --topic GLOB
 

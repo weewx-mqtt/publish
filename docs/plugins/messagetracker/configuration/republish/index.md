@@ -42,11 +42,5 @@ Only republish messages published within the last `since` seconds.
 Set to `0` to consider every message after the last confirmed publish.
 Default is `0`.
 
-### limit
-
-The maximum number of messages to republish per connection.
-Set to `0` to republish every message.
-Default is `0`.
-
 See [Republishing](../../republish/index.md) for when messages are republished, and how
 `include_before_last_success` changes the selection.

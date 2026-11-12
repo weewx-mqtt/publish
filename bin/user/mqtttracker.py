@@ -112,6 +112,7 @@ DEFAULT_MODE = MODE_AFTER_LAST_SUCCESS
 DEFAULT_PLUGIN_SECTION = user.mqttmessagetracker.DEFAULT_PLUGIN_SECTION
 # Every row is considered by default, so every unconfirmed message is republished.
 DEFAULT_SINCE = None
+# The default page size for prune and status.
 DEFAULT_LIMIT = 100
 DEFAULT_ACK_TIMEOUT = 10
 DEFAULT_CONNECT_TIMEOUT = 10
@@ -263,14 +264,6 @@ def _select(candidates, newest, forced=frozenset()):
             if user.mqttmessagetracker.origin_id(row) in forced or not _is_stale(row, newest)]
 
 
-def _limit(rows, limit):
-    """ Keep the newest rows, then return them in publish order. """
-    if limit is None or limit <= 0:
-        return rows
-    newest = sorted(rows, key=_sort_key, reverse=True)[:limit]
-    return sorted(newest, key=_sort_key)
-
-
 def _after_last_success(row, forced, last_success_by_topic):
     """ Whether a candidate is kept by the default mode. """
     if user.mqttmessagetracker.origin_id(row) in forced:
@@ -279,14 +272,15 @@ def _after_last_success(row, forced, last_success_by_topic):
 
 
 # pylint: disable=too-many-arguments,too-many-positional-arguments
-def select_messages(rows, statuses=None, since=DEFAULT_SINCE, limit=DEFAULT_LIMIT, topic=None,
+def select_messages(rows, statuses=None, since=DEFAULT_SINCE, topic=None,
                     mode=DEFAULT_MODE, force=False, now=None):
     """ Select the messages to republish, one row per chain.
 
-        By default every unresolved message published after the last delivered message on its
-        topic is selected. 'newest' selects only the newest unresolved message per topic; 'all'
-        includes messages older than the last delivered message. 'since' bounds the age of the
-        message's outcome. A delivered message is skipped unless 'force' is set. """
+        The rows are returned in publish order, oldest first. By default every unresolved message
+        published after the last delivered message on its topic is selected. 'newest' selects only
+        the newest unresolved message per topic; 'all' includes messages older than the last
+        delivered message. 'since' bounds the age of the message's outcome. A delivered message is
+        skipped unless 'force' is set. """
     candidates = _candidates(rows, statuses, since, topic, force,
                              time.time() if now is None else now)
     forced = _forced_origins(rows, statuses, force)
@@ -296,7 +290,7 @@ def select_messages(rows, statuses=None, since=DEFAULT_SINCE, limit=DEFAULT_LIMI
         last_success_by_topic = user.mqttmessagetracker.last_success(rows)
         candidates = [row for row in candidates
                       if _after_last_success(row, forced, last_success_by_topic)]
-    return _limit(candidates, limit)
+    return sorted(candidates, key=_sort_key)
 
 
 # pylint: disable=too-many-arguments,too-many-positional-arguments
@@ -458,7 +452,7 @@ def _print_hidden(rows, statuses, since, topic, force, mode, out):
 
 # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals
 def republish(database_dict, table, options, *, statuses=None, since=DEFAULT_SINCE,
-              limit=DEFAULT_LIMIT, topic=None, mode=DEFAULT_MODE, force=False, dry_run=True,
+              topic=None, mode=DEFAULT_MODE, force=False, dry_run=True,
               ack_timeout=DEFAULT_ACK_TIMEOUT, connect_timeout=DEFAULT_CONNECT_TIMEOUT, out=None):
     """ Republish the selected messages, returning the selection and the outcomes.
 
@@ -472,7 +466,7 @@ def republish(database_dict, table, options, *, statuses=None, since=DEFAULT_SIN
 
     try:
         rows = user.mqttmessagetracker.fetch_rows(connection, table)
-        selected = select_messages(rows, statuses=statuses, since=since, limit=limit, topic=topic,
+        selected = select_messages(rows, statuses=statuses, since=since, topic=topic,
                                    mode=mode, force=force)
         user.mqttmessagetracker.print_plan(selected, out)
         _print_hidden(rows, statuses, since, topic, force, mode, out)
@@ -904,8 +898,6 @@ def _add_republish_parser(subparsers):
     parser.add_argument('--since', type=int, default=DEFAULT_SINCE, metavar='SECONDS',
                         help="Only republish messages published within the last SECONDS. "
                              "Default is every message.")
-    parser.add_argument('--limit', type=int, default=DEFAULT_LIMIT, metavar='COUNT',
-                        help=f"The maximum number of messages to republish. Default is {DEFAULT_LIMIT}.")
     parser.add_argument('--topic', default=None, metavar='GLOB',
                         help="Only republish topics that match the glob, for example 'weather/outTemp_*'.")
     mode_group = parser.add_mutually_exclusive_group()
@@ -995,7 +987,7 @@ def _run_republish(options, out, err):
             config_dict, options.plugin_section, options.data_binding, options.table, options.clientid)
         _, outcomes = republish(
             database_dict, table, mqtt_options, out=out,
-            statuses=options.status, since=options.since, limit=options.limit, topic=options.topic,
+            statuses=options.status, since=options.since, topic=options.topic,
             mode=(MODE_ALL if options.all else
                   MODE_NEWEST if options.newest else
                   MODE_AFTER_LAST_SUCCESS),

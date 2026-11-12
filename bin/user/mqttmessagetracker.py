@@ -643,8 +643,6 @@ class _TrackerThread(threading.Thread):  # pylint: disable=too-many-instance-att
         selected = select_after_last_success(
             rows, since=options['since'],
             include_before_last_success=options['include_before_last_success'])
-        if options['limit'] > 0:
-            selected = selected[:options['limit']]
         if not selected:
             self._log('INFO', "No messages need to be republished after the connection was established.")
             return
@@ -980,7 +978,6 @@ class MQTTMessageTracker(user.mqttpublish.MQTTPlugin):  # pylint: disable=too-ma
             'on_reconnect': to_bool(republish_dict.get('on_reconnect', False)),
             'include_before_last_success': to_bool(republish_dict.get('include_before_last_success', False)),
             'since': max(0, self._config_int(republish_dict, 'since', 0)),
-            'limit': max(0, self._config_int(republish_dict, 'limit', 0)),
         }
         if not options['on_startup'] and not options['on_reconnect']:
             return None

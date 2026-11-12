@@ -397,20 +397,6 @@ class TestSelectMessages(unittest.TestCase):
 
         self.assertEqual([row['id'] for row in selected], [origin['id']])
 
-    def test_limit_keeps_the_newest_and_orders_oldest_first(self):
-        rows = [make_row(published_ts=float(index), topic=f'weather/{index}') for index in range(1, 6)]
-
-        selected = user.mqtttracker.select_messages(rows, limit=2, now=2000)
-
-        self.assertEqual([row['published_ts'] for row in selected], [4.0, 5.0])
-
-    def test_zero_limit_selects_everything(self):
-        rows = [make_row(published_ts=float(index), topic=f'weather/{index}') for index in range(1, 4)]
-
-        selected = user.mqtttracker.select_messages(rows, limit=0, now=2000)
-
-        self.assertEqual(len(selected), 3)
-
 
 class TestDecodePayload(unittest.TestCase):
     def test_text(self):
@@ -742,7 +728,6 @@ class TestBuildParser(unittest.TestCase):
         self.assertEqual(options.status, [user.mqttmessagetracker.STATUS_FAILED,
                                           user.mqttmessagetracker.STATUS_UNCONFIRMED])
         self.assertIsNone(options.since)
-        self.assertEqual(options.limit, 100)
         self.assertIsNone(options.topic)
         self.assertIsNone(options.clientid)
 

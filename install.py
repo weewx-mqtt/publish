@@ -427,11 +427,6 @@ MQTTPUBLISH_CONFIG = """
         # Default is 0.
         since = 0
 
-        # The maximum number of messages to republish per connection.
-        # Set to 0 to republish every message.
-        # Default is 0.
-        limit = 0
-
     [[topics]]
         # The topics to track.
         # Only the topics listed here are tracked.

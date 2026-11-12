@@ -357,7 +357,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
 
         self.assertEqual(plugin.republish_options,
                          {'on_startup': True, 'on_reconnect': False, 'include_before_last_success': False,
-                          'since': 0, 'limit': 0})
+                          'since': 0})
 
     def test_republish_options_include_before_last_success(self):
         plugin, _ = self._make_plugin(
