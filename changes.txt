@@ -67,6 +67,9 @@ Fixes
   - Check the return code in the on_connect callback so failed connections are handled.
   - Compare the redundant/duplicate suppression threshold against the unformatted value.
   - Handle None values when applying the redundant/duplicate suppression threshold.
+  - TLS 1.2 works on builds that no longer provide the legacy 'PROTOCOL_TLSv1_2' constant,
+    such as one built against OpenSSL 4. An unavailable 'tls_version' is now reported as invalid
+    instead of raising a KeyError.
   - MQTTConfigHA now ensures published values use WeeWX units.
 
 Enhancements:

@@ -200,7 +200,7 @@ See `docs/plugin-development/` for parameter meanings.
   `run-analyze-test-matrix.yml` (master pushes) both delegate to reusable workflows in
   `weewx-extensions/development-tools@v6`. The `module-name: 'mqttpublish'` input selects the
   module under test.
-- The master matrix covers Python 3.9.13–3.14 and WeeWX 5.0.0 / 5.5.2 / branch-master /
+- The master matrix covers Python 3.9.13–3.15 and WeeWX 5.0.0 / 5.5.2 / branch-master /
   branch-development — so code must stay compatible with Python 3.9 syntax.
 - **CI lint covers every module and the tests, and fails the build**: the workflows pass
   `lint-paths` with all module paths (including `mqttmessagetracker.py` and `mqtttracker.py`),

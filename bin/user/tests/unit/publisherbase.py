@@ -22,6 +22,10 @@ import mqttstubs
 import user.mqttcommon
 import user.mqttpublish
 
+# The TLS 1.2 default. A build without the legacy constant, as OpenSSL 4 is,
+# reaches it through PROTOCOL_TLS_CLIENT, which means 'TLS 1.2 or newer'.
+TLS_1_2 = getattr(ssl, 'PROTOCOL_TLSv1_2', ssl.PROTOCOL_TLS_CLIENT)
+
 class PublisherBase(unittest.TestCase):
     class_under_test = user.mqttpublish.Publisher
     # The paho api variant to test; the concrete subclasses set it.
@@ -1388,7 +1392,7 @@ class TLSBase(unittest.TestCase):
                                                              certfile=None,
                                                              keyfile=None,
                                                              cert_reqs=ssl.CERT_REQUIRED,
-                                                             tls_version=ssl.PROTOCOL_TLSv1_2,
+                                                             tls_version=TLS_1_2,
                                                              ciphers=None)
 
     def test_tls_configuration_normalizes_unset_options_to_none(self):
@@ -1436,7 +1440,7 @@ class TLSBase(unittest.TestCase):
                                                              certfile=None,
                                                              keyfile=None,
                                                              cert_reqs=ssl.CERT_REQUIRED,
-                                                             tls_version=ssl.PROTOCOL_TLSv1_2,
+                                                             tls_version=TLS_1_2,
                                                              ciphers=None)
 
     def test_missing_PROTOCOL_TLS(self):

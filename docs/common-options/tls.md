@@ -47,3 +47,8 @@ The default value is `None`.
 The version of the SSL/TLS protocol to be used.
 Valid values are `sslv2`, `sslv23`, `sslv3`, `tls`, `tlsv1`, `tlsv11`, or `tlsv12`.
 The default value is `tlsv12`.
+
+On a build that no longer provides the legacy TLS constants, such as one built against OpenSSL 4,
+`tlsv12` means TLS 1.2 or newer.
+The legacy values (`sslv2`, `sslv3`, `tlsv1`, `tlsv11`) are unavailable on such a build and are
+reported as invalid.
