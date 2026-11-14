@@ -74,6 +74,24 @@ def setup_logging(logging_level, config_dict):
 
     weeutil.logger.setup('wee_MQTTPublish', config_dict)
 
+
+def queue_size(queue):
+    """ The number of items in the queue, or None where the platform cannot say.
+
+        multiprocessing.Queue.qsize() raises NotImplementedError where the platform has
+        no sem_getvalue, as macOS does, so a size is treated as unknown there rather
+        than allowed to stop the publishing thread. """
+    try:
+        return queue.qsize()
+    except NotImplementedError:
+        return None
+
+
+def queue_size_text(size):
+    """ The queue size for a log message. """
+    return 'unknown' if size is None else str(size)
+
+
 def mqtt_connection_options(service_dict, default_clientid=None):
     """ The MQTT connection options, shared by the service and the tools. """
     return {
@@ -850,9 +868,9 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
 
     def _check_queue_backlog(self):
         """ Log an error when the input queue is filling up. """
-        queue_size = self.data_queue.qsize()
-        if queue_size > 0 and queue_size % 10 == 0:
-            self.logger.error(None, f"Data queue has size of {self.data_queue.qsize()}.")
+        size = queue_size(self.data_queue)
+        if size and size % 10 == 0:
+            self.logger.error(None, f"Data queue has size of {size}.")
 
     def _restart_thread(self, data_type, data):
         """ Replace a dead publishing thread, or give up when the restart budget is spent. """
@@ -875,7 +893,8 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
     def _log_input_queue_size(self):
         """ Log the input queue size under the queue monitor flag. """
         self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, self.monitor_config['monitor_queue'], None,
-                                                             f"monitor: Input queue size: {self.data_queue.qsize()}"))
+                                                             (f"monitor: Input queue size: "
+                                                              f"{queue_size_text(queue_size(self.data_queue))}")))
 
     def shutDown(self):
         """Run when an engine shutdown is requested."""
@@ -930,7 +949,7 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
         try:
             self.data_queue.get(timeout=0.05)
         except Queue.Empty:
-            return bool(self.data_queue.qsize())
+            return bool(queue_size(self.data_queue))
         return True
 
     def _wait_for_thread(self, thread):
@@ -945,10 +964,10 @@ class MQTTPublish(StdService):  # pylint: disable=too-many-instance-attributes
 
 # The worker must be forked: it inherits the parent's logging streams (see
 # PublishWeeWXProcess._start_processor) and the config objects it is handed are not
-# picklable. Python 3.14 makes 'forkserver' the default start method on Linux, which
-# pickles the process object, so use the fork context explicitly there.
-if (multiprocessing.get_start_method() == 'forkserver' and
-        'fork' in multiprocessing.get_all_start_methods()):
+# picklable. 'fork' is not the default everywhere that matters — Python 3.14 makes
+# 'forkserver' the default on Linux, and macOS has defaulted to 'spawn' since 3.8 —
+# so use the fork context explicitly whenever the platform offers it.
+if 'fork' in multiprocessing.get_all_start_methods():
     _ProcessBase = multiprocessing.get_context('fork').Process
     PROCESS_START_METHOD = 'fork'
 else:
@@ -1344,11 +1363,11 @@ class QueueProcessor(_ProcessBase):  # pylint: disable=too-many-instance-attribu
             self.process = False
             return None
 
-        queue_size = self.data_queue.qsize()
-        data2['queue_size'] = queue_size
+        size = queue_size(self.data_queue)
+        data2['queue_size'] = size
         curr_time = time.time()
         self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, self.monitor_queue, None,
-                                                             (f"monitor: Queue size: {queue_size} "
+                                                             (f"monitor: Queue size: {queue_size_text(size)} "
                                                               f"Process time: {curr_time - prev_time}")))
 
         self.on_weewx_data_immediate(data2)
@@ -1480,12 +1499,14 @@ class PublishWeeWXProcess(threading.Thread):
         while True:
             data = self.data_queue.get(block=True, timeout=None)
             self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, self.monitor_config['monitor_queue'], None,
-                                                                 f"monitor: Input-2 queue size: {self.data_queue.qsize()}"))
+                                                                 (f"monitor: Input-2 queue size: "
+                                                                  f"{queue_size_text(queue_size(self.data_queue))}")))
             self.out_queue.put(data)
             if data['type'] == 'shutdown':
                 break
             self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, self.monitor_config['monitor_queue'], None,
-                                                                 f"monitor: Output queue size: {self.out_queue.qsize()}"))
+                                                                 (f"monitor: Output queue size: "
+                                                                  f"{queue_size_text(queue_size(self.out_queue))}")))
 
         # The processor was told to shut down; wait for it.
         if self.processor:

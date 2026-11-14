@@ -66,6 +66,26 @@ class TestMQTTConnectionOptions(unittest.TestCase):
         self.assertEqual(options['clientid'], 'tool')
 
 
+class TestQueueSize(unittest.TestCase):
+    def test_reports_the_number_queued(self):
+        data_queue = Queue.Queue()
+        self.assertEqual(user.mqttpublish.queue_size(data_queue), 0)
+
+        data_queue.put(1)
+        self.assertEqual(user.mqttpublish.queue_size(data_queue), 1)
+
+    def test_a_platform_without_a_size_is_unknown(self):
+        # multiprocessing.Queue.qsize() raises NotImplementedError on macOS.
+        unsupported = mock.Mock()
+        unsupported.qsize.side_effect = NotImplementedError
+
+        self.assertIsNone(user.mqttpublish.queue_size(unsupported))
+
+    def test_text_of_an_unknown_size(self):
+        self.assertEqual(user.mqttpublish.queue_size_text(None), 'unknown')
+        self.assertEqual(user.mqttpublish.queue_size_text(12), '12')
+
+
 class TestInit(unittest.TestCase):
     def test_log_mqtt_option(self):
         mock_engine = mock.Mock()

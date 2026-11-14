@@ -70,6 +70,8 @@ Fixes
   - TLS 1.2 works on builds that no longer provide the legacy 'PROTOCOL_TLSv1_2' constant,
     such as one built against OpenSSL 4. An unavailable 'tls_version' is now reported as invalid
     instead of raising a KeyError.
+  - 'multiprocess' works on macOS. The worker is forked there instead of spawned, and a queue
+    size that the platform cannot report is logged as 'unknown'.
   - MQTTConfigHA now ensures published values use WeeWX units.
 
 Enhancements:
