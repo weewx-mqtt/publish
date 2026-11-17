@@ -58,6 +58,8 @@ Alpha release support for running the publishing code in a separate process, see
 Fixes
   - Fix random locks/ stalls when reading from the multiprocessing data queue (#39).
   - Do not hang WeeWX on exit when the multiprocessing publishing worker does not stop.
+  - Report a multiprocessing publishing worker that exits, with its exit code, instead of
+    silently feeding records to a worker that is no longer there.
   - Stop the publishing sub-process stalling when WeeWX logs from inside it.
   - Use the fork start method explicitly for the publishing sub-process.
     Python 3.14 makes 'forkserver' the default on Linux, which pickles the process object and

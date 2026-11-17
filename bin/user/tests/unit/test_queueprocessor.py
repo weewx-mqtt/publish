@@ -1297,7 +1297,8 @@ class TestPublishWeeWXProcess(unittest.TestCase):
         mock_logger_queue = mock.Mock()
         SUT = self._make_process(mock_logger_queue, lambda: None)
         SUT.data_queue.put({'time_stamp': time.time(), 'type': 'shutdown', 'data': {}})
-        SUT.processor.is_alive.side_effect = [True, False]
+        # Alive while waiting for the record, alive after the join, dead after terminate.
+        SUT.processor.is_alive.side_effect = [True, True, False]
 
         with mock.patch('user.mqttpublish.log_direct') as mock_log_direct:
             SUT.run()
@@ -1317,7 +1318,8 @@ class TestPublishWeeWXProcess(unittest.TestCase):
         mock_logger_queue = mock.Mock()
         SUT = self._make_process(mock_logger_queue, lambda: None)
         SUT.data_queue.put({'time_stamp': time.time(), 'type': 'shutdown', 'data': {}})
-        SUT.processor.is_alive.side_effect = [True, True, False]
+        # Alive while waiting, alive after the join, alive after terminate, dead after kill.
+        SUT.processor.is_alive.side_effect = [True, True, True, False]
 
         with mock.patch('user.mqttpublish.log_direct') as mock_log_direct:
             SUT.run()
@@ -1347,7 +1349,7 @@ class TestPublishWeeWXProcess(unittest.TestCase):
         mock_logger_queue = mock.Mock()
         SUT = self._make_process(mock_logger_queue, lambda: None)
         SUT.data_queue.put({'time_stamp': time.time(), 'type': 'shutdown', 'data': {}})
-        SUT.processor.is_alive.return_value = False
+        SUT.processor.is_alive.side_effect = [True, False]
 
         with mock.patch('user.mqttpublish.log_direct') as mock_log_direct:
             SUT.run()
@@ -1355,6 +1357,52 @@ class TestPublishWeeWXProcess(unittest.TestCase):
         SUT.processor.terminate.assert_not_called()
         SUT.processor.kill.assert_not_called()
         mock_log_direct.assert_not_called()
+        self._assert_shut_down(SUT, mock_logger_queue)
+
+    def test_run_stops_feeding_a_worker_that_exited(self):
+        mock_logger_queue = mock.Mock()
+        SUT = self._make_process(mock_logger_queue, lambda: None)
+        SUT.data_queue.put({'time_stamp': time.time(), 'type': 'loop', 'data': {}})
+        SUT.processor.is_alive.return_value = False
+        SUT.processor.exitcode = -signal.SIGSEGV
+
+        with mock.patch('user.mqttpublish.log_direct') as mock_log_direct:
+            SUT.run()
+
+        # Logged directly, because the thread ends and the entry must not be lost.
+        mock_log_direct.assert_called_once_with(
+            SUT.name, 'ERROR',
+            f"The queue processor exited with code -{signal.SIGSEGV} ({signal.strsignal(signal.SIGSEGV)}).")
+        # The record is left for the restarted worker, and this is not the shutdown path.
+        self.assertFalse(SUT.data_queue.empty())
+        mock_logger_queue.put.assert_not_called()
+
+    def test_run_notices_an_exited_worker_while_idle(self):
+        mock_logger_queue = mock.Mock()
+        SUT = self._make_process(mock_logger_queue, lambda: None)
+        SUT.processor.is_alive.side_effect = [True, False]
+        SUT.processor.exitcode = 1
+
+        with mock.patch.object(SUT.data_queue, 'get', side_effect=queue.Empty), \
+                mock.patch('user.mqttpublish.log_direct') as mock_log_direct:
+            SUT.run()
+
+        mock_log_direct.assert_called_once_with(
+            SUT.name, 'ERROR', "The queue processor exited with code 1.")
+        mock_logger_queue.put.assert_not_called()
+
+    def test_run_keeps_feeding_after_an_empty_poll(self):
+        mock_logger_queue = mock.Mock()
+        SUT = self._make_process(mock_logger_queue, lambda: None)
+        shutdown = {'time_stamp': time.time(), 'type': 'shutdown', 'data': {}}
+        records = [queue.Empty, shutdown]
+        SUT.processor.is_alive.side_effect = [True, True, False]
+
+        with mock.patch.object(SUT.data_queue, 'get', side_effect=records) as mock_get:
+            SUT.run()
+
+            # The empty poll does not end the thread; the shutdown record does.
+            mock_get.assert_has_calls([mock.call(block=True, timeout=user.mqttpublish.PROCESSOR_CHECK_INTERVAL)] * 2)
         self._assert_shut_down(SUT, mock_logger_queue)
 
     def _assert_shut_down(self, SUT, mock_logger_queue):

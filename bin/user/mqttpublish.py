@@ -53,6 +53,8 @@ VERSION = "2.0.0-rc01a"
 # How long the feeder waits for the worker to stop, and then after each signal it sends, in seconds.
 PROCESSOR_SHUTDOWN_TIMEOUT = 5
 PROCESSOR_SIGNAL_TIMEOUT = 1
+# How long the feeder waits on the input queue before checking that the worker is still running, in seconds.
+PROCESSOR_CHECK_INTERVAL = 5
 
 
 def log_direct(name, log_type, msg_text):
@@ -90,6 +92,13 @@ def queue_size(queue):
 def queue_size_text(size):
     """ The queue size for a log message. """
     return 'unknown' if size is None else str(size)
+
+
+def exit_code_text(exit_code):
+    """ The exit code of a process for a log message, naming the signal when one ended it. """
+    if exit_code is not None and exit_code < 0:
+        return f"{exit_code} ({signal.strsignal(-exit_code)})"
+    return str(exit_code)
 
 
 def mqtt_connection_options(service_dict, default_clientid=None):
@@ -1496,8 +1505,17 @@ class PublishWeeWXProcess(threading.Thread):
         return unique
 
     def run(self):
+        """ Feed the worker, and report a worker that has exited.
+
+            A worker that dies is otherwise invisible: it takes nothing out of its queue, so
+            the records pile up and publishing stops. Ending this thread instead is what the
+            service reacts to: the next record starts publishing again, within the
+            'max_thread_restarts' budget. """
         while True:
-            data = self.data_queue.get(block=True, timeout=None)
+            data = self._next_record()
+            if data is None:
+                return
+
             self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, self.monitor_config['monitor_queue'], None,
                                                                  (f"monitor: Input-2 queue size: "
                                                                   f"{queue_size_text(queue_size(self.data_queue))}")))
@@ -1513,6 +1531,28 @@ class PublishWeeWXProcess(threading.Thread):
             self._stop_processor()
         self.logger_queue.put(mqttcommon.Logger.create_entry(self.name, 'INFO', None,
                                                              "PublishWeeWXProcess is shut down."))
+
+    def _next_record(self):
+        """ The next record to feed, or None when the worker has exited.
+
+            The worker is checked before every wait, so one that exits is noticed within
+            'PROCESSOR_CHECK_INTERVAL' whether or not records are arriving. """
+        while self.processor.is_alive():
+            try:
+                return self.data_queue.get(block=True, timeout=PROCESSOR_CHECK_INTERVAL)
+            except Queue.Empty:
+                pass
+
+        self._log_processor_exit()
+        return None
+
+    def _log_processor_exit(self):
+        """ Report a worker that exited, with the code it exited with.
+
+            Logged directly: the thread is about to end and this entry must not be lost.
+        """
+        log_direct(self.name, 'ERROR',
+                   f"The queue processor exited with code {exit_code_text(self.processor.exitcode)}.")
 
     def _stop_processor(self):
         """ Stop the worker process, escalating when it will not go.
