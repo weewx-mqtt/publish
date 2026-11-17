@@ -50,7 +50,7 @@ Without `PYTHONPATH=bin` you get `ModuleNotFoundError: No module named 'user'`.
 If `../weewx` is absent, `pip install weewx` and use `PYTHONPATH=bin` instead.
 
 Optional shortcuts (require `.devenv` sourced): scripts in
-`~/weewx_dev/weewx-extensions/development-tools/tools/` — `verify.sh` is the full
+`~/weewx_code/weewx-extensions/development-tools/tools/` — `verify.sh` is the full
 pre-commit gate (environment, lint including the test tree, actionlint, shared config and
 common-repo checks, all test suites). Also `unittests.sh`, `lint.sh`, `coverage.sh`,
 `alltests.sh`.
@@ -60,7 +60,7 @@ common-repo checks, all test suites). Also `unittests.sh`, `lint.sh`, `coverage.
 ```bash
 # Before committing: the same gate the CI runs.
 source .devenv
-~/weewx_dev/weewx-extensions/development-tools/tools/verify.sh
+~/weewx_code/weewx-extensions/development-tools/tools/verify.sh
 
 # All unit tests (no broker or network needed — paho is mocked/stubbed)
 pytest bin/user/tests/unit
