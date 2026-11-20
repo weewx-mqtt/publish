@@ -146,8 +146,8 @@ Enhancements:
     failed; CURRENT STATUS is failed, inflight, confirmed, or unconfirmed. --message accepts the
     id=<hex> label the plan prints, or the bare id.
     On a package install the tool finds WeeWX by itself, so it runs by path without PYTHONPATH.
-  - Document that republishing is at-least-once: a republish is a new publish, so it can duplicate a
-    message even on a qos 2 topic.
+  - Document that at-least-once applies to the publisher leg, not to the subscriber: a republish is
+    a new publish, so it can duplicate a message even on a qos 2 topic.
   - Improved shutdown logic flow, with timeouts when stopping threads/processes.
   - Consistent shutdown log messages: the same wording for a component starting and finishing its
     shutdown, the drain count, and the timeout named when a component does not stop. A publishing

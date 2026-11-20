@@ -47,7 +47,7 @@ add WeeWX's `src` directory to `PYTHONPATH`:
 PYTHONPATH=~/weewx/src python3 ~/weewx-data/bin/user/mqtttracker.py --config ~/weewx-data/weewx.conf status
 ```
 
-## Reading the result
+## Reading the status output
 
 The original message is never changed; each republish attempt records its own outcome. A message is
 **confirmed** when any attempt was confirmed. A confirmed attempt wins, so the message is
@@ -80,7 +80,7 @@ The outcomes mean:
 - `confirmed`: the broker accepted at least one attempt;
 - `unconfirmed`: the latest attempt's outcome is unknown.
 
-## Options
+## status options
 
 ### --status STATUS
 
@@ -91,7 +91,7 @@ under `--status failed` just because its original publish failed.
 
 `inflight` messages are in flight: paho accepted the publish, but no confirmation has arrived
 yet. They become `confirmed` when paho reports the publish, or `unconfirmed` when the tracker stops
-waiting: a disconnect, a shutdown, a reused message id, or the startup sweep.
+waiting: a disconnect, a shutdown, a reused packet id, or the startup sweep.
 `confirmed` messages are success history and can be numerous; `--status confirmed` shows them.
 
 ### --message ID
@@ -111,7 +111,7 @@ Only show messages whose topic matches the glob, for example `weather/outTemp_*`
 The maximum number of messages to show.
 Default is `100`; `0` shows every message.
 
-## The same information in SQL
+## Querying with SQL
 
 These queries show the underlying rows. They are useful when the tool is not installed, or for a
 monitor that queries the database directly.

@@ -21,7 +21,8 @@ Default is `true`.
 ### data_binding
 
 The WeeWX data binding that identifies the separate database to write to.
-The install adds a `message_tracker_binding`; see [Enabling it](../index.md#enabling-it).
+The install adds a `message_tracker_binding`; see
+[Enabling the plugin](../index.md#enabling-the-plugin).
 Required; there is no default, so the tracker never writes to the weather database by accident.
 
 ### create_database
@@ -67,34 +68,33 @@ Default is `3600`.
 Set to `0` to disable automatic pruning; the startup sweep still runs.
 
 A prune deletes confirmed messages older than `confirmed_retention`, and unresolved messages older
-than `error_retention`. Each message is deleted with its whole chain. No pruning happens while
+than `error_retention`. Each message is deleted with its whole history. No pruning happens while
 every retention is `0`. See [Pruning](../prune/index.md) for the policy.
 
 ### Advanced options
 
-These control the tracker's writer thread. The defaults are suitable for normal use.
-See [Internals](../internals/index.md) for the implementation details.
+These control how the tracker buffers and writes publishes. The defaults are suitable for normal
+use. See [Internals](../internals/index.md) for the implementation details.
 
 #### queue_size
 
-The maximum number of events to queue before they are dropped.
-The queue is drained by a background thread.
+The maximum number of publishes to hold before they are dropped.
 Default is `10000`.
 
 #### batch_size
 
-The maximum number of events written in one transaction.
+The maximum number of publishes written at a time.
 Default is `100`.
 
 #### pending_ttl
 
-How long, in seconds, to keep an arrival that arrived before its send event.
-This can happen because the MQTT callback and the publishing code run on different threads.
+How long, in seconds, to keep a report that arrives before the publish it belongs to.
+This can happen because the report can arrive before the tracker has written the publish.
 Default is `60`.
 
 #### shutdown_timeout
 
-How long, in seconds, to wait for the tracker thread to write its queue and stop.
+How long, in seconds, to wait for the tracker to finish writing and stop.
 Default is `10`.
 
 ### topics

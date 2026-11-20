@@ -7,11 +7,11 @@ nav_order: 3
 {% include messagetracker_warning.html %}
 
 The tracker deletes old messages so that its database does not grow without bound. A message is
-the original publish and every republish of it; the record that decides its status also decides when
-it is pruned. Two retention options bound the two kinds of message, and a third decides how often
+the original publish and every republish of it; its outcome decides its status and when it is
+pruned. Two retention options bound the two kinds of message, and a third decides how often
 the tracker checks. You can also delete messages yourself with `mqtttracker prune`.
 
-## Retention options
+## Configuring retention
 
 `confirmed_retention` and `error_retention` group messages by their outcome:
 
@@ -68,7 +68,7 @@ also uses the plugin-level value, so its messages still age out.
 
 ### prune_interval
 
-How often, in seconds, the tracker's writer thread checks for messages to delete.
+How often, in seconds, the tracker checks for messages to delete.
 Default is `3600` (hourly).
 Set to `0` to disable automatic pruning; the startup sweep still runs.
 
@@ -76,17 +76,17 @@ This is the schedule, not the age. A prune deletes confirmed messages older than
 `confirmed_retention`, and unresolved messages older than `error_retention`. No pruning
 happens while every retention is `0`.
 
-## How a prune runs
+## Understanding automatic pruning
 
-The writer thread checks for old messages after it processes queued events, and when the queue has
-been idle for `prune_interval`. So retention is a minimum age: a message is deleted at the first
-check after its outcome becomes old enough, which can be up to one interval later. With
+The tracker checks for old messages after each write, and after `prune_interval` with nothing to
+write. So retention is a minimum age: a message is deleted at the first check after its outcome
+becomes old enough, which can be up to one interval later. With
 `prune_interval = 0`, nothing is deleted automatically until you run the tool.
 
 The startup sweep is separate from pruning. It runs when the tracker starts and marks leftover
 `inflight` messages as `unconfirmed`; it does not delete anything.
 
-## Pruning with mqtttracker prune
+## Using mqtttracker prune
 
 To remove messages sooner than their retention allows, or when `error_retention` is `0`, run
 `bin/user/mqtttracker.py prune`. `mqtttracker` is one tool with `republish`, `prune` and `status`
@@ -213,7 +213,7 @@ Override the tracker's `table` option.
 
 Print the tool's version and exit.
 
-## Scheduling
+## Scheduling a prune
 
 `confirmed_retention` and `error_retention` prune messages automatically at the `prune_interval`
 cadence. Use the tool on a timer when you want a different age or cadence, or want to prune only

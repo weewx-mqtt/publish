@@ -10,7 +10,7 @@ A message that paho refused, or whose outcome was never confirmed, can be publis
 The tracker can do it automatically after a connection, or you can run `mqtttracker republish`
 yourself.
 
-## What gets republished
+## Selecting messages to republish
 
 A message that was not confirmed can be republished. A message is confirmed when the broker
 accepted one of its attempts (see [Status](../status/index.md)); a confirmed message is not
@@ -37,7 +37,7 @@ So by default:
 
 The last confirmed message is per topic: a publish on one topic says nothing about another.
 
-## Automatic republishing
+## Configuring automatic republishing
 
 Automatic republishing is configured in the `[[republish]]` section. It has two triggers, and both
 default to `false`, so the section does nothing until one of them is `true`.
@@ -84,21 +84,21 @@ more important than the newer value.
 The full option and default reference is in
 [Configuration](../configuration/republish/index.md).
 
-## What republishing does
+## Republishing a message
 
 The tracker republishes through its existing MQTT connection. It publishes each message and records
-a new attempt; a later `on_publish` marks it `confirmed`. A message that was in flight when the
-connection was lost is marked `unconfirmed`, so it is part of the next republish.
+a new attempt; when paho reports the publish, it is marked `confirmed`. A message that was in
+flight when the connection was lost is marked `unconfirmed`, so it is part of the next republish.
 
 Automatic republishing is best-effort. A live publish that races the republish can still land after
 an older republished value; consumers are assumed to be idempotent on `dateTime`.
-See [QoS and duplicate delivery](../index.md#qos-and-duplicate-delivery).
+See [Understanding duplicate delivery](../index.md#understanding-duplicate-delivery).
 
-## Republishing with mqtttracker republish
+## Using mqtttracker republish
 
 `failed` and `unconfirmed` messages can also be republished with `bin/user/mqtttracker.py republish`.
-It reads the tracker table and publishes through its own MQTT client; MQTTPublish is not
-involved and does not record it as a new publish.
+It reads the tracker database and publishes without MQTTPublish, which does not record the
+republish as a new publish.
 
 `mqtttracker` is one tool with three subcommands: `republish`, `prune` and `status`. The config
 file is a global `--config` option, so it comes before the subcommand.

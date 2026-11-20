@@ -99,10 +99,12 @@ receives it on subscribe, even if this subscriber never did.
 ## What this means for the tracker
 
 A `confirmed` message records the broker's acceptance of the publish, not delivery to a subscriber.
-The tracker therefore provides at-least-once delivery end to end, and consumers must be idempotent,
-for example by deduplicating on `dateTime`.
+At-least-once applies to the publisher leg, not to the subscriber: a tracked message that is not
+confirmed can be published again, so the broker may accept it more than once. It does not promise
+that a subscriber receives it. Consumers must be idempotent, for example by deduplicating on
+`dateTime`.
 
 Republishing is a new publish with a new packet id, so even QoS 2 topics can deliver the same
 application message more than once. See
-[QoS and duplicate delivery](../index.md#qos-and-duplicate-delivery) for what that means when
-republishing.
+[QoS and duplicate delivery](../index.md#understanding-duplicate-delivery) for what that means
+when republishing.
