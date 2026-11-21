@@ -38,8 +38,8 @@ discovery, aggregate values, archive values). Requires WeeWX 5.x and paho-mqtt 1
 
 ## Environment
 
-Tests need WeeWX importable. CI pip-installs it; locally `.devenv`/`.env` point at a sibling
-weewx checkout (`../weewx`). Run everything from the repo root:
+Tests need WeeWX importable. CI pip-installs it; the shared `tools/devenv.sh` points `WEEWX_PYTHONPATH`
+at a sibling weewx checkout (`../weewx`) until WeeWX is installed. Run everything from the repo root:
 
 ```bash
 source .devenv
@@ -48,6 +48,9 @@ export PYTHONPATH="$WEEWX_PYTHONPATH"   # == bin, or bin:../weewx/src
 
 Without `PYTHONPATH=bin` you get `ModuleNotFoundError: No module named 'user'`.
 If `../weewx` is absent, `pip install weewx` and use `PYTHONPATH=bin` instead.
+
+The development shell runs the oldest supported Python, from `supported-pythons` via the shared
+`devenv.sh`, so a newer language feature fails locally rather than in the oldest CI cell.
 
 Optional shortcuts (require `.devenv` sourced): scripts in
 `~/weewx_code/weewx-extensions/development-tools/tools/` — `verify.sh` is the full
@@ -204,7 +207,7 @@ See `docs/plugin-development/` for parameter meanings.
   `run-analyze-test-matrix.yml` (master pushes) both delegate to reusable workflows in
   `weewx-extensions/development-tools@v6`. The `module-name: 'mqttpublish'` input selects the
   module under test.
-- The master matrix covers Python 3.9.13–3.15 and WeeWX 5.0.0 / 5.5.2 / branch-master /
+- The master matrix covers Python 3.9.13–3.15.2 and WeeWX 5.0.0 / 5.5.2 / branch-master /
   branch-development — so code must stay compatible with Python 3.9 syntax.
 - **CI lint covers every module and the tests, and fails the build**: the workflows pass
   `lint-paths` with all module paths (including `mqttmessagetracker.py` and `mqtttracker.py`),
