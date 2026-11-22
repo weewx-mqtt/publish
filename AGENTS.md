@@ -197,7 +197,7 @@ See `docs/plugin-development/` for parameter meanings.
   and the reference in `docs/common-options/index.md`. Deprecated options get an error/log
   message in `mqttpublish.py` and a page under `docs/deprecated-options/`.
 - **VERSION is duplicated** in `install.py` and `bin/user/mqttpublish.py`; bump both.
-- `changes.txt` is the changelog.
+- `CHANGELOG.md` is the changelog.
 - Releases are tagged by `.github/workflows/versioning.yml` (Actions-Us/actions-tagger) on
   GitHub release publish.
 
