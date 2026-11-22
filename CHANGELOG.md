@@ -1,15 +1,19 @@
-2.0.0 (draft)
-Fixes
-  - Fixes to multiprocessing implementation
-    - 'multiprocess' works on macOS. The worker is forked there instead of spawned, and a queue
-      size that the platform cannot report is logged as 'unknown'.
-    - Random locks/ stalls when reading from the multiprocessing data queue (#39).
-    - Do not hang WeeWX on exit when the multiprocessing publishing worker does not stop.
-    - Report a multiprocessing publishing worker that exits, with its exit code, instead of
-      silently feeding records to a worker that is not picklable.
-    - Use the fork start method explicitly for the publishing sub-process.
-      Python 3.14 makes 'forkserver' the default on Linux, which pickles the process object and
-     fails because the worker is handed objects that are not picklable.
+# Changelog
+
+## [2.0.0] - Draft
+
+### Fixed
+
+- Fixes to multiprocessing implementation
+  - 'multiprocess' works on macOS. The worker is forked there instead of spawned, and a queue
+    size that the platform cannot report is logged as 'unknown'.
+  - Random locks/ stalls when reading from the multiprocessing data queue (#39).
+  - Do not hang WeeWX on exit when the multiprocessing publishing worker does not stop.
+  - Report a multiprocessing publishing worker that exits, with its exit code, instead of
+    silently feeding records to a worker that is not picklable.
+  - Use the fork start method explicitly for the publishing sub-process.
+    Python 3.14 makes 'forkserver' the default on Linux, which pickles the process object and
+   fails because the worker is handed objects that are not picklable.
   - Stop the publishing sub-process stalling when WeeWX logs from inside it.
   - Ensure the queue 'loop' method is called even when no data is waiting, by giving the
     data queue get() a configurable timeout.
@@ -21,9 +25,11 @@ Fixes
     instead of raising a KeyError.
   - MQTTConfigHA now ensures published values use WeeWX units.
 
-Enhancements:
-  - Added a wait_for_inflight option, so shutdown can wait for paho to confirm in-flight messages.
-  - Improved shutdown logic flow, with timeouts when stopping threads/processes.
+### Enhancements
+
+- Added a wait_for_inflight option, so shutdown can wait for paho to confirm in-flight messages.
+- Improved shutdown logic flow, with timeouts when stopping threads/processes.
+
   - Improved logging
     - Connection lifecycle messages use the shared wording: 'Connecting to host:port.',
       'Connected with result code ..., ...', 'Subscribing to topic, mid ..., result code ...',
@@ -62,6 +68,7 @@ Enhancements:
     - The data queue size is passed into plugin callbacks.
 
 Notes:
+
 The following are deprecated and no longer used.
 - [PublishWeeWX] was replaced by [MQTTPublish] (prior to V1).
 - [MQTTPublish] / [[lwt]] has changed to [MQTTPublish] / [[availability_topic]].
@@ -74,31 +81,38 @@ The following are deprecated and no longer used.
 
 Alpha release support for MessageTracker plugin, see https://weewx-mqtt.github.io/publish/plugins/messagetracker/
 
-1.3.0
-Fixes
-  - MQTTConfigHA no longer 'advertises' an availability topic when MQTTPublish is not publishing to it.
+## [1.3.0]
 
-Enhancements:
-  - Support additional data types when publishing ‘individual' topics.
-  - Empty the data queue as part of shutting down. This speeds up shut down when the queue has grown.
-  - Limit the publishing of redundant/duplicate data (#27).
-  - Move plugin config to top level (#32).
-  - Ability to configure a default value for all components belonging to a device (#33).
-  - Renamed the [[lwt]] section of MQTTPublish to [[availability_topic]]
-  - Options to monitor queue processing, see https://weewx-mqtt.github.io/publish/common-options/#monitor_queue
+### Fixed
+
+- MQTTConfigHA no longer 'advertises' an availability topic when MQTTPublish is not publishing to it.
+
+### Enhancements
+
+- Support additional data types when publishing 'individual' topics.
+- Empty the data queue as part of shutting down. This speeds up shut down when the queue has grown.
+- Limit the publishing of redundant/duplicate data (#27).
+- Move plugin config to top level (#32).
+- Ability to configure a default value for all components belonging to a device (#33).
+- Renamed the [[lwt]] section of MQTTPublish to [[availability_topic]]
+- Options to monitor queue processing, see https://weewx-mqtt.github.io/publish/common-options/#monitor_queue
 
   For help migrating from 1.2.0 and prior see, https://weewx-mqtt.github.io/publish/upgradeguides/from120/
 
 Alpha release support for ArchiveValues plugin, see https://weewx-mqtt.github.io/publish/plugins/archivevalues/
 Alpha release support for running the publishing code in a separate process, see https://weewx-mqtt.github.io/publish/common-options/#multiprocess
 
-1.2.0
-  Enhancements
-  - Added `publish_fields` option.
-  - Added more 'examples' to the configuration section that is 'installed' into weewx.conf.
+## [1.2.0]
 
-1.1.0
-Fixes
+### Enhancements
+
+- Added `publish_fields` option.
+- Added more 'examples' to the configuration section that is 'installed' into weewx.conf.
+
+## [1.1.0]
+
+### Fixes
+
 - Correct handling of conversion_type and format_string options.
   Note: Now the default conversion_type is 'None', meaning no conversion is performed.
 - Better handling of tls related default values.
@@ -110,7 +124,8 @@ Fixes
 - Allow shutdown when attempting to (re)connect (#14)
 - Perform MQTT disconnect on shut down and send 'offline' message.
 
-Enhancements
+### Enhancements
+
 - Use the week_start configuration option of the the `[station]` when calculating week aggregates.
 - Improvements when running in 'standalone mode'.
 - Ability to configure how long to wait between connection attemps (#14)
