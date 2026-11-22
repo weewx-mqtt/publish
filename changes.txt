@@ -56,14 +56,17 @@ Alpha release support for running the publishing code in a separate process, see
 
 2.0.0 (draft)
 Fixes
-  - Fix random locks/ stalls when reading from the multiprocessing data queue (#39).
-  - Do not hang WeeWX on exit when the multiprocessing publishing worker does not stop.
-  - Report a multiprocessing publishing worker that exits, with its exit code, instead of
-    silently feeding records to a worker that is no longer there.
+  - Fixes to multiprocessing implementation
+    - 'multiprocess' works on macOS. The worker is forked there instead of spawned, and a queue
+      size that the platform cannot report is logged as 'unknown'.
+    - Random locks/ stalls when reading from the multiprocessing data queue (#39).
+    - Do not hang WeeWX on exit when the multiprocessing publishing worker does not stop.
+    - Report a multiprocessing publishing worker that exits, with its exit code, instead of
+      silently feeding records to a worker that is no longer there.
+    - Use the fork start method explicitly for the publishing sub-process.
+      Python 3.14 makes 'forkserver' the default on Linux, which pickles the process object and
+     fails because the worker is handed objects that are not picklable.
   - Stop the publishing sub-process stalling when WeeWX logs from inside it.
-  - Use the fork start method explicitly for the publishing sub-process.
-    Python 3.14 makes 'forkserver' the default on Linux, which pickles the process object and
-    fails because the worker is handed objects that are not picklable.
   - Ensure the queue 'loop' method is called even when no data is waiting, by giving the
     data queue get() a configurable timeout.
   - Check the return code in the on_connect callback so failed connections are handled.
@@ -72,98 +75,48 @@ Fixes
   - TLS 1.2 works on builds that no longer provide the legacy 'PROTOCOL_TLSv1_2' constant,
     such as one built against OpenSSL 4. An unavailable 'tls_version' is now reported as invalid
     instead of raising a KeyError.
-  - 'multiprocess' works on macOS. The worker is forked there instead of spawned, and a queue
-    size that the platform cannot report is logged as 'unknown'.
   - MQTTConfigHA now ensures published values use WeeWX units.
 
 Enhancements:
-  - Document that MQTTMessageTracker is alpha code.
-  - Connection lifecycle messages use the shared wording: 'Connecting to host:port.',
-    'Connected with result code ..., ...', 'Connection flags: ...', and
-    'Subscribing to topic, mid ..., result code ...'.
-  - Error and validation messages use the shared wording: 'Unable to ...: ...',
-    'Invalid <thing>, <value>.', and one trailing period.
-  - Deprecation messages use the shared wording ('<option> is deprecated, use <replacement>.',
-    '<option> is deprecated, it is no longer used.'), with one trailing period and correct
-    spacing.
-  - Log messages use consistent terminology and spelling ('qos', 'database'), and the publish
-    timing line no longer contains a double space.
-  - Log the startup environment (version, WeeWX version, Python, platform, locale, paho.mqtt,
-    logging settings, and record augmentation/generation) through the shared 'log_environment'
-    block, using the 'Label: value.' format.
-  - Configuration diagnostics use the 'Label: value.' format with one trailing period:
-    'Sanitized configuration (removed: password): ...', 'Plugins: [...]', 'Loop topics: ...',
-    and 'Archive topics: ...'. The mqtt configuration is logged the same way, and the topics are
-    now logged once instead of twice.
-  - The Logger now owns the log queue and the logging thread. Shutting down flushes queued log
-    messages, is safe to call more than once, and no longer stalls process exit if it was skipped.
-  - Fail loudly at import when an older 'user.mqttcommon' copy is loaded (an install-order
-    overwrite by another weewx-mqtt extension).
-  - Log line prefixes use the format converged across the weewx-mqtt extensions, defined by the
-    shared 'user.mqttcommon': (component-thread_id-archive_timestamp).
-  - Added an on_publish plugin callback, and the monitor_on_publish option to monitor its execution time.
-  - Added a mqtt_publish plugin callback. The immediate timing runs before the message is published,
-    the delay timing runs after and provides the message id.
-  - Plugins can optionally implement a shutdown method, called when the publishing thread stops.
   - Added a wait_for_inflight option, so shutdown can wait for paho to confirm in-flight messages.
-  - Added MQTTMessageTracker, a plugin that records published MQTT messages in a WeeWX database.
-    Each row records its status (failed, inflight, confirmed, or unconfirmed) and, when the arrival was
-    never reported, the time the tracker stopped waiting for it.
-    The install adds a message_tracker_binding and message_tracker database for it.
-    The topics to track are configured in a [[topics]] section, with optional per-topic
-    confirmed_retention and error_retention.
-    A topic published with qos 0 is rejected with an error, because the broker's acceptance cannot be confirmed.
-    A previous run's leftover 'inflight' rows are marked unconfirmed at startup.
-    Rows that were in flight when the connection was lost are marked unconfirmed at the disconnect.
-    Failed publishes are logged at INFO and failed republishes at ERROR, both with the row id they
-    were stored under.
-    A completed republish is logged once, with the new row ids and the failure count.
-    Rows that change to unconfirmed are logged at ERROR with the row id and the reason.
-    A message is one logical publish; the tracker stores its original row and one row per republish attempt.
-    The outcome row (the latest confirmed attempt, or the latest attempt when nothing was
-    confirmed) decides its status and its retention.
-    Confirmed messages are pruned by confirmed_retention. Unresolved messages are pruned by
-    error_retention, which defaults to 0 so they can still be republished. A message is deleted as one
-    whole chain, so a failed original ages out with the republish that confirmed it.
-    The optional [[republish]] section republishes the unresolved messages after the last confirmed
-    publish on each topic. on_startup and on_reconnect select the trigger and both default to
-    false. The log says which trigger fired, or that there was nothing to republish.
-    include_before_last_success republishes them even when they are older than that publish.
-  - Added an on_disconnect plugin callback, and the monitor_on_disconnect option to monitor
-    its execution time.
-  - Added the mqtttracker tool, with republish, prune and status subcommands. republish publishes the
-    tracked messages that are unresolved; by default it recovers every unresolved message after the
-    last confirmed message on its topic, matching automatic republishing. --newest republishes only
-    the newest unresolved message per topic, and --all includes messages older than the last
-    confirmed message. A republish adds a new attempt and leaves the original unchanged, and a dry
-    run is the default. prune deletes
-    confirmed messages older than confirmed_retention by default,
-    and deletes each message's whole chain with it; --status failed,unconfirmed prunes unresolved
-    messages using error_retention, and --older-than overrides the configured age. When --limit
-    truncates the selection, prune reports how many of the matching messages it selected, and the
-    plan reports how many rows those messages contain. status shows one row per message and
-    filters on the outcome status, so a message that was confirmed by a republish is not reported as
-    failed; CURRENT STATUS is failed, inflight, confirmed, or unconfirmed. --message accepts the
-    id=<hex> label the plan prints, or the bare id.
-    On a package install the tool finds WeeWX by itself, so it runs by path without PYTHONPATH.
-  - Document that at-least-once applies to the publisher leg, not to the subscriber: a republish is
-    a new publish, so it can duplicate a message even on a qos 2 topic.
   - Improved shutdown logic flow, with timeouts when stopping threads/processes.
-  - Consistent shutdown log messages: the same wording for a component starting and finishing its
-    shutdown, the drain count, and the timeout named when a component does not stop. A publishing
-    worker that has to be terminated or killed is reported, and shutdown failures are logged
-    directly so a stuck logger thread cannot swallow them.
-  - A plugin can be loaded multiple times with different configurations.
-  - The data queue size is passed into plugin callbacks.
-  - MQTT reconnects are handled by the paho mqtt network loop, which keeps reconnecting until
-    the broker is available again. The reconnect backoff is configured with min_delay and max_delay.
-    The initial connection uses the same loop, so a broker that is down at startup is retried in
-    place instead of consuming the publishing thread's restart budget.
-  - A publish that paho refuses, such as when the broker is down, is logged as an error and is not published.
-  - Align the logging call style with the subscribe extension. Logger.trace/debug/info/error take a
-    message id (publish has no message ids, so all current messages pass None), and every log queue
-    entry is built by Logger.create_entry, which adds msg_id and the emitting thread's thread_id.
-    Log output is unchanged.
+
+  - Improved logging
+    - Connection lifecycle messages use the shared wording: 'Connecting to host:port.',
+      'Connected with result code ..., ...', 'Connection flags: ...', and
+      'Subscribing to topic, mid ..., result code ...'.
+    - Error and validation messages use the shared wording: 'Unable to ...: ...',
+      'Invalid <thing>, <value>.', and one trailing period.
+    - Deprecation messages use the shared wording ('<option> is deprecated, use <replacement>.',
+      '<option> is deprecated, it is no longer used.'), with one trailing period and correct
+      spacing.
+    - Log messages use consistent terminology and spelling ('qos', 'database'), and the publish
+      timing line no longer contains a double space.
+    - Log the startup environment (version, WeeWX version, Python, platform, locale, paho.mqtt,
+      logging settings, and record augmentation/generation) through the shared 'log_environment'
+      block, using the 'Label: value.' format.
+    - Configuration diagnostics use the 'Label: value.' format with one trailing period:
+      'Sanitized configuration (removed: password): ...', 'Plugins: [...]', 'Loop topics: ...',
+      and 'Archive topics: ...'. The mqtt configuration is logged the same way, and the topics are
+      now logged once instead of twice.
+    - The Logger now owns the log queue and the logging thread. Shutting down flushes queued log
+      messages, is safe to call more than once, and no longer stalls process exit if it was skipped.
+    - Log line prefixes use the format converged across the weewx-mqtt extensions, defined by the
+      shared 'user.mqttcommon': (component-thread_id-archive_timestamp).
+    - Consistent shutdown log messages
+    - Align the logging call style with the subscribe extension. Logger.trace/debug/info/error take a
+      message id (publish has no message ids, so all current messages pass None), and every log queue
+      entry is built by Logger.create_entry, which adds msg_id and the emitting thread's thread_id.
+      Log output is unchanged.
+  - Plugin improvements
+    - Added an on_publish plugin callback, and the monitor_on_publish option to monitor its execution time.
+    - Added a mqtt_publish plugin callback. The immediate timing runs before the message is published,
+      the delay timing runs after and provides the message id.
+    - Plugins can optionally implement a shutdown method, called when the publishing thread stops.
+    - Added an on_disconnect plugin callback, and the monitor_on_disconnect option to monitor
+      its execution time.
+    - A plugin can be loaded multiple times with different configurations.
+    - The data queue size is passed into plugin callbacks.
 
 Notes:
 The following are deprecated and no longer used.
