@@ -308,8 +308,11 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
             (f"At {int(time.time())} publishing: {int(time_stamp)}"
              f" {mqtt_message_info.mid} {qos} {topic} took {time.time() - start_time}")))
 
-        # Nothing to retry; paho has already dropped the message.
-        if mqtt_message_info.rc != mqtt.MQTT_ERR_SUCCESS:
+        # A publish while disconnected is not a failure in its own right: at QoS 0 paho
+        # drops the message, which is what at-most-once permits, and at QoS > 0 it queues
+        # the message for the network loop to send after reconnecting. Any other reason
+        # paho refused the publish is one it cannot recover from.
+        if mqtt_message_info.rc not in (mqtt.MQTT_ERR_SUCCESS, mqtt.MQTT_ERR_NO_CONN):
             self.logger_queue.put(mqttcommon.Logger.create_entry(
                 self.name, 'ERROR', None,
                 (f"The publish of {topic} failed: "
