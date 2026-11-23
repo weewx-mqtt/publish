@@ -301,7 +301,7 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
         callback_args[1] = mqtt_message_info.mid
         callback_args[2] = int(mqtt_message_info.rc)
         self._run_mqtt_publish_callbacks(callback_args, 'delay')
-        self.track_inflight(mqtt_message_info)
+        self.track_inflight(mqtt_message_info, qos)
 
         self.logger_queue.put(mqttcommon.Logger.create_entry(
             self.name, 'DEBUG', None,
@@ -328,9 +328,14 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
         for plugin_name in self.plugin_manager.callbacks['mqtt_publish'][timing]:
             self.plugin_manager.callbacks['mqtt_publish'][timing][plugin_name](*callback_args)
 
-    def track_inflight(self, mqtt_message_info):
-        """ Remember a publish so shutdown can wait for paho to confirm it. """
-        if mqtt_message_info.rc != mqtt.MQTT_ERR_SUCCESS:
+    def track_inflight(self, mqtt_message_info, qos):
+        """ Remember a publish so shutdown can wait for paho to confirm it.
+
+            A QoS > 0 message paho refused while disconnected is queued rather
+            than dropped, and the network loop sends it after reconnecting, so
+            it waits like a publish paho accepted. """
+        if mqtt_message_info.rc != mqtt.MQTT_ERR_SUCCESS and not (
+                mqtt_message_info.rc == mqtt.MQTT_ERR_NO_CONN and qos > 0):
             return
         self._prune_inflight()
         self.inflight[mqtt_message_info.mid] = mqtt_message_info
@@ -442,20 +447,22 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
     def _publish_lwt_online(self):
         """ Publish the LWT 'online' message, when lwt is configured. """
         if self.lwt_dict is not None and to_bool(self.lwt_dict.get('enable', True)):
+            qos = to_int(self.lwt_dict.get('qos', 0))
             mqtt_message_info = self.client.publish(topic=self.lwt_dict.get('topic', 'status'),
                                                     payload=self.lwt_dict.get('online_payload', 'online'),
-                                                    qos=to_int(self.lwt_dict.get('qos', 0)),
+                                                    qos=qos,
                                                     retain=to_bool(self.lwt_dict.get('retain', True)))
-            self.track_inflight(mqtt_message_info)
+            self.track_inflight(mqtt_message_info, qos)
 
     def publish_lwt_offline(self):
         """ Publish the LWT 'offline' message, when lwt is configured. """
         if self.lwt_dict is not None and to_bool(self.lwt_dict.get('enable', True)):
+            qos = to_int(self.lwt_dict.get('qos', 0))
             mqtt_message_info = self.client.publish(topic=self.lwt_dict.get('topic', 'status'),
                                                     payload=self.lwt_dict.get('offline_payload', 'offline'),
-                                                    qos=to_int(self.lwt_dict.get('qos', 0)),
+                                                    qos=qos,
                                                     retain=to_bool(self.lwt_dict.get('retain', True)))
-            self.track_inflight(mqtt_message_info)
+            self.track_inflight(mqtt_message_info, qos)
 
     def _run_connect_callbacks(self, callback_args, timing):
         """ Run the on_mqtt_connect plugin callbacks for one timing group. """

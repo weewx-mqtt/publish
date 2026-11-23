@@ -1102,7 +1102,7 @@ class PublisherBase(unittest.TestCase):
                             mock_loop.assert_not_called()
 
     def _publish_while_not_connected(self, qos, rc):
-        """ Publish one message as paho refusing it with rc, returning the topic and log entries. """
+        """ Publish one message as paho refusing it with rc, returning the topic, log entries and publisher. """
         mock_logger_queue = mock.Mock()
         mock_publisher = mock.Mock()
 
@@ -1145,28 +1145,31 @@ class PublisherBase(unittest.TestCase):
                         data = helpers.random_string()
                         SUT.publish_message(time_stamp, qos, retain, topic, data)
 
-                        return topic, [call[0][0] for call in mock_logger_queue.put.call_args_list]
+                        return topic, [call[0][0] for call in mock_logger_queue.put.call_args_list], SUT
 
     def test_publish_when_not_connected_at_qos_0(self):
         # At QoS 0 paho drops the message while disconnected, which is what at-most-once permits.
-        topic, log_messages = self._publish_while_not_connected(0, paho.mqtt.client.MQTT_ERR_NO_CONN)
+        topic, log_messages, SUT = self._publish_while_not_connected(0, paho.mqtt.client.MQTT_ERR_NO_CONN)
 
         self.assertFalse(any(entry['log_type'] == 'ERROR' and topic in entry['msg_text']
                              for entry in log_messages))
+        self.assertEqual(SUT.inflight, {})
 
     def test_publish_when_not_connected_above_qos_0(self):
         # Paho queues a QoS > 0 message and sends it after reconnecting, so nothing was lost.
-        topic, log_messages = self._publish_while_not_connected(random.randint(1, 10), paho.mqtt.client.MQTT_ERR_NO_CONN)
+        topic, log_messages, SUT = self._publish_while_not_connected(random.randint(1, 10), paho.mqtt.client.MQTT_ERR_NO_CONN)
 
         self.assertFalse(any(entry['log_type'] == 'ERROR' and topic in entry['msg_text']
                              for entry in log_messages))
+        self.assertEqual(len(SUT.inflight), 1)
 
     def test_publish_when_not_accepted(self):
-        # A publish paho refuses for any reason other than the connection must be logged, not raised.
-        topic, log_messages = self._publish_while_not_connected(random.randint(0, 10), paho.mqtt.client.MQTT_ERR_QUEUE_SIZE)
+        # A publish paho refuses for any reason other than the connection is logged, not raised.
+        topic, log_messages, SUT = self._publish_while_not_connected(random.randint(0, 10), paho.mqtt.client.MQTT_ERR_QUEUE_SIZE)
 
         self.assertTrue(any(entry['log_type'] == 'ERROR' and topic in entry['msg_text']
                             for entry in log_messages))
+        self.assertEqual(SUT.inflight, {})
 
     def test_publish_message_callbacks(self):
         mock_logger_queue = mock.Mock()
