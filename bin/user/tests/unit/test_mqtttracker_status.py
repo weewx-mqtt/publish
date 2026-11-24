@@ -12,88 +12,36 @@ import os
 import tempfile
 import unittest
 
-import configobj
 import mock
-import weedb
 
 import helpers
 
 import user.mqttmessagetracker
 import user.mqtttracker
+from user.tests.unit.tracker_helpers import (TrackerDatabaseTestCase, make_tracker_config,
+                                             make_tracker_row, run_tracker_tool)
 
 TABLE = 'mqtt_message_tracker'
 STATUS = user.mqttmessagetracker
 
-
 def make_row(**overrides):
-    """ A row as the status command sees it. """
-    row = {column: None for column in user.mqttmessagetracker.MESSAGE_COLUMNS}
-    row.update({
-        'id': helpers.random_string(),
-        'mid': 1,
-        'dateTime': 1700000000,
-        'published_ts': 1000.0,
-        'status': STATUS.STATUS_FAILED,
-        'topic': 'weather/outTemp_F',
-        'qos': 0,
-        'retain': 0,
-        'payload': '72.5',
-        'payload_encoding': 'text',
-    })
-    row.update(overrides)
-    return row
-
+    options = {'status': STATUS.STATUS_FAILED}
+    options.update(overrides)
+    return make_tracker_row(**options)
 
 def tracker_config(temp_dir, database_dict):
-    """ A config with the tracker section, binding and database. """
-    return configobj.ConfigObj({
-        'WEEWX_ROOT': temp_dir,
-        'DataBindings': {'tracker_binding': {'database': 'tracker'}},
-        'Databases': {'tracker': database_dict},
-        'MQTTMessageTracker': {
-            'data_binding': 'tracker_binding',
-            'topics': {'weather/outTemp_F': {}},
-        },
-    })
+    return make_tracker_config(temp_dir, database_dict)
 
-
-class DatabaseTestCase(unittest.TestCase):
+class DatabaseTestCase(TrackerDatabaseTestCase):
+    __test__ = True
     """ A real SQLite tracker database. """
-
-    def setUp(self):
-        self.temp_dir = tempfile.TemporaryDirectory()  # pylint: disable=consider-using-with
-        self.addCleanup(self.temp_dir.cleanup)
-
-        self.database_dict = {
-            'driver': 'weedb.sqlite',
-            'database_name': 'tracker.sdb',
-            'SQLITE_ROOT': self.temp_dir.name,
-        }
-        weedb.create(self.database_dict)
-        self.connection = weedb.connect(self.database_dict)
-        self.addCleanup(self.connection.close)
-        self.connection.execute(user.mqttmessagetracker.CREATE_TABLE.format(table=TABLE))
-
-        self.out = io.StringIO()
-        self.err = io.StringIO()
-
-    def insert(self, row):
-        with weedb.Transaction(self.connection) as cursor:
-            cursor.execute(
-                f"INSERT INTO {TABLE} ({', '.join(user.mqttmessagetracker.MESSAGE_COLUMNS)}) "
-                f"VALUES ({', '.join('?' for _ in user.mqttmessagetracker.MESSAGE_COLUMNS)})",
-                tuple(row[column] for column in user.mqttmessagetracker.MESSAGE_COLUMNS))
-        return row['id']
 
     def run_tool(self, *args):
         config_file = os.path.join(self.temp_dir.name, 'weewx.conf')
         config = tracker_config(self.temp_dir.name, self.database_dict)
         config.filename = config_file
         config.write()
-        options = user.mqtttracker.build_parser().parse_args(
-            ['--config', config_file, 'status', *args])
-        return user.mqtttracker.run(options, out=self.out, err=self.err)
-
+        return run_tracker_tool(self, 'status', config_file, *args)
 
 class TestStatus(DatabaseTestCase):
     def test_summary_shows_the_unresolved_outcome(self):
@@ -271,7 +219,6 @@ class TestStatus(DatabaseTestCase):
         self.assertEqual(user.mqtttracker.run(options, out=self.out, err=self.err), 2)
         self.assertIn('Unable to read the config file', self.err.getvalue())
 
-
 class TestBuildParser(unittest.TestCase):
     def test_defaults(self):
         options = user.mqtttracker.build_parser().parse_args(
@@ -283,7 +230,6 @@ class TestBuildParser(unittest.TestCase):
         self.assertEqual(options.limit, 100)
         self.assertEqual(options.plugin_section, 'MQTTMessageTracker')
         self.assertEqual(options.command, 'status')
-
 
 class TestBootstrap(unittest.TestCase):
     def test_defaults_bindirs_reads_weewx_bindir(self):
@@ -302,7 +248,6 @@ class TestBootstrap(unittest.TestCase):
             os.makedirs(os.path.join(temp_dir, 'weewx'))
             with mock.patch.dict(os.environ, {'WEEWX_BINDIR': temp_dir}):
                 self.assertEqual(user.mqtttracker._weewx_bindir(), temp_dir)
-
 
 if __name__ == '__main__':
     helpers.run_tests()

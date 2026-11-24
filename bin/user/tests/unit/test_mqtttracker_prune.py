@@ -10,40 +10,25 @@
 import contextlib
 import io
 import os
-import tempfile
 import time
 import unittest
 
-import configobj
 import weedb
 
 import helpers
 
 import user.mqttmessagetracker
 import user.mqtttracker
+from user.tests.unit.tracker_helpers import (TrackerDatabaseTestCase, make_tracker_config,
+                                             make_tracker_row, run_tracker_tool)
 
 TABLE = 'mqtt_message_tracker'
 STATUS = user.mqttmessagetracker
 
-
 def make_row(**overrides):
-    """ A row as the prune tool sees it. """
-    row = {column: None for column in user.mqttmessagetracker.MESSAGE_COLUMNS}
-    row.update({
-        'id': helpers.random_string(),
-        'mid': 1,
-        'dateTime': 1700000000,
-        'published_ts': 1000.0,
-        'status': STATUS.STATUS_UNCONFIRMED,
-        'topic': 'weather/outTemp_F',
-        'qos': 0,
-        'retain': 0,
-        'payload': '72.5',
-        'payload_encoding': 'text',
-    })
-    row.update(overrides)
-    return row
-
+    options = {'status': STATUS.STATUS_UNCONFIRMED}
+    options.update(overrides)
+    return make_tracker_row(**options)
 
 def confirmed_row(**overrides):
     """ A row as the prune tool sees a confirmed message. """
@@ -51,22 +36,12 @@ def confirmed_row(**overrides):
     options.update(overrides)
     return make_row(**options)
 
-
 def tracker_config(temp_dir, database_dict, error_retention=100, confirmed_retention=100,
                    topics=None):
-    """ A config with the tracker section, binding and database. """
-    return configobj.ConfigObj({
-        'WEEWX_ROOT': temp_dir,
-        'DataBindings': {'tracker_binding': {'database': 'tracker'}},
-        'Databases': {'tracker': database_dict},
-        'MQTTMessageTracker': {
-            'data_binding': 'tracker_binding',
-            'error_retention': error_retention,
-            'confirmed_retention': confirmed_retention,
-            'topics': {'weather/outTemp_F': {}} if topics is None else topics,
-        },
-    })
-
+    options = {'error_retention': error_retention, 'confirmed_retention': confirmed_retention}
+    if topics is not None:
+        options['topics'] = topics
+    return make_tracker_config(temp_dir, database_dict, **options)
 
 class TestSelectChains(unittest.TestCase):
     def test_defaults_to_confirmed(self):
@@ -209,47 +184,12 @@ class TestSelectChains(unittest.TestCase):
 
         self.assertEqual(len(selected), 3)
 
-
-class DatabaseTestCase(unittest.TestCase):
+class DatabaseTestCase(TrackerDatabaseTestCase):
+    __test__ = True
     """ A real SQLite tracker database. """
-
-    def setUp(self):
-        self.temp_dir = tempfile.TemporaryDirectory()  # pylint: disable=consider-using-with
-        self.addCleanup(self.temp_dir.cleanup)
-
-        self.database_dict = {
-            'driver': 'weedb.sqlite',
-            'database_name': 'tracker.sdb',
-            'SQLITE_ROOT': self.temp_dir.name,
-        }
-        weedb.create(self.database_dict)
-        self.connection = weedb.connect(self.database_dict)
-        self.addCleanup(self.connection.close)
-        self.connection.execute(user.mqttmessagetracker.CREATE_TABLE.format(table=TABLE))
-
-        self.out = io.StringIO()
-        self.err = io.StringIO()
-
-    def insert(self, row):
-        with weedb.Transaction(self.connection) as cursor:
-            cursor.execute(
-                f"INSERT INTO {TABLE} ({', '.join(user.mqttmessagetracker.MESSAGE_COLUMNS)}) "
-                f"VALUES ({', '.join('?' for _ in user.mqttmessagetracker.MESSAGE_COLUMNS)})",
-                tuple(row[column] for column in user.mqttmessagetracker.MESSAGE_COLUMNS))
-        return row['id']
-
-    def rows(self):
-        cursor = self.connection.cursor()
-        try:
-            cursor.execute(f"SELECT {', '.join(user.mqttmessagetracker.MESSAGE_COLUMNS)} FROM {TABLE} "
-                           "ORDER BY published_ts, id")
-            return [dict(zip(user.mqttmessagetracker.MESSAGE_COLUMNS, row)) for row in cursor]
-        finally:
-            cursor.close()
 
     def options(self, *args):
         return user.mqtttracker.build_parser().parse_args(['--config', 'weewx.conf', 'prune', *args])
-
 
 class TestDeleteChains(DatabaseTestCase):
     def test_deletes_the_selected_messages(self):
@@ -330,7 +270,6 @@ class TestDeleteChains(DatabaseTestCase):
         user.mqtttracker.delete_chains(self.connection, TABLE, selected)
 
         self.assertEqual(self.rows(), [])
-
 
 class TestPrune(DatabaseTestCase):
     def setUp(self):
@@ -457,7 +396,6 @@ class TestPrune(DatabaseTestCase):
 
         self.assertEqual([row['id'] for row in selected], [old['id']])
 
-
 class TestRun(DatabaseTestCase):
     def setUp(self):
         super().setUp()
@@ -467,8 +405,7 @@ class TestRun(DatabaseTestCase):
         config.write()
 
     def run_tool(self, *args):
-        options = user.mqtttracker.build_parser().parse_args(['--config', self.config_file, 'prune', *args])
-        return user.mqtttracker.run(options, out=self.out, err=self.err)
+        return run_tracker_tool(self, 'prune', self.config_file, *args)
 
     def test_dry_run_exits_zero(self):
         self.insert(confirmed_row(published_ts=time.time() - 1000))
@@ -503,7 +440,6 @@ class TestRun(DatabaseTestCase):
         self.assertEqual(self.run_tool(), 2)
         self.assertIn('Unable to use the message tracker table', self.err.getvalue())
 
-
 class TestBuildParser(unittest.TestCase):
     def test_defaults(self):
         options = user.mqtttracker.build_parser().parse_args(['--config', 'weewx.conf', 'prune'])
@@ -526,7 +462,6 @@ class TestBuildParser(unittest.TestCase):
             ['--config', 'weewx.conf', 'prune', '--status', 'confirmed'])
 
         self.assertEqual(options.status, [STATUS.STATUS_CONFIRMED])
-
 
 if __name__ == '__main__':
     helpers.run_tests()

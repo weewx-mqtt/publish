@@ -22,27 +22,16 @@ import weedb
 
 import user.mqttmessagetracker
 import user.mqtttracker
+from user.tests.unit.tracker_helpers import make_tracker_row, run_tracker_tool
 
 TABLE = 'mqtt_message_tracker'
 
 
 def make_row(**overrides):
-    """ A row as the republish tool sees it. """
-    row = {column: None for column in user.mqtttracker.MESSAGE_COLUMNS}
-    row.update({
-        'id': helpers.random_string(),
-        'mid': 1,
-        'dateTime': 1700000000,
-        'published_ts': time.time(),
-        'status': user.mqttmessagetracker.STATUS_UNCONFIRMED,
-        'topic': 'weather/outTemp_F',
-        'qos': 0,
-        'retain': 0,
-        'payload': '72.5',
-        'payload_encoding': 'text',
-    })
-    row.update(overrides)
-    return row
+    options = {'published_ts': time.time(),
+               'status': user.mqttmessagetracker.STATUS_UNCONFIRMED}
+    options.update(overrides)
+    return make_tracker_row(**options)
 
 
 class FakeMessageInfo:
@@ -625,8 +614,7 @@ class TestRun(unittest.TestCase):
         self.err = io.StringIO()
 
     def run_tool(self, *args):
-        options = user.mqtttracker.build_parser().parse_args(['--config', self.config_file, 'republish', *args])
-        return user.mqtttracker.run(options, out=self.out, err=self.err)
+        return run_tracker_tool(self, 'republish', self.config_file, *args)
 
     def add_unconfirmed(self):
         connection = weedb.connect(self.database_dict)
