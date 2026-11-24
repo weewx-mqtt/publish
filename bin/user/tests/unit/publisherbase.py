@@ -8,7 +8,6 @@
 # pylint: disable=invalid-name
 # pylint: disable=too-many-public-methods
 
-import configobj
 import paho.mqtt
 import random
 import ssl
@@ -21,7 +20,7 @@ import mqttstubs
 
 import user.mqttcommon
 import user.mqttpublish
-from user.tests.publish_helpers import create_monitor_config
+from user.tests.publish_helpers import create_monitor_config, create_publisher_config
 
 # The TLS 1.2 default. A build without the legacy constant, as OpenSSL 4 is,
 # reaches it through PROTOCOL_TLS_CLIENT, which means 'TLS 1.2 or newer'.
@@ -42,19 +41,7 @@ class PublisherBase(unittest.TestCase):
         mock_logger_queue = mock.Mock()
         mock_publisher = mock.Mock()
 
-        config_dict = {
-            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
-            'clientid': helpers.random_string(),
-            'log_mqtt': False,
-            'username': None,
-            'password': None,
-            'host': helpers.random_string(),
-            'port': random.randint(1, 65535),
-            'keepalive': random.randint(1, 30),
-            'min_delay': 1,
-            'max_delay': 120,
-        }
-        config = configobj.ConfigObj(config_dict)
+        config = create_publisher_config(self.protocol_string, log_mqtt=False)
 
         monitor_dict = create_monitor_config()
 
@@ -79,19 +66,7 @@ class PublisherBase(unittest.TestCase):
         mock_logger_queue = mock.Mock()
         mock_publisher = mock.Mock()
 
-        config_dict = {
-            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
-            'clientid': helpers.random_string(),
-            'log_mqtt': True,
-            'username': None,
-            'password': None,
-            'host': helpers.random_string(),
-            'port': random.randint(1, 65535),
-            'keepalive': random.randint(1, 30),
-            'min_delay': 1,
-            'max_delay': 120,
-        }
-        config = configobj.ConfigObj(config_dict)
+        config = create_publisher_config(self.protocol_string, log_mqtt=True)
 
         monitor_dict = create_monitor_config()
 
@@ -110,19 +85,7 @@ class PublisherBase(unittest.TestCase):
         mock_logger_queue = mock.Mock()
         mock_publisher = mock.Mock()
 
-        config_dict = {
-            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
-            'clientid': helpers.random_string(),
-            'log_mqtt': True,
-            'username': None,
-            'password': None,
-            'host': helpers.random_string(),
-            'port': random.randint(1, 65535),
-            'keepalive': random.randint(1, 30),
-            'min_delay': 1,
-            'max_delay': 120,
-        }
-        config = configobj.ConfigObj(config_dict)
+        config = create_publisher_config(self.protocol_string, log_mqtt=True)
 
         monitor_dict = create_monitor_config()
 
@@ -160,19 +123,7 @@ class PublisherBase(unittest.TestCase):
         mock_logger_queue = mock.Mock()
         mock_publisher = mock.Mock()
 
-        config_dict = {
-            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
-            'clientid': helpers.random_string(),
-            'log_mqtt': random.choice([True, False]),
-            'username': helpers.random_string(),
-            'password': None,
-            'host': helpers.random_string(),
-            'port': random.randint(1, 65535),
-            'keepalive': random.randint(1, 30),
-            'min_delay': 1,
-            'max_delay': 120,
-        }
-        config = configobj.ConfigObj(config_dict)
+        config = create_publisher_config(self.protocol_string, username=helpers.random_string())
 
         monitor_dict = create_monitor_config()
 
@@ -189,19 +140,7 @@ class PublisherBase(unittest.TestCase):
         mock_logger_queue = mock.Mock()
         mock_publisher = mock.Mock()
 
-        config_dict = {
-            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
-            'clientid': helpers.random_string(),
-            'log_mqtt': random.choice([True, False]),
-            'username': None,
-            'password': helpers.random_string(),
-            'host': helpers.random_string(),
-            'port': random.randint(1, 65535),
-            'keepalive': random.randint(1, 30),
-            'min_delay': 1,
-            'max_delay': 120,
-        }
-        config = configobj.ConfigObj(config_dict)
+        config = create_publisher_config(self.protocol_string, password=helpers.random_string())
 
         monitor_dict = create_monitor_config()
 
@@ -218,19 +157,7 @@ class PublisherBase(unittest.TestCase):
         mock_logger_queue = mock.Mock()
         mock_publisher = mock.Mock()
 
-        config_dict = {
-            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
-            'clientid': helpers.random_string(),
-            'log_mqtt': random.choice([True, False]),
-            'username': helpers.random_string(),
-            'password': helpers.random_string(),
-            'host': helpers.random_string(),
-            'port': random.randint(1, 65535),
-            'keepalive': random.randint(1, 30),
-            'min_delay': 1,
-            'max_delay': 120,
-        }
-        config = configobj.ConfigObj(config_dict)
+        config = create_publisher_config(self.protocol_string, username=helpers.random_string(), password=helpers.random_string())
 
         monitor_dict = create_monitor_config()
 
@@ -241,7 +168,7 @@ class PublisherBase(unittest.TestCase):
 
                         self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
 
-                        mock_username_pw_set.assert_called_once_with(config_dict['username'], config_dict['password'])
+                        mock_username_pw_set.assert_called_once_with(config['username'], config['password'])
 
     def test_connect_connection(self):
         mock_logger_queue = mock.Mock()
@@ -255,19 +182,7 @@ class PublisherBase(unittest.TestCase):
             },
         }
 
-        config_dict = {
-            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
-            'clientid': helpers.random_string(),
-            'log_mqtt': random.choice([True, False]),
-            'username': None,
-            'password': None,
-            'host': helpers.random_string(),
-            'port': random.randint(1, 65535),
-            'keepalive': random.randint(1, 30),
-            'min_delay': 1,
-            'max_delay': 120,
-        }
-        config = configobj.ConfigObj(config_dict)
+        config = create_publisher_config(self.protocol_string)
 
         monitor_dict = create_monitor_config()
 
@@ -289,8 +204,8 @@ class PublisherBase(unittest.TestCase):
 
                             self.assertEqual(mock_connect.call_count, 1)
                             mock_reconnect_delay.assert_called_once_with(mock.ANY,
-                                                                         min_delay=config_dict['min_delay'],
-                                                                         max_delay=config_dict['max_delay'])
+                                                                         min_delay=config['min_delay'],
+                                                                         max_delay=config['max_delay'])
                             # The network loop is started once; paho handles the CONNACK processing and reconnects.
                             mock_loop_start.assert_called_once_with(mock.ANY)
 
@@ -298,19 +213,7 @@ class PublisherBase(unittest.TestCase):
         mock_logger_queue = mock.Mock()
         mock_publisher = mock.Mock()
 
-        config_dict = {
-            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
-            'clientid': helpers.random_string(),
-            'log_mqtt': random.choice([True, False]),
-            'username': None,
-            'password': None,
-            'host': helpers.random_string(),
-            'port': random.randint(1, 65535),
-            'keepalive': random.randint(1, 30),
-            'min_delay': 1,
-            'max_delay': 120,
-        }
-        config = configobj.ConfigObj(config_dict)
+        config = create_publisher_config(self.protocol_string)
 
         monitor_dict = create_monitor_config()
 
@@ -331,25 +234,13 @@ class PublisherBase(unittest.TestCase):
                         mock_loop_start.assert_called_once_with(mock.ANY)
                         self.assertTrue(mock_publisher.process)
                         log_messages = [call[0][0]['msg_text'] for call in mock_logger_queue.put.call_args_list]
-                        self.assertIn(f"Connecting to {config_dict['host']}:{config_dict['port']}.", log_messages)
+                        self.assertIn(f"Connecting to {config['host']}:{config['port']}.", log_messages)
 
     def test_connect_option_exception(self):
         mock_logger_queue = mock.Mock()
         mock_publisher = mock.Mock()
 
-        config_dict = {
-            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
-            'clientid': helpers.random_string(),
-            'log_mqtt': random.choice([True, False]),
-            'username': None,
-            'password': None,
-            'host': helpers.random_string(),
-            'port': random.randint(1, 65535),
-            'keepalive': random.randint(1, 30),
-            'min_delay': 1,
-            'max_delay': 120,
-        }
-        config = configobj.ConfigObj(config_dict)
+        config = create_publisher_config(self.protocol_string)
 
         monitor_dict = create_monitor_config()
 
@@ -384,22 +275,7 @@ class PublisherBase(unittest.TestCase):
             },
         }
 
-        config_dict = {
-            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
-            'clientid': helpers.random_string(),
-            'log_mqtt': random.choice([True, False]),
-            'username': None,
-            'password': None,
-            'host': helpers.random_string(),
-            'port': random.randint(1, 65535),
-            'keepalive': random.randint(1, 30),
-            'min_delay': 1,
-            'max_delay': 120,
-            'lwt': {
-                'enable': True,
-            }
-        }
-        config = configobj.ConfigObj(config_dict)
+        config = create_publisher_config(self.protocol_string, lwt={'enable': True})
 
         monitor_dict = create_monitor_config()
 
@@ -437,22 +313,7 @@ class PublisherBase(unittest.TestCase):
             },
         }
 
-        config_dict = {
-            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
-            'clientid': helpers.random_string(),
-            'log_mqtt': random.choice([True, False]),
-            'username': None,
-            'password': None,
-            'host': helpers.random_string(),
-            'port': random.randint(1, 65535),
-            'keepalive': random.randint(1, 30),
-            'min_delay': 1,
-            'max_delay': 120,
-            'lwt': {
-                'enable': True,
-            }
-        }
-        config = configobj.ConfigObj(config_dict)
+        config = create_publisher_config(self.protocol_string, lwt={'enable': True})
 
         monitor_dict = create_monitor_config()
 
@@ -485,22 +346,7 @@ class PublisherBase(unittest.TestCase):
             },
         }
 
-        config_dict = {
-            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
-            'clientid': helpers.random_string(),
-            'log_mqtt': random.choice([True, False]),
-            'username': None,
-            'password': None,
-            'host': helpers.random_string(),
-            'port': random.randint(1, 65535),
-            'keepalive': random.randint(1, 30),
-            'min_delay': 1,
-            'max_delay': 120,
-            'lwt': {
-                'enable': True,
-            }
-        }
-        config = configobj.ConfigObj(config_dict)
+        config = create_publisher_config(self.protocol_string, lwt={'enable': True})
 
         monitor_dict = create_monitor_config()
 
@@ -545,19 +391,7 @@ class PublisherBase(unittest.TestCase):
             },
         }
 
-        config_dict = {
-            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
-            'clientid': helpers.random_string(),
-            'log_mqtt': random.choice([True, False]),
-            'username': None,
-            'password': None,
-            'host': helpers.random_string(),
-            'port': random.randint(1, 65535),
-            'keepalive': random.randint(1, 30),
-            'min_delay': 1,
-            'max_delay': 120,
-        }
-        config = configobj.ConfigObj(config_dict)
+        config = create_publisher_config(self.protocol_string)
 
         monitor_dict = create_monitor_config(monitor_on_disconnect='DEBUG')
 
@@ -608,19 +442,7 @@ class PublisherBase(unittest.TestCase):
             },
         }
 
-        config_dict = {
-            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
-            'clientid': helpers.random_string(),
-            'log_mqtt': random.choice([True, False]),
-            'username': None,
-            'password': None,
-            'host': helpers.random_string(),
-            'port': random.randint(1, 65535),
-            'keepalive': random.randint(1, 30),
-            'min_delay': 1,
-            'max_delay': 120,
-        }
-        config = configobj.ConfigObj(config_dict)
+        config = create_publisher_config(self.protocol_string)
 
         monitor_dict = create_monitor_config()
 
@@ -651,19 +473,7 @@ class PublisherBase(unittest.TestCase):
             },
         }
 
-        config_dict = {
-            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
-            'clientid': helpers.random_string(),
-            'log_mqtt': random.choice([True, False]),
-            'username': None,
-            'password': None,
-            'host': helpers.random_string(),
-            'port': random.randint(1, 65535),
-            'keepalive': random.randint(1, 30),
-            'min_delay': 1,
-            'max_delay': 120,
-        }
-        config = configobj.ConfigObj(config_dict)
+        config = create_publisher_config(self.protocol_string)
 
         monitor_dict = create_monitor_config()
 
@@ -704,19 +514,7 @@ class PublisherBase(unittest.TestCase):
             },
         }
 
-        config_dict = {
-            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
-            'clientid': helpers.random_string(),
-            'log_mqtt': random.choice([True, False]),
-            'username': None,
-            'password': None,
-            'host': helpers.random_string(),
-            'port': random.randint(1, 65535),
-            'keepalive': random.randint(1, 30),
-            'min_delay': 1,
-            'max_delay': 120,
-        }
-        config = configobj.ConfigObj(config_dict)
+        config = create_publisher_config(self.protocol_string)
 
         monitor_dict = create_monitor_config()
 
@@ -748,19 +546,7 @@ class PublisherBase(unittest.TestCase):
             },
         }
 
-        config_dict = {
-            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
-            'clientid': helpers.random_string(),
-            'log_mqtt': random.choice([True, False]),
-            'username': None,
-            'password': None,
-            'host': helpers.random_string(),
-            'port': random.randint(1, 65535),
-            'keepalive': random.randint(1, 30),
-            'min_delay': 1,
-            'max_delay': 120,
-        }
-        config = configobj.ConfigObj(config_dict)
+        config = create_publisher_config(self.protocol_string)
 
         monitor_dict = create_monitor_config()
 
@@ -784,22 +570,10 @@ class PublisherBase(unittest.TestCase):
         mock_logger_queue = mock.Mock()
         mock_publisher = mock.Mock()
 
-        config_dict = {
-            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
-            'clientid': helpers.random_string(),
-            'log_mqtt': random.choice([True, False]),
-            'username': helpers.random_string(),
-            'password': helpers.random_string(),
-            'host': helpers.random_string(),
-            'port': random.randint(1, 65535),
-            'keepalive': random.randint(1, 30),
-            'min_delay': 1,
-            'max_delay': 120,
-            'lwt': {
-                'enable': True,
-            }
-        }
-        config = configobj.ConfigObj(config_dict)
+        config = create_publisher_config(self.protocol_string,
+                                         username=helpers.random_string(),
+                                         password=helpers.random_string(),
+                                         lwt={'enable': True})
 
         monitor_dict = create_monitor_config()
 
@@ -816,26 +590,14 @@ class PublisherBase(unittest.TestCase):
         mock_logger_queue = mock.Mock()
         mock_publisher = mock.Mock()
 
-        config_dict = {
-            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
-            'clientid': helpers.random_string(),
-            'log_mqtt': random.choice([True, False]),
-            'username': helpers.random_string(),
-            'password': helpers.random_string(),
-            'host': helpers.random_string(),
-            'port': random.randint(1, 65535),
-            'keepalive': random.randint(1, 30),
-            'min_delay': 1,
-            'max_delay': 120,
-            'lwt': {
-                'enable': True,
-                'topic': helpers.random_string(),
-                'offline_payload': helpers.random_string(),
-                'qos': random.randint(1, 5),
-                'retain': False,
-            }
-        }
-        config = configobj.ConfigObj(config_dict)
+        config = create_publisher_config(self.protocol_string,
+                                         username=helpers.random_string(),
+                                         password=helpers.random_string(),
+                                         lwt={'enable': True,
+                                              'topic': helpers.random_string(),
+                                              'offline_payload': helpers.random_string(),
+                                              'qos': random.randint(1, 5),
+                                              'retain': False})
 
         monitor_dict = create_monitor_config()
 
@@ -846,28 +608,16 @@ class PublisherBase(unittest.TestCase):
 
                         self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
 
-                        mock_will_set.assert_called_once_with(topic=config_dict['lwt']['topic'],
-                                                              payload=config_dict['lwt']['offline_payload'],
-                                                              qos=config_dict['lwt']['qos'],
-                                                              retain=config_dict['lwt']['retain'])
+                        mock_will_set.assert_called_once_with(topic=config['lwt']['topic'],
+                                                              payload=config['lwt']['offline_payload'],
+                                                              qos=config['lwt']['qos'],
+                                                              retain=config['lwt']['retain'])
 
     def test_publish_when_connected(self):
         mock_logger_queue = mock.Mock()
         mock_publisher = mock.Mock()
 
-        config_dict = {
-            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
-            'clientid': helpers.random_string(),
-            'log_mqtt': random.choice([True, False]),
-            'username': helpers.random_string(),
-            'password': helpers.random_string(),
-            'host': helpers.random_string(),
-            'port': random.randint(1, 65535),
-            'keepalive': random.randint(1, 30),
-            'min_delay': 1,
-            'max_delay': 120,
-        }
-        config = configobj.ConfigObj(config_dict)
+        config = create_publisher_config(self.protocol_string, username=helpers.random_string(), password=helpers.random_string())
 
         monitor_dict = create_monitor_config()
 
@@ -896,19 +646,7 @@ class PublisherBase(unittest.TestCase):
         mock_logger_queue = mock.Mock()
         mock_publisher = mock.Mock()
 
-        config_dict = {
-            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
-            'clientid': helpers.random_string(),
-            'log_mqtt': random.choice([True, False]),
-            'username': helpers.random_string(),
-            'password': helpers.random_string(),
-            'host': helpers.random_string(),
-            'port': random.randint(1, 65535),
-            'keepalive': random.randint(1, 30),
-            'min_delay': 1,
-            'max_delay': 120,
-        }
-        config = configobj.ConfigObj(config_dict)
+        config = create_publisher_config(self.protocol_string, username=helpers.random_string(), password=helpers.random_string())
 
         monitor_dict = create_monitor_config()
 
@@ -939,19 +677,7 @@ class PublisherBase(unittest.TestCase):
         mock_logger_queue = mock.Mock()
         mock_publisher = mock.Mock()
 
-        config_dict = {
-            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
-            'clientid': helpers.random_string(),
-            'log_mqtt': random.choice([True, False]),
-            'username': helpers.random_string(),
-            'password': helpers.random_string(),
-            'host': helpers.random_string(),
-            'port': random.randint(1, 65535),
-            'keepalive': random.randint(1, 30),
-            'min_delay': 1,
-            'max_delay': 120,
-        }
-        config = configobj.ConfigObj(config_dict)
+        config = create_publisher_config(self.protocol_string, username=helpers.random_string(), password=helpers.random_string())
 
         monitor_dict = create_monitor_config()
 
@@ -1014,19 +740,7 @@ class PublisherBase(unittest.TestCase):
             },
         }
 
-        config_dict = {
-            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
-            'clientid': helpers.random_string(),
-            'log_mqtt': random.choice([True, False]),
-            'username': helpers.random_string(),
-            'password': helpers.random_string(),
-            'host': helpers.random_string(),
-            'port': random.randint(1, 65535),
-            'keepalive': random.randint(1, 30),
-            'min_delay': 1,
-            'max_delay': 120,
-        }
-        config = configobj.ConfigObj(config_dict)
+        config = create_publisher_config(self.protocol_string, username=helpers.random_string(), password=helpers.random_string())
 
         monitor_dict = create_monitor_config()
 
@@ -1060,19 +774,7 @@ class PublisherBase(unittest.TestCase):
         mock_logger_queue = mock.Mock()
         mock_publisher = mock.Mock()
 
-        config_dict = {
-            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
-            'clientid': helpers.random_string(),
-            'log_mqtt': random.choice([True, False]),
-            'username': helpers.random_string(),
-            'password': helpers.random_string(),
-            'host': helpers.random_string(),
-            'port': random.randint(1, 65535),
-            'keepalive': random.randint(1, 30),
-            'min_delay': 1,
-            'max_delay': 120,
-        }
-        config = configobj.ConfigObj(config_dict)
+        config = create_publisher_config(self.protocol_string, username=helpers.random_string(), password=helpers.random_string())
 
         monitor_dict = create_monitor_config()
 
@@ -1095,19 +797,7 @@ class PublisherBase(unittest.TestCase):
     def test_wait_for_inflight_messages(self):
         mock_logger_queue = mock.Mock()
 
-        config_dict = {
-            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
-            'clientid': helpers.random_string(),
-            'log_mqtt': random.choice([True, False]),
-            'username': helpers.random_string(),
-            'password': helpers.random_string(),
-            'host': helpers.random_string(),
-            'port': random.randint(1, 65535),
-            'keepalive': random.randint(1, 30),
-            'min_delay': 1,
-            'max_delay': 120,
-        }
-        config = configobj.ConfigObj(config_dict)
+        config = create_publisher_config(self.protocol_string, username=helpers.random_string(), password=helpers.random_string())
 
         monitor_dict = create_monitor_config()
 
@@ -1129,19 +819,7 @@ class PublisherBase(unittest.TestCase):
     def test_wait_for_inflight_messages_disabled(self):
         mock_logger_queue = mock.Mock()
 
-        config_dict = {
-            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
-            'clientid': helpers.random_string(),
-            'log_mqtt': random.choice([True, False]),
-            'username': helpers.random_string(),
-            'password': helpers.random_string(),
-            'host': helpers.random_string(),
-            'port': random.randint(1, 65535),
-            'keepalive': random.randint(1, 30),
-            'min_delay': 1,
-            'max_delay': 120,
-        }
-        config = configobj.ConfigObj(config_dict)
+        config = create_publisher_config(self.protocol_string, username=helpers.random_string(), password=helpers.random_string())
 
         monitor_dict = create_monitor_config()
 
@@ -1167,24 +845,10 @@ class TLSBase(unittest.TestCase):
         mock_logger_queue = mock.Mock()
         mock_publisher = mock.Mock()
 
-        config_dict = {
-            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
-            'clientid': helpers.random_string(),
-            'log_mqtt': random.choice([True, False]),
-            'username': helpers.random_string(),
-            'password': helpers.random_string(),
-            'host': helpers.random_string(),
-            'port': random.randint(1, 65535),
-            'keepalive': random.randint(1, 30),
-            'min_delay': 1,
-            'max_delay': 120,
-            'tls': {
-                'enable': True,
-                'ca_certs': helpers.random_string()
-
-            }
-        }
-        config = configobj.ConfigObj(config_dict)
+        config = create_publisher_config(self.protocol_string,
+                                         username=helpers.random_string(),
+                                         password=helpers.random_string(),
+                                         tls={'enable': True, 'ca_certs': helpers.random_string()})
 
         monitor_dict = create_monitor_config()
 
@@ -1194,7 +858,7 @@ class TLSBase(unittest.TestCase):
                     with mock.patch.object(user.mqttpublish.mqtt.Client, 'tls_set') as mock_tls_set:
 
                         self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
-                        mock_tls_set.assert_called_once_with(ca_certs=config_dict['tls']['ca_certs'],
+                        mock_tls_set.assert_called_once_with(ca_certs=config['tls']['ca_certs'],
                                                              certfile=None,
                                                              keyfile=None,
                                                              cert_reqs=ssl.CERT_REQUIRED,
@@ -1205,26 +869,10 @@ class TLSBase(unittest.TestCase):
         mock_logger_queue = mock.Mock()
         mock_publisher = mock.Mock()
 
-        config_dict = {
-            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
-            'clientid': helpers.random_string(),
-            'log_mqtt': random.choice([True, False]),
-            'username': helpers.random_string(),
-            'password': helpers.random_string(),
-            'host': helpers.random_string(),
-            'port': random.randint(1, 65535),
-            'keepalive': random.randint(1, 30),
-            'min_delay': 1,
-            'max_delay': 120,
-            'tls': {
-                'enable': True,
-                'ca_certs': '',
-                'certfile': 'none',
-                'keyfile': 'None',
-                'ciphers': 'NONE',
-            }
-        }
-        config = configobj.ConfigObj(config_dict)
+        config = create_publisher_config(self.protocol_string,
+                                         username=helpers.random_string(),
+                                         password=helpers.random_string(),
+                                         tls={'enable': True, 'ca_certs': '', 'certfile': 'none', 'keyfile': 'None', 'ciphers': 'NONE'})
 
         monitor_dict = create_monitor_config()
 
@@ -1246,24 +894,10 @@ class TLSBase(unittest.TestCase):
         mock_publisher = mock.Mock()
 
         tls_version = 'tls'
-        config_dict = {
-            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
-            'clientid': helpers.random_string(),
-            'log_mqtt': random.choice([True, False]),
-            'username': helpers.random_string(),
-            'password': helpers.random_string(),
-            'host': helpers.random_string(),
-            'port': random.randint(1, 65535),
-            'keepalive': random.randint(1, 30),
-            'min_delay': 1,
-            'max_delay': 120,
-            'tls': {
-                'enable': True,
-                'ca_certs': helpers.random_string(),
-                'tls_version': tls_version,
-            }
-        }
-        config = configobj.ConfigObj(config_dict)
+        config = create_publisher_config(self.protocol_string,
+                                         username=helpers.random_string(),
+                                         password=helpers.random_string(),
+                                         tls={'enable': True, 'ca_certs': helpers.random_string(), 'tls_version': tls_version})
 
         monitor_dict = create_monitor_config()
 
@@ -1287,24 +921,10 @@ class TLSBase(unittest.TestCase):
         mock_publisher = mock.Mock()
 
         tls_version = 'tlsv1'
-        config_dict = {
-            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
-            'clientid': helpers.random_string(),
-            'log_mqtt': random.choice([True, False]),
-            'username': helpers.random_string(),
-            'password': helpers.random_string(),
-            'host': helpers.random_string(),
-            'port': random.randint(1, 65535),
-            'keepalive': random.randint(1, 30),
-            'min_delay': 1,
-            'max_delay': 120,
-            'tls': {
-                'enable': True,
-                'ca_certs': helpers.random_string(),
-                'tls_version': tls_version,
-            }
-        }
-        config = configobj.ConfigObj(config_dict)
+        config = create_publisher_config(self.protocol_string,
+                                         username=helpers.random_string(),
+                                         password=helpers.random_string(),
+                                         tls={'enable': True, 'ca_certs': helpers.random_string(), 'tls_version': tls_version})
 
         monitor_dict = create_monitor_config()
 
@@ -1328,24 +948,10 @@ class TLSBase(unittest.TestCase):
         mock_publisher = mock.Mock()
 
         tls_version = 'tlsv1_1'
-        config_dict = {
-            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
-            'clientid': helpers.random_string(),
-            'log_mqtt': random.choice([True, False]),
-            'username': helpers.random_string(),
-            'password': helpers.random_string(),
-            'host': helpers.random_string(),
-            'port': random.randint(1, 65535),
-            'keepalive': random.randint(1, 30),
-            'min_delay': 1,
-            'max_delay': 120,
-            'tls': {
-                'enable': True,
-                'ca_certs': helpers.random_string(),
-                'tls_version': tls_version,
-            }
-        }
-        config = configobj.ConfigObj(config_dict)
+        config = create_publisher_config(self.protocol_string,
+                                         username=helpers.random_string(),
+                                         password=helpers.random_string(),
+                                         tls={'enable': True, 'ca_certs': helpers.random_string(), 'tls_version': tls_version})
 
         monitor_dict = create_monitor_config()
 
@@ -1369,24 +975,10 @@ class TLSBase(unittest.TestCase):
         mock_publisher = mock.Mock()
 
         tls_version = 'tlsv1_2'
-        config_dict = {
-            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
-            'clientid': helpers.random_string(),
-            'log_mqtt': random.choice([True, False]),
-            'username': helpers.random_string(),
-            'password': helpers.random_string(),
-            'host': helpers.random_string(),
-            'port': random.randint(1, 65535),
-            'keepalive': random.randint(1, 30),
-            'min_delay': 1,
-            'max_delay': 120,
-            'tls': {
-                'enable': True,
-                'ca_certs': helpers.random_string(),
-                'tls_version': tls_version,
-            }
-        }
-        config = configobj.ConfigObj(config_dict)
+        config = create_publisher_config(self.protocol_string,
+                                         username=helpers.random_string(),
+                                         password=helpers.random_string(),
+                                         tls={'enable': True, 'ca_certs': helpers.random_string(), 'tls_version': tls_version})
 
         monitor_dict = create_monitor_config()
 
@@ -1410,24 +1002,10 @@ class TLSBase(unittest.TestCase):
         mock_publisher = mock.Mock()
 
         tls_version = 'sslv2'
-        config_dict = {
-            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
-            'clientid': helpers.random_string(),
-            'log_mqtt': random.choice([True, False]),
-            'username': helpers.random_string(),
-            'password': helpers.random_string(),
-            'host': helpers.random_string(),
-            'port': random.randint(1, 65535),
-            'keepalive': random.randint(1, 30),
-            'min_delay': 1,
-            'max_delay': 120,
-            'tls': {
-                'enable': True,
-                'ca_certs': helpers.random_string(),
-                'tls_version': tls_version,
-            }
-        }
-        config = configobj.ConfigObj(config_dict)
+        config = create_publisher_config(self.protocol_string,
+                                         username=helpers.random_string(),
+                                         password=helpers.random_string(),
+                                         tls={'enable': True, 'ca_certs': helpers.random_string(), 'tls_version': tls_version})
 
         monitor_dict = create_monitor_config()
 
@@ -1451,24 +1029,10 @@ class TLSBase(unittest.TestCase):
         mock_publisher = mock.Mock()
 
         tls_version = 'sslv23'
-        config_dict = {
-            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
-            'clientid': helpers.random_string(),
-            'log_mqtt': random.choice([True, False]),
-            'username': helpers.random_string(),
-            'password': helpers.random_string(),
-            'host': helpers.random_string(),
-            'port': random.randint(1, 65535),
-            'keepalive': random.randint(1, 30),
-            'min_delay': 1,
-            'max_delay': 120,
-            'tls': {
-                'enable': True,
-                'ca_certs': helpers.random_string(),
-                'tls_version': tls_version,
-            }
-        }
-        config = configobj.ConfigObj(config_dict)
+        config = create_publisher_config(self.protocol_string,
+                                         username=helpers.random_string(),
+                                         password=helpers.random_string(),
+                                         tls={'enable': True, 'ca_certs': helpers.random_string(), 'tls_version': tls_version})
 
         monitor_dict = create_monitor_config()
 
@@ -1492,24 +1056,10 @@ class TLSBase(unittest.TestCase):
         mock_publisher = mock.Mock()
 
         tls_version = 'sslv3'
-        config_dict = {
-            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
-            'clientid': helpers.random_string(),
-            'log_mqtt': random.choice([True, False]),
-            'username': helpers.random_string(),
-            'password': helpers.random_string(),
-            'host': helpers.random_string(),
-            'port': random.randint(1, 65535),
-            'keepalive': random.randint(1, 30),
-            'min_delay': 1,
-            'max_delay': 120,
-            'tls': {
-                'enable': True,
-                'ca_certs': helpers.random_string(),
-                'tls_version': tls_version,
-            }
-        }
-        config = configobj.ConfigObj(config_dict)
+        config = create_publisher_config(self.protocol_string,
+                                         username=helpers.random_string(),
+                                         password=helpers.random_string(),
+                                         tls={'enable': True, 'ca_certs': helpers.random_string(), 'tls_version': tls_version})
 
         monitor_dict = create_monitor_config()
 
@@ -1533,24 +1083,10 @@ class TLSBase(unittest.TestCase):
         mock_publisher = mock.Mock()
 
         certs_required = helpers.random_string()
-        config_dict = {
-            'protocol': getattr(paho.mqtt.client, self.protocol_string, 0),
-            'clientid': helpers.random_string(),
-            'log_mqtt': random.choice([True, False]),
-            'username': helpers.random_string(),
-            'password': helpers.random_string(),
-            'host': helpers.random_string(),
-            'port': random.randint(1, 65535),
-            'keepalive': random.randint(1, 30),
-            'min_delay': 1,
-            'max_delay': 120,
-            'tls': {
-                'enable': True,
-                'ca_certs': helpers.random_string(),
-                'certs_required': certs_required
-            }
-        }
-        config = configobj.ConfigObj(config_dict)
+        config = create_publisher_config(self.protocol_string,
+                                         username=helpers.random_string(),
+                                         password=helpers.random_string(),
+                                         tls={'enable': True, 'ca_certs': helpers.random_string(), 'certs_required': certs_required})
 
         monitor_dict = create_monitor_config()
 
