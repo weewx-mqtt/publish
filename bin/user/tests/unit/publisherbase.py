@@ -819,6 +819,30 @@ class TLSBase(unittest.TestCase):
     api = None
     protocol_string = None
 
+    def _assert_missing_tls_option(self, option, value, ssl_attr):
+        """ Hiding an ssl constant must make the publisher reject the option. """
+        mock_logger_queue = mock.Mock()
+        mock_publisher = mock.Mock()
+        config = create_publisher_config(
+            self.protocol_string,
+            username=helpers.random_string(),
+            password=helpers.random_string(),
+            tls={'enable': True, 'ca_certs': helpers.random_string(), option: value})
+        monitor_dict = create_monitor_config()
+
+        with patched_publisher():
+            with mock.patch.object(user.mqttpublish.mqtt.Client, 'tls_set'):
+                try:
+                    saved_version = getattr(ssl, ssl_attr)
+                    delattr(ssl, ssl_attr)
+                except AttributeError:
+                    saved_version = None
+                with self.assertRaises(ValueError) as error:
+                    self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
+                if saved_version:
+                    setattr(ssl, ssl_attr, saved_version)
+                self.assertEqual(error.exception.args[0], f"Invalid '{option}', {value}.")
+
     def test_tls_configuration_good(self):
         mock_logger_queue = mock.Mock()
         mock_publisher = mock.Mock()
@@ -864,201 +888,25 @@ class TLSBase(unittest.TestCase):
                                                      ciphers=None)
 
     def test_missing_PROTOCOL_TLS(self):
-        mock_logger_queue = mock.Mock()
-        mock_publisher = mock.Mock()
-
-        tls_version = 'tls'
-        config = create_publisher_config(self.protocol_string,
-                                         username=helpers.random_string(),
-                                         password=helpers.random_string(),
-                                         tls={'enable': True, 'ca_certs': helpers.random_string(), 'tls_version': tls_version})
-
-        monitor_dict = create_monitor_config()
-
-        with patched_publisher():
-            with mock.patch.object(user.mqttpublish.mqtt.Client, 'tls_set'):
-                try:
-                    saved_version = ssl.PROTOCOL_TLS
-                    del ssl.PROTOCOL_TLS
-                except AttributeError:
-                    saved_version = None
-                with self.assertRaises(ValueError) as error:
-                    self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
-                if saved_version:
-                    ssl.PROTOCOL_TLS = saved_version
-                self.assertEqual(error.exception.args[0], f"Invalid 'tls_version', {tls_version}.")
+        self._assert_missing_tls_option('tls_version', 'tls', 'PROTOCOL_TLS')
 
     def test_missing_PROTOCOL_TLSv1(self):
-        mock_logger_queue = mock.Mock()
-        mock_publisher = mock.Mock()
-
-        tls_version = 'tlsv1'
-        config = create_publisher_config(self.protocol_string,
-                                         username=helpers.random_string(),
-                                         password=helpers.random_string(),
-                                         tls={'enable': True, 'ca_certs': helpers.random_string(), 'tls_version': tls_version})
-
-        monitor_dict = create_monitor_config()
-
-        with patched_publisher():
-            with mock.patch.object(user.mqttpublish.mqtt.Client, 'tls_set'):
-                try:
-                    saved_version = ssl.PROTOCOL_TLSv1
-                    del ssl.PROTOCOL_TLSv1
-                except AttributeError:
-                    saved_version = None
-                with self.assertRaises(ValueError) as error:
-                    self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
-                if saved_version:
-                    ssl.PROTOCOL_TLSv1 = saved_version
-                self.assertEqual(error.exception.args[0], f"Invalid 'tls_version', {tls_version}.")
+        self._assert_missing_tls_option('tls_version', 'tlsv1', 'PROTOCOL_TLSv1')
 
     def test_missing_PROTOCOL_TLSv1_1(self):
-        mock_logger_queue = mock.Mock()
-        mock_publisher = mock.Mock()
-
-        tls_version = 'tlsv1_1'
-        config = create_publisher_config(self.protocol_string,
-                                         username=helpers.random_string(),
-                                         password=helpers.random_string(),
-                                         tls={'enable': True, 'ca_certs': helpers.random_string(), 'tls_version': tls_version})
-
-        monitor_dict = create_monitor_config()
-
-        with patched_publisher():
-            with mock.patch.object(user.mqttpublish.mqtt.Client, 'tls_set'):
-                try:
-                    saved_version = ssl.PROTOCOL_TLSv1_1
-                    del ssl.PROTOCOL_TLSv1_1
-                except AttributeError:
-                    saved_version = None
-                with self.assertRaises(ValueError) as error:
-                    self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
-                if saved_version:
-                    ssl.PROTOCOL_TLSv1_1 = saved_version
-                self.assertEqual(error.exception.args[0], f"Invalid 'tls_version', {tls_version}.")
+        self._assert_missing_tls_option('tls_version', 'tlsv1_1', 'PROTOCOL_TLSv1_1')
 
     def test_missing_PROTOCOL_TLSv1_2(self):
-        mock_logger_queue = mock.Mock()
-        mock_publisher = mock.Mock()
-
-        tls_version = 'tlsv1_2'
-        config = create_publisher_config(self.protocol_string,
-                                         username=helpers.random_string(),
-                                         password=helpers.random_string(),
-                                         tls={'enable': True, 'ca_certs': helpers.random_string(), 'tls_version': tls_version})
-
-        monitor_dict = create_monitor_config()
-
-        with patched_publisher():
-            with mock.patch.object(user.mqttpublish.mqtt.Client, 'tls_set'):
-                try:
-                    saved_version = ssl.PROTOCOL_TLSv1_2
-                    del ssl.PROTOCOL_TLSv1_2
-                except AttributeError:
-                    saved_version = None
-                with self.assertRaises(ValueError) as error:
-                    self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
-                if saved_version:
-                    ssl.PROTOCOL_TLSv1_2 = saved_version
-                self.assertEqual(error.exception.args[0], f"Invalid 'tls_version', {tls_version}.")
+        self._assert_missing_tls_option('tls_version', 'tlsv1_2', 'PROTOCOL_TLSv1_2')
 
     def test_missing_PROTOCOL_SSLv2(self):
-        mock_logger_queue = mock.Mock()
-        mock_publisher = mock.Mock()
-
-        tls_version = 'sslv2'
-        config = create_publisher_config(self.protocol_string,
-                                         username=helpers.random_string(),
-                                         password=helpers.random_string(),
-                                         tls={'enable': True, 'ca_certs': helpers.random_string(), 'tls_version': tls_version})
-
-        monitor_dict = create_monitor_config()
-
-        with patched_publisher():
-            with mock.patch.object(user.mqttpublish.mqtt.Client, 'tls_set'):
-                try:
-                    saved_version = ssl.PROTOCOL_SSLv2
-                    del ssl.PROTOCOL_SSLv2
-                except AttributeError:
-                    saved_version = None
-                with self.assertRaises(ValueError) as error:
-                    self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
-                if saved_version:
-                    ssl.PROTOCOL_SSLv2 = saved_version
-                self.assertEqual(error.exception.args[0], f"Invalid 'tls_version', {tls_version}.")
+        self._assert_missing_tls_option('tls_version', 'sslv2', 'PROTOCOL_SSLv2')
 
     def test_missing_PROTOCOL_SSLv23(self):
-        mock_logger_queue = mock.Mock()
-        mock_publisher = mock.Mock()
-
-        tls_version = 'sslv23'
-        config = create_publisher_config(self.protocol_string,
-                                         username=helpers.random_string(),
-                                         password=helpers.random_string(),
-                                         tls={'enable': True, 'ca_certs': helpers.random_string(), 'tls_version': tls_version})
-
-        monitor_dict = create_monitor_config()
-
-        with patched_publisher():
-            with mock.patch.object(user.mqttpublish.mqtt.Client, 'tls_set'):
-                try:
-                    saved_version = ssl.PROTOCOL_SSLv23
-                    del ssl.PROTOCOL_SSLv23
-                except AttributeError:
-                    saved_version = None
-                with self.assertRaises(ValueError) as error:
-                    self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
-                if saved_version:
-                    ssl.PROTOCOL_SSLv23 = saved_version
-                self.assertEqual(error.exception.args[0], f"Invalid 'tls_version', {tls_version}.")
+        self._assert_missing_tls_option('tls_version', 'sslv23', 'PROTOCOL_SSLv23')
 
     def test_missing_PROTOCOL_SSLv3(self):
-        mock_logger_queue = mock.Mock()
-        mock_publisher = mock.Mock()
-
-        tls_version = 'sslv3'
-        config = create_publisher_config(self.protocol_string,
-                                         username=helpers.random_string(),
-                                         password=helpers.random_string(),
-                                         tls={'enable': True, 'ca_certs': helpers.random_string(), 'tls_version': tls_version})
-
-        monitor_dict = create_monitor_config()
-
-        with patched_publisher():
-            with mock.patch.object(user.mqttpublish.mqtt.Client, 'tls_set'):
-                try:
-                    saved_version = ssl.PROTOCOL_SSLv3
-                    del ssl.PROTOCOL_SSLv3
-                except AttributeError:
-                    saved_version = None
-                with self.assertRaises(ValueError) as error:
-                    self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
-                if saved_version:
-                    ssl.PROTOCOL_SSLv3 = saved_version
-                self.assertEqual(error.exception.args[0], f"Invalid 'tls_version', {tls_version}.")
+        self._assert_missing_tls_option('tls_version', 'sslv3', 'PROTOCOL_SSLv3')
 
     def test_invalid_certs_required(self):
-        mock_logger_queue = mock.Mock()
-        mock_publisher = mock.Mock()
-
-        certs_required = helpers.random_string()
-        config = create_publisher_config(self.protocol_string,
-                                         username=helpers.random_string(),
-                                         password=helpers.random_string(),
-                                         tls={'enable': True, 'ca_certs': helpers.random_string(), 'certs_required': certs_required})
-
-        monitor_dict = create_monitor_config()
-
-        with patched_publisher():
-            with mock.patch.object(user.mqttpublish.mqtt.Client, 'tls_set'):
-                try:
-                    saved_version = ssl.PROTOCOL_SSLv3
-                    del ssl.PROTOCOL_SSLv3
-                except AttributeError:
-                    saved_version = None
-                with self.assertRaises(ValueError) as error:
-                    self.class_under_test(mock_logger_queue, None, mock_publisher, config, monitor_dict, api=self.api)
-                if saved_version:
-                    ssl.PROTOCOL_SSLv3 = saved_version
-                self.assertEqual(error.exception.args[0], f"Invalid 'certs_required', {certs_required}.")
+        self._assert_missing_tls_option('certs_required', helpers.random_string(), 'PROTOCOL_SSLv3')
