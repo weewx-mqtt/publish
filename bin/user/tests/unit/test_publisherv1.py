@@ -18,6 +18,7 @@ import user.mqttcommon
 import user.mqttpublish
 
 from user.tests.unit.publisherbase import PublisherBase, TLSBase
+from user.tests.publish_helpers import create_monitor_config
 
 # @unittest.skipIf(hasattr(paho.mqtt.client, 'CallbackAPIVersion'), "paho-mqtt is NOT v1, skipping tests.")
 class TestPublisherV1(PublisherBase):
@@ -42,15 +43,7 @@ class TestPublisherV1(PublisherBase):
         }
         config = configobj.ConfigObj(config_dict)
 
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
 
         with mock.patch('user.mqttpublish.time'):
             with mock.patch('user.mqttpublish.mqtt.Client') as mock_client:

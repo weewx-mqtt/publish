@@ -21,6 +21,7 @@ from integhelpers import BROKER_HOST, MosquittoBroker, make_observer, random_str
 
 import user.mqttpublish
 import user.mqttmessagetracker
+from user.tests.publish_helpers import create_monitor_config
 
 TOPIC = 'weewx/integ/republish-on-connect'
 TABLE = 'mqtt_message_tracker'
@@ -82,15 +83,7 @@ def make_publisher(config, tracker, logger_queue):
         for name, spec in callback.items():
             callbacks[name][spec['timing']]['tracker'] = spec['callback']
 
-    monitor_config = {
-        'monitor_queue': None,
-        'monitor_on_message': None,
-        'monitor_on_connect': None,
-        'monitor_on_disconnect': None,
-        'monitor_on_publish': None,
-        'monitor_record_update': None,
-        'monitor_on_weewx_data': None,
-    }
+    monitor_config = create_monitor_config()
     plugin_manager = types.SimpleNamespace(callbacks=callbacks)
     # Stands in for the service; Publisher only reads its 'process' flag when a startup connect fails.
     service = types.SimpleNamespace(process=True)

@@ -21,6 +21,7 @@ import mqttstubs
 
 import user.mqttcommon
 import user.mqttpublish
+from user.tests.publish_helpers import create_monitor_config
 
 # The TLS 1.2 default. A build without the legacy constant, as OpenSSL 4 is,
 # reaches it through PROTOCOL_TLS_CLIENT, which means 'TLS 1.2 or newer'.
@@ -55,15 +56,7 @@ class PublisherBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -100,15 +93,7 @@ class PublisherBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -139,15 +124,7 @@ class PublisherBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
 
         with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
             with mock.patch.object(user.mqttpublish.Publisher, '_connect'):
@@ -197,15 +174,7 @@ class PublisherBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -234,15 +203,7 @@ class PublisherBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -271,15 +232,7 @@ class PublisherBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -316,15 +269,7 @@ class PublisherBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -367,15 +312,7 @@ class PublisherBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -414,15 +351,7 @@ class PublisherBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -472,15 +401,7 @@ class PublisherBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -533,15 +454,7 @@ class PublisherBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
 
         # time.time() must stay real; the monitor logging does arithmetic on it.
         with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -589,15 +502,7 @@ class PublisherBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
 
         # time.time() must stay real for on_connect's monitor logging.
         with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -654,15 +559,7 @@ class PublisherBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': 'DEBUG',
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config(monitor_on_disconnect='DEBUG')
 
         with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
             with mock.patch.object(user.mqttpublish.Publisher, '_connect'):
@@ -725,15 +622,7 @@ class PublisherBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
 
         # time.time() must stay real; the monitor logging does arithmetic on it.
         with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -776,15 +665,7 @@ class PublisherBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
 
         with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
             with mock.patch.object(user.mqttpublish.Publisher, '_connect'):
@@ -837,15 +718,7 @@ class PublisherBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
 
         # time.time() must stay real; the monitor logging does arithmetic on it.
         with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -889,15 +762,7 @@ class PublisherBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
 
         with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
             with mock.patch.object(user.mqttpublish.Publisher, '_connect'):
@@ -936,15 +801,7 @@ class PublisherBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -980,15 +837,7 @@ class PublisherBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -1020,15 +869,7 @@ class PublisherBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -1069,15 +910,7 @@ class PublisherBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -1120,15 +953,7 @@ class PublisherBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -1203,15 +1028,7 @@ class PublisherBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -1257,15 +1074,7 @@ class PublisherBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -1300,15 +1109,7 @@ class PublisherBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
 
         with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
             with mock.patch.object(user.mqttpublish.Publisher, '_connect'):
@@ -1342,15 +1143,7 @@ class PublisherBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
 
         with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
             with mock.patch.object(user.mqttpublish.Publisher, '_connect'):
@@ -1393,15 +1186,7 @@ class TLSBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -1441,15 +1226,7 @@ class TLSBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -1488,15 +1265,7 @@ class TLSBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -1537,15 +1306,7 @@ class TLSBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -1586,15 +1347,7 @@ class TLSBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -1635,15 +1388,7 @@ class TLSBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -1684,15 +1429,7 @@ class TLSBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -1733,15 +1470,7 @@ class TLSBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -1782,15 +1511,7 @@ class TLSBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):
@@ -1831,15 +1552,7 @@ class TLSBase(unittest.TestCase):
         }
         config = configobj.ConfigObj(config_dict)
 
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
 
         with mock.patch('user.mqttpublish.time'):
             with mqttstubs.patch(user.mqttpublish.mqtt, "Client", mqttstubs.ClientStub):

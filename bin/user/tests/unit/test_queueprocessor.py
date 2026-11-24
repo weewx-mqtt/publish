@@ -23,6 +23,7 @@ import threading
 import time
 
 import user.mqttpublish
+from user.tests.publish_helpers import create_monitor_config
 
 class TestQueueProcessor(unittest.TestCase):
     def test_update_record(self):
@@ -37,15 +38,7 @@ class TestQueueProcessor(unittest.TestCase):
             }
         }
 
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
 
         SUT = user.mqttpublish.QueueProcessor(mock_logger_queue,
                                               data_queue,
@@ -99,15 +92,7 @@ class TestQueueProcessor(unittest.TestCase):
             }
         }
 
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
 
         SUT = user.mqttpublish.QueueProcessor(mock_logger_queue,
                                               None,
@@ -170,15 +155,7 @@ class TestQueueProcessor(unittest.TestCase):
             }
         }
 
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
 
         SUT = user.mqttpublish.QueueProcessor(mock_logger_queue,
                                               data_queue_mock,
@@ -232,15 +209,7 @@ class TestQueueProcessor(unittest.TestCase):
             }
         }
 
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
 
         SUT = user.mqttpublish.QueueProcessor(mock_logger_queue,
                                               None,
@@ -290,15 +259,7 @@ class TestQueueProcessor(unittest.TestCase):
             }
         }
 
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
 
         SUT = user.mqttpublish.QueueProcessor(mock_logger_queue,
                                               None,
@@ -353,15 +314,7 @@ class TestQueueProcessor(unittest.TestCase):
             }
         }
 
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
 
         SUT = user.mqttpublish.QueueProcessor(mock_logger_queue,
                                               None,
@@ -441,15 +394,7 @@ class TestQueueProcessor(unittest.TestCase):
             }
         }
 
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
 
         data_queue = queue.Queue()
         mqtt_config = {
@@ -494,15 +439,7 @@ class TestQueueProcessor(unittest.TestCase):
             }
         }
 
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
 
         data_queue = queue.Queue()
         mqtt_config = {
@@ -542,15 +479,7 @@ class TestQueueProcessor(unittest.TestCase):
             }
         }
 
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
 
         data_queue = queue.Queue()
         mqtt_config = {
@@ -687,15 +616,7 @@ class TestUpdateField(unittest.TestCase):
 class TestPublishRecord(unittest.TestCase):
     @staticmethod
     def _make_processor():
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
 
         SUT = user.mqttpublish.QueueProcessor(mock.Mock(),
                                               None,
@@ -785,15 +706,7 @@ class TestPublishRecord(unittest.TestCase):
 class TestPublishRow(unittest.TestCase):
     @staticmethod
     def _make_processor():
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
 
         SUT = user.mqttpublish.QueueProcessor(mock.Mock(),
                                               None,
@@ -902,15 +815,7 @@ class TestPublishRow(unittest.TestCase):
 class TestHandleQueueItem(unittest.TestCase):
     @staticmethod
     def _make_processor(topics_loop=None, topics_archive=None):
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
 
         data_queue = mock.Mock()
         data_queue.qsize.return_value = 0
@@ -1014,15 +919,7 @@ class TestHandleQueueItem(unittest.TestCase):
 class TestOnWeewxData(unittest.TestCase):
     @staticmethod
     def _make_processor():
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': 'MONITOR',
-        }
+        monitor_dict = create_monitor_config(monitor_on_weewx_data='MONITOR')
 
         SUT = user.mqttpublish.QueueProcessor(mock.Mock(),
                                               None,
@@ -1131,15 +1028,7 @@ class TestOnWeewxData(unittest.TestCase):
 
 class TestQueueProcessorSignalHandlers(unittest.TestCase):
     def _make_processor(self):
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
         return user.mqttpublish.QueueProcessor(
             mock.Mock(), None,
             {'plugins': {},
@@ -1190,15 +1079,7 @@ class _BlockingProcessor(user.mqttpublish.QueueProcessor):
                      'The inherited signal handlers only happen with fork.')
 class TestQueueProcessorTermination(unittest.TestCase):
     def _make_processor(self, ready):
-        monitor_dict = {
-            'monitor_queue': None,
-            'monitor_on_message': None,
-            'monitor_on_connect': None,
-            'monitor_on_disconnect': None,
-            'monitor_on_publish': None,
-            'monitor_record_update': None,
-            'monitor_on_weewx_data': None,
-        }
+        monitor_dict = create_monitor_config()
         return _BlockingProcessor(
             ready,
             mock.Mock(), None,

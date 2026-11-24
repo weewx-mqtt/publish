@@ -18,6 +18,7 @@ from integhelpers import BROKER_HOST, MosquittoBroker, make_observer, random_str
 
 import user.mqttcommon
 import user.mqttpublish
+from user.tests.publish_helpers import create_monitor_config
 
 TOPIC = 'weewx/integ/reconnect'
 
@@ -36,15 +37,7 @@ def make_publisher(port):
         'min_delay': 1,
         'max_delay': 4,
     })
-    monitor_config = {
-        'monitor_queue': None,
-        'monitor_on_message': None,
-        'monitor_on_connect': None,
-        'monitor_on_disconnect': None,
-        'monitor_on_publish': None,
-        'monitor_record_update': None,
-        'monitor_on_weewx_data': None,
-    }
+    monitor_config = create_monitor_config()
     plugin_manager = types.SimpleNamespace(callbacks={
         'on_mqtt_connect': {'immediate': {}, 'delay': {}},
         'on_mqtt_disconnect': {'immediate': {}, 'delay': {}},
