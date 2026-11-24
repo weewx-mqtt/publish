@@ -25,6 +25,22 @@ import time
 import user.mqttpublish
 from user.tests.publish_helpers import create_monitor_config
 
+
+def create_processor(logger_queue, data_queue, *, weewx_dict=None, mqtt_config=None,
+                     monitor_config=None, topics_loop=None, topics_archive=None,
+                     plugins=None, manager_dict=None):
+    """ Build a QueueProcessor with the standard config dict and per-test overrides. """
+    return user.mqttpublish.QueueProcessor(
+        logger_queue, data_queue,
+        {'plugins': plugins if plugins is not None else {},
+         'weewx_dict': weewx_dict if weewx_dict is not None else {},
+         'manager_dict': manager_dict,
+         'mqtt_config': mqtt_config if mqtt_config is not None else {},
+         'monitor_config': monitor_config if monitor_config is not None else create_monitor_config(),
+         'topics_loop': topics_loop if topics_loop is not None else {},
+         'topics_archive': topics_archive if topics_archive is not None else {}})
+
+
 class TestQueueProcessor(unittest.TestCase):
     def test_update_record(self):
         mock_logger_queue = mock.Mock()
@@ -40,15 +56,13 @@ class TestQueueProcessor(unittest.TestCase):
 
         monitor_dict = create_monitor_config()
 
-        SUT = user.mqttpublish.QueueProcessor(mock_logger_queue,
-                                              data_queue,
-                                              {'plugins': {},
-                                               'weewx_dict': weewx_dict,
-                                               'manager_dict': None,
-                                               'mqtt_config': config,
-                                               'monitor_config': monitor_dict,
-                                               'topics_loop': topics_loop,
-                                               'topics_archive': topics_archive})
+        SUT = create_processor(mock_logger_queue,
+                               data_queue,
+                               weewx_dict=weewx_dict,
+                               mqtt_config=config,
+                               monitor_config=monitor_dict,
+                               topics_loop=topics_loop,
+                               topics_archive=topics_archive)
 
         field1 = helpers.random_string()
 
@@ -94,15 +108,7 @@ class TestQueueProcessor(unittest.TestCase):
 
         monitor_dict = create_monitor_config()
 
-        SUT = user.mqttpublish.QueueProcessor(mock_logger_queue,
-                                              None,
-                                              {'plugins': {},
-                                               'weewx_dict': weewx_dict,
-                                               'manager_dict': None,
-                                               'mqtt_config': {},
-                                               'monitor_config': monitor_dict,
-                                               'topics_loop': {},
-                                               'topics_archive': {}})
+        SUT = create_processor(mock_logger_queue, None, weewx_dict=weewx_dict, monitor_config=monitor_dict)
 
         field1 = helpers.random_string()
         now = 1000.0
@@ -157,15 +163,13 @@ class TestQueueProcessor(unittest.TestCase):
 
         monitor_dict = create_monitor_config()
 
-        SUT = user.mqttpublish.QueueProcessor(mock_logger_queue,
-                                              data_queue_mock,
-                                              {'plugins': {},
-                                               'weewx_dict': weewx_dict,
-                                               'manager_dict': None,
-                                               'mqtt_config': config,
-                                               'monitor_config': monitor_dict,
-                                               'topics_loop': topics_loop,
-                                               'topics_archive': topics_archive})
+        SUT = create_processor(mock_logger_queue,
+                               data_queue_mock,
+                               weewx_dict=weewx_dict,
+                               mqtt_config=config,
+                               monitor_config=monitor_dict,
+                               topics_loop=topics_loop,
+                               topics_archive=topics_archive)
 
         field1 = helpers.random_string()
 
@@ -211,15 +215,7 @@ class TestQueueProcessor(unittest.TestCase):
 
         monitor_dict = create_monitor_config()
 
-        SUT = user.mqttpublish.QueueProcessor(mock_logger_queue,
-                                              None,
-                                              {'plugins': {},
-                                               'weewx_dict': weewx_dict,
-                                               'manager_dict': None,
-                                               'mqtt_config': {},
-                                               'monitor_config': monitor_dict,
-                                               'topics_loop': {},
-                                               'topics_archive': {}})
+        SUT = create_processor(mock_logger_queue, None, weewx_dict=weewx_dict, monitor_config=monitor_dict)
 
         field1 = helpers.random_string()
         now = 1000.0
@@ -261,15 +257,7 @@ class TestQueueProcessor(unittest.TestCase):
 
         monitor_dict = create_monitor_config()
 
-        SUT = user.mqttpublish.QueueProcessor(mock_logger_queue,
-                                              None,
-                                              {'plugins': {},
-                                               'weewx_dict': weewx_dict,
-                                               'manager_dict': None,
-                                               'mqtt_config': {},
-                                               'monitor_config': monitor_dict,
-                                               'topics_loop': {},
-                                               'topics_archive': {}})
+        SUT = create_processor(mock_logger_queue, None, weewx_dict=weewx_dict, monitor_config=monitor_dict)
 
         field1 = helpers.random_string()
         now = 1000.0
@@ -316,15 +304,7 @@ class TestQueueProcessor(unittest.TestCase):
 
         monitor_dict = create_monitor_config()
 
-        SUT = user.mqttpublish.QueueProcessor(mock_logger_queue,
-                                              None,
-                                              {'plugins': {},
-                                               'weewx_dict': weewx_dict,
-                                               'manager_dict': None,
-                                               'mqtt_config': {},
-                                               'monitor_config': monitor_dict,
-                                               'topics_loop': {},
-                                               'topics_archive': {}})
+        SUT = create_processor(mock_logger_queue, None, weewx_dict=weewx_dict, monitor_config=monitor_dict)
 
         field1 = helpers.random_string()
         now = 1000.0
@@ -401,15 +381,7 @@ class TestQueueProcessor(unittest.TestCase):
             'wait_for_queue_element': 0.05,
         }
 
-        SUT = user.mqttpublish.QueueProcessor(mock_logger_queue,
-                                              data_queue,
-                                              {'plugins': {},
-                                               'weewx_dict': weewx_dict,
-                                               'manager_dict': None,
-                                               'mqtt_config': mqtt_config,
-                                               'monitor_config': monitor_dict,
-                                               'topics_loop': {},
-                                               'topics_archive': {}})
+        SUT = create_processor(mock_logger_queue, data_queue, weewx_dict=weewx_dict, mqtt_config=mqtt_config, monitor_config=monitor_dict)
 
         mock_publisher = mock.Mock()
         real_sleep = time.sleep
@@ -446,15 +418,7 @@ class TestQueueProcessor(unittest.TestCase):
             'wait_for_queue_element': 0.05,
         }
 
-        SUT = user.mqttpublish.QueueProcessor(mock_logger_queue,
-                                              data_queue,
-                                              {'plugins': {},
-                                               'weewx_dict': weewx_dict,
-                                               'manager_dict': None,
-                                               'mqtt_config': mqtt_config,
-                                               'monitor_config': monitor_dict,
-                                               'topics_loop': {},
-                                               'topics_archive': {}})
+        SUT = create_processor(mock_logger_queue, data_queue, weewx_dict=weewx_dict, mqtt_config=mqtt_config, monitor_config=monitor_dict)
 
         mock_publisher = mock.Mock()
         SUT.plugin_manager = mock.Mock()
@@ -486,15 +450,7 @@ class TestQueueProcessor(unittest.TestCase):
             'wait_for_queue_element': 0.05,
         }
 
-        SUT = user.mqttpublish.QueueProcessor(mock_logger_queue,
-                                              data_queue,
-                                              {'plugins': {},
-                                               'weewx_dict': weewx_dict,
-                                               'manager_dict': None,
-                                               'mqtt_config': mqtt_config,
-                                               'monitor_config': monitor_dict,
-                                               'topics_loop': {},
-                                               'topics_archive': {}})
+        SUT = create_processor(mock_logger_queue, data_queue, weewx_dict=weewx_dict, mqtt_config=mqtt_config, monitor_config=monitor_dict)
 
         mock_publisher = mock.Mock()
         SUT.plugin_manager = mock.Mock()
@@ -618,15 +574,7 @@ class TestPublishRecord(unittest.TestCase):
     def _make_processor():
         monitor_dict = create_monitor_config()
 
-        SUT = user.mqttpublish.QueueProcessor(mock.Mock(),
-                                              None,
-                                              {'plugins': {},
-                                               'weewx_dict': {},
-                                               'manager_dict': None,
-                                               'mqtt_config': {},
-                                               'monitor_config': monitor_dict,
-                                               'topics_loop': {},
-                                               'topics_archive': {}})
+        SUT = create_processor(mock.Mock(), None, monitor_config=monitor_dict)
         SUT.publisher = mock.Mock()
         return SUT
 
@@ -708,15 +656,7 @@ class TestPublishRow(unittest.TestCase):
     def _make_processor():
         monitor_dict = create_monitor_config()
 
-        SUT = user.mqttpublish.QueueProcessor(mock.Mock(),
-                                              None,
-                                              {'plugins': {},
-                                               'weewx_dict': {},
-                                               'manager_dict': None,
-                                               'mqtt_config': {},
-                                               'monitor_config': monitor_dict,
-                                               'topics_loop': {},
-                                               'topics_archive': {}})
+        SUT = create_processor(mock.Mock(), None, monitor_config=monitor_dict)
         SUT.publisher = mock.Mock()
         return SUT
 
@@ -820,15 +760,11 @@ class TestHandleQueueItem(unittest.TestCase):
         data_queue = mock.Mock()
         data_queue.qsize.return_value = 0
 
-        SUT = user.mqttpublish.QueueProcessor(mock.Mock(),
-                                              data_queue,
-                                              {'plugins': {},
-                                               'weewx_dict': {},
-                                               'manager_dict': None,
-                                               'mqtt_config': {},
-                                               'monitor_config': monitor_dict,
-                                               'topics_loop': topics_loop or {},
-                                               'topics_archive': topics_archive or {}})
+        SUT = create_processor(mock.Mock(),
+                               data_queue,
+                               monitor_config=monitor_dict,
+                               topics_loop=topics_loop or {},
+                               topics_archive=topics_archive or {})
         SUT.publisher = mock.Mock()
         return SUT
 
@@ -921,15 +857,7 @@ class TestOnWeewxData(unittest.TestCase):
     def _make_processor():
         monitor_dict = create_monitor_config(monitor_on_weewx_data='MONITOR')
 
-        SUT = user.mqttpublish.QueueProcessor(mock.Mock(),
-                                              None,
-                                              {'plugins': {},
-                                               'weewx_dict': {},
-                                               'manager_dict': None,
-                                               'mqtt_config': {},
-                                               'monitor_config': monitor_dict,
-                                               'topics_loop': {},
-                                               'topics_archive': {}})
+        SUT = create_processor(mock.Mock(), None, monitor_config=monitor_dict)
         SUT.publisher = mock.Mock()
         # Drop the "Initializing queue processor." entry logged by __init__ so the
         # assertions below see only what the method under test emits.
@@ -1029,15 +957,7 @@ class TestOnWeewxData(unittest.TestCase):
 class TestQueueProcessorSignalHandlers(unittest.TestCase):
     def _make_processor(self):
         monitor_dict = create_monitor_config()
-        return user.mqttpublish.QueueProcessor(
-            mock.Mock(), None,
-            {'plugins': {},
-             'weewx_dict': {},
-             'manager_dict': None,
-             'mqtt_config': {},
-             'monitor_config': monitor_dict,
-             'topics_loop': {},
-             'topics_archive': {}})
+        return create_processor(mock.Mock(), None, monitor_config=monitor_dict)
 
     def test_child_process_resets_signal_handlers(self):
         SUT = self._make_processor()
