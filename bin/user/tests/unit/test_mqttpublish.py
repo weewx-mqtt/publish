@@ -20,6 +20,37 @@ import weewx
 import helpers
 import user.mqttpublish
 
+@contextlib.contextmanager
+def configured_service():
+    """ A disabled service with its thread and logger patched; yields (service, engine). """
+    engine = mock.Mock()
+    config = configobj.ConfigObj({'MQTTPublish': {'enable': False}})
+    with mock.patch('user.mqttpublish.PublishWeeWXThread'):
+        with mock.patch('user.mqttcommon.Logger'):
+            yield user.mqttpublish.MQTTPublish(engine, config), engine
+
+
+def expected_topic_defaults(**overrides):
+    """ The default configured topic, with per-test overrides. """
+    defaults = {
+        'qos': 0,
+        'minimum_interval': 0,
+        'suppression_threshold': 0.0,
+        'retain': False,
+        'type': 'json',
+        'unit_system': 1,
+        'ignore': False,
+        'append_unit_label': True,
+        'conversion_type': 'string',
+        'round': None,
+        'format_string': None,
+        'fields': {},
+        'data_last_published': {},
+    }
+    defaults.update(overrides)
+    return defaults
+
+
 class TestMQTTConnectionOptions(unittest.TestCase):
     def test_defaults(self):
         options = user.mqttpublish.mqtt_connection_options({})
@@ -208,13 +239,6 @@ class TestConfigurePlugins(unittest.TestCase):
 
 class TestConfigureTopics(unittest.TestCase):
     def test_config_topics(self):
-        mock_engine = mock.Mock()
-        config_dict = {
-            'MQTTPublish': {
-                'enable': False,
-            }
-        }
-        config = configobj.ConfigObj(config_dict)
 
         topic1 = helpers.random_string()
         service_dict = {
@@ -224,41 +248,13 @@ class TestConfigureTopics(unittest.TestCase):
         }
         service_config = configobj.ConfigObj(service_dict)
 
-        with mock.patch('user.mqttpublish.PublishWeeWXThread'):
-            with mock.patch('user.mqttcommon.Logger'):
-                SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
-
-                topics_loop, topics_archive, _ = SUT.configure_topics(service_config)
-
-                expected_topics = {
-                    topic1: {
-                        'qos': 0,
-                        'minimum_interval': 0,
-                        'suppression_threshold': 0.0,
-                        'retain': False,
-                        'type': 'json',
-                        'unit_system': 1,
-                        'ignore': False,
-                        'append_unit_label': True,
-                        'conversion_type': 'string',
-                        'round': None,
-                        'format_string': None,
-                        'fields': {},
-                        'data_last_published': {},
-                    }
-                }
-
-                self.assertDictEqual(topics_loop, expected_topics)
-                self.assertDictEqual(topics_archive, expected_topics)
+        with configured_service() as (SUT, _):
+            topics_loop, topics_archive, _ = SUT.configure_topics(service_config)
+            expected_topics = {topic1: expected_topic_defaults()}
+            self.assertDictEqual(topics_loop, expected_topics)
+            self.assertDictEqual(topics_archive, expected_topics)
 
     def test_config_topics_with_fields(self):
-        mock_engine = mock.Mock()
-        config_dict = {
-            'MQTTPublish': {
-                'enable': False,
-            }
-        }
-        config = configobj.ConfigObj(config_dict)
 
         topic1 = helpers.random_string()
         field1 = helpers.random_string()
@@ -273,52 +269,24 @@ class TestConfigureTopics(unittest.TestCase):
         }
         service_config = configobj.ConfigObj(service_dict)
 
-        with mock.patch('user.mqttpublish.PublishWeeWXThread'):
-            with mock.patch('user.mqttcommon.Logger'):
-                SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
-
-                topics_loop, topics_archive, _ = SUT.configure_topics(service_config)
-
-                expected_topics = {
-                    topic1: {
-                        'qos': 0,
-                        'minimum_interval': 0,
-                        'suppression_threshold': 0.0,
-                        'retain': False,
-                        'type': 'json',
-                        'unit_system': 1,
-                        'ignore': False,
-                        'append_unit_label': True,
-                        'conversion_type': 'string',
-                        'round': None,
-                        'format_string': None,
-                        'data_last_published': {},
-                        'fields': {
-                            field1: {
-                                'name': field1,
-                                'unit': None,
-                                'ignore': False,
-                                'publish_none_value': False,
-                                'append_unit_label': True,
-                                'conversion_type': 'string',
-                                'round': None,
-                                'format_string': None
-                            }
-                        }
-                    }
+        with configured_service() as (SUT, _):
+            topics_loop, topics_archive, _ = SUT.configure_topics(service_config)
+            expected_topics = {topic1: expected_topic_defaults(fields={
+                field1: {
+                    'name': field1,
+                    'unit': None,
+                    'ignore': False,
+                    'publish_none_value': False,
+                    'append_unit_label': True,
+                    'conversion_type': 'string',
+                    'round': None,
+                    'format_string': None
                 }
-
-                self.assertDictEqual(topics_loop, expected_topics)
-                self.assertDictEqual(topics_archive, expected_topics)
+            })}
+            self.assertDictEqual(topics_loop, expected_topics)
+            self.assertDictEqual(topics_archive, expected_topics)
 
     def test_config_topics_with_field_defaults(self):
-        mock_engine = mock.Mock()
-        config_dict = {
-            'MQTTPublish': {
-                'enable': False,
-            }
-        }
-        config = configobj.ConfigObj(config_dict)
 
         topic1 = helpers.random_string()
         field1 = helpers.random_string()
@@ -345,56 +313,44 @@ class TestConfigureTopics(unittest.TestCase):
         }
         service_config = configobj.ConfigObj(service_dict)
 
-        with mock.patch('user.mqttpublish.PublishWeeWXThread'):
-            with mock.patch('user.mqttcommon.Logger'):
-                SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
-
-                topics_loop, topics_archive, _ = SUT.configure_topics(service_config)
-
-                expected_fields = {
-                    field1: {
-                        'name': field1,
-                        'unit': None,
-                        'ignore': False,
-                        'publish_none_value': True,
-                        'append_unit_label': False,
-                        'conversion_type': 'float',
-                        'round': 2,
-                        'format_string': '%s'
-                    },
-                    field2: {
-                        'name': field2,
-                        'unit': None,
-                        'ignore': True,
-                        'publish_none_value': True,
-                        'append_unit_label': False,
-                        'conversion_type': 'float',
-                        'round': 0,
-                        'format_string': '%s'
-                    }
+        with configured_service() as (SUT, _):
+            topics_loop, topics_archive, _ = SUT.configure_topics(service_config)
+            expected_fields = {
+                field1: {
+                    'name': field1,
+                    'unit': None,
+                    'ignore': False,
+                    'publish_none_value': True,
+                    'append_unit_label': False,
+                    'conversion_type': 'float',
+                    'round': 2,
+                    'format_string': '%s'
+                },
+                field2: {
+                    'name': field2,
+                    'unit': None,
+                    'ignore': True,
+                    'publish_none_value': True,
+                    'append_unit_label': False,
+                    'conversion_type': 'float',
+                    'round': 0,
+                    'format_string': '%s'
                 }
-
-                self.assertDictEqual(topics_loop[topic1]['fields'], expected_fields)
-                self.assertDictEqual(topics_archive[topic1]['fields'], expected_fields)
+            }
+            self.assertDictEqual(topics_loop[topic1]['fields'], expected_fields)
+            self.assertDictEqual(topics_archive[topic1]['fields'], expected_fields)
 
     def test_config_topics_requires_topics_stanza(self):
-        mock_engine = mock.Mock()
-        config = configobj.ConfigObj({'MQTTPublish': {'enable': False}})
 
         service_config = configobj.ConfigObj({})
 
-        with mock.patch('user.mqttpublish.PublishWeeWXThread'):
-            with mock.patch('user.mqttcommon.Logger'):
-                SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
-
-                with self.assertRaises(ValueError) as context:
-                    SUT.configure_topics(service_config)
+        with configured_service() as (SUT, _):
+            with self.assertRaises(ValueError) as context:
+                SUT.configure_topics(service_config)
 
         self.assertEqual(str(context.exception), "[[topics]] is required.")
 
     def test_config_topics_not_published(self):
-        mock_engine = mock.Mock()
-        config = configobj.ConfigObj({'MQTTPublish': {'enable': False}})
 
         topic1 = helpers.random_string()
         service_dict = {
@@ -406,19 +362,14 @@ class TestConfigureTopics(unittest.TestCase):
         }
         service_config = configobj.ConfigObj(service_dict)
 
-        with mock.patch('user.mqttpublish.PublishWeeWXThread'):
-            with mock.patch('user.mqttcommon.Logger'):
-                SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
-
-                topics_loop, topics_archive, binding = SUT.configure_topics(service_config)
+        with configured_service() as (SUT, _):
+            topics_loop, topics_archive, binding = SUT.configure_topics(service_config)
 
         self.assertDictEqual(topics_loop, {})
         self.assertDictEqual(topics_archive, {})
         self.assertEqual(list(binding), [])
 
     def test_config_topics_binding_excludes_archive(self):
-        mock_engine = mock.Mock()
-        config = configobj.ConfigObj({'MQTTPublish': {'enable': False}})
 
         topic1 = helpers.random_string()
         service_dict = {
@@ -430,19 +381,14 @@ class TestConfigureTopics(unittest.TestCase):
         }
         service_config = configobj.ConfigObj(service_dict)
 
-        with mock.patch('user.mqttpublish.PublishWeeWXThread'):
-            with mock.patch('user.mqttcommon.Logger'):
-                SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
-
-                topics_loop, topics_archive, binding = SUT.configure_topics(service_config)
+        with configured_service() as (SUT, _):
+            topics_loop, topics_archive, binding = SUT.configure_topics(service_config)
 
         self.assertIn(topic1, topics_loop)
         self.assertNotIn(topic1, topics_archive)
         self.assertEqual(list(binding), ['loop'])
 
     def test_config_topics_binding_excludes_loop(self):
-        mock_engine = mock.Mock()
-        config = configobj.ConfigObj({'MQTTPublish': {'enable': False}})
 
         topic1 = helpers.random_string()
         service_dict = {
@@ -454,19 +400,14 @@ class TestConfigureTopics(unittest.TestCase):
         }
         service_config = configobj.ConfigObj(service_dict)
 
-        with mock.patch('user.mqttpublish.PublishWeeWXThread'):
-            with mock.patch('user.mqttcommon.Logger'):
-                SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
-
-                topics_loop, topics_archive, binding = SUT.configure_topics(service_config)
+        with configured_service() as (SUT, _):
+            topics_loop, topics_archive, binding = SUT.configure_topics(service_config)
 
         self.assertNotIn(topic1, topics_loop)
         self.assertIn(topic1, topics_archive)
         self.assertEqual(list(binding), ['archive'])
 
     def test_config_topics_with_field_list_overrides(self):
-        mock_engine = mock.Mock()
-        config = configobj.ConfigObj({'MQTTPublish': {'enable': False}})
 
         topic1 = helpers.random_string()
         ignore_field = helpers.random_string()
@@ -481,11 +422,8 @@ class TestConfigureTopics(unittest.TestCase):
         }
         service_config = configobj.ConfigObj(service_dict)
 
-        with mock.patch('user.mqttpublish.PublishWeeWXThread'):
-            with mock.patch('user.mqttcommon.Logger'):
-                SUT = user.mqttpublish.MQTTPublish(mock_engine, config)
-
-                topics_loop, _, _ = SUT.configure_topics(service_config)
+        with configured_service() as (SUT, _):
+            topics_loop, _, _ = SUT.configure_topics(service_config)
 
         expected_fields = {
             ignore_field: {'ignore': True},
