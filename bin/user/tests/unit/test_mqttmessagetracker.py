@@ -20,6 +20,23 @@ import helpers
 import user.mqttmessagetracker
 import weedb
 
+
+def log_entries(queue):
+    """ The entries queued for logging. """
+    return [call[0][0] for call in queue.put.call_args_list]
+
+
+def log_texts(queue):
+    """ The message text of each queued log entry. """
+    return [entry['msg_text'] for entry in log_entries(queue)]
+
+
+def publishing_client(mid=11, rc=0):
+    """ A client mock whose publish acknowledges with a message id and result code. """
+    client = mock.Mock()
+    client.publish.return_value = mock.Mock(mid=mid, rc=rc)
+    return client
+
 TRACKED_TOPICS = ('topic', 'topic/one', 'topic/two', 'a', 'b', 'c', 'first', 'second', 'old', 'new')
 
 
@@ -408,7 +425,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
         plugin.shutdown()
 
         self.assertFalse(os.path.exists(database_path))
-        log_messages = [call[0][0] for call in logger_queue.put.call_args_list]
+        log_messages = log_entries(logger_queue)
         self.assertTrue(any(entry['log_type'] == 'ERROR' for entry in log_messages))
 
     def test_tracks_sent_and_arrived(self):
@@ -465,7 +482,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
         self.assertIsNone(rows[0]['arrived_ts'])
         self.assertIsNotNone(rows[0]['unconfirmed_ts'])
         self._wait_for_log(logger_queue, "the connection was lost")
-        messages = [call[0][0]['msg_text'] for call in logger_queue.put.call_args_list]
+        messages = log_texts(logger_queue)
         self.assertTrue(any(f"Row {rows[0]['id']} for topic is unconfirmed: "
                             "the connection was lost (mid 42)" in message
                             for message in messages))
@@ -500,8 +517,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
         rows = self._wait_for_rows(2)
         failed = [row for row in rows if row['payload'] == 'failed'][0]
 
-        client = mock.Mock()
-        client.publish.return_value = mock.Mock(mid=11, rc=0)
+        client = publishing_client()
         plugin.on_mqtt_connect(client, None, 0, 0, None)
 
         rows = self._wait_for_rows(3)
@@ -513,7 +529,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
         self.assertEqual(republished['payload'], 'failed')
 
         self._wait_for_log(logger_queue, republished['id'])
-        entries = [call[0][0] for call in logger_queue.put.call_args_list]
+        entries = log_entries(logger_queue)
         self.assertTrue(any(entry['log_type'] == 'INFO' and
                             'Republished 1 message(s) after the connection was established' in entry['msg_text'] and
                             f'0 failed (row {republished["id"]})' in entry['msg_text']
@@ -546,8 +562,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
         plugin.mqtt_publish(None, 4, 1, 'topic', 'failed-after', 1, False, 4)
         self._wait_for_rows(4)
 
-        client = mock.Mock()
-        client.publish.return_value = mock.Mock(mid=11, rc=0)
+        client = publishing_client()
         plugin.on_mqtt_connect(client, None, 0, 0, None)
 
         rows = self._wait_for_rows(5)
@@ -588,8 +603,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
         plugin.mqtt_publish(None, 1, 1, 'topic', 'failed', 1, False, 1)
         self._wait_for_rows(1)
 
-        client = mock.Mock()
-        client.publish.return_value = mock.Mock(mid=11, rc=0)
+        client = publishing_client()
         plugin.on_mqtt_connect(client, None, 0, 0, None)
         time.sleep(0.05)
         client.publish.assert_not_called()
@@ -605,8 +619,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
         plugin.mqtt_publish(None, 1, 1, 'topic', 'failed', 1, False, 1)
         self._wait_for_rows(1)
 
-        client = mock.Mock()
-        client.publish.return_value = mock.Mock(mid=11, rc=mqtt.MQTT_ERR_NO_CONN)
+        client = publishing_client(rc=mqtt.MQTT_ERR_NO_CONN)
         plugin.on_mqtt_connect(client, None, 0, 0, None)
 
         self._wait_for_log(logger_queue, "The connection was lost while republishing")
@@ -634,7 +647,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
 
         row = self._rows()[0]
         self._wait_for_log(logger_queue, row['id'])
-        entries = [call[0][0] for call in logger_queue.put.call_args_list]
+        entries = log_entries(logger_queue)
         self.assertTrue(any(entry['log_type'] == 'INFO' and
                             'Stored the failed publish of topic' in entry['msg_text'] and
                             f"as row {row['id']} (rc 1, mid 5)" in entry['msg_text']
@@ -646,14 +659,13 @@ class TestMQTTMessageTracker(unittest.TestCase):
         plugin.mqtt_publish(None, 1, 1, 'topic', 'failed', 1, False, 1)
         self._wait_for_rows(1)
 
-        client = mock.Mock()
-        client.publish.return_value = mock.Mock(mid=11, rc=1)
+        client = publishing_client(rc=1)
         plugin.on_mqtt_connect(client, None, 0, 0, None)
 
         rows = self._wait_for_rows(2)
         republish = [row for row in rows if row['origin_id']][0]
         self._wait_for_log(logger_queue, republish['id'])
-        entries = [call[0][0] for call in logger_queue.put.call_args_list]
+        entries = log_entries(logger_queue)
         self.assertTrue(any(entry['log_type'] == 'ERROR' and
                             'Failed to republish topic' in entry['msg_text'] and
                             f"rc 1; stored as row {republish['id']} (mid 11)" in entry['msg_text']
@@ -690,7 +702,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
         self.assertIsNone(rows[0]['arrived_ts'])
         self.assertGreaterEqual(rows[0]['unconfirmed_ts'], start)
         self.assertLessEqual(rows[0]['unconfirmed_ts'], end)
-        messages = [call[0][0]['msg_text'] for call in logger_queue.put.call_args_list]
+        messages = log_texts(logger_queue)
         self.assertTrue(any(f"Row {rows[0]['id']} for topic is unconfirmed: "
                             "no arrival was reported (mid 42)" in message
                             for message in messages))
@@ -707,7 +719,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
         self.assertIsNotNone(by_payload['payload-one']['unconfirmed_ts'])
         self.assertEqual(by_payload['payload-two']['status'], 'inflight')
         self._wait_for_log(logger_queue, "paho reused the message id")
-        messages = [call[0][0]['msg_text'] for call in logger_queue.put.call_args_list]
+        messages = log_texts(logger_queue)
         self.assertTrue(any(f"Row {by_payload['payload-one']['id']} for first is unconfirmed: "
                             "paho reused the message id (mid 42)" in message
                             for message in messages))
@@ -738,7 +750,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
         self.assertIsNotNone(leftover['unconfirmed_ts'])
         self.assertIsNone(leftover['arrived_ts'])
         self._wait_for_log(logger_queue, "it was left in flight by a previous run")
-        messages = [call[0][0]['msg_text'] for call in logger_queue.put.call_args_list]
+        messages = log_texts(logger_queue)
         self.assertTrue(any(f"Row {leftover['id']} for topic is unconfirmed: "
                             "it was left in flight by a previous run (mid 2)" in message
                             for message in messages))
@@ -862,7 +874,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
             publish_topics={'qos0': {'qos': 0}, 'qos1': {'qos': 1}})
 
         self.assertEqual(plugin.tracked_topics, {'qos1'})
-        messages = [call[0][0]['msg_text'] for call in logger_queue.put.call_args_list]
+        messages = log_texts(logger_queue)
         self.assertTrue(any('qos0' in message and 'qos 0' in message for message in messages))
 
     def test_qos_zero_individual_topic_is_not_tracked(self):
@@ -871,7 +883,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
             publish_topics={'weather': {'qos': 0, 'type': 'individual'}})
 
         self.assertEqual(plugin.tracked_topics, set())
-        messages = [call[0][0]['msg_text'] for call in logger_queue.put.call_args_list]
+        messages = log_texts(logger_queue)
         self.assertTrue(any('weather/outTemp_F' in message and 'qos 0' in message for message in messages))
 
     def test_qos_one_individual_topic_is_tracked(self):
@@ -927,7 +939,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
         plugin, logger_queue = self._make_plugin(topics=None)
 
         self.assertEqual(plugin.get_callbacks(), [])
-        log_messages = [call[0][0] for call in logger_queue.put.call_args_list]
+        log_messages = log_entries(logger_queue)
         self.assertTrue(any(entry['log_type'] == 'ERROR' and 'topics' in entry['msg_text']
                             for entry in log_messages))
 
@@ -935,7 +947,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
         plugin, logger_queue = self._make_plugin(topics={'off': {'enable': False}})
 
         self.assertEqual(plugin.get_callbacks(), [])
-        log_messages = [call[0][0] for call in logger_queue.put.call_args_list]
+        log_messages = log_entries(logger_queue)
         self.assertTrue(any(entry['log_type'] == 'ERROR' for entry in log_messages))
 
     def test_error_rows_are_pruned_by_error_retention(self):
@@ -943,14 +955,10 @@ class TestMQTTMessageTracker(unittest.TestCase):
         plugin.mqtt_publish(None, 1, 0, 'topic', 'payload', 0, False, 1)
         plugin.shutdown()
 
-        connection = weedb.connect(self.database_dict)
-        try:
-            plugin.tracker._prune(connection, time.time() + 10)  # pylint: disable=protected-access
-        finally:
-            connection.close()
+        self._prune(plugin, time.time() + 10)
 
         self.assertEqual(self._rows(), [])
-        log_messages = [call[0][0] for call in logger_queue.put.call_args_list]
+        log_messages = log_entries(logger_queue)
         self.assertFalse(any('Unable to prune' in entry['msg_text'] for entry in log_messages))
 
     def test_per_topic_error_retention_prunes_unconfirmed_rows(self):
@@ -961,11 +969,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
         plugin.mqtt_publish(None, 2, 0, 'long', 'payload', 0, False, 2)
         plugin.shutdown()
 
-        connection = weedb.connect(self.database_dict)
-        try:
-            plugin.tracker._prune(connection, time.time() + 10)  # pylint: disable=protected-access
-        finally:
-            connection.close()
+        self._prune(plugin, time.time() + 10)
 
         self.assertEqual([row['topic'] for row in self._rows()], ['long'])
 
@@ -976,11 +980,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
         rows = self._wait_for_rows(1)
         self.assertEqual(rows[0]['status'], 'inflight')
 
-        connection = weedb.connect(self.database_dict)
-        try:
-            plugin.tracker._prune(connection, time.time() + 10)  # pylint: disable=protected-access
-        finally:
-            connection.close()
+        self._prune(plugin, time.time() + 10)
 
         self.assertEqual(len(self._rows()), 1)
         plugin.shutdown()
@@ -990,11 +990,7 @@ class TestMQTTMessageTracker(unittest.TestCase):
         plugin.mqtt_publish(None, 1, 1, 'topic', 'payload', 0, False, 1)  # a failed publish
         plugin.shutdown()
 
-        connection = weedb.connect(self.database_dict)
-        try:
-            plugin.tracker._prune(connection, time.time() + 10)  # pylint: disable=protected-access
-        finally:
-            connection.close()
+        self._prune(plugin, time.time() + 10)
 
         self.assertEqual(self._rows(), [])
 
@@ -1002,21 +998,21 @@ class TestMQTTMessageTracker(unittest.TestCase):
         plugin, logger_queue = self._make_plugin({'table': 'bad name'})
 
         self.assertEqual(plugin.get_callbacks(), [])
-        log_messages = [call[0][0] for call in logger_queue.put.call_args_list]
+        log_messages = log_entries(logger_queue)
         self.assertTrue(any(entry['log_type'] == 'ERROR' for entry in log_messages))
 
     def test_unknown_binding_disables_plugin(self):
         plugin, logger_queue = self._make_plugin({'data_binding': 'missing'})
 
         self.assertEqual(plugin.get_callbacks(), [])
-        log_messages = [call[0][0] for call in logger_queue.put.call_args_list]
+        log_messages = log_entries(logger_queue)
         self.assertTrue(any(entry['log_type'] == 'ERROR' for entry in log_messages))
 
     def test_missing_binding_disables_plugin(self):
         plugin, logger_queue = self._make_plugin(set_binding=False)
 
         self.assertEqual(plugin.get_callbacks(), [])
-        log_messages = [call[0][0] for call in logger_queue.put.call_args_list]
+        log_messages = log_entries(logger_queue)
         self.assertTrue(any(entry['log_type'] == 'ERROR' and 'data_binding' in entry['msg_text']
                             for entry in log_messages))
 
