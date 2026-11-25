@@ -21,6 +21,35 @@ import user.mqttaggregatevalues
 
 import weewx
 
+
+def create_aggregate_config(topic, aggregate, period):
+    """ The plugin config and weewx dict shared by the update-record tests. """
+    plugin_dict = {
+        'topics': {
+            topic: {
+                aggregate: {
+                    'observation': helpers.random_string(),
+                    'aggregation': helpers.random_string(),
+                    'period': period
+                }
+            }
+        }
+    }
+    weewx_dict = {'stn_info': mock.Mock(), 'manager_dict': {}}
+    return plugin_dict, weewx_dict, configobj.ConfigObj(plugin_dict)
+
+
+def build_aggregate_plugin(mock_logger_queue, name, plugin_config, weewx_dict):
+    """ Construct the plugin with the standard collaborator arguments. """
+    return user.mqttaggregatevalues.MQTTAggregateValues(mock_logger_queue,
+                                                        None,
+                                                        name,
+                                                        plugin_config,
+                                                        None,
+                                                        {},
+                                                        weewx_dict)
+
+
 class Test_MQTTAggregateValues(unittest.TestCase):
     def test_update_record(self):
         mock_logger_queue = mock.Mock()
@@ -28,22 +57,7 @@ class Test_MQTTAggregateValues(unittest.TestCase):
         topic = helpers.random_string()
         period = helpers.random_string()
         aggregate = helpers.random_string()
-        plugin_dict = {
-            'topics': {
-                topic: {
-                    aggregate: {
-                        'observation': helpers.random_string(),
-                        'aggregation': helpers.random_string(),
-                        'period': period
-                    }
-                }
-            }
-        }
-        weewx_dict = {
-            'stn_info': mock.Mock(),
-            'manager_dict': {}
-        }
-        plugin_config = configobj.ConfigObj(plugin_dict)
+        _, weewx_dict, plugin_config = create_aggregate_config(topic, aggregate, period)
 
         with mock.patch('user.mqttaggregatevalues.TimeSpanProvider') as mock_timespan_provider:
             with mock.patch('user.mqttaggregatevalues.weewx.manager'):
@@ -53,13 +67,7 @@ class Test_MQTTAggregateValues(unittest.TestCase):
                     mock_xtype.get_aggregate.return_value = (aggregate_value, 'bar', 'foobar')
                     date_time = time.time()
 
-                    SUT = user.mqttaggregatevalues.MQTTAggregateValues(mock_logger_queue,
-                                                                       None,
-                                                                       name,
-                                                                       plugin_config,
-                                                                       None,
-                                                                       {},
-                                                                       weewx_dict)
+                    SUT = build_aggregate_plugin(mock_logger_queue, name, plugin_config, weewx_dict)
 
                     record = {
                         'dateTime': date_time
@@ -78,22 +86,7 @@ class Test_MQTTAggregateValues(unittest.TestCase):
         topic = helpers.random_string()
         period = helpers.random_string()
         aggregate = helpers.random_string()
-        plugin_dict = {
-            'topics': {
-                topic: {
-                    aggregate: {
-                        'observation': helpers.random_string(),
-                        'aggregation': helpers.random_string(),
-                        'period': period
-                    }
-                }
-            }
-        }
-        weewx_dict = {
-            'stn_info': mock.Mock(),
-            'manager_dict': {}
-        }
-        plugin_config = configobj.ConfigObj(plugin_dict)
+        _, weewx_dict, plugin_config = create_aggregate_config(topic, aggregate, period)
 
         with mock.patch('user.mqttaggregatevalues.TimeSpanProvider') as mock_timespan_provider:
             with mock.patch('user.mqttaggregatevalues.weewx.manager'):
@@ -102,13 +95,7 @@ class Test_MQTTAggregateValues(unittest.TestCase):
                     mock_xtype.get_aggregate.side_effect = weewx.CannotCalculate
                     date_time = time.time()
 
-                    SUT = user.mqttaggregatevalues.MQTTAggregateValues(mock_logger_queue,
-                                                                       None,
-                                                                       name,
-                                                                       plugin_config,
-                                                                       None,
-                                                                       {},
-                                                                       weewx_dict)
+                    SUT = build_aggregate_plugin(mock_logger_queue, name, plugin_config, weewx_dict)
 
                     record = {
                         'dateTime': date_time
@@ -126,22 +113,7 @@ class Test_MQTTAggregateValues(unittest.TestCase):
         topic = helpers.random_string()
         period = helpers.random_string()
         aggregate = helpers.random_string()
-        plugin_dict = {
-            'topics': {
-                topic: {
-                    aggregate: {
-                        'observation': helpers.random_string(),
-                        'aggregation': helpers.random_string(),
-                        'period': period
-                    }
-                }
-            }
-        }
-        weewx_dict = {
-            'stn_info': mock.Mock(),
-            'manager_dict': {}
-        }
-        plugin_config = configobj.ConfigObj(plugin_dict)
+        _, weewx_dict, plugin_config = create_aggregate_config(topic, aggregate, period)
 
         with mock.patch('user.mqttaggregatevalues.TimeSpanProvider') as mock_timespan_provider:
             with mock.patch('user.mqttaggregatevalues.weewx.manager'):
@@ -149,13 +121,7 @@ class Test_MQTTAggregateValues(unittest.TestCase):
                     mock_timespan_provider.return_value.period_timespans = [period]
                     mock_xtype.get_aggregate.side_effect = weewx.CannotCalculate
 
-                    SUT = user.mqttaggregatevalues.MQTTAggregateValues(mock_logger_queue,
-                                                                       None,
-                                                                       name,
-                                                                       plugin_config,
-                                                                       None,
-                                                                       {},
-                                                                       weewx_dict)
+                    SUT = build_aggregate_plugin(mock_logger_queue, name, plugin_config, weewx_dict)
 
                     callbacks = SUT.get_callbacks()
 
