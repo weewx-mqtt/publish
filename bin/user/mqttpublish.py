@@ -207,7 +207,7 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
         self.logger_queue = logger_queue
         self.plugin_manager = plugin_manager
         self.connected = False
-        self.inflight = {}
+        self.inflight = mqttcommon.PublishTracker()
         self.mqtt_logger = mqttcommon.PAHO_LOG_LEVELS
         self.name = self.__class__.__name__
 
@@ -337,24 +337,18 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
         if mqtt_message_info.rc != mqtt.MQTT_ERR_SUCCESS and not (
                 mqtt_message_info.rc == mqtt.MQTT_ERR_NO_CONN and qos > 0):
             return
-        self._prune_inflight()
-        self.inflight[mqtt_message_info.mid] = mqtt_message_info
+        self.inflight.add(mqtt_message_info)
 
     def _prune_inflight(self):
         """ Drop publishes paho has already confirmed. """
-        for mid, mqtt_message_info in list(self.inflight.items()):
-            try:
-                if mqtt_message_info.is_published():
-                    del self.inflight[mid]
-            except (ValueError, RuntimeError):
-                del self.inflight[mid]
+        self.inflight.prune()
 
     def wait_for_inflight_messages(self, timeout):
         """ Wait up to timeout seconds for paho to confirm in-flight publishes. """
-        if not timeout or timeout <= 0 or not self.inflight:
+        if not timeout or timeout <= 0 or not self.inflight.inflight:
             return
         deadline = time.time() + timeout
-        for mqtt_message_info in list(self.inflight.values()):
+        for mqtt_message_info in list(self.inflight.inflight.values()):
             remaining = deadline - time.time()
             if remaining <= 0:
                 break
@@ -362,7 +356,7 @@ class Publisher:  # pylint: disable=too-many-instance-attributes
                 mqtt_message_info.wait_for_publish(remaining)
             except (ValueError, RuntimeError):
                 pass
-        self.inflight.clear()
+        self.inflight.inflight.clear()
 
     def get_client(self, client_id, protocol):
         ''' Get the MQTT client. '''

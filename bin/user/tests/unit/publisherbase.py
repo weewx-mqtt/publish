@@ -688,7 +688,7 @@ class PublisherBase(unittest.TestCase):
 
         self.assertFalse(any(entry['log_type'] == 'ERROR' and topic in entry['msg_text']
                              for entry in log_messages))
-        self.assertEqual(SUT.inflight, {})
+        self.assertEqual(SUT.inflight.inflight, {})
 
     def test_publish_when_not_connected_above_qos_0(self):
         # Paho queues a QoS > 0 message and sends it after reconnecting, so nothing was lost.
@@ -696,7 +696,7 @@ class PublisherBase(unittest.TestCase):
 
         self.assertFalse(any(entry['log_type'] == 'ERROR' and topic in entry['msg_text']
                              for entry in log_messages))
-        self.assertEqual(len(SUT.inflight), 1)
+        self.assertEqual(len(SUT.inflight.inflight), 1)
 
     def test_publish_when_not_accepted(self):
         # A publish paho refuses for any reason other than the connection is logged, not raised.
@@ -704,7 +704,7 @@ class PublisherBase(unittest.TestCase):
 
         self.assertTrue(any(entry['log_type'] == 'ERROR' and topic in entry['msg_text']
                             for entry in log_messages))
-        self.assertEqual(SUT.inflight, {})
+        self.assertEqual(SUT.inflight.inflight, {})
 
     def test_publish_message_callbacks(self):
         mock_logger_queue = mock.Mock()
@@ -772,7 +772,7 @@ class PublisherBase(unittest.TestCase):
                 SUT.publish_message(random.randint(10, 10000), 0, False,
                                     helpers.random_string(), helpers.random_string())
 
-                self.assertIs(SUT.inflight[mid], mock_publish.return_value)
+                self.assertIs(SUT.inflight.inflight[mid], mock_publish.return_value)
 
     def test_wait_for_inflight_messages(self):
         mock_logger_queue = mock.Mock()
@@ -788,12 +788,13 @@ class PublisherBase(unittest.TestCase):
             mqtt_message_info = mock.Mock()
             mqtt_message_info.rc = paho.mqtt.client.MQTT_ERR_SUCCESS
             mqtt_message_info.is_published.return_value = False
-            SUT.inflight = {42: mqtt_message_info}
+            SUT.inflight = user.mqttcommon.PublishTracker()
+            SUT.inflight.inflight = {42: mqtt_message_info}
 
             SUT.wait_for_inflight_messages(5)
 
             mqtt_message_info.wait_for_publish.assert_called_once()
-            self.assertEqual(SUT.inflight, {})
+            self.assertEqual(SUT.inflight.inflight, {})
 
     def test_wait_for_inflight_messages_disabled(self):
         mock_logger_queue = mock.Mock()
@@ -807,7 +808,8 @@ class PublisherBase(unittest.TestCase):
                                         monitor_dict, api=self.api)
 
             mqtt_message_info = mock.Mock()
-            SUT.inflight = {42: mqtt_message_info}
+            SUT.inflight = user.mqttcommon.PublishTracker()
+            SUT.inflight.inflight = {42: mqtt_message_info}
 
             SUT.wait_for_inflight_messages(0)
 
