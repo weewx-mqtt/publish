@@ -31,6 +31,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Enhancements
 
+- Direct logging and the bounded in-flight drain now come from the shared `user.mqttcommon` (API 1.3).
 - Added a wait_for_inflight option, so shutdown can wait for paho to confirm in-flight messages.
 - Improved shutdown logic flow, with timeouts when stopping threads/processes.
 
